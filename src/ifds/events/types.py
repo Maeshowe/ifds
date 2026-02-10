@@ -1,0 +1,55 @@
+"""Event types for structured logging."""
+
+from enum import Enum
+
+
+class EventType(Enum):
+    """Pipeline event categories."""
+    # Pipeline lifecycle
+    PIPELINE_START = "PIPELINE_START"
+    PIPELINE_END = "PIPELINE_END"
+    PIPELINE_HALT = "PIPELINE_HALT"
+
+    # Phase lifecycle
+    PHASE_START = "PHASE_START"
+    PHASE_COMPLETE = "PHASE_COMPLETE"
+    PHASE_ERROR = "PHASE_ERROR"
+    PHASE_SKIP = "PHASE_SKIP"
+
+    # Diagnostics
+    PHASE_DIAGNOSTIC = "PHASE_DIAGNOSTIC"
+    API_HEALTH_CHECK = "API_HEALTH_CHECK"
+    CIRCUIT_BREAKER_CHECK = "CIRCUIT_BREAKER_CHECK"
+    MACRO_REGIME = "MACRO_REGIME"
+
+    # Decisions
+    REGIME_DECISION = "REGIME_DECISION"
+    TICKER_FILTERED = "TICKER_FILTERED"
+    TICKER_SCORED = "TICKER_SCORED"
+    SECTOR_VETO = "SECTOR_VETO"
+    GEX_EXCLUSION = "GEX_EXCLUSION"
+    POSITION_SIZED = "POSITION_SIZED"
+    CLIPPING_SKIP = "CLIPPING_SKIP"
+    FRESHNESS_BONUS = "FRESHNESS_BONUS"
+    EXECUTION_PLAN = "EXECUTION_PLAN"
+
+    # Universe Building (Phase 2)
+    UNIVERSE_BUILT = "UNIVERSE_BUILT"
+    EARNINGS_EXCLUSION = "EARNINGS_EXCLUSION"
+
+    # Data Loading
+    DATA_PREFETCH = "DATA_PREFETCH"
+
+    # Errors and Warnings
+    API_ERROR = "API_ERROR"
+    API_FALLBACK = "API_FALLBACK"
+    CONFIG_WARNING = "CONFIG_WARNING"
+
+
+class Severity(Enum):
+    """Event severity levels."""
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"

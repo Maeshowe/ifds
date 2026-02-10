@@ -1,0 +1,30 @@
+[project]
+name = "ifds-suite"
+version = "2.0.0a1"
+description = "IFDS — Institutional Flow Decision Suite + CONDUCTOR agent system"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.31.0",
+    "aiohttp>=3.9.0",
+    "colorama>=0.4.6",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.23",
+]
+freshness = [
+    "pandas>=2.0",
+    "pyarrow>=14.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

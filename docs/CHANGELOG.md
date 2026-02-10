@@ -1,0 +1,180 @@
+# IFDS v2.0 Changelog
+
+> Build Cycle BC1 → BC12 | 2026-02-06 – 2026-02-10
+
+---
+
+## BC12 — P3 Nice-to-haves (563 tests)
+
+**6 feature + 1 critical bug fix**
+
+- **Zero Gamma Interpolation**: Linearis interpolacio bracketing strike-ok kozott (`_find_zero_gamma()`)
+- **DTE Filter**: ≤90 DTE opciok GEX + PCR/OTM scoringhoz, <5 kontraktus fallback
+- **Call Wall ATR Filter**: `abs(call_wall - price) > 5×ATR` → call_wall nullazas
+- **Fat Finger Protection**: NaN guard, max_order_quantity=5000, exposure cap
+- **VIX EXTREME**: VIX > 50 → EXTREME regime, multiplier 0.10
+- **Institutional Ownership**: FMP inst ownership QoQ trend, +10/-5 funda bonus
+- **GEX sign fix**: Polygon put GEX signed convention (kivonva gex_by_strike-bol), `_find_zero_gamma()` fallback 0.0
+- Config: +4 TUNING, +1 RUNTIME kulcs
+- Tesztek: 34 uj (test_bc12_features.py)
+
+---
+
+## BC11 — P2 Robustness (530 tests)
+
+**4 feature: Circuit Breaker, Signal Dedup, GlobalGuard, VIX Sanity**
+
+- **Per-provider Circuit Breaker**: `ProviderCircuitBreaker` — CLOSED → OPEN (>30% error, 50 call window) → HALF_OPEN (60s cooldown) → CLOSED
+  - Integralt BaseAPIClient._get() es AsyncBaseAPIClient._get()-be
+  - Runner: 4 CB peldany (polygon, fmp, uw, fred) megosztva phase-ek kozott
+- **Signal Dedup**: SHA256(ticker|direction|date)[:16], state/signal_hashes.json, 24h TTL
+  - Phase 6: ellenorzes sizing elott, rogzites utana, mentes vegen
+- **VIX Sanity Check**: `_validate_vix()` — [5.0, 100.0] range, kivul → WARNING + default 20.0
+- **GlobalGuard Logging**: `[GLOBALGUARD]` prefix exposure elutasitasokhoz
+- Config: cb_window_size=50, cb_error_threshold=0.3, cb_cooldown_seconds=60, signal_hash_file
+- Tesztek: 38 uj (test_bc11_circuit_breaker.py + test_bc11_robustness.py)
+
+---
+
+## BC10 — dp_pct Fix + Buy Pressure VWAP (492 tests)
+
+**2 P1 feature: dp_pct recalculation, Buy Pressure + VWAP scoring**
+
+- **dp_pct fix**: `dp_volume / bars[-1]["v"] * 100` — Polygon volume mint nevezo (nem UW)
+  - dp_pct scoring: >40% → +10, >60% → +15
+- **Buy Pressure**: `(close - low) / (high - low)` — >0.7: +15, <0.3: -15
+- **VWAP scoring**: Polygon `vw` field, fallback `(H+L+C)/3`
+  - close > VWAP → +10, strong(>1%) → +5, close < VWAP → -5
+- FlowAnalysis: +3 mezo (dp_pct_score, vwap, buy_pressure_score)
+- Config: +7 TUNING kulcs
+- Tesztek: 15 uj (test_bc10_scoring.py)
+
+### Post-BC10 Fixes
+- Flow score cap [0, 100]
+- Clipping threshold 90 → 95
+- CSV flow cap fix
+
+---
+
+## BC9 — Options Flow + Shark + Tech Scoring (476 tests)
+
+**5 feature: PCR/OTM/Block scoring, Shark Detector, RSI Ideal Zone, SMA50, RS vs SPY**
+
+- **Options Flow**: PCR < 0.7 → +15, OTM > 40% → +10, Block >5 → +10, >20 → +15
+- **Shark Detector**: 2+ insider, 10 nap, $100K+ → +10 funda
+- **RSI Ideal Zone**: [45-65] → +30 (inner), [35-45)/(65-75] → +15 (outer), else → 0
+- **SMA50 bonus**: Price > SMA50 → +30
+- **RS vs SPY**: Ticker 3mo return > SPY 3mo → +40
+- Score range: 10-145 (flow), 50-150 (tech), 15-95 (funda), 55-110 (combined)
+- Config: +22 TUNING kulcs, sma_mid_period=50 (CORE)
+- Tesztek: 30 uj (test_bc9_scoring.py)
+
+### Post-BC9 Fixes
+- isEtf bug: `False` (bool) → `"false"` (string)
+- Tech score normalization: `min(100.0, original * bonus)`
+- Clipping 90, sector limit 3, score differentiation
+
+---
+
+## BC8 — Per-Sector BMI + MAP-IT Activation (446 tests)
+
+**Per-sector BMI values, sector_bmi_regime activation**
+
+- **FMP sector mapping**: `get_sector_mapping()` — single screener call, {ticker: sector}
+- **Per-sector BMI**: `_calculate_sector_bmi()` — SMA25 per sector from daily ratios
+- **Phase 3 integration**: `SectorScore.sector_bmi` populalva valos adattal
+- Existing `_apply_sector_bmi()` es `_apply_veto_matrix()` aktivalta
+- Config: `sector_bmi_min_signals=5`, `lookback_calendar_days=75`
+- Debug logging: PHASE_DIAGNOSTIC event type
+- Tesztek: 22 uj (test_sector_bmi.py)
+
+---
+
+## CLI Dashboard (392 tests)
+
+**Console output colorama-val**
+
+- `src/ifds/output/console.py` — 8 print fuggveny
+- Phase header, diagnostics, sector table, scan summary, GEX summary, final summary
+- Colorama graceful fallback (stub ha nincs installalva)
+- Wired runner.py-ban minden phase utan
+
+---
+
+## BC7 — Monitoring CSVs + File-based Caching (372 tests)
+
+**3 CSV output, FileCache**
+
+- **3 CSV**: execution_plan (18 col), full_scan_matrix (14 col), trade_plan (8 col)
+- **PositionSizing**: +4 mezo (sector_etf, sector_bmi, sector_regime, is_mean_reversion)
+- **FileCache**: `data/cache/{provider}/{endpoint}/{date}/{symbol}.json`
+  - Today never cached, atomic write (tempfile + os.replace)
+  - Config: cache_enabled, cache_dir, cache_max_age_days=7
+  - Minden sync + async client `cache=` param
+
+---
+
+## BC6 — Dark Pool Batch Fetch (340 tests)
+
+**882 per-ticker call → 15 paginated batch call (98% reduction)**
+
+- `/api/darkpool/recent` batch endpoint
+- `UWBatchDarkPoolProvider` (sync), `AsyncUWBatchDarkPoolProvider` (async)
+- `_aggregate_dp_records()` shared pure function
+- Pagination: `older_than` cursor
+- Config: dp_batch_max_pages=15, dp_batch_page_delay=0.5/0.3
+
+---
+
+## BC5 — Async Migration (299 tests)
+
+**Phase 4: 11.2 min → 2.4 min (4.6x speedup)**
+
+- `async_enabled=False` default, `IFDS_ASYNC_ENABLED=true`
+- Uj fajlok: async_base.py, async_clients.py, async_adapters.py
+- Phase 4/5: `_from_data()` pure-computation extraction
+- Per-provider semaphores: polygon=5, fmp=8, uw=5, max_tickers=10
+
+---
+
+## BC4 — Phase 6: Position Sizing + Output (266 tests)
+
+**Phase 6 implementation, Freshness Alpha, CSV output**
+
+- M_total = M_flow x M_insider x M_funda x M_gex x M_vix x M_utility, clamp [0.25, 2.0]
+- Stop = Entry - 1.5 x ATR, TP1 = call_wall or 2 x ATR, TP2 = 3 x ATR
+- Freshness Alpha: pandas optional, 1.5x multiplier, 90 nap lookback
+- Position limits: max 8, max 2/sector, gross $100K, ticker $20K
+- execution_plan CSV output
+
+---
+
+## BC3 — Phase 4-5: Stock Analysis + GEX (213 tests)
+
+**Individual stock analysis, GEX regime classification**
+
+- Phase 4: Technical (RSI, SMA200, ATR) + Fundamental (growth, metrics, insider) + Flow (RVOL, squat, DP)
+- Phase 5: GEX regime (POSITIVE/NEGATIVE/HIGH_VOL), FallbackGEXProvider (UW → Polygon)
+- Combined score = 0.40*flow + 0.30*funda + 0.30*tech + sector_adj
+
+---
+
+## BC2 — Phase 1-3: BMI + Universe + Sectors (123 tests)
+
+**Market regime, universe building, sector rotation**
+
+- Phase 1: BMI (Big Money Index) — volume spike detection, SMA25, regime classification
+- Phase 2: FMP screener universe, earnings exclusion, LONG/SHORT filtering
+- Phase 3: Sector momentum (11 ETFs), leader/laggard, VETO matrix, TNX sensitivity
+
+---
+
+## BC1 — Infrastructure + Phase 0 (51 tests)
+
+**Project foundation, Phase 0 diagnostics**
+
+- Config loader: CORE/TUNING/RUNTIME dicts, env var loading
+- Data layer: BaseAPIClient, Polygon/FMP/UW/FRED clients
+- Phase 0: Health checks, VIX 3-level fallback, TNX SMA20
+- EventLogger: Structured logging, phase_start/complete/error
+- Models: All dataclasses and enums in market.py
