@@ -27,8 +27,9 @@ venv/
 # macOS
 .DS_Store
 
-# Runtime / generated data (root level only)
+# Runtime / generated data
 /data/
+data/cache/
 /logs/
 /output/
 /state/
@@ -36,5 +37,5 @@ venv/
 # Reference (v13 source, not committed)
 /reference
 
-# Artifacts
-=0.4.6
+# Temp config files
+obsidian_on.json
