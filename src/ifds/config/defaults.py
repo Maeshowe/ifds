@@ -42,6 +42,24 @@ CORE = {
     "breadth_lookback_calendar_days": 330,           # ~220 trading days for SMA200 (with holiday buffer)
     "breadth_composite_weights": (0.20, 0.50, 0.30), # SMA20, SMA50, SMA200 weights
 
+    # OBSIDIAN MM — Market Microstructure (BC15)
+    "obsidian_window": 63,                             # Rolling baseline window (trading days)
+    "obsidian_min_periods": 21,                        # Min observations for z-score validity
+    "obsidian_feature_weights": {                      # Diagnostic weights (NOT tunable)
+        "dark_share": 0.25,
+        "gex": 0.25,
+        "venue_mix": 0.20,                             # Excluded (no data), weight preserved
+        "block_intensity": 0.15,
+        "iv_rank": 0.15,
+    },
+    "obsidian_z_gex_threshold": 1.5,                   # ±1.5 for Γ⁺/Γ⁻ (~93rd percentile)
+    "obsidian_z_dex_threshold": 1.0,                   # ±1.0 for ABS/DIST (~84th percentile)
+    "obsidian_z_block_threshold": 1.0,                 # +1.0 for DD (~84th percentile)
+    "obsidian_dark_share_dd": 0.70,                    # DarkShare absolute for DD rule
+    "obsidian_dark_share_abs": 0.50,                   # DarkShare absolute for ABS rule
+    "obsidian_return_abs": -0.005,                     # Daily return threshold for ABS (≥ -0.5%)
+    "obsidian_return_dist": 0.005,                     # Daily return threshold for DIST (≤ +0.5%)
+
     # Freshness Alpha
     "freshness_lookback_days": 90,     # Days before signal is "fresh"
     "freshness_bonus": 1.5,            # Score multiplier for fresh signals
@@ -250,6 +268,19 @@ TUNING = {
         "XLRE": (9, 85),   # Real Estate
         "XLU": (15, 75),   # Utilities
     },
+
+    # OBSIDIAN MM (BC15)
+    "obsidian_enabled": False,                         # Feature flag (opt-in)
+    "obsidian_store_always_collect": True,             # Accumulate feature store even when disabled
+    "obsidian_regime_multipliers": {                   # Phase 6 sizing multipliers per regime
+        "gamma_positive": 1.5,
+        "gamma_negative": 0.25,
+        "dark_dominant": 1.25,
+        "absorption": 1.0,
+        "distribution": 0.5,
+        "neutral": 1.0,
+        "undetermined": 0.75,
+    },
 }
 
 # ============================================================================
@@ -330,6 +361,10 @@ RUNTIME = {
     "max_daily_notional": 200_000,
     "max_position_notional": 25_000,
     "daily_notional_file": "state/daily_notional.json",
+
+    # OBSIDIAN Feature Store (BC15)
+    "obsidian_store_dir": "state/obsidian",
+    "obsidian_max_store_entries": 100,
 
     # Output
     "output_dir": "output",

@@ -3,7 +3,7 @@
 > Generálva a `src/ifds/` forráskódból, 2026-02-11.
 > Minden képlet, küszöbérték és logika a **ténylegesen implementált kódból** van kiolvasva.
 > Konfigurációs értékek forrása: `src/ifds/config/defaults.py`
-> Frissítve: BC14 után (636 teszt)
+> Frissítve: BC15 után (686 teszt)
 
 ---
 
@@ -833,16 +833,16 @@ combined *= insider_multiplier
 
 ---
 
-## Phase 5 — GEX Analysis
+## Phase 5 — GEX Analysis + OBSIDIAN MM
 
-**Forrás**: `src/ifds/phases/phase5_gex.py`, `src/ifds/data/adapters.py`
+**Forrás**: `src/ifds/phases/phase5_gex.py`, `src/ifds/phases/phase5_obsidian.py`, `src/ifds/data/adapters.py`
 
 ### Mit csinál?
 
-Gamma Exposure elemzés a Phase 4-ből átjutott tickerekre (top 100).
+Gamma Exposure elemzés a Phase 4-ből átjutott tickerekre (top 100), opcionálisan OBSIDIAN MM mikrostruktúra diagnózissal kiegészítve (BC15).
 
-**Input**: list[StockAnalysis] (top 100 by combined_score), UW per-strike GEX / Polygon options chain
-**Output**: `Phase5Result` → `list[GEXAnalysis]` regime-mel és multiplierrel
+**Input**: list[StockAnalysis] (top 100 by combined_score), UW per-strike GEX / Polygon options chain, Polygon client (OBSIDIAN-hoz)
+**Output**: `Phase5Result` → `list[GEXAnalysis]` regime-mel és multiplierrel, `list[ObsidianAnalysis]` (ha enabled/collect)
 
 ### Adatforrás — Fallback Lánc
 
@@ -986,6 +986,105 @@ Ha sem UW, sem Polygon nem ad adatot:
   multiplier = 1.0
   data_source = "none"
   ticker ÁTMEGY
+```
+
+### OBSIDIAN MM — Market Microstructure Diagnostic (BC15)
+
+**Forrás**: `src/ifds/phases/phase5_obsidian.py`, `src/ifds/data/obsidian_store.py`
+
+OBSIDIAN a 3-regime GEX multipliert (POSITIVE/NEGATIVE/HIGH_VOL) lecseréli 7-regime mikrostruktúra diagnózisra. A GEX strukturális adatok (call_wall, put_wall, zero_gamma) megmaradnak a Phase 6 TP targetekhez.
+
+#### Aktiváció
+
+```
+obsidian_enabled = False (default) → GEX-only mód (BC14 kompatibilis)
+obsidian_store_always_collect = True → feature store akkumuláció MINDIG fut
+```
+
+- Ha `obsidian_enabled=False` ÉS `always_collect=True`: GEX multiplier használva, de feature store írva (cold start eliminálás)
+- Ha `obsidian_enabled=True`: OBSIDIAN multiplier felülírja `gex_analysis.gex_multiplier`-t
+
+#### Feature Extraction (no new API calls)
+
+| Feature | Forrás | Típus |
+|---------|--------|-------|
+| DarkShare | `flow.dark_pool_pct / 100` | Microstructure (store) |
+| GEX | `gex_data["net_gex"]` | Microstructure (store) |
+| DEX | Polygon options `Σ(delta × OI × 100)` call - put | Microstructure (store) |
+| Block Intensity | `flow.block_trade_count` | Microstructure (store) |
+| IV Rank | Polygon options ATM IV (strike ±5% of price) | Microstructure (store) |
+| Efficiency | `(H - L) / V` from bars (250d) | Price-based (bars) |
+| Impact | `|C - O| / V` from bars (250d) | Price-based (bars) |
+| Daily Return | `(C - C_prev) / C_prev` | Price-based (bars) |
+| Venue Mix | ✗ NOT available (permanently excluded) | — |
+
+#### Feature Store
+
+```
+state/obsidian/{TICKER}.json — per-ticker JSON array
+  [{date, dark_share, gex, dex, block_count, iv_rank, efficiency, impact, daily_return, raw_score}, ...]
+
+Max 100 entry, atomic write (tempfile + os.replace)
+Date dedup: ugyanaz a dátum → replace
+```
+
+#### Z-Score Számítás
+
+```
+Price features (Efficiency, Impact):
+  Z = (X_today - mean(bar_series[-63:])) / std(bar_series[-63:])
+  → 250 bar elérhető Day 1 → z-score AZONNAL aktív
+
+Microstructure features (GEX, DEX, DarkShare, Block, IV):
+  Z = (X_today - mean(store_history[-63:])) / std(store_history[-63:])
+  → min_periods = 21 kell → z-score CSAK ~21 futás után aktív
+  → std == 0 → z_score = None (skip)
+```
+
+#### Baseline State
+
+```
+EMPTY:    nincs store history → UND regime
+PARTIAL:  néhány feature-nek van z-score, néhánynak nincs
+COMPLETE: minden feature-nek van ≥ min_periods history
+```
+
+#### 7 Regime Klasszifikáció (prioritás sorrend — első match nyer)
+
+| # | Regime | Szabály | Multiplier |
+|---|--------|---------|-----------|
+| 1 | **Γ⁺** (gamma_positive) | Z_GEX > +1.5 ÉS efficiency < median(63d) | **1.50** |
+| 2 | **Γ⁻** (gamma_negative) | Z_GEX < -1.5 ÉS impact > median(63d) | **0.25** |
+| 3 | **DD** (dark_dominant) | dark_share > 0.70 ÉS Z_block > +1.0 | **1.25** |
+| 4 | **ABS** (absorption) | Z_DEX < -1.0 ÉS return ≥ -0.5% ÉS dark_share > 0.50 | **1.00** |
+| 5 | **DIST** (distribution) | Z_DEX > +1.0 ÉS return ≤ +0.5% | **0.50** |
+| 6 | **NEU** (neutral) | Nincs szabály match | **1.00** |
+| 7 | **UND** (undetermined) | Baseline EMPTY | **0.75** |
+
+- Γ⁻ + LONG → ticker KIZÁRVA (replaces GEX NEGATIVE exclusion)
+- Konfig: `obsidian_regime_multipliers` dict TUNING-ban
+
+#### Unusualness Score
+
+```
+S = Σ(w_k × |z_k|) ahol k = valid features (venue_mix excluded)
+U = PercentileRank(S | historical raw_scores) × 100
+Ha nincs history: U = min(S × 20, 100) (linear mapping)
+```
+
+- U ∈ [0, 100], stored on PositionSizing.unusualness_score
+- Max effective weight = 0.80 (venue_mix 0.20 excluded, NO renormalization)
+
+#### Cold Start Viselkedés
+
+```
+Day 1-20: Baseline EMPTY → UND (mult 0.75)
+  Price features (efficiency, impact) z-score aktív (250 bars)
+  Microstructure features z-score = None
+  DD rule tüzelhet (absolute dark_share > 0.70 threshold)
+
+Day 21+: Baseline PARTIAL/COMPLETE → full classification
+  Minden z-score aktív → Γ⁺/Γ⁻/ABS/DIST rules tüzelhetnek
 ```
 
 ---
@@ -1327,14 +1426,19 @@ Phase 4: Stock Analysis (szinkron: ~12 min, async: ~2 min)
   │ Combined = 0.40×flow + 0.30×funda + 0.30×tech + sector_adj × insider_mult
   │ Szűrők: SMA200, min_score=70, clipping=95
   ↓ list[StockAnalysis] (passed, score 70–95)
-Phase 5: GEX
+Phase 5: GEX + OBSIDIAN MM
   │ Top 100 ticker × UW per-strike GEX (→ Polygon fallback, DTE ≤90)
   │ Per-strike GEX → net_gex, call_wall, put_wall, zero_gamma (interpolált)
   │ Put GEX signed (negatív — BC12 fix)
   │ Call wall ATR filter: |CW - price| > 5×ATR → zeroed
-  │ Regime: POSITIVE (1.0) / HIGH_VOL (0.6) / NEGATIVE (0.5)
-  │ NEGATIVE + LONG → KIZÁR
-  ↓ list[GEXAnalysis]
+  │ GEX Regime: POSITIVE (1.0) / HIGH_VOL (0.6) / NEGATIVE (0.5)
+  │ OBSIDIAN MM (BC15, ha enabled/always_collect):
+  │   Feature extraction → z-score → 7-regime classification
+  │   Γ⁺(1.5)/Γ⁻(0.25)/DD(1.25)/ABS(1.0)/DIST(0.5)/NEU(1.0)/UND(0.75)
+  │   Override: gex_multiplier ← obsidian_regime_multiplier
+  │   Γ⁻ + LONG → KIZÁR (replaces NEGATIVE exclusion)
+  │   Feature store always accumulates (cold start elimination)
+  ↓ list[GEXAnalysis] + list[ObsidianAnalysis]
 Phase 2: Universe (cont.)
   │ Survivorship Bias (BC13): universe snapshot mentés + diff logging
   ↓
@@ -1387,6 +1491,16 @@ Phase 6: Position Sizing
 | `breadth_sma_periods` | [20, 50, 200] | Breadth SMA periódusok (BC14) |
 | `breadth_lookback_calendar_days` | 330 | Lookback ha breadth enabled (BC14) |
 | `breadth_composite_weights` | (0.20, 0.50, 0.30) | SMA20/50/200 súlyok (BC14) |
+| `obsidian_window` | 63 | Rolling baseline ablak (BC15) |
+| `obsidian_min_periods` | 21 | Min observations z-score-hoz (BC15) |
+| `obsidian_feature_weights` | {0.25, 0.25, 0.20, 0.15, 0.15} | Feature súlyok (BC15) |
+| `obsidian_z_gex_threshold` | 1.5 | Γ⁺/Γ⁻ z-score küszöb (BC15) |
+| `obsidian_z_dex_threshold` | 1.0 | ABS/DIST z-score küszöb (BC15) |
+| `obsidian_z_block_threshold` | 1.0 | DD z-score küszöb (BC15) |
+| `obsidian_dark_share_dd` | 0.70 | DD DarkShare küszöb (BC15) |
+| `obsidian_dark_share_abs` | 0.50 | ABS DarkShare küszöb (BC15) |
+| `obsidian_return_abs` | -0.005 | ABS return küszöb (BC15) |
+| `obsidian_return_dist` | 0.005 | DIST return küszöb (BC15) |
 
 ### TUNING (operátor állítható)
 
@@ -1441,6 +1555,9 @@ Phase 6: Position Sizing
 | `rs_spy_bonus` | 40 | RS vs SPY bonus (BC9) |
 | `call_wall_max_atr_distance` | 5.0 | Call wall ATR filter (BC12) |
 | `gex_max_dte` | 90 | Max DTE opciókra (BC12) |
+| `obsidian_enabled` | False | OBSIDIAN klasszifikáció (BC15) |
+| `obsidian_store_always_collect` | True | Feature store mindig ír (BC15) |
+| `obsidian_regime_multipliers` | {7 regime → mult} | Per-regime multiplier (BC15) |
 
 ### RUNTIME (környezet-specifikus)
 
@@ -1473,3 +1590,5 @@ Phase 6: Position Sizing
 | `max_daily_notional` | 200,000 | Napi notional cap (BC13) |
 | `max_position_notional` | 25,000 | Per-pozíció notional cap (BC13) |
 | `daily_notional_file` | state/daily_notional.json | Notional counter state (BC13) |
+| `obsidian_store_dir` | state/obsidian | Feature store mappa (BC15) |
+| `obsidian_max_store_entries` | 100 | Max entry per ticker (BC15) |

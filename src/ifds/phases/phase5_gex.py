@@ -19,6 +19,8 @@ from ifds.events.types import EventType, Severity
 from ifds.models.market import (
     GEXAnalysis,
     GEXRegime,
+    MMRegime,
+    ObsidianAnalysis,
     Phase5Result,
     StockAnalysis,
     StrategyMode,
@@ -28,7 +30,8 @@ from ifds.models.market import (
 def run_phase5(config: Config, logger: EventLogger,
                gex_provider: GEXProvider,
                stock_analyses: list[StockAnalysis],
-               strategy_mode: StrategyMode) -> Phase5Result:
+               strategy_mode: StrategyMode,
+               polygon=None) -> Phase5Result:
     """Execute Phase 5: GEX Regime Analysis.
 
     Args:
@@ -37,6 +40,7 @@ def run_phase5(config: Config, logger: EventLogger,
         gex_provider: GEX data provider (FallbackGEXProvider).
         stock_analyses: Passed candidates from Phase 4.
         strategy_mode: LONG or SHORT from Phase 1.
+        polygon: Polygon client for OBSIDIAN (cached bars/options). BC15.
 
     Returns:
         Phase5Result with GEX-filtered candidates.
@@ -48,6 +52,20 @@ def run_phase5(config: Config, logger: EventLogger,
 
     start_time = time.monotonic()
     logger.phase_start(5, "GEX Analysis", input_count=len(stock_analyses))
+
+    # OBSIDIAN MM setup (BC15)
+    obsidian_enabled = config.tuning.get("obsidian_enabled", False)
+    always_collect = config.tuning.get("obsidian_store_always_collect", True)
+    should_run_obsidian = (obsidian_enabled or always_collect) and polygon is not None
+    obsidian_store = None
+    obsidian_analyses: list[ObsidianAnalysis] = []
+
+    if should_run_obsidian:
+        from ifds.data.obsidian_store import ObsidianStore
+        from ifds.phases.phase5_obsidian import run_obsidian_analysis
+        store_dir = config.runtime.get("obsidian_store_dir", "state/obsidian")
+        max_entries = config.runtime.get("obsidian_max_store_entries", 100)
+        obsidian_store = ObsidianStore(store_dir=store_dir, max_entries=max_entries)
 
     try:
         # Take top 100 candidates by combined_score
@@ -78,6 +96,25 @@ def run_phase5(config: Config, logger: EventLogger,
                     gex_multiplier=config.tuning["gex_positive_multiplier"],
                     data_source="none",
                 )
+                # OBSIDIAN still runs even without GEX data (BC15)
+                if should_run_obsidian and obsidian_store is not None:
+                    try:
+                        bars = polygon.get_aggregates(
+                            ticker, multiplier=1, timespan="day",
+                            from_date="", to_date="", limit=250,
+                        )
+                        options = polygon.get_options_snapshot(ticker)
+                        obs = run_obsidian_analysis(
+                            config.core, config.tuning,
+                            ticker, bars, options, stock, None, obsidian_store,
+                        )
+                        obs.gex_regime = GEXRegime.POSITIVE
+                        obs.data_source = "none"
+                        if obsidian_enabled:
+                            gex_analysis.gex_multiplier = obs.regime_multiplier
+                        obsidian_analyses.append(obs)
+                    except Exception:
+                        pass
                 analyzed.append(gex_analysis)
                 passed.append(gex_analysis)
                 continue
@@ -125,22 +162,69 @@ def run_phase5(config: Config, logger: EventLogger,
                 data_source=source,
             )
 
-            # NEGATIVE regime → excluded in LONG strategy
-            if regime == GEXRegime.NEGATIVE and strategy_mode == StrategyMode.LONG:
-                gex_analysis.excluded = True
-                gex_analysis.exclusion_reason = "negative_gex_long"
+            # OBSIDIAN MM analysis (BC15)
+            obsidian = None
+            if should_run_obsidian and obsidian_store is not None:
+                try:
+                    bars = polygon.get_aggregates(
+                        ticker, multiplier=1, timespan="day",
+                        from_date="", to_date="", limit=250,
+                    )
+                    options = polygon.get_options_snapshot(ticker)
+                    obsidian = run_obsidian_analysis(
+                        config.core, config.tuning,
+                        ticker, bars, options, stock, gex_data, obsidian_store,
+                    )
+                    # Carry GEX structural data
+                    obsidian.call_wall = call_wall
+                    obsidian.put_wall = put_wall
+                    obsidian.zero_gamma = zero_gamma
+                    obsidian.net_gex = net_gex
+                    obsidian.gex_regime = regime
+                    obsidian.data_source = source
+
+                    if obsidian_enabled:
+                        gex_analysis.gex_multiplier = obsidian.regime_multiplier
+
+                    obsidian_analyses.append(obsidian)
+                except Exception as obs_err:
+                    logger.log(
+                        EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=5,
+                        ticker=ticker,
+                        message=f"[OBSIDIAN] {ticker} analysis failed: {obs_err}",
+                    )
+
+            # Exclusion decision
+            excluded_this = False
+            if obsidian_enabled and obsidian is not None:
+                # OBSIDIAN Γ⁻ exclusion replaces GEX NEGATIVE exclusion
+                if obsidian.mm_regime == MMRegime.GAMMA_NEGATIVE and strategy_mode == StrategyMode.LONG:
+                    gex_analysis.excluded = True
+                    gex_analysis.exclusion_reason = "gamma_negative_long"
+                    obsidian.excluded = True
+                    obsidian.exclusion_reason = "gamma_negative_long"
+                    excluded_this = True
+            else:
+                # Original GEX NEGATIVE exclusion
+                if regime == GEXRegime.NEGATIVE and strategy_mode == StrategyMode.LONG:
+                    gex_analysis.excluded = True
+                    gex_analysis.exclusion_reason = "negative_gex_long"
+                    excluded_this = True
+
+            if excluded_this:
                 excluded_count += 1
                 negative_count += 1
                 logger.log(
                     EventType.GEX_EXCLUSION, Severity.INFO, phase=5,
                     ticker=ticker,
                     message=(
-                        f"{ticker} NEGATIVE GEX regime — excluded in LONG mode "
+                        f"{ticker} excluded in LONG mode "
                         f"(price={current_price:.2f}, zero_gamma={zero_gamma:.2f})"
                     ),
                     data={
                         "ticker": ticker,
                         "regime": regime.value,
+                        "mm_regime": obsidian.mm_regime.value if obsidian else "",
                         "price": current_price,
                         "zero_gamma": zero_gamma,
                         "net_gex": net_gex,
@@ -158,19 +242,30 @@ def run_phase5(config: Config, logger: EventLogger,
             passed=passed,
             excluded_count=excluded_count,
             negative_regime_count=negative_count,
+            obsidian_analyses=obsidian_analyses,
+            obsidian_enabled=obsidian_enabled,
         )
+
+        obsidian_msg = ""
+        if obsidian_analyses:
+            regime_counts: dict[str, int] = {}
+            for o in obsidian_analyses:
+                regime_counts[o.mm_regime.value] = regime_counts.get(o.mm_regime.value, 0) + 1
+            obsidian_msg = f" | OBSIDIAN: {dict(sorted(regime_counts.items()))}"
 
         logger.log(
             EventType.PHASE_COMPLETE, Severity.INFO, phase=5,
             message=(
                 f"GEX analyzed {len(analyzed)} → Passed {len(passed)} "
                 f"(excluded={excluded_count}, negative={negative_count})"
+                f"{obsidian_msg}"
             ),
             data={
                 "analyzed": len(analyzed),
                 "passed": len(passed),
                 "excluded": excluded_count,
                 "negative": negative_count,
+                "obsidian_count": len(obsidian_analyses),
             },
         )
 

@@ -334,6 +334,16 @@ def print_gex_summary(result: Phase5Result) -> None:
     print(f"  Analyzed: {total}  |  "
           f"{Fore.GREEN}Passed: {passed}{Style.RESET_ALL}  |  "
           f"{Fore.RED}Excluded (NEGATIVE regime): {result.negative_regime_count}{Style.RESET_ALL}")
+
+    # OBSIDIAN MM regime distribution (BC15)
+    if result.obsidian_analyses:
+        regime_counts: dict[str, int] = {}
+        for o in result.obsidian_analyses:
+            regime_counts[o.mm_regime.value] = regime_counts.get(o.mm_regime.value, 0) + 1
+        parts = [f"{k}={v}" for k, v in sorted(regime_counts.items())]
+        label = "OBSIDIAN" if result.obsidian_enabled else "OBSIDIAN (collect-only)"
+        print(f"  {label}: {' | '.join(parts)}")
+
     print(_SEP)
 
 

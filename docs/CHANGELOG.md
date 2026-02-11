@@ -1,6 +1,37 @@
 # IFDS v2.0 Changelog
 
-> Build Cycle BC1 → BC14 | 2026-02-06 – 2026-02-11
+> Build Cycle BC1 → BC15 | 2026-02-06 – 2026-02-11
+
+---
+
+## BC15 — OBSIDIAN MM Integration (686 tests)
+
+**Phase 5 upgrade: 7-regime market microstructure diagnostic engine**
+
+- **OBSIDIAN Engine**: `phases/phase5_obsidian.py` (~300 lines)
+  - Deterministic, priority-ordered regime classification from z-scored microstructure features
+  - 7 features from existing data (no new API calls): DarkShare, GEX, DEX, Block Intensity, IV Rank, Efficiency, Impact
+  - DEX (Dealer Delta Exposure): `Σ(delta × OI × 100)` from Polygon options snapshot
+  - IV Rank: average ATM implied volatility (strike within 5% of price)
+  - Pure Python statistics (mean, std, z-score, median) — no pandas dependency
+- **7 MM Regimes**: Γ⁺ (gamma_positive), Γ⁻ (gamma_negative), DD (dark_dominant), ABS (absorption), DIST (distribution), NEU (neutral), UND (undetermined)
+  - Priority-ordered: first matching rule wins
+  - Regime multipliers: Γ⁺=1.5, Γ⁻=0.25, DD=1.25, ABS=1.0, DIST=0.5, NEU=1.0, UND=0.75
+- **Feature Store**: `data/obsidian_store.py` — per-ticker JSON persistence (`state/obsidian/{TICKER}.json`)
+  - Atomic writes (tempfile + os.replace), max 100 entries, date dedup
+  - `obsidian_store_always_collect=True`: accumulates features even when OBSIDIAN classification disabled
+  - Rolling baseline: W=63 days, N_min=21 for z-score validity
+- **Unusualness Score**: U ∈ [0, 100] — weighted |Z| sum → percentile rank
+- **Cold Start**: UND/NEU for first 21 runs → progressively activates as store fills
+- **Phase 5 Integration**: OBSIDIAN overrides `gex_analysis.gex_multiplier` → Phase 6 picks it up transparently
+  - Γ⁻ + LONG → excluded (replaces GEX NEGATIVE exclusion when enabled)
+  - call_wall/put_wall/zero_gamma preserved for Phase 6 TP targets
+- **Models**: MMRegime enum (7 values), BaselineState enum, ObsidianAnalysis dataclass
+  - Phase5Result: +obsidian_analyses, +obsidian_enabled
+  - PositionSizing: +mm_regime, +unusualness_score
+- **Console**: OBSIDIAN regime distribution in GEX summary
+- Config: 10 CORE + 3 TUNING + 2 RUNTIME OBSIDIAN keys
+- Tesztek: 50 új (test_bc15_obsidian.py)
 
 ---
 

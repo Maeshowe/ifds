@@ -77,6 +77,24 @@ class BreadthRegime(Enum):
     RECOVERY = "recovery"           # b50 > 50 AND b200 < 30
 
 
+class MMRegime(Enum):
+    """OBSIDIAN MM market microstructure regime (BC15)."""
+    GAMMA_POSITIVE = "gamma_positive"     # Γ⁺: volatility suppression
+    GAMMA_NEGATIVE = "gamma_negative"     # Γ⁻: liquidity vacuum
+    DARK_DOMINANT = "dark_dominant"        # DD: institutional accumulation
+    ABSORPTION = "absorption"             # ABS: passive absorption
+    DISTRIBUTION = "distribution"         # DIST: distribution into strength
+    NEUTRAL = "neutral"                   # NEU: no rule matched
+    UNDETERMINED = "undetermined"         # UND: insufficient baseline
+
+
+class BaselineState(Enum):
+    """OBSIDIAN feature store maturity (BC15)."""
+    EMPTY = "empty"         # No feature store history
+    PARTIAL = "partial"     # Some features have z-scores, some don't
+    COMPLETE = "complete"   # All features have ≥ min_periods history
+
+
 class SectorTrend(Enum):
     """Sector price trend relative to SMA20."""
     UP = "up"       # Price > SMA20
@@ -367,12 +385,36 @@ class GEXAnalysis:
 
 
 @dataclass
+class ObsidianAnalysis:
+    """OBSIDIAN MM analysis result for a single ticker (BC15)."""
+    ticker: str
+    mm_regime: MMRegime = MMRegime.UNDETERMINED
+    unusualness_score: float = 0.0               # U ∈ [0, 100]
+    regime_multiplier: float = 0.75              # Phase 6 sizing multiplier
+    baseline_state: BaselineState = BaselineState.EMPTY
+    triggering_conditions: dict = field(default_factory=dict)
+    top_drivers: list = field(default_factory=list)
+    excluded_features: list = field(default_factory=list)
+    # Carry GEX structural data for Phase 6 TP targets
+    net_gex: float = 0.0
+    call_wall: float = 0.0
+    put_wall: float = 0.0
+    zero_gamma: float = 0.0
+    gex_regime: GEXRegime = GEXRegime.POSITIVE
+    data_source: str = ""
+    excluded: bool = False
+    exclusion_reason: str | None = None
+
+
+@dataclass
 class Phase5Result:
     """Output of Phase 5: GEX Analysis."""
     analyzed: list[GEXAnalysis] = field(default_factory=list)
     passed: list[GEXAnalysis] = field(default_factory=list)
     excluded_count: int = 0
     negative_regime_count: int = 0
+    obsidian_analyses: list[ObsidianAnalysis] = field(default_factory=list)
+    obsidian_enabled: bool = False
 
 
 # ============================================================================
@@ -409,6 +451,8 @@ class PositionSizing:
     sector_regime: str = ""
     is_mean_reversion: bool = False
     shark_detected: bool = False
+    mm_regime: str = ""                 # MMRegime.value (BC15)
+    unusualness_score: float = 0.0      # OBSIDIAN U score (BC15)
 
 
 @dataclass
@@ -466,6 +510,7 @@ class PipelineContext:
     # Phase 5 output
     phase5: Phase5Result | None = None
     gex_analyses: list[GEXAnalysis] = field(default_factory=list)
+    obsidian_analyses: list[ObsidianAnalysis] = field(default_factory=list)
 
     # Phase 6 output
     phase6: Phase6Result | None = None

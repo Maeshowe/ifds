@@ -1,7 +1,7 @@
-# IFDS V13 → V2.0 — Feature Audit (BC14 utan, 2026-02-11)
+# IFDS V13 → V2.0 — Feature Audit (BC15 utan, 2026-02-11)
 
 > Referencia: `reference/` mappa teljes tartalma vs `src/ifds/` v2.0 kod
-> Frissitve: 2026-02-11 (BC14 utan)
+> Frissitve: 2026-02-11 (BC15 utan)
 
 ---
 
@@ -37,6 +37,7 @@
 | 26 | Notional Limits (daily cap) | settings.yaml | **DONE** (BC13) | ~~P3~~ |
 | 27 | VIX EXTREME regime | macro_compass.py | **DONE** (BC12) | ~~P3~~ |
 | 28 | Sector Breadth Analysis | sector_engine.py | **DONE** (BC14) | ~~P3~~ |
+| 29 | OBSIDIAN MM (7-regime microstructure) | — (V2 novelty) | **DONE** (BC15) | ~~P3~~ |
 
 ---
 
@@ -70,6 +71,7 @@
 | Max Daily Trades | BC13 | `max_daily_trades=20`, `state/daily_trades.json`, midnight reset |
 | Notional Limits | BC13 | `max_daily_notional=200K`, `max_position_notional=25K`, per-trade + napi cap |
 | Sector Breadth Analysis | BC14 | 7 breadth regime, SMA20/50/200 %-above, divergence detection, FMP ETF holdings |
+| OBSIDIAN MM | BC15 | 7 MM regime (Γ⁺/Γ⁻/DD/ABS/DIST/NEU/UND), feature store, z-score baseline, unusualness score |
 
 ---
 
@@ -102,7 +104,7 @@ macro_compass.py         [==========] 100%    TELJES (BC12)
 signal_generator.py      [==========-]  95%    Sim snapshot
 settings.yaml            [==========-]  96%    ~2 config kulcs hianyzik
 -------------------------------------------------------------------
-Osszesitett:             [==========-]  ~96%   (BC13: ~95%, BC14: ~96%)
+Osszesitett:             [==========-]  ~96%   (BC13: ~95%, BC14: ~96%, BC15: +OBSIDIAN V2 novelty)
 ```
 
 ---

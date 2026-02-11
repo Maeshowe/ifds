@@ -27,6 +27,7 @@ from ifds.models.market import (
     GEXAnalysis,
     MacroRegime,
     MomentumClassification,
+    ObsidianAnalysis,
     Phase6Result,
     PositionSizing,
     SectorBMIRegime,
@@ -45,7 +46,8 @@ def run_phase6(config: Config, logger: EventLogger,
                strategy_mode: StrategyMode,
                signal_history_path: str | None = None,
                sector_scores: list[SectorScore] | None = None,
-               signal_hash_file: str | None = None) -> Phase6Result:
+               signal_hash_file: str | None = None,
+               obsidian_analyses: list[ObsidianAnalysis] | None = None) -> Phase6Result:
     """Run Phase 6: Position Sizing & Risk Management.
 
     Args:
@@ -88,6 +90,9 @@ def run_phase6(config: Config, logger: EventLogger,
 
         # 5. Build sector lookup for new PositionSizing fields
         _sector_map = {ss.sector_name: ss for ss in (sector_scores or [])}
+
+        # OBSIDIAN lookup (BC15)
+        _obsidian_map = {o.ticker: o for o in (obsidian_analyses or [])}
 
         # 6. Signal dedup + daily trade limit + position sizing
         dedup = SignalDedup(signal_hash_file) if signal_hash_file else None
@@ -135,7 +140,8 @@ def run_phase6(config: Config, logger: EventLogger,
                 continue
 
             pos = _calculate_position(stock, gex, macro, config, strategy_mode,
-                                      original_scores, fresh_tickers, _sector_map)
+                                      original_scores, fresh_tickers, _sector_map,
+                                      _obsidian_map)
             if pos is None:
                 sizing_failed_count += 1
                 if sizing_failed_count <= 5:
@@ -400,6 +406,7 @@ def _calculate_position(
     original_scores: dict[str, float] | None = None,
     fresh_tickers: set[str] | None = None,
     sector_map: dict[str, SectorScore] | None = None,
+    obsidian_map: dict[str, ObsidianAnalysis] | None = None,
 ) -> PositionSizing | None:
     """Calculate position sizing for a single candidate.
 
@@ -499,6 +506,11 @@ def _calculate_position(
         and _ss.sector_bmi_regime == SectorBMIRegime.OVERSOLD
     )
 
+    # OBSIDIAN MM context (BC15)
+    _obs = (obsidian_map or {}).get(stock.ticker)
+    mm_regime = _obs.mm_regime.value if _obs else ""
+    unusualness_score = _obs.unusualness_score if _obs else 0.0
+
     return PositionSizing(
         ticker=stock.ticker,
         sector=stock.sector,
@@ -527,6 +539,8 @@ def _calculate_position(
         sector_regime=sector_regime,
         is_mean_reversion=is_mean_reversion,
         shark_detected=stock.shark_detected,
+        mm_regime=mm_regime,
+        unusualness_score=unusualness_score,
     )
 
 
