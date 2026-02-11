@@ -3,7 +3,7 @@
 > Generálva a `src/ifds/` forráskódból, 2026-02-10.
 > Minden képlet, küszöbérték és logika a **ténylegesen implementált kódból** van kiolvasva.
 > Konfigurációs értékek forrása: `src/ifds/config/defaults.py`
-> Frissítve: BC13 után (593 teszt)
+> Frissítve: BC14 után (636 teszt)
 
 ---
 
@@ -142,8 +142,8 @@ HALT ha: daily_drawdown_pct > circuit_breaker_drawdown_limit_pct
 
 Intézményi pénzáramlás elemzése → LONG vagy SHORT stratégia.
 
-**Input**: Polygon grouped daily bars (75 naptári nap)
-**Output**: `Phase1Result` → `StrategyMode` (LONG/SHORT), BMI érték (0–100), per-sector BMI
+**Input**: Polygon grouped daily bars (75 naptári nap, vagy 330 ha breadth enabled — BC14)
+**Output**: `Phase1Result` → `StrategyMode` (LONG/SHORT), BMI érték (0–100), per-sector BMI, grouped_daily_bars (BC14)
 
 ### Volume Spike Detekció
 
@@ -287,7 +287,7 @@ _save_universe_snapshot(tickers, config, logger):
 
 11 SPDR szektori ETF momentum-elemzése, rangsorolás, vétó mátrix.
 
-**Input**: Polygon OHLCV (11 ETF × 25 nap), MacroRegime, sector_bmi_values (Phase 1-ből)
+**Input**: Polygon OHLCV (11 ETF × 25 nap), MacroRegime, sector_bmi_values (Phase 1-ből), grouped_daily_bars (Phase 1-ből, BC14), FMP client (BC14)
 **Output**: `Phase3Result` → `list[SectorScore]` + vetoed/active szektorok
 
 ### ETF-ek
@@ -368,6 +368,69 @@ Ha tnx_rate_sensitive (Phase 0-ból):
   Technology szektor: score_adjustment -= 10
   Real Estate szektor: score_adjustment -= 10
 ```
+
+### Sector Breadth Analysis (BC14)
+
+**Forrás**: `_calculate_sector_breadth()` in `phase3_sectors.py`
+
+A Phase 1 grouped daily bars (330 nap) újrafelhasználásával per-szektor breadth metrikákat számol.
+
+#### Breadth Számítás
+
+```
+Minden szektor ETF-re:
+  1. FMP get_etf_holdings(etf) → constituent ticker lista (cached)
+  2. _build_ticker_close_history(grouped_bars, holdings) → {ticker: [closes]}
+  3. Per ticker: price > SMA(period) → count_above
+
+  pct_above_sma20  = count_above_20 / total_with_data × 100
+  pct_above_sma50  = count_above_50 / total_with_data × 100
+  pct_above_sma200 = count_above_200 / total_with_data × 100
+
+  breadth_score = 0.20 × pct_above_sma20 + 0.50 × pct_above_sma50 + 0.30 × pct_above_sma200
+```
+
+- Konfig: `breadth_composite_weights=(0.20, 0.50, 0.30)`, `breadth_min_constituents=10`
+- AGG (bond ETF): automatikusan skippelve, breadth nem alkalmazható
+
+#### 7 Breadth Regime Klasszifikáció
+
+```
+_classify_breadth_regime(pct_sma50, pct_sma200):
+
+  ha b50 > 70 ÉS b200 > 70     → STRONG
+  ha b50 > 70 ÉS 30 ≤ b200 ≤ 70 → EMERGING
+  ha 30 ≤ b50 ≤ 70 ÉS b200 > 70 → CONSOLIDATING
+  ha 30 ≤ b50 ≤ 70 ÉS 30 ≤ b200 ≤ 70 → NEUTRAL
+  ha b50 < 30 ÉS 30 ≤ b200 ≤ 70 → WEAKENING
+  ha b50 < 30 ÉS b200 < 30     → WEAK
+  ha b50 > 50 ÉS b200 < 30     → RECOVERY
+  egyébként                     → NEUTRAL (catch-all)
+```
+
+#### Breadth Momentum és Divergencia Detekció
+
+```
+breadth_momentum = pct_sma50_today - pct_sma50_5d_ago
+
+_detect_breadth_divergence(etf_momentum_5d, breadth_momentum):
+  Bearish: ETF 5d > +2% ÉS breadth_momentum < -5 pont
+  Bullish: ETF 5d < -2% ÉS breadth_momentum > +5 pont
+```
+
+- Konfig: `breadth_divergence_etf_threshold=2.0`, `breadth_divergence_breadth_threshold=5.0`
+
+#### Score Adjustment
+
+| Feltétel | Adjustment | Konfig |
+|----------|-----------|--------|
+| breadth_score > 70 | **+5** | `breadth_strong_bonus=5` |
+| breadth_score < 50 | **-5** | `breadth_weak_penalty=-5` |
+| breadth_score < 30 | **-15** | `breadth_very_weak_penalty=-15` |
+| Bearish divergence | **-10** (stackelődik) | `breadth_divergence_penalty=-10` |
+
+- A breadth score_adj hozzáadódik a szektor `score_adjustment`-hez
+- Sorrend: sector momentum → sector BMI → **breadth** → veto matrix
 
 ---
 
@@ -1233,12 +1296,12 @@ Phase 0: Diagnostics
   │ TNX → rate sensitivity flag
   ↓
 Phase 1: BMI
-  │ 75 nap Polygon grouped daily
+  │ 75 nap Polygon grouped daily (330 nap ha breadth enabled — BC14)
   │ Volume spike → Big Money B/S ratio → SMA25
   │ BMI <= 25: GREEN → LONG
   │ BMI >= 80: RED → SHORT
   │ Per-sector BMI (FMP sector mapping)
-  ↓ StrategyMode + sector_bmi_values
+  ↓ StrategyMode + sector_bmi_values + grouped_daily_bars (BC14)
 Phase 2: Universe
   │ FMP screener → ~3000 (LONG) / ~200 (SHORT) ticker
   │ Earnings exclusion → kizár ha <5 napra earnings
@@ -1247,6 +1310,9 @@ Phase 3: Sector Rotation
   │ 11 ETF × Polygon OHLCV
   │ 5d momentum → rank → Leader/Neutral/Laggard
   │ Per-sector BMI → Oversold/Neutral/Overbought regime
+  │ Sector Breadth (BC14): FMP ETF holdings → SMA20/50/200 %-above
+  │   → 7 regime (STRONG/EMERGING/CONSOLIDATING/NEUTRAL/WEAKENING/WEAK/RECOVERY)
+  │   → Score adj: +5 (strong), -5 (weak), -15 (very weak), -10 (bearish divergence)
   │ Vétó mátrix (LONG): Laggard+Neutral/OB → VÉTÓ
   │ TNX rate sensitivity → Tech/RE -10
   ↓ list[SectorScore] + vetoed sectors
@@ -1310,6 +1376,9 @@ Phase 6: Position Sizing
 | `weight_flow` | 0.40 | Flow súly a combined-ban |
 | `weight_fundamental` | 0.30 | Funda súly |
 | `weight_technical` | 0.30 | Tech súly |
+| `breadth_sma_periods` | [20, 50, 200] | Breadth SMA periódusok (BC14) |
+| `breadth_lookback_calendar_days` | 330 | Lookback ha breadth enabled (BC14) |
+| `breadth_composite_weights` | (0.20, 0.50, 0.30) | SMA20/50/200 súlyok (BC14) |
 
 ### TUNING (operátor állítható)
 

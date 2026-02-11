@@ -177,6 +177,19 @@ class AsyncFMPClient(AsyncBaseAPIClient):
             self._cache.put("fmp", "institutional-ownership", yesterday, ticker, result)
         return result
 
+    async def get_etf_holdings(self, etf_symbol: str) -> list[dict] | None:
+        """Get ETF constituent holdings."""
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        if self._cache:
+            cached = self._cache.get("fmp", "etf-holdings", yesterday, etf_symbol)
+            if cached is not None:
+                return cached
+        params = {"apikey": self._api_key, "symbol": etf_symbol}
+        result = await self._get("/stable/etf/holdings", params=params)
+        if result and self._cache:
+            self._cache.put("fmp", "etf-holdings", yesterday, etf_symbol, result)
+        return result
+
 
 class AsyncUWClient(AsyncBaseAPIClient):
     """Async client for Unusual Whales REST API."""

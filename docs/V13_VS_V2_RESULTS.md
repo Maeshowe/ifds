@@ -1,8 +1,8 @@
-# V13 vs V2.0 — Eredmeny Osszehasonlitas (2026-02-10, BC12 utan)
+# V13 vs V2.0 — Eredmeny Osszehasonlitas (2026-02-11, BC14 utan)
 
 > V13: `reference/execution_plan.csv` (2026-02-09, 15 pozicio)
-> V2.0: `output/execution_plan_run_20260210_*.csv` (2026-02-10, 8 pozicio)
-> Frissitve: BC12 utan (563 test, GEX sign fix, 6 uj feature)
+> V2.0: `output/trade_plan_2026-02-11.csv` (2026-02-11, 8 pozicio)
+> Frissitve: BC14 utan (636 test, sector breadth, Phase 6 daily counter fix)
 
 ---
 
@@ -176,13 +176,21 @@ V2.0: combined = (0.40 x flow + 0.30 x funda + 0.30 x tech + sector_adj)
 - V2 ACCEPTED: **236** ticker
 - Score range: 70-100
 
-### BC12 utani allapot (aktualis):
+### BC12 utani allapot:
 - V13 top 15 atfedes: **9/15** (60%)
 - V2 ACCEPTED: **391** ticker
 - Score range: 88.5-100
 - 8 pozicio az exec plan-ban
 - GEX sign fix: 98 NEGATIVE → ~5 NEGATIVE (valos regime)
 - 563 teszt, 0 failure
+
+### BC14 utani allapot (aktualis):
+- V2 top 8 trade plan: SHW(95), VLO(95), DLR(95), NUE(95), CPT(95), ERO(95), XOM(94.5), BKR(94.5)
+- Sector breadth: 7 regime (STRONG/EMERGING/CONSOLIDATING/NEUTRAL/WEAKENING/WEAK/RECOVERY)
+- Phase 6 daily counter fix: raw_positions(20) → final_positions(3) corrected
+- breadth_strong_bonus: 10 → 5 (crowding fix, clipping_threshold=95)
+- Phase 1 lookback: 75 → 330 nap (SMA200 breadth support)
+- **636 teszt, 0 failure**
 
 ### Maradek gap root cause:
 1. **Freshness gap**: NSC/GTLS freshness nem aktivalodik (pandas/signal_history)

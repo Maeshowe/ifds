@@ -37,6 +37,11 @@ CORE = {
     # Sector BMI
     "sector_bmi_min_signals": 5,       # Min buy+sell signals per sector per day
 
+    # Sector Breadth (BC14)
+    "breadth_sma_periods": [20, 50, 200],           # SMA periods to compute
+    "breadth_lookback_calendar_days": 330,           # ~220 trading days for SMA200 (with holiday buffer)
+    "breadth_composite_weights": (0.20, 0.50, 0.30), # SMA20, SMA50, SMA200 weights
+
     # Freshness Alpha
     "freshness_lookback_days": 90,     # Days before signal is "fresh"
     "freshness_bonus": 1.5,            # Score multiplier for fresh signals
@@ -217,6 +222,19 @@ TUNING = {
     # VIX EXTREME regime (BC12)
     "vix_extreme_threshold": 50,               # VIX > 50 → EXTREME regime
     "vix_extreme_multiplier": 0.10,            # Position sizing × 0.1 in EXTREME
+
+    # Sector Breadth Analysis (BC14)
+    "breadth_enabled": True,
+    "breadth_strong_threshold": 70,
+    "breadth_weak_threshold": 50,
+    "breadth_very_weak_threshold": 30,
+    "breadth_strong_bonus": 5,
+    "breadth_weak_penalty": -5,
+    "breadth_very_weak_penalty": -15,
+    "breadth_divergence_penalty": -10,
+    "breadth_divergence_etf_threshold": 2.0,        # ETF 5d change %
+    "breadth_divergence_breadth_threshold": 5.0,     # SMA50 breadth momentum points
+    "breadth_min_constituents": 10,
 
     # Sector-specific BMI thresholds (oversold, overbought)
     "sector_bmi_thresholds": {

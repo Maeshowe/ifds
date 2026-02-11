@@ -156,6 +156,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 ctx.bmi_regime = phase1.bmi.bmi_regime
                 ctx.bmi_value = phase1.bmi.bmi_value
                 ctx.sector_bmi_values = phase1.sector_bmi_values
+                ctx.grouped_daily_bars = phase1.grouped_daily_bars  # BC14
                 prev_bmi = bmi_history.get_previous()
                 bmi_history.append(phase1.bmi.bmi_value, phase1.bmi.bmi_regime.value)
                 print_phase1(phase1, prev_bmi=prev_bmi)
@@ -195,10 +196,25 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 cache=cache,
                 circuit_breaker=cb_polygon,
             )
+            # FMP client for breadth analysis (BC14)
+            fmp3 = None
+            breadth_enabled = config.tuning.get("breadth_enabled", False)
+            if breadth_enabled and ctx.grouped_daily_bars:
+                from ifds.data.fmp import FMPClient as FMPClient3
+                fmp3 = FMPClient3(
+                    api_key=config.get_api_key("fmp"),
+                    timeout=config.runtime["api_timeout_fmp"],
+                    max_retries=config.runtime["api_max_retries"],
+                    cache=cache,
+                    circuit_breaker=cb_fmp,
+                )
+
             try:
                 strategy = ctx.strategy_mode or StrategyMode.LONG
                 phase3 = run_phase3(config, logger, polygon3, strategy, ctx.macro,
-                                     sector_bmi_values=ctx.sector_bmi_values or None)
+                                     sector_bmi_values=ctx.sector_bmi_values or None,
+                                     grouped_daily_bars=ctx.grouped_daily_bars or None,
+                                     fmp=fmp3)
                 ctx.phase3 = phase3
                 ctx.sector_scores = phase3.sector_scores
                 ctx.vetoed_sectors = phase3.vetoed_sectors
@@ -223,6 +239,10 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                                    benchmark=agg_benchmark)
             finally:
                 polygon3.close()
+                if fmp3:
+                    fmp3.close()
+                # Memory cleanup: free grouped daily bars (BC14)
+                ctx.grouped_daily_bars = []
 
         # === Phase 4: Individual Stock Analysis ===
         if _should_run(phase, 4):

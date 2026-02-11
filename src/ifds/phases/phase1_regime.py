@@ -61,11 +61,16 @@ def run_phase1(config: Config, logger: EventLogger,
     logger.phase_start(1, "Market Regime (BMI)")
 
     try:
-        # Fetch grouped daily bars for the last ~53 trading days
+        # Fetch grouped daily bars
         # Market BMI: 25 SMA works with ~39 days (early neutral days count)
         # Sector BMI: needs 20 volume warmup + 25 SMA = 45 actual trading days
-        # 75 calendar days ≈ 53 weekdays → ~33 days with sector signals
-        daily_bars = _fetch_daily_history(polygon, lookback_calendar_days=75)
+        # Breadth (BC14): SMA200 needs ~330 calendar days (~220 trading days)
+        breadth_enabled = config.tuning.get("breadth_enabled", False)
+        if breadth_enabled:
+            lookback = config.core.get("breadth_lookback_calendar_days", 330)
+        else:
+            lookback = 75
+        daily_bars = _fetch_daily_history(polygon, lookback_calendar_days=lookback)
 
         if not daily_bars or len(daily_bars) < 25:
             logger.phase_error(1, "Market Regime (BMI)",
@@ -132,6 +137,7 @@ def run_phase1(config: Config, logger: EventLogger,
             strategy_mode=strategy_mode,
             ticker_count_for_bmi=ticker_count,
             sector_bmi_values=sector_bmi_values,
+            grouped_daily_bars=daily_bars if breadth_enabled else [],  # BC14
         )
 
         _log_result(logger, result, start_time)

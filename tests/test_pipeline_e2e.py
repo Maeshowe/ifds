@@ -197,6 +197,8 @@ def _mock_client_class(*args, **kwargs):
 class TestEndToEnd:
     """Full pipeline with all phases mocked."""
 
+    @patch("ifds.output.execution_plan.write_trade_plan", return_value="/tmp/trade.csv")
+    @patch("ifds.output.execution_plan.write_full_scan_matrix", return_value="/tmp/scan.csv")
     @patch("ifds.output.execution_plan.write_execution_plan", return_value="/tmp/test.csv")
     @patch(_P6, return_value=_mock_phase6())
     @patch(_P5, return_value=_mock_phase5())
@@ -210,6 +212,7 @@ class TestEndToEnd:
     @patch("ifds.data.fmp.FMPClient", _mock_client_class)
     def test_full_pipeline_flow(self, mock_p0, mock_p1, mock_p2, mock_p3,
                                  mock_p4, mock_p5, mock_p6, mock_output,
+                                 mock_scan, mock_trade,
                                  env_setup, tmp_path, monkeypatch):
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
 

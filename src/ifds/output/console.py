@@ -41,6 +41,22 @@ if TYPE_CHECKING:
 
 _SEP = "-" * 105
 
+# Abbreviation maps for fixed-width columns
+_SECTOR_SHORT = {
+    "Communication Services": "Comm Svc",
+}
+_BREADTH_SHORT = {
+    "CONSOLIDATING": "CONSOL",
+}
+
+
+def _cw(text: str, width: int, color: str = "") -> str:
+    """Pad *text* to exactly *width* visible chars, then wrap with color."""
+    padded = f"{text:<{width}}"[:width]
+    if color:
+        return f"{color}{padded}{Style.RESET_ALL}"
+    return padded
+
 
 def print_phase_header(step: int, title: str, goal: str,
                        logic: str, source: str) -> None:
@@ -178,13 +194,18 @@ def print_sector_table(result: Phase3Result,
         "Polygon sector ETF bars",
     )
 
-    # Header
-    chg_col = "CHG" if prev_sectors else ""
-    print(f"  {'ETF':<5} | {'SECTOR':<20} | {'SCORE':<6} | "
-          f"{'MOMENTUM (5D)':<14} | {'STATUS':<10} | {'TREND':<6} | "
-          f"{'BMI':<6} | {'REGIME':<10} | {'VETO':<5}"
-          f"{' | ' + chg_col if chg_col else ''}")
-    print("  " + "-" * (100 + (6 if prev_sectors else 0)))
+    # Header — fixed-width columns
+    hdr = (f"  {'ETF':<6}| {'SECTOR':<22}| {'SCORE':<6}| "
+           f"{'MOMENTUM':<12}| {'STATUS':<10}| {'TREND':<6}| "
+           f"{'BMI':<6}| {'REGIME':<10}| "
+           f"{'B.SCORE':<7}| {'B.REGIME':<14}| {'VETO':<4}")
+    if prev_sectors:
+        hdr += "| CHG"
+    print(hdr)
+    row_width = 6+2+22+2+6+2+12+2+10+2+6+2+6+2+10+2+7+2+14+2+4  # 115
+    if prev_sectors:
+        row_width += 5
+    print("  " + "-" * row_width)
 
     sectors_sorted = sorted(result.sector_scores,
                             key=lambda s: s.momentum_5d, reverse=True)
@@ -194,7 +215,10 @@ def print_sector_table(result: Phase3Result,
 
     # AGG benchmark row (info only, not scored/vetoed)
     if benchmark:
-        print("  " + "-" * (100 + (6 if prev_sectors else 0)))
+        bm_width = 6+2+22+2+6+2+12+2+10+2+6+2+6+2+10+2+7+2+14+2+4
+        if prev_sectors:
+            bm_width += 5
+        print("  " + "-" * bm_width)
         _print_sector_row(benchmark, prev_sectors, is_benchmark=True)
 
     vetoed = result.vetoed_sectors
@@ -206,22 +230,22 @@ def print_sector_table(result: Phase3Result,
 def _print_sector_row(s: SectorScore,
                       prev_sectors: dict[str, float] | None = None,
                       is_benchmark: bool = False) -> None:
-    """Print a single sector row."""
+    """Print a single sector row with fixed-width columns."""
     mom = s.momentum_5d
     mom_color = Fore.GREEN if mom > 0 else (Fore.RED if mom < 0 else Fore.WHITE)
     arrow = "^" if mom > 0 else "v"
 
     if is_benchmark:
-        status = "Benchmark"
+        status_str = "Benchmark"
         status_color = Fore.CYAN
-        score_str = "  --"
+        score_str = "--"
         veto_str = ""
     else:
-        status = s.classification.value.capitalize()
-        status_color = (Fore.GREEN if status == "Leader"
-                        else (Fore.RED if status == "Laggard" else Fore.WHITE))
-        score_str = f"{s.score_adjustment:<+6}"
-        veto_str = Fore.RED + "YES" + Style.RESET_ALL if s.vetoed else ""
+        status_str = s.classification.value.capitalize()
+        status_color = (Fore.GREEN if status_str == "Leader"
+                        else (Fore.RED if status_str == "Laggard" else Fore.WHITE))
+        score_str = f"{s.score_adjustment:+d}"
+        veto_str = "YES" if s.vetoed else ""
 
     trend_color = Fore.GREEN if s.trend.value == "up" else Fore.RED
 
@@ -230,17 +254,41 @@ def _print_sector_row(s: SectorScore,
     regime_color = (Fore.GREEN if regime == "OVERSOLD"
                     else (Fore.RED if regime == "OVERBOUGHT" else Fore.WHITE))
 
+    # Breadth columns (BC14)
+    if s.breadth is not None:
+        b_score_str = f"{s.breadth.breadth_score:.0f}"
+        raw_regime = s.breadth.breadth_regime.value.upper()
+        b_regime_str = _BREADTH_SHORT.get(raw_regime, raw_regime)
+        b_color = (Fore.GREEN if s.breadth.breadth_score > 70
+                   else (Fore.RED if s.breadth.breadth_score < 30 else Fore.WHITE))
+        if s.breadth.divergence_detected:
+            b_regime_str += " !"
+    else:
+        b_score_str = "N/A"
+        b_regime_str = "N/A"
+        b_color = Fore.WHITE
+
+    # Sector name abbreviation
+    sector_name = _SECTOR_SHORT.get(s.sector_name, s.sector_name)
+
     chg = _sector_change_arrow(s.etf, prev_sectors, mom) if prev_sectors else ""
 
-    line = (f"  {s.etf:<5} | {s.sector_name:<20} | {score_str:<6} | "
-            f"{mom_color}{arrow} {mom:+.2f}%{Style.RESET_ALL:<7} | "
-            f"{status_color}{status:<10}{Style.RESET_ALL} | "
-            f"{trend_color}{s.trend.value.upper():<6}{Style.RESET_ALL} | "
-            f"{regime_color}{bmi_str:<6}{Style.RESET_ALL} | "
-            f"{regime_color}{regime:<10}{Style.RESET_ALL} | "
-            f"{veto_str}")
+    veto_color = Fore.RED if veto_str else ""
+    mom_str = f"{arrow} {mom:+.2f}%"
+
+    line = (f"  {_cw(s.etf, 6)}"
+            f"| {_cw(sector_name, 22)}"
+            f"| {_cw(score_str, 6)}"
+            f"| {_cw(mom_str, 12, mom_color)}"
+            f"| {_cw(status_str, 10, status_color)}"
+            f"| {_cw(s.trend.value.upper(), 6, trend_color)}"
+            f"| {_cw(bmi_str, 6, regime_color)}"
+            f"| {_cw(regime, 10, regime_color)}"
+            f"| {_cw(b_score_str, 7, b_color)}"
+            f"| {_cw(b_regime_str, 14, b_color)}"
+            f"| {_cw(veto_str, 4, veto_color)}")
     if chg:
-        line += f" | {chg}"
+        line += f"| {chg}"
     print(line)
 
 

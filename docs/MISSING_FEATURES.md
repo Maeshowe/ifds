@@ -1,7 +1,7 @@
-# IFDS V13 → V2.0 — Feature Audit (BC12 utan, 2026-02-10)
+# IFDS V13 → V2.0 — Feature Audit (BC14 utan, 2026-02-11)
 
 > Referencia: `reference/` mappa teljes tartalma vs `src/ifds/` v2.0 kod
-> Frissitve: 2026-02-10 (BC12 utan)
+> Frissitve: 2026-02-11 (BC14 utan)
 
 ---
 
@@ -36,6 +36,7 @@
 | 25 | Max Daily Trades limit | global_guard.py | **DONE** (BC13) | ~~P3~~ |
 | 26 | Notional Limits (daily cap) | settings.yaml | **DONE** (BC13) | ~~P3~~ |
 | 27 | VIX EXTREME regime | macro_compass.py | **DONE** (BC12) | ~~P3~~ |
+| 28 | Sector Breadth Analysis | sector_engine.py | **DONE** (BC14) | ~~P3~~ |
 
 ---
 
@@ -68,6 +69,7 @@
 | Telegram Alerts | BC13 | `send_trade_alerts()`, non-blocking, env var gated |
 | Max Daily Trades | BC13 | `max_daily_trades=20`, `state/daily_trades.json`, midnight reset |
 | Notional Limits | BC13 | `max_daily_notional=200K`, `max_position_notional=25K`, per-trade + napi cap |
+| Sector Breadth Analysis | BC14 | 7 breadth regime, SMA20/50/200 %-above, divergence detection, FMP ETF holdings |
 
 ---
 
@@ -93,14 +95,14 @@ history_manager.py       [=========--]  90%    Batch freshness
 fundamental_scorer.py    [==========] 100%    TELJES (BC12)
 gex_engine.py            [==========] 100%    TELJES (BC12)
 technical_analyzer.py    [==========] 100%    TELJES (BC9)
-sector_engine.py         [==========] 100%    TELJES (BC8)
+sector_engine.py         [==========] 100%    TELJES (BC14: breadth)
 market_regime.py         [==========] 100%    TELJES (BC8)
 universe_builder.py      [==========] 100%    TELJES (BC13)
 macro_compass.py         [==========] 100%    TELJES (BC12)
 signal_generator.py      [==========-]  95%    Sim snapshot
 settings.yaml            [==========-]  96%    ~2 config kulcs hianyzik
 -------------------------------------------------------------------
-Osszesitett:             [==========-]  ~95%   (BC12: ~92%, BC13: ~95%)
+Osszesitett:             [==========-]  ~96%   (BC13: ~95%, BC14: ~96%)
 ```
 
 ---

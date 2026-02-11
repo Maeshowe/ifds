@@ -1,7 +1,7 @@
 # IFDS v13 vs v2.0 — Feature Comparison
 
 > Generálva a `reference/` (v13) és `src/ifds/` (v2.0) forráskódból.
-> Frissitve: 2026-02-10 (BC12 utan, 563 teszt)
+> Frissitve: 2026-02-11 (BC14 utan, 636 teszt)
 
 ---
 
@@ -13,9 +13,9 @@
 | **Sorok** | ~10,800 | ~8,000 |
 | **Architekturális minta** | Monolitikus orchestrator (`signal_generator.py` = 83K) | Phase-alapú pipeline (phase0→6, runner.py) |
 | **Config** | YAML (`settings.yaml`, 784 sor) | Python dict (`config/defaults.py`) |
-| **Tesztek** | Nincs (manuális validáció) | 563 unit test (pytest) |
+| **Tesztek** | Nincs (manuális validáció) | 636 unit test (pytest) |
 | **Async** | Natív `asyncio`/`aiohttp` végig | Opcionális (`IFDS_ASYNC_ENABLED=true`), sync default |
-| **V13 feature lefedettség** | — | ~92% (BC12 után) |
+| **V13 feature lefedettség** | — | ~96% (BC14 után) |
 
 ---
 
@@ -42,6 +42,7 @@
 | **FMP Fundamentals** | `/stable/financial-growth`, `/stable/key-metrics` | Ugyanaz | Azonos |
 | **FMP Insider** | `/stable/insider-trading/search` | Ugyanaz | Azonos |
 | **FMP Inst Ownership** | Nincs | `/stable/institutional-ownership/latest` | v2.0 újdonság (BC12) |
+| **FMP ETF Holdings** | Nincs | `/stable/etf/holdings` | v2.0 újdonság (BC14, breadth) |
 | **FRED VIX** | `VIXCLS` (fallback) | `VIXCLS` (fallback) | Mindkettőben fallback |
 | **FRED TNX** | `DGS10` | `DGS10` | Azonos |
 | **UW Dark Pool** | `/api/darkpool/{symbol}` | `/api/darkpool/recent` (batch) | v2.0: batch prefetch (BC6) |
@@ -175,18 +176,19 @@
 
 ---
 
-## 10. Hiányzó Feature-ök v2.0-ban (BC12 után)
+## 10. Hiányzó Feature-ök v2.0-ban (BC14 után)
 
 ### Nice-to-have (P3)
 
-| Feature | v13 referencia | Prioritás |
-|---------|---------------|-----------|
-| **SimEngine (backtesting)** | `sim_engine.py` | P3 |
-| **Survivorship Bias** | `universe_builder.py` | P3 |
-| **Trailing Stop Engine** | `settings.yaml` | P3 |
-| **Telegram Alerts** | `signal_generator.py` | P3 |
-| **Max Daily Trades** | `global_guard.py` | P3 |
-| **Notional Limits** | `settings.yaml` | P3 |
+| Feature | v13 referencia | Prioritás | Státusz |
+|---------|---------------|-----------|---------|
+| **SimEngine (backtesting)** | `sim_engine.py` | P3 | ❌ Hiányzik |
+| **Trailing Stop Engine** | `settings.yaml` | P3 | ❌ Hiányzik |
+| **Survivorship Bias** | `universe_builder.py` | P3 | **DONE** (BC13) |
+| **Telegram Alerts** | `signal_generator.py` | P3 | **DONE** (BC13) |
+| **Max Daily Trades** | `global_guard.py` | P3 | **DONE** (BC13) |
+| **Notional Limits** | `settings.yaml` | P3 | **DONE** (BC13) |
+| **Sector Breadth** | `sector_engine.py` | P3 | **DONE** (BC14) |
 
 ---
 
@@ -205,6 +207,10 @@
 | **Per-sector BMI** | FMP sector mapping, SMA25 per sector | BC8 |
 | **Institutional ownership** | FMP inst ownership QoQ trend scoring | BC12 |
 | **DTE filter + fallback** | ≤90 DTE + <5 contract fallback | BC12 |
+| **Survivorship Bias** | Universe snapshot + diff logging | BC13 |
+| **Telegram Alerts** | Non-blocking trade alerts (env var gated) | BC13 |
+| **Max Daily Trades + Notional** | Daily trade/notional limits with state persistence | BC13 |
+| **Sector Breadth** | 7 regime, SMA20/50/200, divergence detection, FMP ETF holdings | BC14 |
 | **CLI Dashboard** | Colorama console output | Post-BC7 |
 
 ---
@@ -226,7 +232,9 @@
 | BC10 | dp_pct Fix + Buy Pressure VWAP | **COMPLETE** (492 tests) |
 | BC11 | P2 Robustness (CB, Dedup, VIX, Guard) | **COMPLETE** (530 tests) |
 | BC12 | P3 Nice-to-haves (6 features) | **COMPLETE** (563 tests) |
+| BC13 | P3 Backlog (Survivorship, Telegram, Limits) | **COMPLETE** (593 tests) |
+| BC14 | Sector Breadth Analysis | **COMPLETE** (636 tests) |
 
 ---
 
-*Frissítve: 2026-02-10 | V13 feature lefedettség: ~92%*
+*Frissítve: 2026-02-11 | V13 feature lefedettség: ~96%*

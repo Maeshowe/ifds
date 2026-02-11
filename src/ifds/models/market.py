@@ -66,6 +66,17 @@ class MomentumClassification(Enum):
     LAGGARD = "laggard"     # Bottom N momentum → -20 penalty
 
 
+class BreadthRegime(Enum):
+    """Sector breadth health classification (BC14)."""
+    STRONG = "strong"               # b50 > 70 AND b200 > 70
+    EMERGING = "emerging"           # b50 > 70 AND b200 30-70
+    CONSOLIDATING = "consolidating" # b50 30-70 AND b200 > 70
+    NEUTRAL = "neutral"             # b50 30-70 AND b200 30-70
+    WEAKENING = "weakening"         # b50 < 30 AND b200 30-70
+    WEAK = "weak"                   # b50 < 30 AND b200 < 30
+    RECOVERY = "recovery"           # b50 > 50 AND b200 < 30
+
+
 class SectorTrend(Enum):
     """Sector price trend relative to SMA20."""
     UP = "up"       # Price > SMA20
@@ -166,6 +177,7 @@ class Phase1Result:
     strategy_mode: StrategyMode         # LONG or SHORT
     ticker_count_for_bmi: int = 0       # How many tickers used for BMI calc
     sector_bmi_values: dict[str, float] = field(default_factory=dict)  # ETF → BMI%
+    grouped_daily_bars: list[dict] = field(default_factory=list)  # BC14: raw bars for breadth
 
 
 # ============================================================================
@@ -204,6 +216,22 @@ class Phase2Result:
 # ============================================================================
 
 @dataclass
+class SectorBreadth:
+    """Breadth analysis result for a single sector (BC14)."""
+    etf: str
+    constituent_count: int = 0
+    pct_above_sma20: float = 0.0
+    pct_above_sma50: float = 0.0
+    pct_above_sma200: float = 0.0
+    breadth_score: float = 0.0           # 0.20*sma20 + 0.50*sma50 + 0.30*sma200
+    breadth_regime: BreadthRegime = BreadthRegime.NEUTRAL
+    breadth_momentum: float = 0.0        # pct_sma50 today - pct_sma50 5d ago
+    divergence_detected: bool = False
+    divergence_type: str | None = None   # "bullish" or "bearish"
+    score_adjustment: int = 0
+
+
+@dataclass
 class SectorScore:
     """Analysis result for a single sector ETF."""
     etf: str                            # e.g. "XLK"
@@ -217,6 +245,8 @@ class SectorScore:
     vetoed: bool = False                # True if sector is vetoed
     veto_reason: str | None = None
     score_adjustment: int = 0           # +15 Leader, -20 Laggard, etc.
+    breadth: SectorBreadth | None = None  # BC14: breadth analysis
+    breadth_score_adj: int = 0            # BC14: breadth score adjustment
 
 
 @dataclass
@@ -418,6 +448,7 @@ class PipelineContext:
     bmi_regime: BMIRegime | None = None
     bmi_value: float | None = None
     sector_bmi_values: dict[str, float] = field(default_factory=dict)
+    grouped_daily_bars: list[dict] = field(default_factory=list)  # BC14: from Phase 1
 
     # Phase 2 output
     phase2: Phase2Result | None = None

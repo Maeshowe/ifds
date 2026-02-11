@@ -98,16 +98,24 @@ def run_phase6(config: Config, logger: EventLogger,
             config.runtime.get("daily_trades_file", "state/daily_trades.json"))
         max_daily_trades = config.runtime.get("max_daily_trades", 20)
         daily_trade_limit_hit = False
+        initial_trade_count = daily_trades["count"]
 
         # Daily notional tracker (BC13)
         daily_notional = _load_daily_counter(
             config.runtime.get("daily_notional_file", "state/daily_notional.json"))
         max_daily_notional = config.runtime.get("max_daily_notional", 200_000)
         max_position_notional = config.runtime.get("max_position_notional", 25_000)
+        initial_notional_count = daily_notional["count"]
         daily_trade_excluded = 0
         notional_excluded = 0
 
+        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=6,
+                   message=f"[PHASE6] Starting: {len(candidates)} candidates, "
+                           f"daily_trades={initial_trade_count}/{max_daily_trades}, "
+                           f"daily_notional=${initial_notional_count:.0f}/${max_daily_notional:.0f}")
+
         raw_positions = []
+        sizing_failed_count = 0
         for stock, gex in candidates:
             direction = "BUY" if strategy_mode == StrategyMode.LONG else "SELL_SHORT"
             if dedup and dedup.is_duplicate(stock.ticker, direction):
@@ -128,40 +136,56 @@ def run_phase6(config: Config, logger: EventLogger,
 
             pos = _calculate_position(stock, gex, macro, config, strategy_mode,
                                       original_scores, fresh_tickers, _sector_map)
-            if pos is not None:
-                # Notional limit checks (BC13)
-                pos_notional = pos.quantity * pos.entry_price
+            if pos is None:
+                sizing_failed_count += 1
+                if sizing_failed_count <= 5:
+                    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=6,
+                               message=f"[PHASE6] {stock.ticker}: sizing returned None "
+                                       f"(score={stock.combined_score:.1f}, "
+                                       f"atr={stock.technical.atr_14:.2f}, "
+                                       f"price={stock.technical.price:.2f})")
+                continue
 
-                # Per-position notional cap
-                if pos_notional > max_position_notional and pos.entry_price > 0:
-                    original_notional = pos_notional
-                    capped_qty = math.floor(max_position_notional / pos.entry_price)
-                    if capped_qty <= 0:
-                        continue
-                    logger.log(EventType.TICKER_FILTERED, Severity.INFO, phase=6,
-                               message=f"[GLOBALGUARD] Position notional capped: {pos.ticker} "
-                                       f"${original_notional:.0f} → ${capped_qty * pos.entry_price:.0f}")
-                    pos = _replace_quantity(pos, capped_qty)
-                    pos_notional = capped_qty * pos.entry_price
+            # Notional limit checks (BC13)
+            pos_notional = pos.quantity * pos.entry_price
 
-                # Daily notional cap
-                if daily_notional["count"] + pos_notional > max_daily_notional:
-                    logger.log(EventType.TICKER_FILTERED, Severity.WARNING, phase=6,
-                               message=f"[GLOBALGUARD] Daily notional limit reached: "
-                                       f"${daily_notional['count']:.0f}/${max_daily_notional:.0f}")
-                    notional_excluded += 1
+            # Per-position notional cap
+            if pos_notional > max_position_notional and pos.entry_price > 0:
+                original_notional = pos_notional
+                capped_qty = math.floor(max_position_notional / pos.entry_price)
+                if capped_qty <= 0:
                     continue
+                logger.log(EventType.TICKER_FILTERED, Severity.INFO, phase=6,
+                           message=f"[GLOBALGUARD] Position notional capped: {pos.ticker} "
+                                   f"${original_notional:.0f} → ${capped_qty * pos.entry_price:.0f}")
+                pos = _replace_quantity(pos, capped_qty)
+                pos_notional = capped_qty * pos.entry_price
 
-                raw_positions.append(pos)
-                daily_trades["count"] += 1
-                daily_notional["count"] += pos_notional
-                if dedup:
-                    dedup.record(stock.ticker, direction)
+            # Daily notional cap
+            if daily_notional["count"] + pos_notional > max_daily_notional:
+                logger.log(EventType.TICKER_FILTERED, Severity.WARNING, phase=6,
+                           message=f"[GLOBALGUARD] Daily notional limit reached: "
+                                   f"${daily_notional['count']:.0f}/${max_daily_notional:.0f}")
+                notional_excluded += 1
+                continue
+
+            raw_positions.append(pos)
+            daily_trades["count"] += 1
+            daily_notional["count"] += pos_notional
+            if dedup:
+                dedup.record(stock.ticker, direction)
 
         # 7. Apply position limits
         final_positions, limit_counts = _apply_position_limits(
             raw_positions, config, logger,
         )
+
+        # Recalculate daily counters based on final positions (not raw).
+        # _apply_position_limits may remove positions (sector, exposure limits),
+        # so we must not inflate the daily counters for removed positions.
+        daily_trades["count"] = initial_trade_count + len(final_positions)
+        daily_notional["count"] = initial_notional_count + sum(
+            p.quantity * p.entry_price for p in final_positions)
 
         # 8. Log each sized position
         for pos in final_positions:

@@ -1,7 +1,7 @@
 # IFDS API Map — Adatfolyam Dokumentáció
 
 > Generálva a `src/ifds/` forráskódból.
-> Frissitve: 2026-02-11 (BC13 utan, 593 teszt)
+> Frissitve: 2026-02-11 (BC14 utan, 636 teszt)
 > Ez a dokumentum a **ténylegesen implementált** API hívásokat, adatfolyamokat és fallback logikát írja le.
 
 ---
@@ -33,8 +33,8 @@
 |----------|----------|-------------|-------------------|
 | Polygon | `GET /v2/aggs/grouped/locale/us/market/stocks/{date}` | `adjusted=true` | Napi összes ticker: `{T, o, h, l, c, v}` |
 
-- **Lookback**: 75 naptári nap (~50 kereskedési nap, volume warmup=20 + SMA25 ablak)
-- **Hívások száma**: 75 db (naponta 1 grouped request)
+- **Lookback**: 75 naptári nap (~50 kereskedési nap, volume warmup=20 + SMA25 ablak); 330 nap ha breadth enabled (BC14)
+- **Hívások száma**: 75 db (naponta 1 grouped request); 330 db ha breadth enabled
 - **Per-sector BMI** (BC8): FMP sector mapping → per-sector buy/sell counts → SMA25 per sector
 - **Kimenet**: `Phase1Result` → `StrategyMode.LONG` vagy `SHORT`, BMI érték (0–100), sector_bmi_values
 
@@ -58,11 +58,13 @@
 | Provider | Endpoint | Paraméterek | Visszaadott adat |
 |----------|----------|-------------|-------------------|
 | Polygon | `GET /v2/aggs/ticker/{ETF}/range/1/day/{from}/{to}` | `adjusted=true, sort=asc` | OHLCV bárok az elmúlt 25 napra |
+| FMP | `GET /stable/etf/holdings` | `symbol={ETF}` | `[{symbol, weightPercentage, ...}]` — ETF constituent holdings (BC14) |
 
 - **ETF-ek**: XLK, XLF, XLE, XLV, XLI, XLP, XLY, XLB, XLC, XLRE, XLU (11 db)
-- **Hívások száma**: 11 (ETF-enként 1)
+- **Hívások száma**: 11 (Polygon ETF-enként 1) + 12 FMP ETF holdings (BC14, cached)
 - **BC8**: Per-sector BMI values → sector_bmi_regime populálás
-- **Kimenet**: `Phase3Result` → `list[SectorScore]` ranggal, momentum-mal, vétóval
+- **BC14**: Sector Breadth — ETF holdings + Phase 1 grouped bars → SMA20/50/200 %-above → 7 regime
+- **Kimenet**: `Phase3Result` → `list[SectorScore]` ranggal, momentum-mal, breadth-szel, vétóval
 
 ---
 
@@ -150,6 +152,7 @@
 | Async semaphore | 8 concurrent |
 | Circuit breaker | Per-provider CB (BC11): 50 window, 30% error → OPEN, 60s cooldown |
 | BC12 endpoint | `/stable/institutional-ownership/latest` — auto-disable ha 404 (AAPL probe) |
+| BC14 endpoint | `/stable/etf/holdings` — ETF constituent holdings (12 call, cached) |
 
 ### Unusual Whales (UW)
 
@@ -413,7 +416,7 @@ IFDS_CACHE_ENABLED=true                   # Opcionális (default: false)
 | Provider semaphore | Nincs | Polygon: 5, FMP: 8, UW: 5 |
 | Circuit breaker | Per-provider (BC11) | Per-provider (BC11) |
 | Publikus interface | `run_phase4(...)` | Ugyanaz — `asyncio.run()` belül |
-| Tesztek | 593 (mind átmegy mindkét módban) | Mind átmegy mindkét módban |
+| Tesztek | 636 (mind átmegy mindkét módban) | Mind átmegy mindkét módban |
 
 ---
 

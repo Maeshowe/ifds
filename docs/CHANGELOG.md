@@ -1,6 +1,33 @@
 # IFDS v2.0 Changelog
 
-> Build Cycle BC1 → BC13 | 2026-02-06 – 2026-02-11
+> Build Cycle BC1 → BC14 | 2026-02-06 – 2026-02-11
+
+---
+
+## BC14 — Sector Breadth Analysis (636 tests)
+
+**Phase 3 extension: per-sector breadth regimes, divergence detection, FMP ETF holdings**
+
+- **Sector Breadth Engine**: 7 breadth functions in `phase3_sectors.py`
+  - `_compute_sma()`, `_build_ticker_close_history()`, `_calculate_breadth()`
+  - `_classify_breadth_regime()`, `_detect_breadth_divergence()`, `_apply_breadth_score_adjustment()`
+- **7 Breadth Regimes**: STRONG, EMERGING, CONSOLIDATING, NEUTRAL, WEAKENING, WEAK, RECOVERY
+  - Classification based on pct_above_SMA50 and pct_above_SMA200
+- **Divergence Detection**: Bearish (ETF up >2% + breadth momentum <-5) / Bullish (ETF down <-2% + breadth momentum >+5)
+- **Score Adjustments**: breadth_score > 70 → +5 (strong), < 50 → -5 (weak), < 30 → -15 (very weak), bearish divergence → -10
+- **FMP ETF Holdings**: `get_etf_holdings()` — sync + async, FileCache-cached
+- **Phase 1 Lookback**: 75 → 330 calendar days when breadth enabled (SMA200 needs ~220 trading days)
+- **Console**: B.SCORE + B.REGIME columns in sector table, abbreviations (CONSOL, Comm Svc)
+- **Models**: BreadthRegime enum, SectorBreadth dataclass, SectorScore.breadth field
+- Config: 3 CORE + 11 TUNING breadth keys
+- Tesztek: 43 új (test_bc14_breadth.py)
+
+### Post-BC14 Fixes
+- Phase 6 daily counter fix: raw_positions (20) → final_positions (3) count correction
+- Phase 6 rejection diagnostic logging
+- Breadth lookback 290 → 330 (holiday buffer for SMA200)
+- breadth_strong_bonus 10 → 5 (crowding prevention at clipping_threshold=95)
+- Console sector table reformat with `_cw()` helper for color-safe fixed-width
 
 ---
 

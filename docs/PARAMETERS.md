@@ -2,7 +2,7 @@
 
 > Generálva: `src/ifds/config/defaults.py` (CORE + TUNING + RUNTIME)
 > V13 referencia: `reference/settings.yaml`
-> Frissitve: 2026-02-11 (BC13 utan, 593 teszt)
+> Frissitve: 2026-02-11 (BC14 utan, 636 teszt)
 
 ---
 
@@ -34,6 +34,9 @@ Csak fejlesztői módosítás. A matematikai képletek fix paraméterei.
 | `weight_flow` | 0.40 | P4 | Flow Analysis súly | `scoring.weights.flow: 0.4` | ✅ Azonos |
 | `weight_fundamental` | 0.30 | P4 | Fundamental súly | `scoring.weights.fundamental: 0.3` | ✅ Azonos |
 | `weight_technical` | 0.30 | P4 | Technical súly | `scoring.weights.technical: 0.3` | ✅ Azonos |
+| `breadth_sma_periods` | [20, 50, 200] | P3 | SMA periódusok breadth számításhoz (BC14) | Nincs | V2 újdonság |
+| `breadth_lookback_calendar_days` | 330 | P1 | Lookback Phase 1-ben ha breadth enabled (~220 trading day) (BC14) | Nincs | V2 újdonság |
+| `breadth_composite_weights` | (0.20, 0.50, 0.30) | P3 | SMA20/50/200 súlyok a breadth score-ban (BC14) | Nincs | V2 újdonság |
 
 ---
 
@@ -224,6 +227,22 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | Kulcs | Érték | Phase | Hatás | V13 | Eltérés? |
 |-------|-------|-------|-------|-----|----------|
 | `gex_max_dte` | 90 | P4,P5 | Max DTE for options in GEX + flow scoring | `gex.front_month_dte: 35` | ⚠️ **V13=35, V2=90** |
+
+### Sector Breadth (BC14)
+
+| Kulcs | Érték | Phase | Hatás | V13 | Eltérés? |
+|-------|-------|-------|-------|-----|----------|
+| `breadth_enabled` | True | P1,P3 | Breadth analízis be/ki | Nincs | V2 újdonság |
+| `breadth_strong_threshold` | 70 | P3 | breadth_score > 70 → STRONG bonus | Nincs | V2 újdonság |
+| `breadth_weak_threshold` | 50 | P3 | breadth_score < 50 → WEAK penalty | Nincs | V2 újdonság |
+| `breadth_very_weak_threshold` | 30 | P3 | breadth_score < 30 → VERY WEAK penalty | Nincs | V2 újdonság |
+| `breadth_strong_bonus` | 5 | P3 | STRONG breadth → +5 score adj | Nincs | V2 újdonság |
+| `breadth_weak_penalty` | -5 | P3 | WEAK breadth → -5 score adj | Nincs | V2 újdonság |
+| `breadth_very_weak_penalty` | -15 | P3 | VERY WEAK breadth → -15 score adj | Nincs | V2 újdonság |
+| `breadth_divergence_penalty` | -10 | P3 | Bearish divergence → -10 extra | Nincs | V2 újdonság |
+| `breadth_divergence_etf_threshold` | 2.0 | P3 | ETF 5d change % küszöb divergenciához | Nincs | V2 újdonság |
+| `breadth_divergence_breadth_threshold` | 5.0 | P3 | SMA50 breadth momentum pont küszöb | Nincs | V2 újdonság |
+| `breadth_min_constituents` | 10 | P3 | Min holdings a breadth számításhoz | Nincs | V2 újdonság |
 
 ### VIX Thresholds (Phase 0→6)
 
