@@ -1,6 +1,6 @@
 # IFDS Pipeline Logic — Képletek és Küszöbértékek
 
-> Generálva a `src/ifds/` forráskódból, 2026-02-10.
+> Generálva a `src/ifds/` forráskódból, 2026-02-11.
 > Minden képlet, küszöbérték és logika a **ténylegesen implementált kódból** van kiolvasva.
 > Konfigurációs értékek forrása: `src/ifds/config/defaults.py`
 > Frissítve: BC14 után (636 teszt)
@@ -1335,16 +1335,22 @@ Phase 5: GEX
   │ Regime: POSITIVE (1.0) / HIGH_VOL (0.6) / NEGATIVE (0.5)
   │ NEGATIVE + LONG → KIZÁR
   ↓ list[GEXAnalysis]
+Phase 2: Universe (cont.)
+  │ Survivorship Bias (BC13): universe snapshot mentés + diff logging
+  ↓
 Phase 6: Position Sizing
   │ Stock ⋈ GEX inner join
   │ Signal dedup (SHA256, 24h TTL — BC11)
+  │ Max daily trades limit (20 — BC13)
   │ Freshness Alpha (opcionális, ×1.5)
   │ M_total = M_flow × M_insider × M_funda × M_gex × M_vix × M_utility
   │ quantity = floor(base_risk × M_total / (1.5 × ATR))
   │ Fat finger: NaN guard, max qty 5000, max value $20K (BC12)
+  │ Notional cap: per-position $25K, daily $200K (BC13)
   │ SL/TP/Scale-out szintek
   │ Position limits (8 max, 3/szektor, $100K gross)
   │ [GLOBALGUARD] exposure logging
+  │ Telegram alerts (opcionális, non-blocking — BC13)
   ↓ execution_plan_{run_id}.csv
 ```
 
@@ -1457,3 +1463,13 @@ Phase 6: Position Sizing
 | `cb_error_threshold` | 0.3 | CB error rate trigger (BC11) |
 | `cb_cooldown_seconds` | 60 | CB cooldown (BC11) |
 | `signal_hash_file` | state/signal_hashes.json | Signal dedup (BC11) |
+| `survivorship_snapshot_dir` | state/universe_snapshots | Universe snapshot mappa (BC13) |
+| `survivorship_max_snapshots` | 30 | Max megőrzött snapshot (BC13) |
+| `telegram_bot_token` | None | Telegram bot token (BC13) |
+| `telegram_chat_id` | None | Telegram chat ID (BC13) |
+| `telegram_timeout` | 5 | Telegram HTTP timeout (BC13) |
+| `max_daily_trades` | 20 | Napi trade limit (BC13) |
+| `daily_trades_file` | state/daily_trades.json | Trade counter state (BC13) |
+| `max_daily_notional` | 200,000 | Napi notional cap (BC13) |
+| `max_position_notional` | 25,000 | Per-pozíció notional cap (BC13) |
+| `daily_notional_file` | state/daily_notional.json | Notional counter state (BC13) |

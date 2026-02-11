@@ -176,19 +176,14 @@
 
 ---
 
-## 10. Hiányzó Feature-ök v2.0-ban (BC14 után)
-
-### Nice-to-have (P3)
+## 10. Hiányzó Feature-ök v2.0-ban (BC14 után — 2 tétel)
 
 | Feature | v13 referencia | Prioritás | Státusz |
 |---------|---------------|-----------|---------|
 | **SimEngine (backtesting)** | `sim_engine.py` | P3 | ❌ Hiányzik |
 | **Trailing Stop Engine** | `settings.yaml` | P3 | ❌ Hiányzik |
-| **Survivorship Bias** | `universe_builder.py` | P3 | **DONE** (BC13) |
-| **Telegram Alerts** | `signal_generator.py` | P3 | **DONE** (BC13) |
-| **Max Daily Trades** | `global_guard.py` | P3 | **DONE** (BC13) |
-| **Notional Limits** | `settings.yaml` | P3 | **DONE** (BC13) |
-| **Sector Breadth** | `sector_engine.py` | P3 | **DONE** (BC14) |
+
+> A többi P3 feature elkészült: Survivorship Bias (BC13), Telegram Alerts (BC13), Max Daily Trades (BC13), Notional Limits (BC13), Sector Breadth (BC14).
 
 ---
 
@@ -201,7 +196,7 @@
 | **VIX EXTREME regime** | VIX > 50 → multiplier 0.10 | BC12 |
 | **Dual-mode async** | Sync default + async opcionális | BC5 |
 | **Phase-based pipeline** | Phase 0→6 struktúra | BC1 |
-| **563 unit test** | Teljes teszt lefedettség | BC1-12 |
+| **636 unit test** | Teljes teszt lefedettség | BC1-14 |
 | **Dark Pool batch** | 882 call → 15 paginated batch | BC6 |
 | **File-based cache** | Per-provider/endpoint/date/symbol cache | BC7 |
 | **Per-sector BMI** | FMP sector mapping, SMA25 per sector | BC8 |
@@ -237,4 +232,6 @@
 
 ---
 
-*Frissítve: 2026-02-11 | V13 feature lefedettség: ~96%*
+*Frissítve: 2026-02-11 | V13 feature lefedettség: ~96% | 636 teszt, 0 failure*
+
+> **V13 összehasonlítás lezárva.** A v2.0 a v13 feature-ök ~96%-át lefedi, 636 unit teszttel. A maradék 2 tétel (SimEngine, Trailing Stop) P3 backlog. A V2 saját lábán áll — a pipeline BC1-BC14 alatt teljes egészében újratervezve, tesztelve és dokumentálva.
