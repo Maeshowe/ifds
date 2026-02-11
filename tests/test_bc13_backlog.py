@@ -14,6 +14,7 @@ import pytest
 from ifds.config.loader import Config
 from ifds.events.logger import EventLogger
 from ifds.models.market import (
+    BMIData,
     BMIRegime,
     FlowAnalysis,
     FundamentalScoring,
@@ -21,6 +22,8 @@ from ifds.models.market import (
     GEXRegime,
     MacroRegime,
     MarketVolatilityRegime,
+    Phase1Result,
+    Phase2Result,
     Phase4Result,
     Phase5Result,
     Phase6Result,
@@ -280,12 +283,31 @@ def _make_ctx(positions=None):
         tnx_sma20=4.1,
         tnx_rate_sensitive=False,
     )
+    bmi = BMIData(
+        bmi_value=45.0,
+        bmi_regime=BMIRegime.GREEN,
+        daily_ratio=48.0,
+        buy_count=120,
+        sell_count=130,
+    )
+    phase1 = Phase1Result(
+        bmi=bmi,
+        strategy_mode=StrategyMode.LONG,
+        ticker_count_for_bmi=11000,
+    )
+    phase2 = Phase2Result(
+        tickers=[Ticker(symbol="AAPL"), Ticker(symbol="MSFT")],
+        total_screened=900,
+        earnings_excluded=["GOOG", "AMZN"],
+    )
     ctx = PipelineContext(
         run_id="test-run",
         macro=macro,
         bmi_value=45.0,
         bmi_regime=BMIRegime.GREEN,
         strategy_mode=StrategyMode.LONG,
+        phase1=phase1,
+        phase2=phase2,
     )
     if positions is not None:
         ctx.phase4 = Phase4Result(analyzed=[], passed=[])
@@ -334,7 +356,7 @@ class TestTelegramDailyReport:
 
     @patch("ifds.output.telegram.requests.post")
     def test_successful_send(self, mock_post, config, logger):
-        """Sends unified message with exec plan."""
+        """Sends unified message with all phases."""
         from ifds.output.telegram import send_daily_report
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
@@ -346,17 +368,18 @@ class TestTelegramDailyReport:
         result = send_daily_report(ctx, config, logger, 42.5)
 
         assert result is True
-        mock_post.assert_called_once()
-        args, kwargs = mock_post.call_args
+        # May send 1 or 2 messages depending on size
+        assert mock_post.call_count >= 1
+        first_call = mock_post.call_args_list[0]
+        args, kwargs = first_call
         assert "api.telegram.org" in args[0]
         assert kwargs["json"]["chat_id"] == "456"
+        assert kwargs["json"]["parse_mode"] == "HTML"
         text = kwargs["json"]["text"]
         assert "IFDS Daily Report" in text
         assert "42.5s" in text
-        assert "AAPL" in text
-        assert "MSFT" in text
-        assert "Exec Plan" in text
-        assert "2 positions" in text
+        assert "[ 0/6 ]" in text
+        assert "[ 1/6 ]" in text
 
     @patch("ifds.output.telegram.requests.post", side_effect=Exception("Network error"))
     def test_failure_returns_false(self, mock_post, config, logger):
@@ -370,21 +393,58 @@ class TestTelegramDailyReport:
         assert result is False
 
     def test_format_success_content(self, config):
-        """Format includes BMI, strategy, duration, risk total."""
+        """Format includes all phase headers and HTML tags."""
         from ifds.output.telegram import _format_success
         positions = [_make_position(), _make_position(ticker="MSFT", sector="Technology")]
         ctx = _make_ctx(positions=positions)
-        msg = _format_success(ctx, 33.7, config)
+        part1, part2 = _format_success(ctx, 33.7, config)
 
-        assert "IFDS Daily Report" in msg
-        assert "33.7s" in msg
-        assert "green" in msg.lower() or "GREEN" in msg
-        assert "long" in msg.lower()
-        assert "$500" in msg or "$1,000" in msg  # risk per position or total
+        # Part 1 has Phase 0-4
+        assert "IFDS Daily Report" in part1
+        assert "33.7s" in part1
+        assert "GREEN" in part1
+        assert "LONG" in part1
+        assert "[ 0/6 ]" in part1
+        assert "[ 1/6 ]" in part1
+        assert "[ 2/6 ]" in part1
+        assert "VIX=18.50" in part1
+        assert "Screened: 900" in part1
+        assert "Passed: 2" in part1
+
+        # Exec table in part2 or combined
+        full = part1 + part2
+        assert "[ 5/6 ]" in full
+        assert "[ 6/6 ]" in full
+        assert "AAPL" in full
+        assert "MSFT" in full
+        assert "<pre>" in full
+
+    def test_format_html_parse_mode(self, config, logger):
+        """Verify HTML parse_mode is used instead of Markdown."""
+        from ifds.output.telegram import send_daily_report
+        config.runtime["telegram_bot_token"] = "123:ABC"
+        config.runtime["telegram_chat_id"] = "456"
+
+        ctx = _make_ctx(positions=[_make_position()])
+        with patch("ifds.output.telegram.requests.post") as mock_post:
+            mock_post.return_value = MagicMock()
+            send_daily_report(ctx, config, logger, 5.0)
+
+        for c in mock_post.call_args_list:
+            assert c[1]["json"]["parse_mode"] == "HTML"
+
+    def test_format_phase_structure(self, config):
+        """All 7 phase headers appear in the formatted output."""
+        from ifds.output.telegram import _format_success
+        ctx = _make_ctx(positions=[_make_position()])
+        part1, part2 = _format_success(ctx, 10.0, config)
+        full = part1 + part2
+        for i in range(7):
+            assert f"[ {i}/6 ]" in full
 
     @patch("ifds.output.telegram.requests.post")
     def test_failure_report(self, mock_post, config, logger):
-        """Failure report sends error message."""
+        """Failure report sends error message with HTML."""
         from ifds.output.telegram import send_failure_report
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
@@ -393,10 +453,36 @@ class TestTelegramDailyReport:
 
         result = send_failure_report("Connection refused", config, logger, 2.5)
         assert result is True
-        text = mock_post.call_args[1]["json"]["text"]
+        kwargs = mock_post.call_args[1]
+        assert kwargs["json"]["parse_mode"] == "HTML"
+        text = kwargs["json"]["text"]
         assert "FAILED" in text
         assert "Connection refused" in text
         assert "2.5s" in text
+
+    @patch("ifds.output.telegram.requests.post")
+    def test_message_splitting(self, mock_post, config, logger):
+        """Long messages are split into 2 sends."""
+        from ifds.output.telegram import send_daily_report, _MAX_MSG_LEN
+        config.runtime["telegram_bot_token"] = "123:ABC"
+        config.runtime["telegram_chat_id"] = "456"
+        mock_post.return_value = MagicMock()
+
+        # Create many positions to push message over 4096
+        positions = [
+            _make_position(ticker=f"T{i:03d}", price=100.0 + i)
+            for i in range(60)
+        ]
+        ctx = _make_ctx(positions=positions)
+        result = send_daily_report(ctx, config, logger, 99.0)
+
+        assert result is True
+        # Should have sent 2 messages (Phase 0-4 + Phase 5-6)
+        assert mock_post.call_count == 2
+        text1 = mock_post.call_args_list[0][1]["json"]["text"]
+        text2 = mock_post.call_args_list[1][1]["json"]["text"]
+        assert "[ 0/6 ]" in text1
+        assert "[ 6/6 ]" in text2
 
 
 # ============================================================================
