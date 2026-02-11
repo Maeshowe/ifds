@@ -46,20 +46,20 @@ def run_phase5(config: Config, logger: EventLogger,
     Returns:
         Phase5Result with GEX-filtered candidates.
     """
-    # OBSIDIAN needs polygon — fall through to sync when polygon provided (BC15)
     obsidian_enabled = config.tuning.get("obsidian_enabled", False)
     always_collect = config.tuning.get("obsidian_store_always_collect", True)
-    needs_obsidian = (obsidian_enabled or always_collect) and polygon is not None
+    needs_obsidian = (obsidian_enabled or always_collect)
 
-    if config.runtime.get("async_enabled", False) and not needs_obsidian:
+    if config.runtime.get("async_enabled", False):
         return asyncio.run(_run_phase5_async(
             config, logger, stock_analyses, strategy_mode,
+            run_obsidian=needs_obsidian,
         ))
 
     start_time = time.monotonic()
     logger.phase_start(5, "GEX Analysis", input_count=len(stock_analyses))
 
-    should_run_obsidian = needs_obsidian
+    should_run_obsidian = needs_obsidian and polygon is not None
     obsidian_store = None
     obsidian_analyses: list[ObsidianAnalysis] = []
 
@@ -324,8 +324,12 @@ def _get_gex_multiplier(regime: GEXRegime, config: Config) -> float:
 
 async def _run_phase5_async(config: Config, logger: EventLogger,
                             stock_analyses: list[StockAnalysis],
-                            strategy_mode: StrategyMode) -> Phase5Result:
-    """Async Phase 5: process GEX for all candidates concurrently."""
+                            strategy_mode: StrategyMode,
+                            run_obsidian: bool = False) -> Phase5Result:
+    """Async Phase 5: process GEX for all candidates concurrently.
+
+    When run_obsidian=True, also fetches bars+options for OBSIDIAN analysis.
+    """
     from ifds.data.async_clients import AsyncPolygonClient, AsyncUWClient
     from ifds.data.async_adapters import (
         AsyncFallbackGEXProvider, AsyncPolygonGEXProvider, AsyncUWGEXProvider,
@@ -334,15 +338,27 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
     start_time = time.monotonic()
     logger.phase_start(5, "GEX Analysis (async)", input_count=len(stock_analyses))
 
+    obsidian_enabled = config.tuning.get("obsidian_enabled", False)
+
     sem_ticker = asyncio.Semaphore(config.runtime.get("async_max_tickers", 10))
     sem_polygon = asyncio.Semaphore(config.runtime.get("async_sem_polygon", 5))
     sem_uw = asyncio.Semaphore(config.runtime.get("async_sem_uw", 5))
+
+    # Wire FileCache if enabled (OBSIDIAN reuses Phase 4 cached bars/options)
+    file_cache = None
+    if config.runtime.get("cache_enabled", False):
+        from ifds.data.cache import FileCache
+        file_cache = FileCache(
+            cache_dir=config.runtime.get("cache_dir", "data/cache"),
+            max_age_days=config.runtime.get("cache_max_age_days", 7),
+        )
 
     polygon = AsyncPolygonClient(
         api_key=config.get_api_key("polygon"),
         timeout=config.runtime.get("api_timeout_polygon_options", 15),
         max_retries=config.runtime["api_max_retries"],
         semaphore=sem_polygon,
+        cache=file_cache,
     )
 
     uw_client = None
@@ -372,15 +388,49 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
     passed = []
     excluded_count = 0
     negative_count = 0
+    obsidian_analyses: list[ObsidianAnalysis] = []
 
     async def process_gex(stock: StockAnalysis):
         async with sem_ticker:
             return await gex_provider.get_gex(stock.ticker)
 
-    try:
-        tasks = [process_gex(stock) for stock in sorted_candidates]
-        gex_results = await asyncio.gather(*tasks, return_exceptions=True)
+    # OBSIDIAN: fetch bars + options concurrently for all tickers
+    obs_from = (date.today() - timedelta(days=365)).isoformat()
+    obs_to = date.today().isoformat()
 
+    async def fetch_obsidian_data(ticker: str):
+        """Fetch bars and options snapshot for OBSIDIAN."""
+        async with sem_ticker:
+            bars = await polygon.get_aggregates(ticker, obs_from, obs_to)
+            options = await polygon.get_options_snapshot(ticker)
+            return bars, options
+
+    try:
+        # Phase 1: GEX gather
+        gex_tasks = [process_gex(stock) for stock in sorted_candidates]
+        gex_results = await asyncio.gather(*gex_tasks, return_exceptions=True)
+
+        # Phase 2: OBSIDIAN data gather (concurrent)
+        obs_data_map: dict[str, tuple] = {}
+        if run_obsidian:
+            obs_tasks = [fetch_obsidian_data(s.ticker) for s in sorted_candidates]
+            obs_results = await asyncio.gather(*obs_tasks, return_exceptions=True)
+            for stock, obs_result in zip(sorted_candidates, obs_results):
+                if not isinstance(obs_result, BaseException):
+                    obs_data_map[stock.ticker] = obs_result
+
+        # OBSIDIAN store + analysis setup
+        obsidian_store = None
+        run_obsidian_fn = None
+        if run_obsidian:
+            from ifds.data.obsidian_store import ObsidianStore
+            from ifds.phases.phase5_obsidian import run_obsidian_analysis
+            store_dir = config.runtime.get("obsidian_store_dir", "state/obsidian")
+            max_entries = config.runtime.get("obsidian_max_store_entries", 100)
+            obsidian_store = ObsidianStore(store_dir=store_dir, max_entries=max_entries)
+            run_obsidian_fn = run_obsidian_analysis
+
+        # Process GEX results + OBSIDIAN
         for stock, gex_data in zip(sorted_candidates, gex_results):
             ticker = stock.ticker
 
@@ -403,6 +453,21 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
                     gex_multiplier=config.tuning["gex_positive_multiplier"],
                     data_source="none",
                 )
+                # OBSIDIAN still runs even without GEX data
+                if run_obsidian_fn and obsidian_store and ticker in obs_data_map:
+                    try:
+                        bars, options = obs_data_map[ticker]
+                        obs = run_obsidian_fn(
+                            config.core, config.tuning,
+                            ticker, bars, options, stock, None, obsidian_store,
+                        )
+                        obs.gex_regime = GEXRegime.POSITIVE
+                        obs.data_source = "none"
+                        if obsidian_enabled:
+                            gex_analysis.gex_multiplier = obs.regime_multiplier
+                        obsidian_analyses.append(obs)
+                    except Exception:
+                        pass
                 analyzed.append(gex_analysis)
                 passed.append(gex_analysis)
                 continue
@@ -450,21 +515,62 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
                 data_source=source,
             )
 
-            if regime == GEXRegime.NEGATIVE and strategy_mode == StrategyMode.LONG:
-                gex_analysis.excluded = True
-                gex_analysis.exclusion_reason = "negative_gex_long"
+            # OBSIDIAN MM analysis
+            obsidian = None
+            if run_obsidian_fn and obsidian_store and ticker in obs_data_map:
+                try:
+                    bars, options = obs_data_map[ticker]
+                    obsidian = run_obsidian_fn(
+                        config.core, config.tuning,
+                        ticker, bars, options, stock, gex_data, obsidian_store,
+                    )
+                    obsidian.call_wall = call_wall
+                    obsidian.put_wall = put_wall
+                    obsidian.zero_gamma = zero_gamma
+                    obsidian.net_gex = net_gex
+                    obsidian.gex_regime = regime
+                    obsidian.data_source = source
+
+                    if obsidian_enabled:
+                        gex_analysis.gex_multiplier = obsidian.regime_multiplier
+
+                    obsidian_analyses.append(obsidian)
+                except Exception as obs_err:
+                    logger.log(
+                        EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=5,
+                        ticker=ticker,
+                        message=f"[OBSIDIAN] {ticker} analysis failed: {obs_err}",
+                    )
+
+            # Exclusion decision
+            excluded_this = False
+            if obsidian_enabled and obsidian is not None:
+                if obsidian.mm_regime == MMRegime.GAMMA_NEGATIVE and strategy_mode == StrategyMode.LONG:
+                    gex_analysis.excluded = True
+                    gex_analysis.exclusion_reason = "gamma_negative_long"
+                    obsidian.excluded = True
+                    obsidian.exclusion_reason = "gamma_negative_long"
+                    excluded_this = True
+            else:
+                if regime == GEXRegime.NEGATIVE and strategy_mode == StrategyMode.LONG:
+                    gex_analysis.excluded = True
+                    gex_analysis.exclusion_reason = "negative_gex_long"
+                    excluded_this = True
+
+            if excluded_this:
                 excluded_count += 1
                 negative_count += 1
                 logger.log(
                     EventType.GEX_EXCLUSION, Severity.INFO, phase=5,
                     ticker=ticker,
                     message=(
-                        f"{ticker} NEGATIVE GEX regime — excluded in LONG mode "
+                        f"{ticker} excluded in LONG mode "
                         f"(price={current_price:.2f}, zero_gamma={zero_gamma:.2f})"
                     ),
                     data={
                         "ticker": ticker,
                         "regime": regime.value,
+                        "mm_regime": obsidian.mm_regime.value if obsidian else "",
                         "price": current_price,
                         "zero_gamma": zero_gamma,
                         "net_gex": net_gex,
@@ -482,19 +588,30 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
             passed=passed,
             excluded_count=excluded_count,
             negative_regime_count=negative_count,
+            obsidian_analyses=obsidian_analyses,
+            obsidian_enabled=obsidian_enabled,
         )
+
+        obsidian_msg = ""
+        if obsidian_analyses:
+            regime_counts: dict[str, int] = {}
+            for o in obsidian_analyses:
+                regime_counts[o.mm_regime.value] = regime_counts.get(o.mm_regime.value, 0) + 1
+            obsidian_msg = f" | OBSIDIAN: {dict(sorted(regime_counts.items()))}"
 
         logger.log(
             EventType.PHASE_COMPLETE, Severity.INFO, phase=5,
             message=(
                 f"GEX analyzed {len(analyzed)} → Passed {len(passed)} "
                 f"(excluded={excluded_count}, negative={negative_count})"
+                f"{obsidian_msg}"
             ),
             data={
                 "analyzed": len(analyzed),
                 "passed": len(passed),
                 "excluded": excluded_count,
                 "negative": negative_count,
+                "obsidian_count": len(obsidian_analyses),
             },
         )
 

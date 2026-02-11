@@ -14,13 +14,17 @@ import pytest
 from ifds.config.loader import Config
 from ifds.events.logger import EventLogger
 from ifds.models.market import (
+    BMIRegime,
     FlowAnalysis,
     FundamentalScoring,
     GEXAnalysis,
     GEXRegime,
     MacroRegime,
     MarketVolatilityRegime,
+    Phase4Result,
+    Phase5Result,
     Phase6Result,
+    PipelineContext,
     PositionSizing,
     StockAnalysis,
     StrategyMode,
@@ -263,87 +267,136 @@ class TestSurvivorshipBias:
 
 
 # ============================================================================
-# Feature 2: Telegram Alerts
+# Feature 2: Telegram Daily Report
 # ============================================================================
 
-class TestTelegramAlerts:
-    """Test Telegram alert sending."""
+def _make_ctx(positions=None):
+    """Helper to build a minimal PipelineContext for telegram tests."""
+    macro = MacroRegime(
+        vix_value=18.5,
+        vix_regime=MarketVolatilityRegime.NORMAL,
+        vix_multiplier=1.0,
+        tnx_value=4.2,
+        tnx_sma20=4.1,
+        tnx_rate_sensitive=False,
+    )
+    ctx = PipelineContext(
+        run_id="test-run",
+        macro=macro,
+        bmi_value=45.0,
+        bmi_regime=BMIRegime.GREEN,
+        strategy_mode=StrategyMode.LONG,
+    )
+    if positions is not None:
+        ctx.phase4 = Phase4Result(analyzed=[], passed=[])
+        ctx.phase5 = Phase5Result(analyzed=[], passed=[])
+        ctx.phase6 = Phase6Result(positions=positions)
+    return ctx
+
+
+class TestTelegramDailyReport:
+    """Test unified Telegram daily report."""
 
     def test_disabled_no_token(self, config, logger):
         """Returns False when no token configured."""
-        from ifds.output.telegram import send_trade_alerts
+        from ifds.output.telegram import send_daily_report
         config.runtime["telegram_bot_token"] = None
         config.runtime["telegram_chat_id"] = None
 
-        positions = [_make_position()]
-        result = send_trade_alerts(positions, "long", config, logger)
+        ctx = _make_ctx(positions=[_make_position()])
+        result = send_daily_report(ctx, config, logger, 12.3)
         assert result is False
 
     def test_disabled_no_chat_id(self, config, logger):
         """Returns False when token set but no chat_id."""
-        from ifds.output.telegram import send_trade_alerts
+        from ifds.output.telegram import send_daily_report
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = None
 
-        positions = [_make_position()]
-        result = send_trade_alerts(positions, "long", config, logger)
+        ctx = _make_ctx(positions=[_make_position()])
+        result = send_daily_report(ctx, config, logger, 12.3)
         assert result is False
 
-    def test_empty_positions(self, config, logger):
-        """Returns False when no positions to send."""
-        from ifds.output.telegram import send_trade_alerts
+    def test_sends_with_zero_positions(self, config, logger):
+        """Always sends even with 0 positions (health report)."""
+        from ifds.output.telegram import send_daily_report
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
 
-        result = send_trade_alerts([], "long", config, logger)
-        assert result is False
+        ctx = _make_ctx(positions=[])
+        with patch("ifds.output.telegram.requests.post") as mock_post:
+            mock_post.return_value = MagicMock()
+            result = send_daily_report(ctx, config, logger, 5.0)
+
+        assert result is True
+        text = mock_post.call_args[1]["json"]["text"]
+        assert "No positions today" in text
 
     @patch("ifds.output.telegram.requests.post")
     def test_successful_send(self, mock_post, config, logger):
-        """Sends Telegram message and returns True on success."""
-        from ifds.output.telegram import send_trade_alerts
+        """Sends unified message with exec plan."""
+        from ifds.output.telegram import send_daily_report
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
 
-        mock_resp = MagicMock()
-        mock_resp.raise_for_status = MagicMock()
-        mock_post.return_value = mock_resp
+        mock_post.return_value = MagicMock()
 
-        positions = [_make_position()]
-        result = send_trade_alerts(positions, "long", config, logger)
+        positions = [_make_position(), _make_position(ticker="MSFT", sector="Technology")]
+        ctx = _make_ctx(positions=positions)
+        result = send_daily_report(ctx, config, logger, 42.5)
 
         assert result is True
         mock_post.assert_called_once()
         args, kwargs = mock_post.call_args
         assert "api.telegram.org" in args[0]
         assert kwargs["json"]["chat_id"] == "456"
-        assert "AAPL" in kwargs["json"]["text"]
+        text = kwargs["json"]["text"]
+        assert "IFDS Daily Report" in text
+        assert "42.5s" in text
+        assert "AAPL" in text
+        assert "MSFT" in text
+        assert "Exec Plan" in text
+        assert "2 positions" in text
 
     @patch("ifds.output.telegram.requests.post", side_effect=Exception("Network error"))
     def test_failure_returns_false(self, mock_post, config, logger):
         """Returns False on network failure."""
-        from ifds.output.telegram import send_trade_alerts
+        from ifds.output.telegram import send_daily_report
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
 
-        positions = [_make_position()]
-        result = send_trade_alerts(positions, "long", config, logger)
+        ctx = _make_ctx(positions=[_make_position()])
+        result = send_daily_report(ctx, config, logger, 10.0)
         assert result is False
 
-    def test_format_message(self):
-        """Message format includes ticker, direction, score, sector."""
-        from ifds.output.telegram import _format_message
+    def test_format_success_content(self, config):
+        """Format includes BMI, strategy, duration, risk total."""
+        from ifds.output.telegram import _format_success
         positions = [_make_position(), _make_position(ticker="MSFT", sector="Technology")]
-        msg = _format_message(positions, "long")
+        ctx = _make_ctx(positions=positions)
+        msg = _format_success(ctx, 33.7, config)
 
-        assert "IFDS Trade Plan" in msg
-        assert "LONG" in msg
-        assert "2 positions" in msg
-        assert "AAPL" in msg
-        assert "MSFT" in msg
-        assert "BUY" in msg
-        assert "Stop:" in msg
-        assert "TP1:" in msg
+        assert "IFDS Daily Report" in msg
+        assert "33.7s" in msg
+        assert "green" in msg.lower() or "GREEN" in msg
+        assert "long" in msg.lower()
+        assert "$500" in msg or "$1,000" in msg  # risk per position or total
+
+    @patch("ifds.output.telegram.requests.post")
+    def test_failure_report(self, mock_post, config, logger):
+        """Failure report sends error message."""
+        from ifds.output.telegram import send_failure_report
+        config.runtime["telegram_bot_token"] = "123:ABC"
+        config.runtime["telegram_chat_id"] = "456"
+
+        mock_post.return_value = MagicMock()
+
+        result = send_failure_report("Connection refused", config, logger, 2.5)
+        assert result is True
+        text = mock_post.call_args[1]["json"]["text"]
+        assert "FAILED" in text
+        assert "Connection refused" in text
+        assert "2.5s" in text
 
 
 # ============================================================================

@@ -4,7 +4,7 @@
 
 ---
 
-## BC15 — OBSIDIAN MM Integration (686 tests)
+## BC15 — OBSIDIAN MM Integration (692 tests)
 
 **Phase 5 upgrade: 7-regime market microstructure diagnostic engine**
 
@@ -26,12 +26,19 @@
 - **Phase 5 Integration**: OBSIDIAN overrides `gex_analysis.gex_multiplier` → Phase 6 picks it up transparently
   - Γ⁻ + LONG → excluded (replaces GEX NEGATIVE exclusion when enabled)
   - call_wall/put_wall/zero_gamma preserved for Phase 6 TP targets
+  - **Async support**: Two-phase gather (GEX + OBSIDIAN bars/options), FileCache wired
 - **Models**: MMRegime enum (7 values), BaselineState enum, ObsidianAnalysis dataclass
   - Phase5Result: +obsidian_analyses, +obsidian_enabled
   - PositionSizing: +mm_regime, +unusualness_score
 - **Console**: OBSIDIAN regime distribution in GEX summary
+- **Telegram**: Unified daily report (`send_daily_report` / `send_failure_report`)
+  - Single merged message: BMI, sectors, breadth, scanned, GEX, OBSIDIAN store stats, exec plan
+  - Failure notification with error message and duration
+  - Per-phase timing in runner (Phase 0-6 `time.monotonic()` logging)
+  - Env var fix: `IFDS_TELEGRAM_BOT_TOKEN` + `IFDS_TELEGRAM_CHAT_ID` added to loader
+- **Deploy Scripts**: `scripts/deploy_daily.sh` (cron-friendly pipeline runner), `scripts/setup_cron.sh` (weekday 22:00 cron), `.env.example`
 - Config: 10 CORE + 3 TUNING + 2 RUNTIME OBSIDIAN keys
-- Tesztek: 50 új (test_bc15_obsidian.py)
+- Tesztek: 55 új (test_bc15_obsidian.py) + 7 telegram (test_bc13_backlog.py rewrite)
 
 ---
 

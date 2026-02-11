@@ -1,6 +1,7 @@
 """Pipeline runner — orchestrates phase execution."""
 
 import sys
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -64,6 +65,8 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
     run_id = f"run_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
     logger = EventLogger(log_dir=config.runtime["log_dir"], run_id=run_id)
 
+    pipeline_t0 = time.monotonic()
+
     logger.log(EventType.PIPELINE_START, Severity.INFO,
                message=f"Pipeline started (run_id={run_id})",
                data={"dry_run": dry_run, "single_phase": phase})
@@ -84,7 +87,10 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
         # === Phase 0: System Diagnostics (always runs — mandatory safety check) ===
         from ifds.phases.phase0_diagnostics import run_phase0
 
+        _t = time.monotonic()
         diag = run_phase0(config, logger)
+        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                   message=f"Phase 0 completed in {time.monotonic() - _t:.1f}s")
         ctx.diagnostics = diag
         ctx.macro = diag.macro
         ctx.uw_available = diag.uw_available
@@ -120,8 +126,9 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 log_file=str(logger.log_file),
             )
 
-        # === Sector mapping for per-sector BMI ===
+        # === Sector mapping for per-sector BMI + Phase 1 ===
         sector_mapping = None
+        _t = time.monotonic()
         if _should_run(phase, 1):
             from ifds.data.fmp import FMPClient as FMPClient1
             fmp1 = FMPClient1(
@@ -162,8 +169,11 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 print_phase1(phase1, prev_bmi=prev_bmi)
             finally:
                 polygon.close()
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                       message=f"Phase 1 completed in {time.monotonic() - _t:.1f}s")
 
         # === Phase 2: Universe Building ===
+        _t = time.monotonic()
         if _should_run(phase, 2):
             from ifds.phases.phase2_universe import run_phase2
             from ifds.data.fmp import FMPClient
@@ -183,8 +193,11 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 print_phase2(phase2)
             finally:
                 fmp.close()
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                       message=f"Phase 2 completed in {time.monotonic() - _t:.1f}s")
 
         # === Phase 3: Sector Rotation ===
+        _t = time.monotonic()
         if _should_run(phase, 3):
             from ifds.phases.phase3_sectors import run_phase3
             from ifds.data.polygon import PolygonClient as PolygonClient3
@@ -243,8 +256,11 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     fmp3.close()
                 # Memory cleanup: free grouped daily bars (BC14)
                 ctx.grouped_daily_bars = []
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                       message=f"Phase 3 completed in {time.monotonic() - _t:.1f}s")
 
         # === Phase 4: Individual Stock Analysis ===
+        _t = time.monotonic()
         if _should_run(phase, 4):
             if not ctx.universe:
                 logger.log(EventType.PHASE_SKIP, Severity.WARNING, phase=4,
@@ -315,8 +331,11 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     fmp4.close()
                     if uw_client:
                         uw_client.close()
+                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                           message=f"Phase 4 completed in {time.monotonic() - _t:.1f}s")
 
         # === Phase 5: GEX Analysis ===
+        _t = time.monotonic()
         if _should_run(phase, 5):
             if not ctx.stock_analyses:
                 logger.log(EventType.PHASE_SKIP, Severity.WARNING, phase=5,
@@ -374,8 +393,11 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     polygon5.close()
                     if uw5 is not None:
                         uw5.close()
+                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                           message=f"Phase 5 completed in {time.monotonic() - _t:.1f}s")
 
         # === Phase 6: Position Sizing & Risk Management ===
+        _t = time.monotonic()
         if _should_run(phase, 6):
             if not ctx.gex_analyses or not ctx.stock_analyses:
                 logger.log(EventType.PHASE_SKIP, Severity.WARNING, phase=6,
@@ -417,22 +439,23 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     )
 
                 print_final_summary(phase6, ctx)
+                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                           message=f"Phase 6 completed in {time.monotonic() - _t:.1f}s")
 
-                # Telegram alerts (BC13) — non-blocking, optional
-                try:
-                    from ifds.output.telegram import send_trade_alerts
-                    send_trade_alerts(
-                        phase6.positions, strategy.value, config, logger,
-                    )
-                except Exception as e:
-                    logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
-                               message=f"Telegram module error: {e}")
-
+        duration = time.monotonic() - pipeline_t0
         logger.log(EventType.PIPELINE_END, Severity.INFO,
-                   message="Pipeline run complete.")
+                   message=f"Pipeline run complete in {duration:.1f}s.")
 
         log_file = str(logger.log_file)
         print_pipeline_result(ctx, log_file, config=config)
+
+        # Telegram — single unified daily report
+        try:
+            from ifds.output.telegram import send_daily_report
+            send_daily_report(ctx, config, logger, duration)
+        except Exception as e:
+            logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
+                       message=f"Telegram error: {e}")
 
         return PipelineResult(
             success=True,

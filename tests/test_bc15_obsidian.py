@@ -1,6 +1,6 @@
 """BC15 OBSIDIAN MM Tests — Feature Store, Engine, Classification, Integration.
 
-~40 tests covering:
+~50 tests covering:
 - MMRegime/BaselineState enums
 - Feature extraction (bars, DEX, IV)
 - Z-score computation
@@ -9,6 +9,7 @@
 - ObsidianStore (load, save, trim)
 - Regime multiplier mapping
 - Phase 5 integration (enabled, disabled, exclusion)
+- Phase 5 async integration (OBSIDIAN with async data fetch)
 - Phase 6 integration (mm_regime on PositionSizing)
 """
 
@@ -16,7 +17,7 @@ import json
 import math
 import os
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -792,3 +793,170 @@ class TestObsidianAnalysisDataclass:
         result = Phase5Result()
         assert result.obsidian_analyses == []
         assert result.obsidian_enabled is False
+
+
+# ============================================================================
+# TestPhase5AsyncOBSIDIAN
+# ============================================================================
+
+class TestPhase5AsyncOBSIDIAN:
+    """Test the async Phase 5 path with OBSIDIAN enabled."""
+
+    @pytest.mark.asyncio
+    async def test_async_obsidian_fetches_bars_and_options(self, config, logger, tmp_path):
+        """Async path fetches bars+options and runs OBSIDIAN analysis."""
+        from ifds.phases.phase5_gex import _run_phase5_async
+
+        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
+        config.tuning["obsidian_enabled"] = False
+        config.tuning["obsidian_store_always_collect"] = True
+
+        stocks = [_make_stock("AAPL")]
+
+        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
+             patch("ifds.data.async_clients.AsyncUWClient"):
+
+            mock_poly = AsyncMock()
+            mock_poly.get_options_snapshot = AsyncMock(return_value=None)
+            mock_poly.get_aggregates = AsyncMock(return_value=_make_bars(100))
+            mock_poly.close = AsyncMock()
+            MockPoly.return_value = mock_poly
+
+            result = await _run_phase5_async(
+                config, logger, stocks, StrategyMode.LONG,
+                run_obsidian=True,
+            )
+
+            assert len(result.obsidian_analyses) == 1
+            assert result.obsidian_analyses[0].ticker == "AAPL"
+            # Store should have been populated
+            store = ObsidianStore(store_dir=str(tmp_path / "obsidian"))
+            entries = store.load("AAPL")
+            assert len(entries) == 1
+
+    @pytest.mark.asyncio
+    async def test_async_obsidian_carries_gex_data(self, config, logger, tmp_path):
+        """Async OBSIDIAN carries GEX structural data (call_wall, put_wall, etc.)."""
+        from ifds.phases.phase5_gex import _run_phase5_async
+
+        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
+        config.tuning["obsidian_enabled"] = True
+
+        stocks = [_make_stock("AAPL")]
+
+        mock_gex_result = {
+            "net_gex": 500000, "call_wall": 160.0, "put_wall": 140.0,
+            "zero_gamma": 150.0, "gex_by_strike": [], "source": "polygon_calculated",
+        }
+
+        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
+             patch("ifds.data.async_clients.AsyncUWClient"), \
+             patch("ifds.data.async_adapters.AsyncPolygonGEXProvider") as MockGEX:
+
+            mock_poly = AsyncMock()
+            mock_poly.get_options_snapshot = AsyncMock(return_value=_make_options(20))
+            mock_poly.get_aggregates = AsyncMock(return_value=_make_bars(100))
+            mock_poly.close = AsyncMock()
+            MockPoly.return_value = mock_poly
+
+            mock_gex_prov = AsyncMock()
+            mock_gex_prov.get_gex = AsyncMock(return_value=mock_gex_result)
+            MockGEX.return_value = mock_gex_prov
+
+            result = await _run_phase5_async(
+                config, logger, stocks, StrategyMode.LONG,
+                run_obsidian=True,
+            )
+
+            assert len(result.obsidian_analyses) == 1
+            obs = result.obsidian_analyses[0]
+            assert obs.call_wall == 160.0
+            assert obs.put_wall == 140.0
+            assert obs.net_gex == 500000
+            assert obs.data_source == "polygon_calculated"
+
+    @pytest.mark.asyncio
+    async def test_async_obsidian_disabled_no_fetch(self, config, logger):
+        """When run_obsidian=False, no bars/options fetch happens."""
+        from ifds.phases.phase5_gex import _run_phase5_async
+
+        stocks = [_make_stock("AAPL")]
+
+        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
+             patch("ifds.data.async_clients.AsyncUWClient"):
+
+            mock_poly = AsyncMock()
+            mock_poly.get_options_snapshot = AsyncMock(return_value=None)
+            mock_poly.get_aggregates = AsyncMock(return_value=[])
+            mock_poly.close = AsyncMock()
+            MockPoly.return_value = mock_poly
+
+            result = await _run_phase5_async(
+                config, logger, stocks, StrategyMode.LONG,
+                run_obsidian=False,
+            )
+
+            assert result.obsidian_analyses == []
+            # get_aggregates should NOT have been called (only for OBSIDIAN)
+            mock_poly.get_aggregates.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_async_obsidian_data_fetch_failure_graceful(self, config, logger, tmp_path):
+        """OBSIDIAN data fetch failure doesn't break GEX analysis."""
+        from ifds.phases.phase5_gex import _run_phase5_async
+
+        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
+        config.tuning["obsidian_enabled"] = True
+
+        stocks = [_make_stock("AAPL")]
+
+        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
+             patch("ifds.data.async_clients.AsyncUWClient"):
+
+            mock_poly = AsyncMock()
+            mock_poly.get_options_snapshot = AsyncMock(return_value=None)
+            # Bars fetch raises exception
+            mock_poly.get_aggregates = AsyncMock(side_effect=RuntimeError("API down"))
+            mock_poly.close = AsyncMock()
+            MockPoly.return_value = mock_poly
+
+            result = await _run_phase5_async(
+                config, logger, stocks, StrategyMode.LONG,
+                run_obsidian=True,
+            )
+
+            # GEX still works
+            assert len(result.passed) == 1
+            # OBSIDIAN gracefully skipped (data fetch failed)
+            assert result.obsidian_analyses == []
+
+    @pytest.mark.asyncio
+    async def test_async_obsidian_overrides_multiplier_when_enabled(self, config, logger, tmp_path):
+        """When obsidian_enabled=True, async path overrides gex_multiplier."""
+        from ifds.phases.phase5_gex import _run_phase5_async
+
+        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
+        config.tuning["obsidian_enabled"] = True
+
+        stocks = [_make_stock("AAPL")]
+
+        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
+             patch("ifds.data.async_clients.AsyncUWClient"):
+
+            mock_poly = AsyncMock()
+            mock_poly.get_options_snapshot = AsyncMock(return_value=_make_options(20))
+            mock_poly.get_aggregates = AsyncMock(return_value=_make_bars(100))
+            mock_poly.close = AsyncMock()
+            MockPoly.return_value = mock_poly
+
+            result = await _run_phase5_async(
+                config, logger, stocks, StrategyMode.LONG,
+                run_obsidian=True,
+            )
+
+            assert result.obsidian_enabled is True
+            assert len(result.obsidian_analyses) == 1
+            obs = result.obsidian_analyses[0]
+            gex = result.passed[0]
+            # Multiplier should reflect OBSIDIAN regime
+            assert gex.gex_multiplier == obs.regime_multiplier

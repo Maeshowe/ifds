@@ -83,6 +83,8 @@ class Config:
             "IFDS_ASYNC_ENABLED": ("async_enabled", lambda v: v.lower() in ("true", "1", "yes")),
             "IFDS_CACHE_ENABLED": ("cache_enabled", lambda v: v.lower() in ("true", "1", "yes")),
             "IFDS_CACHE_DIR": "cache_dir",
+            "IFDS_TELEGRAM_BOT_TOKEN": "telegram_bot_token",
+            "IFDS_TELEGRAM_CHAT_ID": "telegram_chat_id",
         }
 
         for env_key, target in env_mapping.items():

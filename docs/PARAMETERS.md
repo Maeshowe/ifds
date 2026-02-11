@@ -2,7 +2,7 @@
 
 > Generálva: `src/ifds/config/defaults.py` (CORE + TUNING + RUNTIME)
 > V13 referencia: `reference/settings.yaml`
-> Frissitve: 2026-02-11 (BC15 utan, 686 teszt)
+> Frissitve: 2026-02-11 (BC15 utan, 692 teszt)
 
 ---
 

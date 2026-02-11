@@ -3,7 +3,7 @@
 > Generálva a `src/ifds/` forráskódból, 2026-02-11.
 > Minden képlet, küszöbérték és logika a **ténylegesen implementált kódból** van kiolvasva.
 > Konfigurációs értékek forrása: `src/ifds/config/defaults.py`
-> Frissítve: BC15 után (686 teszt)
+> Frissítve: BC15 után (692 teszt)
 
 ---
 
@@ -1087,6 +1087,26 @@ Day 21+: Baseline PARTIAL/COMPLETE → full classification
   Minden z-score aktív → Γ⁺/Γ⁻/ABS/DIST rules tüzelhetnek
 ```
 
+#### Async OBSIDIAN (Phase 5 async path)
+
+```
+async_enabled=True → _run_phase5_async(run_obsidian=True):
+
+  Phase 1: GEX gather (concurrent)
+    → asyncio.gather(*[gex_provider.get_gex(ticker) for ticker in top100])
+
+  Phase 2: OBSIDIAN data gather (concurrent)
+    → asyncio.gather(*[polygon.get_aggregates(ticker, 365d) + get_options_snapshot(ticker)])
+    → obs_data_map: {ticker: (bars, options)}
+
+  Phase 3: Sync processing loop
+    → GEX classify + OBSIDIAN run_obsidian_analysis() per ticker
+    → Feature store write, multiplier override, exclusion logic
+
+  FileCache wired: AsyncPolygonClient(cache=file_cache)
+    → Reuses Phase 4 cached bars/options when available
+```
+
 ---
 
 ## Phase 6 — Position Sizing & Risk Management
@@ -1162,25 +1182,35 @@ Napi összesített notional cap:
 - `Phase6Result.excluded_notional_limit`: kizárt tickerek száma
 - Sorrend: dedup → daily trade limit → sizing → notional cap → position limits
 
-### 6.0d Telegram Alerts (BC13)
+### 6.0d Telegram Unified Daily Report (BC13+BC15)
 
 ```
-Phase 6 UTÁN (runner.py):
+Pipeline végén (runner.py):
+  duration = time.monotonic() - pipeline_t0
   try:
-    send_trade_alerts(positions, strategy, config, logger)
+    send_daily_report(ctx, config, logger, duration)
   except:
-    logger.log(CONFIG_WARNING, "Telegram module error: ...")
+    logger.log(CONFIG_WARNING, "Telegram error: ...")
 
-send_trade_alerts():
+Hiba esetén:
+  send_failure_report(error, config, logger, duration)
+
+send_daily_report():
   Ha token és chat_id nincs → return False (disabled)
-  Ha nincs position → return False
+  Egyetlen üzenet: BMI, sectors, breadth, scanned, GEX, OBSIDIAN stats, exec plan
   POST https://api.telegram.org/bot{token}/sendMessage
-    → Markdown format: ticker, direction, score, sector, SL, TP1
+    → Markdown format, max 4 ticker/sor az exec planben
     → timeout=5s
+
+send_failure_report():
+  🚨 IFDS FAILED — {date}
+  Error: `{error}`
+  Duration: {duration}s
 ```
 
 - Konfig: `telegram_bot_token=None`, `telegram_chat_id=None`, `telegram_timeout=5`
 - Non-blocking: exception → log, soha nem állítja meg a pipeline-t
+- Per-phase timing: `time.monotonic()` minden phase előtt/után, PHASE_DIAGNOSTIC log
 
 ---
 
@@ -1454,8 +1484,10 @@ Phase 6: Position Sizing
   │ SL/TP/Scale-out szintek
   │ Position limits (8 max, 3/szektor, $100K gross)
   │ [GLOBALGUARD] exposure logging
-  │ Telegram alerts (opcionális, non-blocking — BC13)
   ↓ execution_plan_{run_id}.csv
+Telegram: Unified daily report (opcionális, non-blocking — BC15)
+  │ Siker: BMI + sectors + breadth + scanned + GEX + OBSIDIAN + exec plan
+  │ Hiba: 🚨 IFDS FAILED + error + duration
 ```
 
 ---

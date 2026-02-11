@@ -1,4 +1,4 @@
-# IFDS V13 → V2.0 — Feature Audit (BC15 utan, 2026-02-11)
+# IFDS V13 → V2.0 — Feature Audit (BC15 utan, 692 teszt, 2026-02-11)
 
 > Referencia: `reference/` mappa teljes tartalma vs `src/ifds/` v2.0 kod
 > Frissitve: 2026-02-11 (BC15 utan)
@@ -67,7 +67,7 @@
 | VIX EXTREME | BC12 | VIX > 50 → EXTREME regime, multiplier 0.10 |
 | Institutional Ownership | BC12 | FMP `/stable/institutional-ownership/latest`, QoQ change > 2% → +10 |
 | Survivorship Bias | BC13 | Universe snapshot + diff logging `[SURVIVORSHIP]`, max 30 snapshot |
-| Telegram Alerts | BC13 | `send_trade_alerts()`, non-blocking, env var gated |
+| Telegram Alerts | BC13+BC15 | `send_daily_report()` unified, non-blocking, env var gated. BC15: merged health+trade into single message |
 | Max Daily Trades | BC13 | `max_daily_trades=20`, `state/daily_trades.json`, midnight reset |
 | Notional Limits | BC13 | `max_daily_notional=200K`, `max_position_notional=25K`, per-trade + napi cap |
 | Sector Breadth Analysis | BC14 | 7 breadth regime, SMA20/50/200 %-above, divergence detection, FMP ETF holdings |
@@ -104,7 +104,7 @@ macro_compass.py         [==========] 100%    TELJES (BC12)
 signal_generator.py      [==========-]  95%    Sim snapshot
 settings.yaml            [==========-]  96%    ~2 config kulcs hianyzik
 -------------------------------------------------------------------
-Osszesitett:             [==========-]  ~96%   (BC13: ~95%, BC14: ~96%, BC15: +OBSIDIAN V2 novelty)
+Osszesitett:             [==========-]  ~96%   (BC15: +OBSIDIAN V2 novelty, +Telegram unified report, +deploy scripts)
 ```
 
 ---
