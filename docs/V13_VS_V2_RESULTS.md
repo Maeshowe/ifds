@@ -185,11 +185,13 @@ V2.0: combined = (0.40 x flow + 0.30 x funda + 0.30 x tech + sector_adj)
 - 563 teszt, 0 failure
 
 ### BC14 utani allapot (aktualis):
-- V2 top 8 trade plan: SHW(95), VLO(95), DLR(95), NUE(95), CPT(95), ERO(95), XOM(94.5), BKR(94.5)
+- V2 top 4 trade plan: AHR(95.0), RIG(94.5), RUN(94.5), PECO(94.5)
 - Sector breadth: 7 regime (STRONG/EMERGING/CONSOLIDATING/NEUTRAL/WEAKENING/WEAK/RECOVERY)
 - Phase 6 daily counter fix: raw_positions(20) → final_positions(3) corrected
 - breadth_strong_bonus: 10 → 5 (crowding fix, clipping_threshold=95)
 - Phase 1 lookback: 75 → 330 nap (SMA200 breadth support)
+- **Breadth adj isolated**: sector_adj_map kiszuri a breadth_score_adj-t → ticker score nem tartalmazza
+- Phase 4 breakdown: **416 ACCEPTED**, 43 Crowded (stabil BC12 baseline)
 - **636 teszt, 0 failure**
 
 ### Maradek gap root cause:

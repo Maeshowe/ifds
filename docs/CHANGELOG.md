@@ -28,6 +28,7 @@
 - Breadth lookback 290 → 330 (holiday buffer for SMA200)
 - breadth_strong_bonus 10 → 5 (crowding prevention at clipping_threshold=95)
 - Console sector table reformat with `_cw()` helper for color-safe fixed-width
+- **Breadth adj isolated from ticker scores**: `sector_adj_map` subtracts `breadth_score_adj` — breadth only affects Phase 3 sector ranking (leader/neutral/laggard), NOT Phase 4 combined score. Crowded: 43 (stabil, BC12 baseline).
 
 ---
 

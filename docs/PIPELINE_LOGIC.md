@@ -429,7 +429,8 @@ _detect_breadth_divergence(etf_momentum_5d, breadth_momentum):
 | breadth_score < 30 | **-15** | `breadth_very_weak_penalty=-15` |
 | Bearish divergence | **-10** (stackelődik) | `breadth_divergence_penalty=-10` |
 
-- A breadth score_adj hozzáadódik a szektor `score_adjustment`-hez
+- A breadth score_adj hozzáadódik a szektor `score_adjustment`-hez (befolyásolja a sector rankinget: leader/neutral/laggard)
+- **FONTOS**: A breadth adj NEM propagálódik a Phase 4 ticker score-ba. A `sector_adj_map` kiszűri: `s.score_adjustment - s.breadth_score_adj` — így a ticker CSAK a momentum-alapú adj-t kapja (+15 leader, -20 laggard, 0 neutral, -5 MR) + TNX sensitivity.
 - Sorrend: sector momentum → sector BMI → **breadth** → veto matrix
 
 ---
@@ -806,6 +807,7 @@ combined = 0.40 × flow_score
 combined *= insider_multiplier
 ```
 
+- `sector_adjustment` = `SectorScore.score_adjustment - SectorScore.breadth_score_adj` (breadth adj kiszűrve — BC14)
 - Konfig: `weight_flow=0.40`, `weight_fundamental=0.30`, `weight_technical=0.30`
 
 #### Tipikus Combined Score Példák

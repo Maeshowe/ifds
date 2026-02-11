@@ -65,8 +65,8 @@ def run_phase4(config: Config, logger: EventLogger,
     logger.phase_start(4, "Individual Stock Analysis", input_count=len(tickers))
 
     try:
-        # Build sector name → score_adjustment map
-        sector_adj_map = {s.sector_name: s.score_adjustment
+        # Build sector name → score_adjustment map (exclude breadth adj — BC14)
+        sector_adj_map = {s.sector_name: s.score_adjustment - s.breadth_score_adj
                           for s in sector_scores if not s.vetoed}
 
         analyzed = []
@@ -857,7 +857,8 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             batch_dp, logger=logger,
         )
 
-    sector_adj_map = {s.sector_name: s.score_adjustment
+    # Exclude breadth adj from ticker-level score (BC14)
+    sector_adj_map = {s.sector_name: s.score_adjustment - s.breadth_score_adj
                       for s in sector_scores if not s.vetoed}
     min_score = config.tuning["combined_score_minimum"]
     clipping_threshold = config.core["clipping_threshold"]
