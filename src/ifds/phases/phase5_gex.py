@@ -11,6 +11,7 @@ GEX multiplier adjusts final position sizing (1.0 / 0.5 / 0.6).
 
 import asyncio
 import time
+from datetime import date, timedelta
 
 from ifds.config.loader import Config
 from ifds.data.adapters import GEXProvider
@@ -45,7 +46,12 @@ def run_phase5(config: Config, logger: EventLogger,
     Returns:
         Phase5Result with GEX-filtered candidates.
     """
-    if config.runtime.get("async_enabled", False):
+    # OBSIDIAN needs polygon — fall through to sync when polygon provided (BC15)
+    obsidian_enabled = config.tuning.get("obsidian_enabled", False)
+    always_collect = config.tuning.get("obsidian_store_always_collect", True)
+    needs_obsidian = (obsidian_enabled or always_collect) and polygon is not None
+
+    if config.runtime.get("async_enabled", False) and not needs_obsidian:
         return asyncio.run(_run_phase5_async(
             config, logger, stock_analyses, strategy_mode,
         ))
@@ -53,10 +59,7 @@ def run_phase5(config: Config, logger: EventLogger,
     start_time = time.monotonic()
     logger.phase_start(5, "GEX Analysis", input_count=len(stock_analyses))
 
-    # OBSIDIAN MM setup (BC15)
-    obsidian_enabled = config.tuning.get("obsidian_enabled", False)
-    always_collect = config.tuning.get("obsidian_store_always_collect", True)
-    should_run_obsidian = (obsidian_enabled or always_collect) and polygon is not None
+    should_run_obsidian = needs_obsidian
     obsidian_store = None
     obsidian_analyses: list[ObsidianAnalysis] = []
 
@@ -99,10 +102,9 @@ def run_phase5(config: Config, logger: EventLogger,
                 # OBSIDIAN still runs even without GEX data (BC15)
                 if should_run_obsidian and obsidian_store is not None:
                     try:
-                        bars = polygon.get_aggregates(
-                            ticker, multiplier=1, timespan="day",
-                            from_date="", to_date="", limit=250,
-                        )
+                        obs_from = (date.today() - timedelta(days=365)).isoformat()
+                        obs_to = date.today().isoformat()
+                        bars = polygon.get_aggregates(ticker, obs_from, obs_to)
                         options = polygon.get_options_snapshot(ticker)
                         obs = run_obsidian_analysis(
                             config.core, config.tuning,
@@ -166,10 +168,9 @@ def run_phase5(config: Config, logger: EventLogger,
             obsidian = None
             if should_run_obsidian and obsidian_store is not None:
                 try:
-                    bars = polygon.get_aggregates(
-                        ticker, multiplier=1, timespan="day",
-                        from_date="", to_date="", limit=250,
-                    )
+                    obs_from = (date.today() - timedelta(days=365)).isoformat()
+                    obs_to = date.today().isoformat()
+                    bars = polygon.get_aggregates(ticker, obs_from, obs_to)
                     options = polygon.get_options_snapshot(ticker)
                     obsidian = run_obsidian_analysis(
                         config.core, config.tuning,
