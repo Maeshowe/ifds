@@ -391,6 +391,16 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
 
                 print_final_summary(phase6, ctx)
 
+                # Telegram alerts (BC13) — non-blocking, optional
+                try:
+                    from ifds.output.telegram import send_trade_alerts
+                    send_trade_alerts(
+                        phase6.positions, strategy.value, config, logger,
+                    )
+                except Exception as e:
+                    logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
+                               message=f"Telegram module error: {e}")
+
         logger.log(EventType.PIPELINE_END, Severity.INFO,
                    message="Pipeline run complete.")
 

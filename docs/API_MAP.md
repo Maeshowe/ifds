@@ -1,7 +1,7 @@
 # IFDS API Map — Adatfolyam Dokumentáció
 
 > Generálva a `src/ifds/` forráskódból.
-> Frissitve: 2026-02-10 (BC12 utan, 563 teszt)
+> Frissitve: 2026-02-11 (BC13 utan, 593 teszt)
 > Ez a dokumentum a **ténylegesen implementált** API hívásokat, adatfolyamokat és fallback logikát írja le.
 
 ---
@@ -118,6 +118,8 @@
 - **Input**: StockAnalysis + GEXAnalysis + MacroRegime + SectorScores
 - **BC11**: Signal dedup — SHA256 hash check sizing előtt, record után
 - **BC12**: Fat finger protection — NaN guard, max_order_quantity=5000, exposure cap
+- **BC13**: Max daily trades limit (20), daily notional cap ($200K), per-position notional cap ($25K)
+- **BC13**: Telegram alerts — non-blocking POST Phase 6 után (opcionális, env var gated)
 - **Kimenet**: 3 CSV fájl (execution_plan, full_scan_matrix, trade_plan)
 
 ---
@@ -395,6 +397,9 @@ IFDS_CACHE_ENABLED=true                   # Opcionális (default: false)
 | Max bruttó kitettség | $100,000 | `max_gross_exposure` |
 | Max ticker kitettség | $20,000 | `max_single_ticker_exposure` |
 | Max darabszám | 5,000 | `max_order_quantity` (BC12) |
+| Max napi trade szám | 20 | `max_daily_trades` (BC13) |
+| Max pozíció notional | $25,000 | `max_position_notional` (BC13) |
+| Max napi notional | $200,000 | `max_daily_notional` (BC13) |
 
 ---
 
@@ -408,4 +413,51 @@ IFDS_CACHE_ENABLED=true                   # Opcionális (default: false)
 | Provider semaphore | Nincs | Polygon: 5, FMP: 8, UW: 5 |
 | Circuit breaker | Per-provider (BC11) | Per-provider (BC11) |
 | Publikus interface | `run_phase4(...)` | Ugyanaz — `asyncio.run()` belül |
-| Tesztek | 563 (mind átmegy mindkét módban) | Mind átmegy mindkét módban |
+| Tesztek | 593 (mind átmegy mindkét módban) | Mind átmegy mindkét módban |
+
+---
+
+## 9. Telegram Alerts (BC13)
+
+### Telegram Bot API — Opcionális
+
+| Szempont | Érték |
+|----------|-------|
+| Base URL | `https://api.telegram.org/bot{token}` |
+| Endpoint | `POST /sendMessage` |
+| Auth | Bot token az URL-ben (env var: `IFDS_TELEGRAM_BOT_TOKEN`) |
+| Paraméterek | `chat_id` (env: `IFDS_TELEGRAM_CHAT_ID`), `text`, `parse_mode=Markdown` |
+| Kritikus? | **NEM** — opcionális, env var gated |
+| Hibakezelés | Non-blocking: try/except, hiba → log, pipeline soha nem áll meg |
+
+### Adatfolyam
+
+```
+Phase 6 befejezése után (runner.py):
+  │
+  ├─ IFDS_TELEGRAM_BOT_TOKEN beállítva?
+  │   └─ NEM → skip (silent)
+  │
+  ├─ IFDS_TELEGRAM_CHAT_ID beállítva?
+  │   └─ NEM → skip (silent)
+  │
+  ├─ Phase6Result.positions üres?
+  │   └─ IGEN → skip (nincs mit küldeni)
+  │
+  └─ send_trade_alerts(positions, bot_token, chat_id)
+      │
+      ├─ _format_message(positions)
+      │   → Markdown formátum: ticker, direction, entry, stop, TP1, TP2, qty
+      │
+      └─ POST https://api.telegram.org/bot{token}/sendMessage
+          ├─ Siker (200 OK) → True
+          └─ Hiba (timeout, HTTP error) → log WARNING, return False
+              → Pipeline folytatódik (non-blocking)
+```
+
+### Szükséges környezeti változók
+
+```bash
+IFDS_TELEGRAM_BOT_TOKEN=your_bot_token    # Opcionális
+IFDS_TELEGRAM_CHAT_ID=your_chat_id        # Opcionális
+```

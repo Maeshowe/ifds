@@ -3,7 +3,7 @@
 > Generálva a `src/ifds/` forráskódból, 2026-02-10.
 > Minden képlet, küszöbérték és logika a **ténylegesen implementált kódból** van kiolvasva.
 > Konfigurációs értékek forrása: `src/ifds/config/defaults.py`
-> Frissítve: BC12 után (563 teszt)
+> Frissítve: BC13 után (593 teszt)
 
 ---
 
@@ -255,6 +255,27 @@ Ha a ticker earnings-je a következő 5 naptári napon belül van → KIZÁR
 
 - Konfig: `earnings_exclusion_days=5`
 - FMP endpoint: `/stable/earnings-calendar`
+
+### Survivorship Bias Protection (BC13)
+
+```
+_save_universe_snapshot(tickers, config, logger):
+
+  1. Mentés: state/universe_snapshots/{date}.json
+     → [{symbol, market_cap, sector}, ...]
+
+  2. Diff előző nappal:
+     → removed = prev_symbols - curr_symbols
+     → added = curr_symbols - prev_symbols
+     → "[SURVIVORSHIP] Removed from universe: [TSLA, ...]"  (WARNING)
+     → "[SURVIVORSHIP] New in universe: [NVDA, ...]"        (INFO)
+     → "[SURVIVORSHIP] Universe unchanged"                   (DEBUG)
+
+  3. Pruning: max survivorship_max_snapshots (30) file megőrzés
+```
+
+- Konfig: `survivorship_snapshot_dir="state/universe_snapshots"`, `survivorship_max_snapshots=30`
+- Non-blocking: try/except, hiba → CONFIG_WARNING log
 
 ---
 
@@ -937,6 +958,65 @@ SignalDedup (src/ifds/data/signal_dedup.py):
 
 - Konfig: `signal_hash_file="state/signal_hashes.json"`
 - `Phase6Result.excluded_dedup`: kizárt tickerek száma
+
+### 6.0b Max Daily Trades (BC13)
+
+```
+_load_daily_counter("state/daily_trades.json"):
+  → {"date": "2026-02-11", "count": 7}
+  → Ha date != today → reset count = 0
+
+Phase 6 ciklusban (dedup UTÁN, sizing ELŐTT):
+  Ha daily_trades["count"] >= max_daily_trades (20):
+    → "[GLOBALGUARD] Daily trade limit reached (20/20), skip remaining"
+    → daily_trade_excluded += 1
+    → continue
+```
+
+- Konfig: `max_daily_trades=20`, `daily_trades_file="state/daily_trades.json"`
+- `Phase6Result.excluded_daily_trade_limit`: kizárt tickerek száma
+- State mentés Phase 6 végén: `_save_daily_counter()`
+
+### 6.0c Notional Limits (BC13)
+
+```
+Per-pozíció notional cap:
+  pos_notional = quantity × entry_price
+  Ha pos_notional > max_position_notional ($25,000):
+    capped_qty = floor(max_position_notional / entry_price)
+    → "[GLOBALGUARD] Position notional capped: NVDA $38000 → $25000"
+    → _replace_quantity(pos, capped_qty)
+
+Napi összesített notional cap:
+  Ha daily_notional["count"] + pos_notional > max_daily_notional ($200,000):
+    → "[GLOBALGUARD] Daily notional limit reached: $185000/$200000"
+    → notional_excluded += 1
+    → continue
+```
+
+- Konfig: `max_daily_notional=200000`, `max_position_notional=25000`, `daily_notional_file="state/daily_notional.json"`
+- `Phase6Result.excluded_notional_limit`: kizárt tickerek száma
+- Sorrend: dedup → daily trade limit → sizing → notional cap → position limits
+
+### 6.0d Telegram Alerts (BC13)
+
+```
+Phase 6 UTÁN (runner.py):
+  try:
+    send_trade_alerts(positions, strategy, config, logger)
+  except:
+    logger.log(CONFIG_WARNING, "Telegram module error: ...")
+
+send_trade_alerts():
+  Ha token és chat_id nincs → return False (disabled)
+  Ha nincs position → return False
+  POST https://api.telegram.org/bot{token}/sendMessage
+    → Markdown format: ticker, direction, score, sector, SL, TP1
+    → timeout=5s
+```
+
+- Konfig: `telegram_bot_token=None`, `telegram_chat_id=None`, `telegram_timeout=5`
+- Non-blocking: exception → log, soha nem állítja meg a pipeline-t
 
 ---
 

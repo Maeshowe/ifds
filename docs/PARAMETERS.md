@@ -2,7 +2,7 @@
 
 > Generálva: `src/ifds/config/defaults.py` (CORE + TUNING + RUNTIME)
 > V13 referencia: `reference/settings.yaml`
-> Frissitve: 2026-02-10 (BC12 utan, 563 teszt)
+> Frissitve: 2026-02-11 (BC13 utan, 593 teszt)
 
 ---
 
@@ -366,6 +366,36 @@ Per-futtatás beállítások, .env-ből / config fájlból betöltve.
 | Kulcs | Érték | V13 | Megjegyzés |
 |-------|-------|-----|------------|
 | `signal_hash_file` | state/signal_hashes.json | `global_guard.signal_hash_file` | ✅ Funkcionálisan azonos |
+
+### Survivorship Bias (BC13)
+
+| Kulcs | Érték | V13 | Megjegyzés |
+|-------|-------|-----|------------|
+| `survivorship_snapshot_dir` | state/universe_snapshots | Nincs | Universe snapshot mappa |
+| `survivorship_max_snapshots` | 30 | Nincs | Max megőrzött snapshot |
+
+### Telegram Alerts (BC13)
+
+| Kulcs | Érték | Env Var | Megjegyzés |
+|-------|-------|---------|------------|
+| `telegram_bot_token` | None | IFDS_TELEGRAM_BOT_TOKEN | Opcionális — ha nincs, alerts disabled |
+| `telegram_chat_id` | None | IFDS_TELEGRAM_CHAT_ID | Opcionális — mindkettő kell |
+| `telegram_timeout` | 5 | — | HTTP POST timeout (s) |
+
+### Max Daily Trades (BC13)
+
+| Kulcs | Érték | V13 | Megjegyzés |
+|-------|-------|-----|------------|
+| `max_daily_trades` | 20 | `global_guard.max_daily_trades: 20` | ✅ Azonos |
+| `daily_trades_file` | state/daily_trades.json | Nincs | State file (midnight reset) |
+
+### Notional Limits (BC13)
+
+| Kulcs | Érték | V13 | Megjegyzés |
+|-------|-------|-----|------------|
+| `max_daily_notional` | 200,000 | Nincs | Napi összesített notional cap |
+| `max_position_notional` | 25,000 | `global_guard.max_order_value: 1500` | ⚠️ **V13=$1.5K, V2=$25K** |
+| `daily_notional_file` | state/daily_notional.json | Nincs | State file (midnight reset) |
 
 ### Output
 

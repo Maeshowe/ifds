@@ -1,6 +1,26 @@
 # IFDS v2.0 Changelog
 
-> Build Cycle BC1 → BC12 | 2026-02-06 – 2026-02-10
+> Build Cycle BC1 → BC13 | 2026-02-06 – 2026-02-11
+
+---
+
+## BC13 — P3 Backlog (593 tests)
+
+**4 feature: Survivorship Bias, Telegram Alerts, Max Daily Trades, Notional Limits**
+
+- **Survivorship Bias Protection**: Universe snapshot mentés `state/universe_snapshots/{date}.json`, diff logging `[SURVIVORSHIP]`, max 30 snapshot pruning
+- **Telegram Alerts**: `src/ifds/output/telegram.py` — opcionális (env var gated), non-blocking POST, Markdown format
+  - Runner wiring: try/except Phase 6 után, soha nem állítja meg a pipeline-t
+- **Max Daily Trades**: `state/daily_trades.json`, midnight reset, `max_daily_trades=20`
+  - Phase 6: dedup után, sizing előtt ellenőriz
+  - `[GLOBALGUARD] Daily trade limit reached` logging
+- **Notional Limits**: Per-pozíció (`max_position_notional=25K`) + napi (`max_daily_notional=200K`)
+  - Per-pozíció: quantity csökkentés ha notional > cap
+  - Napi: skip ha összesített notional > cap
+  - `[GLOBALGUARD]` logging mindkét limitre
+- Phase6Result: +2 mező (`excluded_daily_trade_limit`, `excluded_notional_limit`)
+- Config: +10 RUNTIME kulcs
+- Tesztek: 29 új (test_bc13_backlog.py) + 1 fixture fix (test_phase6.py)
 
 ---
 

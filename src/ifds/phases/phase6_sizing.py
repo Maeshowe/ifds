@@ -13,9 +13,11 @@ Formulas:
     Quantity = floor(AdjustedRisk / (stop_loss_atr_multiple × ATR14))
 """
 
+import json
 import math
+import os
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from ifds.config.loader import Config
 from ifds.data.signal_dedup import SignalDedup
@@ -87,9 +89,23 @@ def run_phase6(config: Config, logger: EventLogger,
         # 5. Build sector lookup for new PositionSizing fields
         _sector_map = {ss.sector_name: ss for ss in (sector_scores or [])}
 
-        # 6. Signal dedup + position sizing for each candidate
+        # 6. Signal dedup + daily trade limit + position sizing
         dedup = SignalDedup(signal_hash_file) if signal_hash_file else None
         dedup_count = 0
+
+        # Daily trade tracker (BC13)
+        daily_trades = _load_daily_counter(
+            config.runtime.get("daily_trades_file", "state/daily_trades.json"))
+        max_daily_trades = config.runtime.get("max_daily_trades", 20)
+        daily_trade_limit_hit = False
+
+        # Daily notional tracker (BC13)
+        daily_notional = _load_daily_counter(
+            config.runtime.get("daily_notional_file", "state/daily_notional.json"))
+        max_daily_notional = config.runtime.get("max_daily_notional", 200_000)
+        max_position_notional = config.runtime.get("max_position_notional", 25_000)
+        daily_trade_excluded = 0
+        notional_excluded = 0
 
         raw_positions = []
         for stock, gex in candidates:
@@ -100,19 +116,54 @@ def run_phase6(config: Config, logger: EventLogger,
                            message=f"[DEDUP] Skipping {stock.ticker} — signal already generated today")
                 continue
 
+            # Daily trade limit check (BC13) — after dedup, before sizing
+            if daily_trades["count"] >= max_daily_trades:
+                if not daily_trade_limit_hit:
+                    logger.log(EventType.TICKER_FILTERED, Severity.WARNING, phase=6,
+                               message=f"[GLOBALGUARD] Daily trade limit reached "
+                                       f"({daily_trades['count']}/{max_daily_trades}), skip remaining")
+                    daily_trade_limit_hit = True
+                daily_trade_excluded += 1
+                continue
+
             pos = _calculate_position(stock, gex, macro, config, strategy_mode,
                                       original_scores, fresh_tickers, _sector_map)
             if pos is not None:
+                # Notional limit checks (BC13)
+                pos_notional = pos.quantity * pos.entry_price
+
+                # Per-position notional cap
+                if pos_notional > max_position_notional and pos.entry_price > 0:
+                    original_notional = pos_notional
+                    capped_qty = math.floor(max_position_notional / pos.entry_price)
+                    if capped_qty <= 0:
+                        continue
+                    logger.log(EventType.TICKER_FILTERED, Severity.INFO, phase=6,
+                               message=f"[GLOBALGUARD] Position notional capped: {pos.ticker} "
+                                       f"${original_notional:.0f} → ${capped_qty * pos.entry_price:.0f}")
+                    pos = _replace_quantity(pos, capped_qty)
+                    pos_notional = capped_qty * pos.entry_price
+
+                # Daily notional cap
+                if daily_notional["count"] + pos_notional > max_daily_notional:
+                    logger.log(EventType.TICKER_FILTERED, Severity.WARNING, phase=6,
+                               message=f"[GLOBALGUARD] Daily notional limit reached: "
+                                       f"${daily_notional['count']:.0f}/${max_daily_notional:.0f}")
+                    notional_excluded += 1
+                    continue
+
                 raw_positions.append(pos)
+                daily_trades["count"] += 1
+                daily_notional["count"] += pos_notional
                 if dedup:
                     dedup.record(stock.ticker, direction)
 
-        # 6. Apply position limits
+        # 7. Apply position limits
         final_positions, limit_counts = _apply_position_limits(
             raw_positions, config, logger,
         )
 
-        # 7. Log each sized position
+        # 8. Log each sized position
         for pos in final_positions:
             logger.log(EventType.POSITION_SIZED, Severity.INFO, phase=6,
                        message=f"Sized {pos.ticker}: {pos.quantity} shares @ ${pos.entry_price:.2f}",
@@ -126,9 +177,15 @@ def run_phase6(config: Config, logger: EventLogger,
                            "multiplier_total": round(pos.multiplier_total, 4),
                        })
 
-        # Save dedup state after sizing
+        # Save state files
         if dedup:
             dedup.save()
+        _save_daily_counter(
+            config.runtime.get("daily_trades_file", "state/daily_trades.json"),
+            daily_trades)
+        _save_daily_counter(
+            config.runtime.get("daily_notional_file", "state/daily_notional.json"),
+            daily_notional)
 
         total_risk = sum(p.risk_usd for p in final_positions)
         total_exposure = sum(p.quantity * p.entry_price for p in final_positions)
@@ -150,6 +207,8 @@ def run_phase6(config: Config, logger: EventLogger,
             excluded_risk_limit=limit_counts["risk"],
             excluded_exposure_limit=limit_counts["exposure"],
             excluded_dedup=dedup_count,
+            excluded_daily_trade_limit=daily_trade_excluded,
+            excluded_notional_limit=notional_excluded,
             freshness_applied_count=freshness_count,
             total_risk_usd=total_risk,
             total_exposure_usd=total_exposure,
@@ -553,3 +612,58 @@ def _apply_position_limits(
         running_exposure += ticker_exposure
 
     return accepted, counts
+
+
+def _load_daily_counter(file_path: str) -> dict:
+    """Load a daily counter from JSON state file.
+
+    Format: {"date": "YYYY-MM-DD", "count": <number>}
+    Resets to 0 if the date doesn't match today.
+    """
+    today = date.today().isoformat()
+    try:
+        with open(file_path) as f:
+            data = json.load(f)
+        if data.get("date") == today:
+            return {"date": today, "count": data.get("count", 0)}
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        pass
+    return {"date": today, "count": 0}
+
+
+def _save_daily_counter(file_path: str, counter: dict) -> None:
+    """Save a daily counter to JSON state file."""
+    try:
+        os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
+        with open(file_path, "w") as f:
+            json.dump(counter, f)
+    except OSError:
+        pass
+
+
+def _replace_quantity(pos: PositionSizing, new_qty: int) -> PositionSizing:
+    """Create a copy of PositionSizing with an updated quantity."""
+    return PositionSizing(
+        ticker=pos.ticker, sector=pos.sector,
+        direction=pos.direction, entry_price=pos.entry_price,
+        quantity=new_qty,
+        stop_loss=pos.stop_loss,
+        take_profit_1=pos.take_profit_1,
+        take_profit_2=pos.take_profit_2,
+        risk_usd=pos.risk_usd,
+        combined_score=pos.combined_score,
+        gex_regime=pos.gex_regime,
+        multiplier_total=pos.multiplier_total,
+        m_flow=pos.m_flow, m_insider=pos.m_insider,
+        m_funda=pos.m_funda, m_gex=pos.m_gex,
+        m_vix=pos.m_vix, m_utility=pos.m_utility,
+        scale_out_price=pos.scale_out_price,
+        scale_out_pct=pos.scale_out_pct,
+        is_fresh=pos.is_fresh,
+        original_score=pos.original_score,
+        sector_etf=pos.sector_etf,
+        sector_bmi=pos.sector_bmi,
+        sector_regime=pos.sector_regime,
+        is_mean_reversion=pos.is_mean_reversion,
+        shark_detected=pos.shark_detected,
+    )

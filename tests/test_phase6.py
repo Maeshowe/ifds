@@ -30,11 +30,14 @@ from ifds.phases.phase6_sizing import (
 
 
 @pytest.fixture
-def config(monkeypatch):
+def config(monkeypatch, tmp_path):
     monkeypatch.setenv("IFDS_POLYGON_API_KEY", "test_poly")
     monkeypatch.setenv("IFDS_FMP_API_KEY", "test_fmp")
     monkeypatch.setenv("IFDS_FRED_API_KEY", "test_fred")
-    return Config()
+    c = Config()
+    c.runtime["daily_trades_file"] = str(tmp_path / "daily_trades.json")
+    c.runtime["daily_notional_file"] = str(tmp_path / "daily_notional.json")
+    return c
 
 
 @pytest.fixture

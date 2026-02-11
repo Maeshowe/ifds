@@ -295,6 +295,24 @@ RUNTIME = {
     # Fat Finger Protection (BC12)
     "max_order_quantity": 5000,                # Hard cap on shares per position
 
+    # Survivorship Bias (BC13)
+    "survivorship_snapshot_dir": "state/universe_snapshots",
+    "survivorship_max_snapshots": 30,
+
+    # Telegram Alerts (BC13) — env vars: IFDS_TELEGRAM_BOT_TOKEN, IFDS_TELEGRAM_CHAT_ID
+    "telegram_bot_token": None,
+    "telegram_chat_id": None,
+    "telegram_timeout": 5,
+
+    # Max Daily Trades (BC13)
+    "max_daily_trades": 20,
+    "daily_trades_file": "state/daily_trades.json",
+
+    # Notional Limits (BC13)
+    "max_daily_notional": 200_000,
+    "max_position_notional": 25_000,
+    "daily_notional_file": "state/daily_notional.json",
+
     # Output
     "output_dir": "output",
     "log_dir": "logs",

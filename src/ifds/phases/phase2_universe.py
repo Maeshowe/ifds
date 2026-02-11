@@ -16,6 +16,8 @@ Zombie Hunter:
 - Exclude tickers with earnings within 5 calendar days (binary event risk).
 """
 
+import json
+import os
 import time
 from datetime import date, timedelta
 
@@ -63,6 +65,9 @@ def run_phase2(config: Config, logger: EventLogger,
             earnings_excluded=earnings_excluded,
             strategy_mode=strategy_mode,
         )
+
+        # Survivorship bias protection: snapshot + diff
+        _save_universe_snapshot(tickers, config, logger)
 
         # Log
         logger.log(
@@ -259,3 +264,69 @@ def _fmp_to_ticker(item: dict) -> Ticker:
         has_options=True,  # FMP screener includes actively traded stocks
         is_etf=item.get("isEtf", False) or False,
     )
+
+
+def _save_universe_snapshot(tickers: list[Ticker], config: Config,
+                            logger: EventLogger) -> None:
+    """Save universe snapshot and log diffs vs previous day (BC13)."""
+    snap_dir = config.runtime.get("survivorship_snapshot_dir", "state/universe_snapshots")
+    max_snaps = config.runtime.get("survivorship_max_snapshots", 30)
+
+    try:
+        os.makedirs(snap_dir, exist_ok=True)
+
+        today = date.today().isoformat()
+        snapshot = [
+            {"symbol": t.symbol, "market_cap": t.market_cap, "sector": t.sector}
+            for t in tickers
+        ]
+
+        # Save today's snapshot
+        snap_path = os.path.join(snap_dir, f"{today}.json")
+        with open(snap_path, "w") as f:
+            json.dump(snapshot, f)
+
+        # Compare with most recent previous snapshot
+        existing = sorted(
+            [fn for fn in os.listdir(snap_dir) if fn.endswith(".json") and fn != f"{today}.json"],
+            reverse=True,
+        )
+        if existing:
+            prev_path = os.path.join(snap_dir, existing[0])
+            with open(prev_path) as f:
+                prev_data = json.load(f)
+            prev_symbols = {r["symbol"] for r in prev_data}
+            curr_symbols = {t.symbol for t in tickers}
+
+            removed = sorted(prev_symbols - curr_symbols)
+            added = sorted(curr_symbols - prev_symbols)
+
+            if removed:
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=2,
+                    message=f"[SURVIVORSHIP] Removed from universe: {removed}",
+                    data={"removed_count": len(removed), "removed": removed[:50]},
+                )
+            if added:
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
+                    message=f"[SURVIVORSHIP] New in universe: {added}",
+                    data={"added_count": len(added), "added": added[:50]},
+                )
+            if not removed and not added:
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=2,
+                    message="[SURVIVORSHIP] Universe unchanged",
+                )
+
+        # Prune old snapshots beyond max
+        all_snaps = sorted(
+            [fn for fn in os.listdir(snap_dir) if fn.endswith(".json")],
+            reverse=True,
+        )
+        for old in all_snaps[max_snaps:]:
+            os.remove(os.path.join(snap_dir, old))
+
+    except Exception as e:
+        logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=2,
+                   message=f"[SURVIVORSHIP] Error saving snapshot: {e}")

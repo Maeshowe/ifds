@@ -390,6 +390,8 @@ class Phase6Result:
     excluded_risk_limit: int = 0
     excluded_exposure_limit: int = 0
     excluded_dedup: int = 0
+    excluded_daily_trade_limit: int = 0
+    excluded_notional_limit: int = 0
     freshness_applied_count: int = 0
     total_risk_usd: float = 0.0
     total_exposure_usd: float = 0.0

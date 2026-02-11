@@ -29,12 +29,12 @@
 | 18 | Zero Gamma linear interpolation | gex_engine.py | **DONE** (BC12) | ~~P3~~ |
 | 19 | Institutional Ownership Trend | fundamental_scorer.py | **DONE** (BC12) | ~~P3~~ |
 | 20 | Front-Month Options Filter (DTE 90) | gex_engine.py | **DONE** (BC12) | ~~P3~~ |
-| 21 | Survivorship Bias Protection | universe_builder.py | ❌ Hianyzik | **P3** |
+| 21 | Survivorship Bias Protection | universe_builder.py | **DONE** (BC13) | ~~P3~~ |
 | 22 | Trailing Stop Engine (live) | settings.yaml | ❌ Hianyzik | **P3** |
-| 23 | Telegram Alerts | signal_generator.py | ❌ Hianyzik | **P3** |
+| 23 | Telegram Alerts | signal_generator.py | **DONE** (BC13) | ~~P3~~ |
 | 24 | Fat Finger Protection | global_guard.py | **DONE** (BC12) | ~~P3~~ |
-| 25 | Max Daily Trades limit | global_guard.py | ❌ Hianyzik | **P3** |
-| 26 | Notional Limits (daily cap) | settings.yaml | ❌ Hianyzik | **P3** |
+| 25 | Max Daily Trades limit | global_guard.py | **DONE** (BC13) | ~~P3~~ |
+| 26 | Notional Limits (daily cap) | settings.yaml | **DONE** (BC13) | ~~P3~~ |
 | 27 | VIX EXTREME regime | macro_compass.py | **DONE** (BC12) | ~~P3~~ |
 
 ---
@@ -64,6 +64,10 @@
 | Fat Finger Protection | BC12 | NaN guard, max_order_quantity=5000, max_single_ticker_exposure cap |
 | VIX EXTREME | BC12 | VIX > 50 → EXTREME regime, multiplier 0.10 |
 | Institutional Ownership | BC12 | FMP `/stable/institutional-ownership/latest`, QoQ change > 2% → +10 |
+| Survivorship Bias | BC13 | Universe snapshot + diff logging `[SURVIVORSHIP]`, max 30 snapshot |
+| Telegram Alerts | BC13 | `send_trade_alerts()`, non-blocking, env var gated |
+| Max Daily Trades | BC13 | `max_daily_trades=20`, `state/daily_trades.json`, midnight reset |
+| Notional Limits | BC13 | `max_daily_notional=200K`, `max_position_notional=25K`, per-trade + napi cap |
 
 ---
 
@@ -72,11 +76,7 @@
 | # | Feature | Reszletek | Becsult ido |
 |---|---------|-----------|-------------|
 | 1 | **SimEngine (backtesting)** | Offline replay engine: re-score, filter, size pipeline CSV-kbol. Parameter sensitivity. | 8-12 ora |
-| 2 | **Survivorship Bias Protection** | Universe snapshot mentes + historikus osszehasonlitas. | 2-3 ora |
-| 3 | **Trailing Stop Engine** | Breakeven@1R, trail@2R, distance=1R behind price. Live execution. | 4-6 ora |
-| 4 | **Telegram Alerts** | Trade signal push notifications. Bot token + chat ID. | 2-3 ora |
-| 5 | **Max Daily Trades** | max_daily_trades: 20, midnight reset. State file. | 1-2 ora |
-| 6 | **Notional Limits** | max_daily_notional, max_position_notional napi es per-trade $ korlat. | 1-2 ora |
+| 2 | **Trailing Stop Engine** | Breakeven@1R, trail@2R, distance=1R behind price. Live execution. | 4-6 ora |
 
 ---
 
@@ -85,22 +85,22 @@
 ```
 reference/ fajl               V2 lefedettseg  Hianyzik
 -------------------------------------------------------------------
-risk_manager.py          [==========-]  95%    Notional limits, trailing live
-global_guard.py          [==========-]  95%    Daily trades limit
-flow_engine.py           [==========-] 100%    TELJES (BC10)
+risk_manager.py          [==========-]  98%    Trailing live
+global_guard.py          [==========] 100%    TELJES (BC13)
+flow_engine.py           [==========] 100%    TELJES (BC10)
 sim_engine.py            [=----------]  10%    Offline replay, param sensitivity
 history_manager.py       [=========--]  90%    Batch freshness
-fundamental_scorer.py    [==========-] 100%    TELJES (BC12)
-gex_engine.py            [==========-] 100%    TELJES (BC12)
-technical_analyzer.py    [==========-] 100%    TELJES (BC9)
-sector_engine.py         [==========-] 100%    TELJES (BC8)
-market_regime.py         [==========-] 100%    TELJES (BC8)
-universe_builder.py      [=========--]  90%    Survivorship bias
-macro_compass.py         [==========-] 100%    TELJES (BC12)
-signal_generator.py      [=========--]  90%    Telegram, sim snapshot
-settings.yaml            [=========--]  92%    ~5 config kulcs hianyzik
+fundamental_scorer.py    [==========] 100%    TELJES (BC12)
+gex_engine.py            [==========] 100%    TELJES (BC12)
+technical_analyzer.py    [==========] 100%    TELJES (BC9)
+sector_engine.py         [==========] 100%    TELJES (BC8)
+market_regime.py         [==========] 100%    TELJES (BC8)
+universe_builder.py      [==========] 100%    TELJES (BC13)
+macro_compass.py         [==========] 100%    TELJES (BC12)
+signal_generator.py      [==========-]  95%    Sim snapshot
+settings.yaml            [==========-]  96%    ~2 config kulcs hianyzik
 -------------------------------------------------------------------
-Osszesitett:             [==========-]  ~92%   (BC9: ~85%, BC12: ~92%)
+Osszesitett:             [==========-]  ~95%   (BC12: ~92%, BC13: ~95%)
 ```
 
 ---
@@ -122,6 +122,6 @@ Osszesitett:             [==========-]  ~92%   (BC9: ~85%, BC12: ~92%)
 | `scanning.error_rate_abort_threshold` | 0.3 | `RUNTIME.cb_error_threshold` | **DONE** (BC11) |
 | `strategy.dark_pool.min_block_size` | 10000 | Nincs | ❌ P3 |
 | `strategy.dark_pool.min_notional` | $1M | Nincs | ❌ P3 |
-| `global_guard.max_order_value` | $1500 | Nincs | ❌ P3 |
-| `global_guard.max_daily_trades` | 20 | Nincs | ❌ P3 |
-| `alerts.telegram.*` | Telegram bot | Nincs | ❌ P3 |
+| `global_guard.max_order_value` | $1500 | `RUNTIME.max_position_notional` | **DONE** (BC13) |
+| `global_guard.max_daily_trades` | 20 | `RUNTIME.max_daily_trades` | **DONE** (BC13) |
+| `alerts.telegram.*` | Telegram bot | `RUNTIME.telegram_*` | **DONE** (BC13) |
