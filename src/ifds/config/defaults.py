@@ -320,10 +320,10 @@ RUNTIME = {
 
     # Async Concurrency (Phase 1/4/5 parallel processing — BC16 tuning)
     "async_enabled": False,                 # Set IFDS_ASYNC_ENABLED=true to enable
-    "async_sem_polygon": 10,                # Polygon paid tier ~10 req/s (was 5)
-    "async_sem_fmp": 12,                    # FMP ~15 req/s (was 8)
+    "async_sem_polygon": 10,                # Polygon paid tier ~10 req/s
+    "async_sem_fmp": 5,                     # FMP conservative (429 at 12, was 8)
     "async_sem_uw": 5,                      # UW conservative default
-    "async_max_tickers": 15,                # Max concurrent ticker processing (was 10)
+    "async_max_tickers": 8,                 # 8 tickers × ~5 FMP calls = 40 concurrent (was 15)
 
     # Dark Pool Batch Prefetch
     "dp_batch_max_pages": 15,              # Max pagination pages for /recent
