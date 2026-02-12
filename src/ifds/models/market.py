@@ -86,6 +86,7 @@ class MMRegime(Enum):
     DISTRIBUTION = "distribution"         # DIST: distribution into strength
     NEUTRAL = "neutral"                   # NEU: no rule matched
     UNDETERMINED = "undetermined"         # UND: insufficient baseline
+    VOLATILE = "volatile"                 # VOL: unstable microstructure (BC16)
 
 
 class BaselineState(Enum):
@@ -404,6 +405,9 @@ class ObsidianAnalysis:
     data_source: str = ""
     excluded: bool = False
     exclusion_reason: str | None = None
+    # Factor Volatility (BC16)
+    regime_confidence: float = 1.0                   # [0.0, 1.0] — confidence in regime stability
+    factor_volatility: dict = field(default_factory=dict)  # Per-feature σ_20 values
 
 
 @dataclass

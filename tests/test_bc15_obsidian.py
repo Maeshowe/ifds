@@ -139,11 +139,12 @@ def _make_options(n=20, current_price=150.0):
 # ============================================================================
 
 class TestMMRegimeEnum:
-    def test_all_7_regimes_exist(self):
-        assert len(MMRegime) == 7
+    def test_all_8_regimes_exist(self):
+        assert len(MMRegime) == 8
         values = {r.value for r in MMRegime}
         expected = {"gamma_positive", "gamma_negative", "dark_dominant",
-                    "absorption", "distribution", "neutral", "undetermined"}
+                    "absorption", "distribution", "neutral", "undetermined",
+                    "volatile"}  # BC16
         assert values == expected
 
     def test_baseline_state_values(self):

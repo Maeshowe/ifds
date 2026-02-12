@@ -13,6 +13,7 @@ Divergence detection:
 - Bearish: SPY rises >1% over 5d but BMI drops >2 points → weakness signal
 """
 
+import asyncio
 import time
 from datetime import date, timedelta
 
@@ -57,6 +58,12 @@ def run_phase1(config: Config, logger: EventLogger,
     Returns:
         Phase1Result with BMI data and strategy mode.
     """
+    # Async dispatch (BC16): concurrent grouped daily fetching
+    if config.runtime.get("async_enabled", False):
+        return asyncio.run(_run_phase1_async(
+            config, logger, sector_mapping=sector_mapping,
+        ))
+
     start_time = time.monotonic()
     logger.phase_start(1, "Market Regime (BMI)")
 
@@ -173,6 +180,34 @@ def _fetch_daily_history(polygon: PolygonClient,
                 "date": day_str,
                 "bars": bars,
             })
+
+    return daily_data
+
+
+async def _fetch_daily_history_async(polygon, lookback_calendar_days: int = 55) -> list[dict]:
+    """Fetch grouped daily bars concurrently with asyncio.gather.
+
+    Same logic as _fetch_daily_history() but fires all requests in parallel,
+    rate-limited by the AsyncPolygonClient's semaphore.
+    """
+    today = date.today()
+    days = []
+
+    for offset in range(lookback_calendar_days, 0, -1):
+        target = today - timedelta(days=offset)
+        if target.weekday() >= 5:
+            continue
+        days.append(target.isoformat())
+
+    # Fire all requests concurrently — semaphore handles rate limiting
+    results = await asyncio.gather(
+        *[polygon.get_grouped_daily(day_str) for day_str in days]
+    )
+
+    daily_data = []
+    for day_str, bars in zip(days, results):
+        if bars:
+            daily_data.append({"date": day_str, "bars": bars})
 
     return daily_data
 
@@ -421,3 +456,98 @@ def _log_result(logger: EventLogger, result: Phase1Result,
 
     duration_ms = (time.monotonic() - start_time) * 1000
     logger.phase_complete(1, "Market Regime (BMI)", duration_ms=duration_ms)
+
+
+async def _run_phase1_async(config: Config, logger: EventLogger,
+                             sector_mapping: dict[str, str] | None = None) -> Phase1Result:
+    """Async Phase 1: fetch grouped daily bars concurrently with semaphore rate limiting.
+
+    Same computation as the sync path — only the data fetching is parallelised.
+    Follows the Phase 4/5 async pattern (BC5).
+    """
+    from ifds.data.async_clients import AsyncPolygonClient
+
+    start_time = time.monotonic()
+    logger.phase_start(1, "Market Regime (BMI) (async)")
+
+    sem_polygon = asyncio.Semaphore(config.runtime.get("async_sem_polygon", 5))
+
+    polygon = AsyncPolygonClient(
+        api_key=config.get_api_key("polygon"),
+        timeout=config.runtime["api_timeout_polygon"],
+        max_retries=config.runtime["api_max_retries"],
+        semaphore=sem_polygon,
+    )
+
+    try:
+        # Same lookback logic as sync path
+        breadth_enabled = config.tuning.get("breadth_enabled", False)
+        if breadth_enabled:
+            lookback = config.core.get("breadth_lookback_calendar_days", 330)
+        else:
+            lookback = 75
+
+        daily_bars = await _fetch_daily_history_async(polygon, lookback_calendar_days=lookback)
+
+        if not daily_bars or len(daily_bars) < 25:
+            logger.phase_error(1, "Market Regime (BMI)",
+                               f"Insufficient data: got {len(daily_bars) if daily_bars else 0} days, need 25+")
+            bmi = BMIData(bmi_value=50.0, bmi_regime=BMIRegime.YELLOW, daily_ratio=50.0)
+            result = Phase1Result(bmi=bmi, strategy_mode=StrategyMode.LONG)
+            _log_result(logger, result, start_time, fallback=True)
+            return result
+
+        # Pure computation — identical to sync path
+        daily_ratios = _calculate_daily_ratios(daily_bars, config,
+                                                sector_mapping=sector_mapping,
+                                                logger=logger)
+
+        sma_period = config.core["bmi_sma_period"]
+        if len(daily_ratios) >= sma_period:
+            bmi_value = sum(daily_ratios[-sma_period:]) / sma_period
+        else:
+            bmi_value = sum(daily_ratios) / len(daily_ratios)
+
+        latest_ratio = daily_ratios[-1] if daily_ratios else 50.0
+        latest_bars = daily_bars[-1] if daily_bars else {}
+        buy_count = latest_bars.get("_buy_count", 0)
+        sell_count = latest_bars.get("_sell_count", 0)
+
+        bmi_regime = _classify_bmi(bmi_value, config)
+        divergence = _detect_divergence(daily_bars, daily_ratios, config)
+
+        bmi = BMIData(
+            bmi_value=round(bmi_value, 2),
+            bmi_regime=bmi_regime,
+            daily_ratio=round(latest_ratio, 2),
+            buy_count=buy_count,
+            sell_count=sell_count,
+            divergence_detected=divergence is not None,
+            divergence_type=divergence,
+        )
+
+        strategy_mode = StrategyMode.SHORT if bmi_regime == BMIRegime.RED else StrategyMode.LONG
+
+        sector_bmi_values: dict[str, float] = {}
+        if sector_mapping:
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=1,
+                       message=f"Sector mapping: {len(sector_mapping)} tickers mapped")
+            sector_bmi_values = _calculate_sector_bmi(daily_bars, config, logger=logger)
+
+        ticker_count = daily_bars[-1].get("_ticker_count", 0) if daily_bars else 0
+        result = Phase1Result(
+            bmi=bmi,
+            strategy_mode=strategy_mode,
+            ticker_count_for_bmi=ticker_count,
+            sector_bmi_values=sector_bmi_values,
+            grouped_daily_bars=daily_bars if breadth_enabled else [],
+        )
+
+        _log_result(logger, result, start_time)
+        return result
+
+    except Exception as e:
+        logger.phase_error(1, "Market Regime (BMI)", str(e))
+        raise
+    finally:
+        await polygon.close()

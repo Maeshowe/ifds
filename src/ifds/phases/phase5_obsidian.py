@@ -199,6 +199,91 @@ def _compute_medians(bar_features: dict) -> dict[str, float]:
 
 
 # ============================================================================
+# Factor Volatility (BC16)
+# ============================================================================
+
+def _compute_factor_volatility(historical_entries: list[dict],
+                                window: int = 20) -> dict[str, float | None]:
+    """Compute rolling σ for each microstructure feature over last `window` entries.
+
+    Returns {feature: σ_value_or_None}. None if insufficient data.
+    """
+    features = ["gex", "dex", "dark_share", "block_count", "iv_rank"]
+    result = {}
+
+    for feat in features:
+        series = [float(e[feat]) for e in historical_entries
+                  if e.get(feat) is not None]
+        if len(series) >= window:
+            recent = series[-window:]
+            m = sum(recent) / len(recent)
+            var = sum((v - m) ** 2 for v in recent) / (len(recent) - 1)
+            result[feat] = math.sqrt(var)
+        else:
+            result[feat] = None
+
+    return result
+
+
+def _compute_median_rolling_sigmas(historical_entries: list[dict],
+                                    window: int = 20) -> dict[str, float]:
+    """Compute median of rolling σ for each feature across the full history.
+
+    For each feature, computes rolling σ at every valid position,
+    then returns the median. Used as the baseline for VOLATILE detection
+    and regime confidence.
+    """
+    features = ["gex", "dex", "dark_share", "block_count", "iv_rank"]
+    result = {}
+
+    for feat in features:
+        series = [float(e[feat]) for e in historical_entries
+                  if e.get(feat) is not None]
+        if len(series) < window * 2:
+            result[feat] = 0.0
+            continue
+
+        rolling_sigmas = []
+        for i in range(window, len(series) + 1):
+            segment = series[i - window:i]
+            m = sum(segment) / len(segment)
+            var = sum((v - m) ** 2 for v in segment) / (len(segment) - 1)
+            rolling_sigmas.append(math.sqrt(var))
+
+        if not rolling_sigmas:
+            result[feat] = 0.0
+            continue
+
+        sorted_s = sorted(rolling_sigmas)
+        n = len(sorted_s)
+        if n % 2 == 0:
+            result[feat] = (sorted_s[n // 2 - 1] + sorted_s[n // 2]) / 2
+        else:
+            result[feat] = sorted_s[n // 2]
+
+    return result
+
+
+def _compute_regime_confidence(factor_vol: dict[str, float | None],
+                                median_sigmas: dict[str, float],
+                                floor: float = 0.6) -> float:
+    """Compute regime confidence based on GEX volatility stability.
+
+    confidence = 1.0 - min(1.0, σ_20(gex) / median(σ_20(gex)))
+    Returns [floor, 1.0]. Higher = more stable regime.
+    """
+    sigma_gex = factor_vol.get("gex")
+    median_sigma_gex = median_sigmas.get("gex", 0.0)
+
+    if sigma_gex is None or median_sigma_gex == 0:
+        return 1.0  # No data → assume stable
+
+    ratio = sigma_gex / median_sigma_gex
+    confidence = max(0.0, 1.0 - min(1.0, ratio))
+    return max(floor, confidence)
+
+
+# ============================================================================
 # Classification (priority-ordered rules)
 # ============================================================================
 
@@ -222,17 +307,20 @@ def _determine_baseline_state(z_scores: dict, min_periods: int,
 def _classify_regime(z_scores: dict, raw_features: dict,
                      medians: dict, daily_return: float,
                      baseline_state: BaselineState,
-                     config_core: dict) -> tuple[MMRegime, dict]:
+                     config_core: dict,
+                     factor_vol: dict | None = None,
+                     median_sigmas: dict | None = None) -> tuple[MMRegime, dict]:
     """Priority-ordered OBSIDIAN classification.
 
     Rules (first match wins):
+    0. UND: baseline empty
+    0.5 VOL: σ_gex > 2× median AND σ_dex > 2× median (BC16)
     1. Γ⁺: z_gex > +1.5 AND efficiency < median
     2. Γ⁻: z_gex < -1.5 AND impact > median
     3. DD: dark_share > 0.70 AND z_block > +1.0
     4. ABS: z_dex < -1.0 AND return >= -0.5% AND dark_share > 0.50
     5. DIST: z_dex > +1.0 AND return <= +0.5%
     6. NEU: no rule matched (with some baseline data)
-    7. UND: baseline empty
 
     Returns (regime, triggering_conditions).
     """
@@ -256,6 +344,22 @@ def _classify_regime(z_scores: dict, raw_features: dict,
     # UND: baseline empty → cannot classify
     if baseline_state == BaselineState.EMPTY:
         return MMRegime.UNDETERMINED, {"reason": "baseline_empty"}
+
+    # Rule 0.5: VOLATILE — σ_gex > 2× median AND σ_dex > 2× median (BC16)
+    if factor_vol and median_sigmas:
+        sigma_gex = factor_vol.get("gex")
+        sigma_dex = factor_vol.get("dex")
+        median_sigma_gex = median_sigmas.get("gex", 0)
+        median_sigma_dex = median_sigmas.get("dex", 0)
+        if (sigma_gex is not None and sigma_dex is not None
+                and median_sigma_gex > 0 and median_sigma_dex > 0
+                and sigma_gex > 2 * median_sigma_gex
+                and sigma_dex > 2 * median_sigma_dex):
+            return MMRegime.VOLATILE, {
+                "sigma_gex": sigma_gex, "sigma_dex": sigma_dex,
+                "median_sigma_gex": median_sigma_gex,
+                "median_sigma_dex": median_sigma_dex,
+            }
 
     # Rule 1: Γ⁺ — z_gex > +threshold AND efficiency < median
     if z_gex is not None and z_gex > z_gex_th and efficiency < median_eff:
@@ -298,10 +402,15 @@ def _classify_regime(z_scores: dict, raw_features: dict,
 
 def _compute_unusualness(z_scores: dict, excluded_features: list[str],
                          feature_weights: dict,
-                         historical_raw_scores: list[float]) -> float:
+                         historical_raw_scores: list[float],
+                         factor_vol: dict | None = None,
+                         median_sigmas: dict | None = None) -> float:
     """Compute unusualness score U ∈ [0, 100].
 
-    S = Σ(w_k × |z_k|) for valid features only (NO weight renormalization).
+    Without factor vol: S = Σ(w_k × |z_k|)
+    With factor vol (BC16): S = Σ(w_k × |z_k| × (1 + σ_20_norm))
+      where σ_20_norm = σ_20(feat) / median(σ_20(feat)), or 0 if unavailable.
+
     U = PercentileRank(S | historical raw scores) × 100.
     If no history, use linear mapping capped at 100.
     """
@@ -321,7 +430,16 @@ def _compute_unusualness(z_scores: dict, excluded_features: list[str],
         if feat == "block_count":
             weight_key = "block_intensity"
         w = feature_weights.get(weight_key, 0.0)
-        raw_score += w * abs(z)
+
+        # Factor volatility weighting (BC16)
+        vol_mult = 1.0
+        if factor_vol and median_sigmas:
+            sigma = factor_vol.get(feat)
+            median_sigma = median_sigmas.get(feat, 0)
+            if sigma is not None and median_sigma > 0:
+                vol_mult = 1.0 + (sigma / median_sigma)
+
+        raw_score += w * abs(z) * vol_mult
 
     # Percentile rank against history
     if historical_raw_scores and len(historical_raw_scores) >= 5:
@@ -406,6 +524,16 @@ def run_obsidian_analysis(
     # 3. Compute z-scores
     z_scores = _compute_z_scores(today_features, historical, bar_features, min_periods)
 
+    # 3b. Factor Volatility (BC16)
+    fv_enabled = config_tuning.get("factor_volatility_enabled", False)
+    factor_vol = None
+    median_sigmas = None
+    if fv_enabled and historical:
+        fv_window = config_tuning.get("factor_volatility_window", 20)
+        factor_vol = _compute_factor_volatility(historical, fv_window)
+        median_sigmas = _compute_median_rolling_sigmas(historical, fv_window)
+        result.factor_volatility = {k: v for k, v in factor_vol.items() if v is not None}
+
     # 4. Baseline state
     baseline_state = _determine_baseline_state(z_scores, min_periods, len(historical))
     result.baseline_state = baseline_state
@@ -415,6 +543,7 @@ def run_obsidian_analysis(
     daily_return = bar_features.get("daily_return", 0.0)
     regime, conditions = _classify_regime(
         z_scores, today_features, medians, daily_return, baseline_state, config_core,
+        factor_vol=factor_vol, median_sigmas=median_sigmas,
     )
     result.mm_regime = regime
     result.triggering_conditions = conditions
@@ -434,6 +563,7 @@ def run_obsidian_analysis(
 
     result.unusualness_score = _compute_unusualness(
         z_scores, excluded_features, feature_weights, historical_raw_scores,
+        factor_vol=factor_vol, median_sigmas=median_sigmas,
     )
 
     # Top drivers: features with highest |z| contribution
@@ -447,8 +577,15 @@ def run_obsidian_analysis(
     drivers.sort(key=lambda x: x[1], reverse=True)
     result.top_drivers = [d[0] for d in drivers[:3]]
 
-    # 7. Multiplier
-    result.regime_multiplier = _get_regime_multiplier(regime, config_tuning)
+    # 7. Multiplier (with confidence adjustment — BC16)
+    base_mult = _get_regime_multiplier(regime, config_tuning)
+    if fv_enabled and factor_vol and median_sigmas:
+        floor = config_tuning.get("factor_volatility_confidence_floor", 0.6)
+        confidence = _compute_regime_confidence(factor_vol, median_sigmas, floor)
+        result.regime_confidence = confidence
+        result.regime_multiplier = base_mult * max(floor, confidence)
+    else:
+        result.regime_multiplier = base_mult
 
     # 8. Append today's entry to store
     entry = {

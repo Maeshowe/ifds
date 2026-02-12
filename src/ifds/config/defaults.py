@@ -280,7 +280,13 @@ TUNING = {
         "distribution": 0.5,
         "neutral": 1.0,
         "undetermined": 0.75,
+        "volatile": 0.60,                            # VOL: unstable microstructure (BC16)
     },
+
+    # Factor Volatility (BC16)
+    "factor_volatility_enabled": False,               # Feature flag (opt-in)
+    "factor_volatility_window": 20,                   # Rolling σ window (trading days)
+    "factor_volatility_confidence_floor": 0.6,        # Minimum confidence multiplier
 }
 
 # ============================================================================
@@ -312,12 +318,12 @@ RUNTIME = {
     "api_timeout_fred": 10,
     "api_max_retries": 3,
 
-    # Async Concurrency (Phase 4/5 parallel ticker processing)
+    # Async Concurrency (Phase 1/4/5 parallel processing — BC16 tuning)
     "async_enabled": False,                 # Set IFDS_ASYNC_ENABLED=true to enable
-    "async_sem_polygon": 5,                 # Polygon free tier ~5 req/s
-    "async_sem_fmp": 8,                     # FMP ~10 req/s
+    "async_sem_polygon": 10,                # Polygon paid tier ~10 req/s (was 5)
+    "async_sem_fmp": 12,                    # FMP ~15 req/s (was 8)
     "async_sem_uw": 5,                      # UW conservative default
-    "async_max_tickers": 10,                # Max concurrent ticker processing
+    "async_max_tickers": 15,                # Max concurrent ticker processing (was 10)
 
     # Dark Pool Batch Prefetch
     "dp_batch_max_pages": 15,              # Max pagination pages for /recent
