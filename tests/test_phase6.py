@@ -499,8 +499,8 @@ class TestFreshnessAlpha:
         history_path = str(tmp_path / "nonexistent.parquet")
         count, fresh_info = _apply_freshness_alpha(candidates, config, history_path, logger)
         assert count == 1
-        # Score should be multiplied by freshness_bonus (1.5), capped to 100
-        assert candidates[0][0].combined_score == 100.0  # min(100, 75 * 1.5)
+        # Score should be multiplied by freshness_bonus (1.5), uncapped
+        assert candidates[0][0].combined_score == 112.5  # 75 * 1.5
         # fresh_info is now a set of fresh ticker symbols
         assert "AAPL" in fresh_info
 
@@ -596,7 +596,7 @@ class TestFreshnessAlpha:
         count, fresh_info = _apply_freshness_alpha(candidates, config, history_path, logger)
         assert count == 1
         assert candidates[0][0].combined_score == 75.0       # AAPL unchanged
-        assert candidates[1][0].combined_score == 100.0  # MSFT boosted: min(100, 75 * 1.5)
+        assert candidates[1][0].combined_score == 112.5  # MSFT boosted: 75 * 1.5
         assert "AAPL" not in fresh_info
         assert "MSFT" in fresh_info
 
@@ -724,20 +724,20 @@ class TestPhase6Integration:
         """is_fresh and original_score correctly set when freshness applied."""
         original_scores = {"AAPL": 75.0}  # captured BEFORE freshness
         fresh_tickers = {"AAPL"}  # AAPL received freshness bonus
-        stock = _make_stock("AAPL", combined_score=100.0)  # post-bonus: min(100, 75 * 1.5)
+        stock = _make_stock("AAPL", combined_score=112.5)  # post-bonus: 75 * 1.5
         gex = _make_gex("AAPL")
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG,
                                   original_scores, fresh_tickers)
         assert pos is not None
         assert pos.is_fresh is True
         assert pos.original_score == 75.0
-        assert pos.combined_score == 100.0  # min(100, 75 * 1.5)
+        assert pos.combined_score == 112.5  # 75 * 1.5
 
     def test_freshness_preserves_ranking(self, config, logger, macro):
         """Freshness bonus should not destroy ranking differentiation.
 
         3 tickers with scores [85, 78, 72] — after freshness × 1.5,
-        combined_score caps at 100.0 for all three.
+        combined_score = [127.5, 117.0, 108.0] (uncapped).
         Sort by original_score preserves the ranking [85, 78, 72].
         """
         stocks = [
@@ -761,6 +761,7 @@ class TestPhase6Integration:
         assert result.positions[0].original_score == 85.0
         assert result.positions[1].original_score == 78.0
         assert result.positions[2].original_score == 72.0
-        # combined_score capped at 100 for all (freshness doesn't break the cap)
-        for pos in result.positions[:3]:
-            assert pos.combined_score == 100.0
+        # combined_score uncapped — freshness preserves differentiation
+        assert result.positions[0].combined_score == 127.5  # 85 * 1.5
+        assert result.positions[1].combined_score == 117.0  # 78 * 1.5
+        assert result.positions[2].combined_score == 108.0  # 72 * 1.5

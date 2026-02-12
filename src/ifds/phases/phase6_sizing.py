@@ -308,7 +308,7 @@ def _apply_freshness_alpha(
     for stock, _gex in candidates:
         if stock.ticker not in history_tickers:
             original = stock.combined_score
-            stock.combined_score = min(100.0, original * bonus)
+            stock.combined_score = original * bonus
             fresh_tickers.add(stock.ticker)
             fresh_count += 1
             logger.log(EventType.FRESHNESS_BONUS, Severity.DEBUG, phase=6,
