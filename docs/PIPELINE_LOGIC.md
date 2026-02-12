@@ -3,7 +3,7 @@
 > Generálva a `src/ifds/` forráskódból, 2026-02-11.
 > Minden képlet, küszöbérték és logika a **ténylegesen implementált kódból** van kiolvasva.
 > Konfigurációs értékek forrása: `src/ifds/config/defaults.py`
-> Frissítve: BC15 után (692 teszt)
+> Frissítve: BC16 + SIM-L1 után (752 teszt)
 
 ---
 
@@ -144,6 +144,18 @@ Intézményi pénzáramlás elemzése → LONG vagy SHORT stratégia.
 
 **Input**: Polygon grouped daily bars (75 naptári nap, vagy 330 ha breadth enabled — BC14)
 **Output**: `Phase1Result` → `StrategyMode` (LONG/SHORT), BMI érték (0–100), per-sector BMI, grouped_daily_bars (BC14)
+
+### Async Path (BC16)
+
+```
+Ha async_enabled=True:
+  _run_phase1_async():
+    _fetch_daily_history_async() — asyncio.gather ~235 grouped daily calls
+    Semaphore: polygon=10
+
+  Pure computation unchanged (szinkron):
+    _calculate_daily_ratios, _calculate_sector_bmi, _classify_bmi, _detect_divergence
+```
 
 ### Volume Spike Detekció
 
@@ -1049,10 +1061,11 @@ PARTIAL:  néhány feature-nek van z-score, néhánynak nincs
 COMPLETE: minden feature-nek van ≥ min_periods history
 ```
 
-#### 7 Regime Klasszifikáció (prioritás sorrend — első match nyer)
+#### 8 Regime Klasszifikáció (prioritás sorrend — első match nyer)
 
 | # | Regime | Szabály | Multiplier |
 |---|--------|---------|-----------|
+| 0 | **VOLATILE** (BC16) | σ_gex > 2× median ÉS σ_dex > 2× median | **0.60** |
 | 1 | **Γ⁺** (gamma_positive) | Z_GEX > +1.5 ÉS efficiency < median(63d) | **1.50** |
 | 2 | **Γ⁻** (gamma_negative) | Z_GEX < -1.5 ÉS impact > median(63d) | **0.25** |
 | 3 | **DD** (dark_dominant) | dark_share > 0.70 ÉS Z_block > +1.0 | **1.25** |
@@ -1061,8 +1074,34 @@ COMPLETE: minden feature-nek van ≥ min_periods history
 | 6 | **NEU** (neutral) | Nincs szabály match | **1.00** |
 | 7 | **UND** (undetermined) | Baseline EMPTY | **0.75** |
 
+- VOLATILE fires first — factor volatility framework (BC16), needs `factor_volatility_enabled=True`
 - Γ⁻ + LONG → ticker KIZÁRVA (replaces GEX NEGATIVE exclusion)
 - Konfig: `obsidian_regime_multipliers` dict TUNING-ban
+
+#### Factor Volatility Framework (BC16)
+
+```
+factor_volatility_enabled = False (default)
+
+_compute_factor_volatility(entries, window=20):
+  → rolling σ per feature (gex, dex, dark_share, block_count, iv_rank)
+  → Returns {feature: σ_value_or_None}
+
+_compute_median_rolling_sigmas(entries, window=20):
+  → median of rolling σ windows across history
+  → Returns {feature: median_σ}
+
+_compute_regime_confidence(factor_vol, median_sigmas, floor=0.6):
+  → confidence = 1.0 - min(1.0, σ_gex / median_σ_gex)
+  → max(floor, confidence)
+  → Missing data → 1.0 (assume stable)
+
+Final multiplier = base_regime_mult × max(floor, confidence)
+```
+
+- VOLATILE trigger: `σ_gex > 2× median_σ_gex` ÉS `σ_dex > 2× median_σ_dex`
+- Unusualness σ_20 weighting: `S = Σ(w × |z| × (1 + σ_20_norm))` — volatile features amplified
+- Konfig: `factor_volatility_enabled=False`, `factor_volatility_window=20`, `factor_volatility_confidence_floor=0.6`
 
 #### Unusualness Score
 
@@ -1218,9 +1257,11 @@ send_failure_report():
 
 ```
 Ha a ticker NEM szerepel az elmúlt 90 nap signal_history.parquet-jában:
-  combined_score *= 1.5 (freshness bonus)
+  combined_score = original_score × 1.5 (freshness bonus, UNCAPPED)
 ```
 
+- **Uncapped**: `combined_score` mehet 100 fölé (max: 95 × 1.5 = 142.5) — a clipping (95) már szűrt előtte
+- Korábban `min(100.0, ...)` cap volt → üres history-val minden ticker FRESH → azonos 100 → M_utility differenciálatlan
 - Konfig: `freshness_lookback_days=90`, `freshness_bonus=1.5`
 - History file: `state/signal_history.parquet`
 - Ha pandas nincs telepítve: freshness kihagyva (6 teszt skipped)
@@ -1426,7 +1467,7 @@ Phase 0: Diagnostics
   │ VIX > 50 → EXTREME (0.10 multiplier)
   │ TNX → rate sensitivity flag
   ↓
-Phase 1: BMI
+Phase 1: BMI (async: BC16, semaphore: polygon=10)
   │ 75 nap Polygon grouped daily (330 nap ha breadth enabled — BC14)
   │ Volume spike → Big Money B/S ratio → SMA25
   │ BMI <= 25: GREEN → LONG
@@ -1447,7 +1488,7 @@ Phase 3: Sector Rotation
   │ Vétó mátrix (LONG): Laggard+Neutral/OB → VÉTÓ
   │ TNX rate sensitivity → Tech/RE -10
   ↓ list[SectorScore] + vetoed sectors
-Phase 4: Stock Analysis (szinkron: ~12 min, async: ~2 min)
+Phase 4: Stock Analysis (szinkron: ~12 min, async: ~2 min, semaphore: polygon=10, fmp=8, uw=5, max_tickers=10)
   │ Per ticker: Polygon bars + FMP funda + UW dark pool + Polygon options
   │ Technical: SMA200 filter, RSI ideal zone (+30), SMA50 (+30), RS vs SPY (+40)
   │ Flow: RVOL + squat + dp_pct + buy_pressure + VWAP + PCR + OTM + block
@@ -1462,9 +1503,9 @@ Phase 5: GEX + OBSIDIAN MM
   │ Put GEX signed (negatív — BC12 fix)
   │ Call wall ATR filter: |CW - price| > 5×ATR → zeroed
   │ GEX Regime: POSITIVE (1.0) / HIGH_VOL (0.6) / NEGATIVE (0.5)
-  │ OBSIDIAN MM (BC15, ha enabled/always_collect):
-  │   Feature extraction → z-score → 7-regime classification
-  │   Γ⁺(1.5)/Γ⁻(0.25)/DD(1.25)/ABS(1.0)/DIST(0.5)/NEU(1.0)/UND(0.75)
+  │ OBSIDIAN MM (BC15+BC16, ha enabled/always_collect):
+  │   Feature extraction → z-score → 8-regime classification
+  │   VOLATILE(0.6)/Γ⁺(1.5)/Γ⁻(0.25)/DD(1.25)/ABS(1.0)/DIST(0.5)/NEU(1.0)/UND(0.75)
   │   Override: gex_multiplier ← obsidian_regime_multiplier
   │   Γ⁻ + LONG → KIZÁR (replaces NEGATIVE exclusion)
   │   Feature store always accumulates (cold start elimination)
@@ -1476,7 +1517,7 @@ Phase 6: Position Sizing
   │ Stock ⋈ GEX inner join
   │ Signal dedup (SHA256, 24h TTL — BC11)
   │ Max daily trades limit (20 — BC13)
-  │ Freshness Alpha (opcionális, ×1.5)
+  │ Freshness Alpha (opcionális, ×1.5, uncapped — score mehet 100+)
   │ M_total = M_flow × M_insider × M_funda × M_gex × M_vix × M_utility
   │ quantity = floor(base_risk × M_total / (1.5 × ATR))
   │ Fat finger: NaN guard, max qty 5000, max value $20K (BC12)
@@ -1488,6 +1529,103 @@ Phase 6: Position Sizing
 Telegram: Unified daily report (opcionális, non-blocking — BC15)
   │ Siker: BMI + sectors + breadth + scanned + GEX + OBSIDIAN + exec plan
   │ Hiba: 🚨 IFDS FAILED + error + duration
+```
+
+---
+
+## SimEngine — Forward Validation (SIM-L1)
+
+**Forrás**: `src/ifds/sim/`
+
+### Mit csinál?
+
+Execution plan CSV-kből bracket order szimulációt futtat historikus Polygon OHLCV adaton. Visszaméri a pipeline jelzések eredményességét.
+
+**Input**: `output/execution_plan_*.csv` + Polygon daily bars
+**Output**: Per-trade eredmények, összesített ValidationSummary, CSV + JSON export
+
+### Architektúra (Level 1-3 tervezés)
+
+```
+Level 1 (KÉSZ): Forward Validation
+  → Execution plan CSV-k beolvasása
+  → Polygon bar fetch (async, FileCache)
+  → Bracket order szimuláció
+  → Aggregált statisztikák + export
+
+Level 2 (TERVEZETT): Replay
+  → Historikus pipeline újrafuttatás
+  → Cachelt API adatokból
+
+Level 3 (TERVEZETT): Full Backtest
+  → Multi-nap szekvenciális pipeline
+  → Portfólió-szintű P&L tracking
+```
+
+### Bracket Order Szimuláció
+
+```
+broker_sim.simulate_bracket_order(trade, daily_bars, max_hold_days=10):
+
+  1. Fill Check (D+1):
+     LONG:  ha bars[1].low <= entry_price → filled @ entry_price
+     SHORT: ha bars[1].high >= entry_price → filled @ entry_price
+     Fill window: 1 nap (IBKR bot másnap cancel)
+
+  2. Qty Split (IBKR logic):
+     qty_tp1 = round(quantity × 0.33)    → 33% Leg 1
+     qty_tp2 = quantity - qty_tp1         → 66% Leg 2
+
+  3. Leg 1 (TP1/SL bracket):
+     Minden bar D+2-től:
+       ha low <= stop_loss → stop hit (leg1_exit_price = stop_loss)
+       ha high >= tp1      → tp1 hit (leg1_exit_price = tp1)
+       ha TP ÉS stop same day → conservative: stop hit
+
+  4. Leg 2 (TP2/SL bracket):
+     Ugyanaz mint Leg 1, de tp2 target
+
+  5. Expired:
+     Ha max_hold_days eltelt → exit @ utolsó bar close
+
+  6. P&L:
+     leg_pnl = (exit_price - entry_price) × qty  (LONG)
+     total_pnl = leg1_pnl + leg2_pnl
+     total_pnl_pct = total_pnl / (entry_price × quantity) × 100
+```
+
+### Validator Flow
+
+```
+validate_execution_plans(output_dir, polygon_api_key):
+  1. load_execution_plans(output_dir) → list[Trade]
+     → Minden execution_plan_*.csv beolvasva
+     → run_date a filename-ből: run_YYYYMMDD_HHMMSS_hex
+     → Mai dátumú CSV-k skip-pelve (nincs next-day bar)
+
+  2. _fetch_bars_for_trades(trades, api_key)
+     → Async Polygon fetch (semaphore=10, FileCache)
+     → Per-ticker: entry_date - 1 nap → + max_hold_days + 5 nap
+
+  3. Per-trade: simulate_bracket_order(trade, bars)
+
+  4. aggregate_summary(trades) → ValidationSummary
+     → Fill rate, leg1/leg2 TP/stop/expired, win rates
+     → P&L: total, avg, best/worst ticker
+     → Breakdowns: pnl_by_gex_regime, win_rate_by_score_bucket
+```
+
+### Report
+
+```
+print_validation_report(trades, summary):
+  → Console output (colorama): fill rate, leg win rates, P&L, regime breakdown
+
+write_validation_trades(trades, output_dir):
+  → validation_trades.csv (28 oszlop)
+
+write_validation_summary(summary, output_dir):
+  → validation_summary.json
 ```
 
 ---
@@ -1533,6 +1671,7 @@ Telegram: Unified daily report (opcionális, non-blocking — BC15)
 | `obsidian_dark_share_abs` | 0.50 | ABS DarkShare küszöb (BC15) |
 | `obsidian_return_abs` | -0.005 | ABS return küszöb (BC15) |
 | `obsidian_return_dist` | 0.005 | DIST return küszöb (BC15) |
+| `factor_volatility_window` | 20 | Rolling σ ablak (BC16) |
 
 ### TUNING (operátor állítható)
 
@@ -1589,7 +1728,9 @@ Telegram: Unified daily report (opcionális, non-blocking — BC15)
 | `gex_max_dte` | 90 | Max DTE opciókra (BC12) |
 | `obsidian_enabled` | False | OBSIDIAN klasszifikáció (BC15) |
 | `obsidian_store_always_collect` | True | Feature store mindig ír (BC15) |
-| `obsidian_regime_multipliers` | {7 regime → mult} | Per-regime multiplier (BC15) |
+| `obsidian_regime_multipliers` | {8 regime → mult} | Per-regime multiplier (BC15+BC16, inc. volatile=0.60) |
+| `factor_volatility_enabled` | False | Factor volatility framework (BC16) |
+| `factor_volatility_confidence_floor` | 0.6 | Min regime confidence (BC16) |
 
 ### RUNTIME (környezet-specifikus)
 
@@ -1604,10 +1745,10 @@ Telegram: Unified daily report (opcionális, non-blocking — BC15)
 | `max_single_ticker_exposure` | 20,000 | Max ticker kitettség |
 | `max_order_quantity` | 5,000 | Fat finger qty cap (BC12) |
 | `async_enabled` | False | Async mode (env: IFDS_ASYNC_ENABLED) |
-| `async_sem_polygon` | 5 | Polygon concurrent limit |
-| `async_sem_fmp` | 8 | FMP concurrent limit |
+| `async_sem_polygon` | 10 | Polygon concurrent limit (BC16: 5→10) |
+| `async_sem_fmp` | 8 | FMP concurrent limit (BC16 tuned: 429 at 12) |
 | `async_sem_uw` | 5 | UW concurrent limit |
-| `async_max_tickers` | 10 | Max concurrent tickers |
+| `async_max_tickers` | 10 | Max concurrent tickers (BC16 tuned: 429 at 15) |
 | `cb_window_size` | 50 | Circuit breaker window (BC11) |
 | `cb_error_threshold` | 0.3 | CB error rate trigger (BC11) |
 | `cb_cooldown_seconds` | 60 | CB cooldown (BC11) |

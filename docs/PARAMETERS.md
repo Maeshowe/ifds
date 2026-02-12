@@ -2,7 +2,7 @@
 
 > Generálva: `src/ifds/config/defaults.py` (CORE + TUNING + RUNTIME)
 > V13 referencia: `reference/settings.yaml`
-> Frissitve: 2026-02-11 (BC15 utan, 692 teszt)
+> Frissitve: 2026-02-12 (BC16 + SIM-L1 utan, 752 teszt)
 
 ---
 
@@ -47,6 +47,7 @@ Csak fejlesztői módosítás. A matematikai képletek fix paraméterei.
 | `obsidian_dark_share_abs` | 0.50 | P5 | DarkShare abszolút küszöb ABS rule-hoz (BC15) | Nincs | V2 újdonság |
 | `obsidian_return_abs` | -0.005 | P5 | Daily return küszöb ABS-hoz (≥ -0.5%) (BC15) | Nincs | V2 újdonság |
 | `obsidian_return_dist` | 0.005 | P5 | Daily return küszöb DIST-hoz (≤ +0.5%) (BC15) | Nincs | V2 újdonság |
+| `factor_volatility_window` | 20 | P5 | Rolling σ ablak faktor volatilitáshoz (BC16) | Nincs | V2 újdonság |
 
 ---
 
@@ -254,13 +255,15 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | `breadth_divergence_breadth_threshold` | 5.0 | P3 | SMA50 breadth momentum pont küszöb | Nincs | V2 újdonság |
 | `breadth_min_constituents` | 10 | P3 | Min holdings a breadth számításhoz | Nincs | V2 újdonság |
 
-### OBSIDIAN MM (BC15)
+### OBSIDIAN MM (BC15+BC16)
 
 | Kulcs | Érték | Phase | Hatás | V13 | Eltérés? |
 |-------|-------|-------|-------|-----|----------|
 | `obsidian_enabled` | False | P5 | OBSIDIAN klasszifikáció be/ki | Nincs | V2 újdonság |
 | `obsidian_store_always_collect` | True | P5 | Feature store akkumuláció enabled/disabled-tól függetlenül | Nincs | V2 újdonság |
-| `obsidian_regime_multipliers` | {Γ⁺: 1.5, Γ⁻: 0.25, DD: 1.25, ABS: 1.0, DIST: 0.5, NEU: 1.0, UND: 0.75} | P6 | Per-regime position sizing multiplier | Nincs | V2 újdonság |
+| `obsidian_regime_multipliers` | {VOLATILE: 0.6, Γ⁺: 1.5, Γ⁻: 0.25, DD: 1.25, ABS: 1.0, DIST: 0.5, NEU: 1.0, UND: 0.75} | P6 | Per-regime position sizing multiplier (8 regime — BC16) | Nincs | V2 újdonság |
+| `factor_volatility_enabled` | False | P5 | Factor volatility framework be/ki (BC16) | Nincs | V2 újdonság |
+| `factor_volatility_confidence_floor` | 0.6 | P5 | Min regime confidence — multiplier floor (BC16) | Nincs | V2 újdonság |
 
 ### VIX Thresholds (Phase 0→6)
 
@@ -362,10 +365,10 @@ Per-futtatás beállítások, .env-ből / config fájlból betöltve.
 | Kulcs | Érték | V13 | Megjegyzés |
 |-------|-------|-----|------------|
 | `async_enabled` | False | Nincs | V2 újdonság (IFDS_ASYNC_ENABLED=true) |
-| `async_sem_polygon` | 5 | `api.concurrency.polygon: 20` | ⚠️ **V13=20, V2=5** |
-| `async_sem_fmp` | 8 | `api.concurrency.fmp: 5` | ⚠️ **V13=5, V2=8** |
+| `async_sem_polygon` | 10 | `api.concurrency.polygon: 20` | ⚠️ **V13=20, V2=10** (BC16: 5→10) |
+| `async_sem_fmp` | 8 | `api.concurrency.fmp: 5` | ⚠️ **V13=5, V2=8** (BC16 tuned) |
 | `async_sem_uw` | 5 | Nincs | V2 újdonság |
-| `async_max_tickers` | 10 | Nincs | V2 újdonság |
+| `async_max_tickers` | 10 | Nincs | V2 újdonság (BC16 tuned) |
 
 ### Dark Pool Batch
 
@@ -464,7 +467,7 @@ Per-futtatás beállítások, .env-ből / config fájlból betöltve.
 | `universe_min_avg_volume` | **1M** | **500K** | V2 lazább likviditás filter |
 | `sma_short_period` | **50** | **20** | V2 rövidebb trend filter |
 | `funda_revenue_growth_good` | **20%** | **10%** | V2 lazább fundamental filter |
-| `async_sem_polygon` | **20** | **5** | V2 konzervatívabb rate limit |
+| `async_sem_polygon` | **20** | **10** | V2 konzervatívabb rate limit (BC16) |
 | `gex_max_dte` | **35** | **90** | V2 szélesebb options ablak |
 
 **Figyelem**: A V13 settings.yaml "20-DAY TEST CONFIGURATION" megjegyzéssel van ellátva — egyes értékek (risk_per_trade: 1.5%, max_positions: 15) tesztelési célúak, nem prod értékek.

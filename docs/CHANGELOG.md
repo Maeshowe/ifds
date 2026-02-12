@@ -1,6 +1,66 @@
 # IFDS v2.0 Changelog
 
-> Build Cycle BC1 → BC15 | 2026-02-06 – 2026-02-11
+> Build Cycle BC1 → BC16 + SIM-L1 | 2026-02-06 – 2026-02-12
+
+---
+
+## SIM-L1 — Forward Validation Engine (752 tests)
+
+**SimEngine Level 1: bracket order simulation from execution plan CSVs**
+
+- **New module**: `src/ifds/sim/` — designed for Level 2 (replay) and Level 3 (full backtest) extension
+  - `models.py` — Trade + ValidationSummary dataclasses
+  - `broker_sim.py` — IBKR bracket order simulation (33/66% qty split)
+  - `validator.py` — CSV loading, async Polygon bar fetch, summary aggregation
+  - `report.py` — Console report (colorama), CSV trades, JSON summary
+- **Bracket Logic**:
+  - Fill check: D+1 low <= entry → filled @ entry (LONG); high >= entry (SHORT)
+  - Fill window: 1 day (IBKR bot cancels next day)
+  - Two parallel legs: Leg1 (33% qty → TP1/SL), Leg2 (66% qty → TP2/SL)
+  - Same-day TP+stop ambiguity → conservative: stop hit (pessimistic)
+  - Expired trades: exit @ close of last bar after max_hold_days (10)
+- **Validator**: `validate_execution_plans(output_dir, polygon_api_key)` — full orchestrator
+  - Loads all `execution_plan_*.csv` files (skips today's date)
+  - Async Polygon bar fetch with semaphore=10, FileCache wired
+  - `validate_trades_with_bars()` for offline testing without API
+- **Report Output**:
+  - Console: colorama report with fill rate, leg win rates, P&L stats, GEX regime breakdown
+  - `validation_trades.csv` (28 columns) + `validation_summary.json`
+- **Aggregation**: P&L by GEX regime, win rate by score bucket (70-80, 80-90, 90+)
+- Tesztek: 24 új (test_sim_validator.py)
+
+### Freshness Alpha Fix
+
+- **Uncapped freshness bonus**: `combined_score = original * bonus` (was `min(100.0, original * bonus)`)
+  - Problem: with empty signal_history, ALL tickers FRESH → capped at 100 → identical M_utility → no ranking differentiation
+  - Solution: let combined_score go above 100 (max: 95 × 1.5 = 142.5, clipping already at 95)
+  - M_utility now differentiates: `1.0 + (score - 85) / 100` gives different values per ticker
+
+---
+
+## BC16 — Phase 1 Async + Semaphore Tuning + Factor Volatility (728 tests)
+
+**Phase 1 async migration, final semaphore tuning, OBSIDIAN factor volatility framework**
+
+- **Phase 1 Async**: `_run_phase1_async()` in `phase1_regime.py`
+  - `_fetch_daily_history_async()` — `asyncio.gather` for ~235 grouped daily calls
+  - Dispatch: `if async_enabled → asyncio.run(_run_phase1_async(...))`
+  - Pure computation unchanged: `_calculate_daily_ratios`, `_calculate_sector_bmi`, `_classify_bmi`, `_detect_divergence`
+- **Semaphore Tuning** (final values):
+  - `async_sem_polygon`: 5 → **10** (headroom for parallel phases)
+  - `async_sem_fmp`: 8 → **5** → **8** (429 at 12, stable at 8)
+  - `async_max_tickers`: 10 → **8** → **10** (429 at 15, stable at 10)
+- **Factor Volatility Framework** (OBSIDIAN extension):
+  - `_compute_factor_volatility()` — rolling σ per feature (window=20)
+  - `_compute_median_rolling_sigmas()` — median of rolling σ windows
+  - `_compute_regime_confidence()` — stability measure: `1.0 - min(1.0, σ/median_σ)`, floored at 0.6
+- **VOLATILE regime** (8th MM regime): σ_gex > 2× median AND σ_dex > 2× median → multiplier **0.60**
+  - Priority: checked first (before Γ⁺), fires before all other regime rules
+  - Final multiplier: `base_mult × max(floor, confidence)`
+- **Unusualness σ_20 weighting**: `S = Σ(w × |z| × (1 + σ_20_norm))` — volatile features amplified
+- **Models**: MMRegime enum: 7 → **8 values** (added VOLATILE), ObsidianAnalysis: +regime_confidence, +factor_volatility
+- Config: `factor_volatility_enabled=False`, `factor_volatility_window=20`, `factor_volatility_confidence_floor=0.6`, `obsidian_regime_multipliers.volatile=0.60`
+- Tesztek: 13 (test_bc16_phase1_async.py) + 20 (test_bc16_factor_vol.py)
 
 ---
 
