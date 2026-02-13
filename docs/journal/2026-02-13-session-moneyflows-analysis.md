@@ -123,9 +123,10 @@ Lásd "Következő lépések" — mindegyik konkrét BC/SIM ticket-hez rendelhet
 
 - **Lejárat: 2026-03-08** — nem hosszabbítjuk meg ($349/hó nem indokolt)
 - Még ~3 heti riport (feb 17, feb 24, márc 3) — menteni `moneyflows_docs/`-ba
-- ETF 1000 dashboard: lementeni amíg van hozzáférés (BC26 multi-strategy referencia)
+- ETF 1000 dashboard: nem elérhető (tier korlát) — saját ETF flow elemzést építünk BC26-ban
 - Az IFDS saját flow adata (UW, Polygon) és scoring-ja kiváltja a MoneyFlows inputot
 - A mentett riportok SIM-L1 párhuzamos benchmark-ként szolgálnak (feb 19 → márc 8)
+- Filozófia: nincs fekete doboz függőség — minden faktort magunk építünk, transzparensen
 
 ## Nyitott Kérdések
 
