@@ -312,7 +312,7 @@ def print_scan_summary(result: Phase4Result) -> None:
           f"{Fore.RED}Excluded: {result.excluded_count}{Style.RESET_ALL}")
     print(f"  Breakdown — Tech filter: {result.tech_filter_count}"
           f"  Score < 70: {result.min_score_count}"
-          f"  Crowded (>90): {result.clipped_count}")
+          f"  Crowded (>{result.clipping_threshold}): {result.clipped_count}")
     print(_SEP)
 
 

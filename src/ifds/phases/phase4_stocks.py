@@ -6,7 +6,7 @@ Analyzes each ticker from the Phase 2 universe across three dimensions:
 3. Fundamental Scoring — Growth, Efficiency, Safety, Insider, Shark Detector
 
 Combined Score = 0.40 * FlowScore + 0.30 * FundaScore + 0.30 * TechScore + SectorAdj
-Applied: insider multiplier, min score filter (70), clipping (>90).
+Applied: insider multiplier, min score filter (70), clipping (configurable threshold).
 """
 
 import asyncio
@@ -213,6 +213,7 @@ def run_phase4(config: Config, logger: EventLogger,
             clipped_count=clipped_count,
             tech_filter_count=tech_filter_count,
             min_score_count=min_score_count,
+            clipping_threshold=config.core.get("clipping_threshold", 95),
         )
 
         logger.log(
@@ -1035,6 +1036,7 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             clipped_count=clipped_count,
             tech_filter_count=tech_filter_count,
             min_score_count=min_score_count,
+            clipping_threshold=config.core.get("clipping_threshold", 95),
         )
 
         logger.log(

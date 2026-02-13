@@ -202,7 +202,7 @@ def _format_phases_0_to_4(ctx: PipelineContext, duration: float,
         lines.append(
             f"Breakdown \u2014 Tech filter: {p4.tech_filter_count}"
             f"  Score &lt; 70: {p4.min_score_count}"
-            f"  Crowded (&gt;90): {p4.clipped_count}"
+            f"  Crowded (&gt;{p4.clipping_threshold}): {p4.clipped_count}"
         )
 
     return "\n".join(lines)

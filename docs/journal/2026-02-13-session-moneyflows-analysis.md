@@ -119,6 +119,14 @@ Lásd "Következő lépések" — mindegyik konkrét BC/SIM ticket-hez rendelhet
 - ETF flow elemzés: BC26 multi-strategy scope
 - Piaci szintű ETV: OBSIDIAN-enrichment lehetőség, nem prioritás
 
+## MoneyFlows Előfizetés
+
+- **Lejárat: 2026-03-08** — nem hosszabbítjuk meg ($349/hó nem indokolt)
+- Még ~3 heti riport (feb 17, feb 24, márc 3) — menteni `moneyflows_docs/`-ba
+- ETF 1000 dashboard: lementeni amíg van hozzáférés (BC26 multi-strategy referencia)
+- Az IFDS saját flow adata (UW, Polygon) és scoring-ja kiváltja a MoneyFlows inputot
+- A mentett riportok SIM-L1 párhuzamos benchmark-ként szolgálnak (feb 19 → márc 8)
+
 ## Nyitott Kérdések
 
 1. Az IFDS energy gap szándékos (GEX/OBSIDIAN szűri) vagy hiba (Phase 3 sector rotation nem súlyozza eléggé)?

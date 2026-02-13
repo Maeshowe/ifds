@@ -360,7 +360,8 @@ class Phase4Result:
     analyzed: list[StockAnalysis] = field(default_factory=list)
     passed: list[StockAnalysis] = field(default_factory=list)   # score >= 70, not clipped
     excluded_count: int = 0
-    clipped_count: int = 0              # Crowded trades (score > 90, base score before freshness)
+    clipped_count: int = 0              # Crowded trades (base score before freshness)
+    clipping_threshold: int = 95         # Config value used for clipping
     tech_filter_count: int = 0          # Failed SMA200 trend filter
     min_score_count: int = 0            # Score < 70
 
