@@ -13,7 +13,7 @@ SHORT/Zombie universe (FMP screener):
 - Result: ~200 tickers
 
 Zombie Hunter:
-- Exclude tickers with earnings within 5 calendar days (binary event risk).
+- Exclude tickers with earnings within N calendar days (binary event risk, default 7).
 """
 
 import json

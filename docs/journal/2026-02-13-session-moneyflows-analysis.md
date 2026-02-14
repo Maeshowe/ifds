@@ -113,6 +113,17 @@ Lásd "Következő lépések" — mindegyik konkrét BC/SIM ticket-hez rendelhet
 | T6 | WOW Signals: ismétlődő score | WOW paper 2019 | SimEngine L2 validáció | Q2 |
 | T7 | New + Repeat Freshness Alpha | New Kid paper 2017 | SimEngine L2 | Q2 |
 | T8 | Félvezető szub-szektor faktor | Outlier 20 Broad Sector | RBICS tag + relatív scoring | BC19-20 |
+| T9 | Trading Calendar earnings exclusion | CENX bug feb 13 | `pandas_market_calendars` NYSE | BC19-20 |
+| T10 | Freshness Alpha vs WOW Signals A/B | MoneyFlows WOW paper | SimEngine L2 A/B teszt | Q2 |
+
+### T10: Freshness Alpha vs WOW Signals — Hipotézis
+A jelenlegi Freshness Alpha lineárisan bünteti az ismétlődést.
+A MoneyFlows WOW paper szerint az ismétlődő magas score erősebb jel.
+Hipotézis: a helyes logika U-alakú:
+- Első megjelenés (1-2 nap): BÓNUSZ (New Kid)
+- Ismétlődő visszatérés (3+ nap, score magas): BÓNUSZ (WOW Signal)
+- Folyamatos bentlét változás nélkül: BÜNTETÉS (stale signal)
+SimEngine L2 A/B teszt szükséges — nem módosítjuk production-ben validáció nélkül.
 
 ### Nem akció (parkolópálya)
 - Szezonalitás faktor: Q4 2026-ban SimEngine backtest-ből validálni
