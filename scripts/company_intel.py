@@ -150,7 +150,15 @@ def generate_brief(symbol: str, sector: str, score: float, price: float,
     # Format transcript
     transcript_section = f"\nLegutóbbi earnings transcript (kivonat, max 3000 karakter):\n{transcript}" if transcript else "\nNincs elérhető earnings transcript."
 
-    prompt = f"""Te egy részvényelemző vagy. Az alábbi adatok alapján készíts tömör intelligence brief-et MAGYARUL.
+    prompt = f"""Te egy részvényelemző vagy. Az alábbi adatforrásokból készíts tömör intelligence brief-et MAGYARUL.
+
+KRITIKUS SZABÁLYOK:
+- KIZÁRÓLAG az alább megadott adatokból dolgozz. NE használd a saját tudásodat a cégről.
+- Ha egy kérdésre nincs adat az alább megadott forrásokban, írd: "Nincs elérhető adat."
+- NE találj ki dátumokat, számokat, eseményeket. Csak azt írd amit az adatokban látsz.
+- Az earnings transcript-et TÉNYKÉNT kezeld, de jelezd ha a kivonat nem tartalmaz elég infót.
+
+ADATFORRÁSOK:
 
 Ticker: {symbol} — {sector}
 IFDS Combined Score: {score}
@@ -163,10 +171,10 @@ Earnings Beat/Miss (utolsó 4Q):
 
 Válaszolj PONTOSAN ebben a formátumban (max 150 szó összesen):
 
-DRIVER: [Mi hajtja most az üzletet? 1-2 mondat]
-KOCKÁZAT: [Mi a legnagyobb kockázat a következő 30 napban? 1-2 mondat]
-ELLENTMONDÁS: [Van-e bármi ami ellentmond az IFDS scoring-nak? Ha nincs, írd: "Nincs azonosított ellentmondás." 1 mondat]
-CATALYST: [Következő események: earnings dátum, product launch, regulatory, stb. Felsorolás.]"""
+DRIVER: [Mi hajtja most az üzletet? Csak a transcript és earnings adatok alapján. 1-2 mondat]
+KOCKÁZAT: [Mi a legnagyobb kockázat a következő 30 napban? Earnings miss trend, target vs ár eltérés, stb. 1-2 mondat]
+ELLENTMONDÁS: [Van-e bármi az adatokban ami ellentmond az IFDS scoring-nak? Pl. sorozatos earnings miss + magas score, vagy ár > analyst target. Ha nincs, írd: "Nincs azonosított ellentmondás." 1 mondat]
+CATALYST: [Következő események CSAK az earnings adatokból. Ha nincs pontos dátum az adatokban, írd: "Nem azonosítható a megadott adatokból."]"""
 
     try:
         client = anthropic.Anthropic()
