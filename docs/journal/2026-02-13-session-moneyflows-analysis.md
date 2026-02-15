@@ -115,6 +115,7 @@ Lásd "Következő lépések" — mindegyik konkrét BC/SIM ticket-hez rendelhet
 | T8 | Félvezető szub-szektor faktor | Outlier 20 Broad Sector | RBICS tag + relatív scoring | BC19-20 |
 | T9 | Trading Calendar earnings exclusion | CENX bug feb 13 | `pandas_market_calendars` NYSE | BC19-20 |
 | T10 | Freshness Alpha vs WOW Signals A/B | MoneyFlows WOW paper | SimEngine L2 A/B teszt | Q2 |
+| T11 | Company Intelligence Phase 7 | Anthropic use-case | Standalone script (ma), Pipeline integration BC20-21 | Azonnali |
 
 ### T10: Freshness Alpha vs WOW Signals — Hipotézis
 A jelenlegi Freshness Alpha lineárisan bünteti az ismétlődést.
