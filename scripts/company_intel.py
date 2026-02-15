@@ -77,7 +77,12 @@ def fetch_transcript(symbol: str, api_key: str) -> str | None:
         return None
 
     content = transcripts[0].get("content", "")
-    return content[:TRANSCRIPT_MAX_CHARS] if content else None
+    if not content:
+        return None
+    if len(content) <= TRANSCRIPT_MAX_CHARS:
+        return content
+    half = TRANSCRIPT_MAX_CHARS // 2
+    return content[:half] + "\n\n[...MIDDLE SECTION OMITTED...]\n\n" + content[-half:]
 
 
 def fetch_price_target(symbol: str, api_key: str) -> dict | None:
@@ -112,6 +117,63 @@ def fetch_earnings_surprises(symbol: str, api_key: str) -> list:
     return results
 
 
+def fetch_profile(symbol: str, api_key: str) -> dict | None:
+    """Fetch company profile — name, description, industry, beta, dividend."""
+    data = _fmp_get("/stable/profile", {"symbol": symbol}, api_key)
+    if data:
+        d = data[0]
+        return {
+            "companyName": d.get("companyName"),
+            "description": d.get("description", "")[:500],
+            "industry": d.get("industry"),
+            "beta": d.get("beta"),
+            "lastDividend": d.get("lastDividend"),
+            "marketCap": d.get("marketCap"),
+            "range52w": d.get("range"),
+        }
+    return None
+
+
+def fetch_grades_consensus(symbol: str, api_key: str) -> dict | None:
+    """Fetch analyst consensus — buy/hold/sell counts."""
+    data = _fmp_get("/stable/grades-consensus", {"symbol": symbol}, api_key)
+    if data:
+        return data[0]
+    return None
+
+
+def fetch_recent_grades(symbol: str, api_key: str) -> list:
+    """Fetch last 5 analyst grade changes — upgrades/downgrades."""
+    data = _fmp_get("/stable/grades", {"symbol": symbol, "limit": 5}, api_key)
+    if not data:
+        return []
+    return [
+        {
+            "date": g.get("date"),
+            "company": g.get("gradingCompany"),
+            "action": g.get("action"),
+            "newGrade": g.get("newGrade"),
+            "previousGrade": g.get("previousGrade"),
+        }
+        for g in data[:5]
+    ]
+
+
+def fetch_news(symbol: str, api_key: str) -> list:
+    """Fetch last 5 news headlines."""
+    data = _fmp_get("/stable/news/stock", {"symbols": symbol, "limit": 5}, api_key)
+    if not data:
+        return []
+    return [
+        {
+            "date": n.get("publishedDate", "")[:10],
+            "title": n.get("title"),
+            "publisher": n.get("publisher"),
+        }
+        for n in data[:5]
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Anthropic API
 # ---------------------------------------------------------------------------
@@ -119,7 +181,9 @@ def fetch_earnings_surprises(symbol: str, api_key: str) -> list:
 def generate_brief(symbol: str, sector: str, score: float, price: float,
                    stop_loss: float, take_profit: float,
                    target: dict | None, surprises: list,
-                   transcript: str | None) -> str | None:
+                   transcript: str | None,
+                   profile: dict | None, grades_consensus: dict | None,
+                   recent_grades: list, news: list) -> str | None:
     """Generate intelligence brief using Anthropic Sonnet."""
     try:
         import anthropic
@@ -127,60 +191,110 @@ def generate_brief(symbol: str, sector: str, score: float, price: float,
         print("  [ERROR] anthropic package not installed")
         return None
 
-    # Format earnings surprises
+    # --- Build data sections ---
+    # Profile
+    if profile:
+        mcap = profile.get('marketCap')
+        mcap_str = f"${mcap:,.0f}" if isinstance(mcap, (int, float)) else "N/A"
+        profile_section = f"""Company: {profile.get('companyName', symbol)}
+Industry: {profile.get('industry', 'N/A')}
+Description: {profile.get('description', 'N/A')}
+Beta: {profile.get('beta', 'N/A')} | Last Dividend: ${profile.get('lastDividend', 'N/A')}
+Market Cap: {mcap_str} | 52W Range: {profile.get('range52w', 'N/A')}"""
+    else:
+        profile_section = f"Company: {symbol} — {sector}\nNo profile data available."
+
+    # Earnings
     if surprises:
         lines = []
         for s in surprises:
-            actual = s.get("actualEarningResult", "?")
-            est = s.get("estimatedEarning", "?")
+            actual = s.get("actualEarningResult", "N/A")
+            est = s.get("estimatedEarning", "N/A")
             dt = s.get("date", "?")
             pct = s.get("surprisePct")
-            beat = "BEAT" if isinstance(actual, (int, float)) and isinstance(est, (int, float)) and actual >= est else "MISS"
+            if isinstance(actual, (int, float)) and isinstance(est, (int, float)):
+                beat = "BEAT" if actual >= est else "MISS"
+            else:
+                beat = "N/A"
             pct_str = f" ({pct:+.1f}%)" if pct is not None else ""
             lines.append(f"  {dt}: Actual={actual}, Est={est} → {beat}{pct_str}")
         earnings_text = "\n".join(lines)
     else:
-        earnings_text = "  Nincs elérhető adat"
+        earnings_text = "  No earnings data available."
 
-    # Format target
+    # Price target
     tc = target.get("targetConsensus", "N/A") if target else "N/A"
     tl = target.get("targetLow", "N/A") if target else "N/A"
     th = target.get("targetHigh", "N/A") if target else "N/A"
 
-    # Format transcript
-    transcript_section = f"\nLegutóbbi earnings transcript (kivonat, max 3000 karakter):\n{transcript}" if transcript else "\nNincs elérhető earnings transcript."
+    # Analyst consensus
+    if grades_consensus:
+        gc = grades_consensus
+        consensus_section = f"Analyst Consensus: {gc.get('consensus', 'N/A')} — Strong Buy: {gc.get('strongBuy', 0)}, Buy: {gc.get('buy', 0)}, Hold: {gc.get('hold', 0)}, Sell: {gc.get('sell', 0)}, Strong Sell: {gc.get('strongSell', 0)}"
+    else:
+        consensus_section = "Analyst Consensus: No data available."
 
-    prompt = f"""Te egy részvényelemző vagy. Az alábbi adatforrásokból készíts tömör intelligence brief-et MAGYARUL.
+    # Recent grades
+    if recent_grades:
+        grade_lines = []
+        for g in recent_grades:
+            grade_lines.append(f"  {g['date']}: {g['company']} — {g['action'].upper()} → {g['newGrade']} (was: {g['previousGrade']})")
+        grades_text = "\n".join(grade_lines)
+    else:
+        grades_text = "  No recent analyst actions."
 
-KRITIKUS SZABÁLYOK:
-- KIZÁRÓLAG az alább megadott adatokból dolgozz. NE használd a saját tudásodat a cégről.
-- Ha egy kérdésre nincs adat az alább megadott forrásokban, írd: "Nincs elérhető adat."
-- NE találj ki dátumokat, számokat, eseményeket. Csak azt írd amit az adatokban látsz.
-- Az earnings transcript-et TÉNYKÉNT kezeld, de jelezd ha a kivonat nem tartalmaz elég infót.
+    # News
+    if news:
+        news_lines = []
+        for n in news:
+            news_lines.append(f"  {n['date']}: [{n['publisher']}] {n['title']}")
+        news_text = "\n".join(news_lines)
+    else:
+        news_text = "  No recent news."
 
-ADATFORRÁSOK:
+    # Transcript
+    transcript_section = f"\nLatest Earnings Transcript (excerpt):\n{transcript}" if transcript else "\nNo earnings transcript available."
 
-Ticker: {symbol} — {sector}
-IFDS Combined Score: {score}
-Jelenlegi ár: ${price} | Stop Loss: ${stop_loss} | Take Profit: ${take_profit}
-Analyst Consensus Target: ${tc} (Low: ${tl}, High: ${th})
+    prompt = f"""You are a stock analyst. Generate a concise intelligence brief based ONLY on the data provided below.
 
-Earnings Beat/Miss (utolsó 4Q):
+CRITICAL RULES:
+- Use ONLY the data provided below. Do NOT use your own knowledge about this company.
+- If information is not available in the data below, state: "No data available."
+- Do NOT invent dates, numbers, events, or forecasts. Only report what you see in the data.
+- Treat the earnings transcript as factual. Flag if the excerpt is insufficient.
+
+=== DATA SOURCES ===
+
+{profile_section}
+
+IFDS Score: {score} | Price: ${price} | Stop Loss: ${stop_loss} | Take Profit: ${take_profit}
+Analyst Price Target: ${tc} (Low: ${tl}, High: ${th})
+
+{consensus_section}
+
+Recent Analyst Actions (last 5):
+{grades_text}
+
+Earnings History (last 4 quarters):
 {earnings_text}
+
+Recent News (last 5 headlines):
+{news_text}
 {transcript_section}
 
-Válaszolj PONTOSAN ebben a formátumban (max 150 szó összesen):
+=== OUTPUT FORMAT ===
+Respond in EXACTLY this format (max 200 words total):
 
-DRIVER: [Mi hajtja most az üzletet? Csak a transcript és earnings adatok alapján. 1-2 mondat]
-KOCKÁZAT: [Mi a legnagyobb kockázat a következő 30 napban? Earnings miss trend, target vs ár eltérés, stb. 1-2 mondat]
-ELLENTMONDÁS: [Van-e bármi az adatokban ami ellentmond az IFDS scoring-nak? Pl. sorozatos earnings miss + magas score, vagy ár > analyst target. Ha nincs, írd: "Nincs azonosított ellentmondás." 1 mondat]
-CATALYST: [Következő események CSAK az earnings adatokból. Ha nincs pontos dátum az adatokban, írd: "Nem azonosítható a megadott adatokból."]"""
+DRIVER: [What is driving the business now? Based on transcript and earnings data only. 1-2 sentences.]
+RISK: [Biggest risk in the next 30 days? Earnings miss trend, price vs target gap, analyst downgrades, etc. 1-2 sentences.]
+CONTRADICTION: [Does anything in the data contradict the high IFDS score ({score})? E.g. serial earnings misses + high score, price above analyst target, analyst downgrades. If none: "No contradiction identified." 1 sentence.]
+CATALYST: [Upcoming events from the data: earnings dates, acquisitions, analyst actions, news. List only what appears in the data above.]"""
 
     try:
         client = anthropic.Anthropic()
         message = client.messages.create(
             model=ANTHROPIC_MODEL,
-            max_tokens=500,
+            max_tokens=600,
             messages=[{"role": "user", "content": prompt}],
         )
         return message.content[0].text
@@ -223,9 +337,10 @@ def load_tickers(csv_path: Path) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def format_cli_ticker(t: dict, target: dict | None, surprises: list,
-                      brief: str | None) -> str:
+                      brief: str | None, profile: dict | None = None) -> str:
     """Format one ticker block for CLI."""
     sym = t["symbol"]
+    name = profile.get("companyName", sym) if profile else sym
     sector = t["sector"]
     score = t["score"]
     price = t["price"]
@@ -249,7 +364,7 @@ def format_cli_ticker(t: dict, target: dict | None, surprises: list,
 
     lines = [
         f"\n{'='*60}",
-        f"  {sym} — {sector}",
+        f"  {name} ({sym}) — {sector}",
         f"{'='*60}",
         f"  Score: {score} | Price: ${price} | Target: ${tc} (Low: ${tl}, High: ${th})",
         f"  Stop: ${sl} | TP: ${tp} | Risk: ${risk}",
@@ -265,9 +380,10 @@ def format_cli_ticker(t: dict, target: dict | None, surprises: list,
 
 
 def format_telegram_ticker(t: dict, target: dict | None, surprises: list,
-                           brief: str | None) -> str:
+                           brief: str | None, profile: dict | None = None) -> str:
     """Format one ticker block for Telegram HTML."""
     sym = t["symbol"]
+    name = profile.get("companyName", sym) if profile else sym
     sector = t["sector"]
     score = t["score"]
     price = t["price"]
@@ -286,7 +402,7 @@ def format_telegram_ticker(t: dict, target: dict | None, surprises: list,
     earnings_line = f"{beats}/{n} beat" if n > 0 else "N/A"
 
     lines = [
-        f"<b>{sym} — {sector}</b>",
+        f"<b>{name} ({sym}) — {sector}</b>",
         f"Score: {score} | ${price} | Target: ${tc}",
         f"SL: ${sl} | TP: ${tp} | Earnings: {earnings_line}",
     ]
@@ -399,10 +515,22 @@ def main():
         print(f"  Processing {sym}...", end=" ", flush=True)
 
         # FMP data
+        profile = fetch_profile(sym, fmp_key)
+        fmp_calls += 1
+
         target = fetch_price_target(sym, fmp_key)
         fmp_calls += 1
 
         surprises = fetch_earnings_surprises(sym, fmp_key)
+        fmp_calls += 1
+
+        grades_consensus = fetch_grades_consensus(sym, fmp_key)
+        fmp_calls += 1
+
+        recent_grades = fetch_recent_grades(sym, fmp_key)
+        fmp_calls += 1
+
+        news = fetch_news(sym, fmp_key)
         fmp_calls += 1
 
         transcript = fetch_transcript(sym, fmp_key)
@@ -413,14 +541,15 @@ def main():
             sym, t["sector"], t["score"], t["price"],
             t["stop_loss"], t["take_profit"],
             target, surprises, transcript,
+            profile, grades_consensus, recent_grades, news,
         )
         if brief:
             anthropic_calls += 1
 
         print("OK" if brief else "partial")
 
-        cli_blocks.append(format_cli_ticker(t, target, surprises, brief))
-        tg_blocks.append(format_telegram_ticker(t, target, surprises, brief))
+        cli_blocks.append(format_cli_ticker(t, target, surprises, brief, profile))
+        tg_blocks.append(format_telegram_ticker(t, target, surprises, brief, profile))
 
     elapsed = time.monotonic() - t_start
 
@@ -430,7 +559,7 @@ def main():
     for block in cli_blocks:
         print(block)
 
-    footer = f"Generálva: {elapsed:.1f}s | Anthropic API: {anthropic_calls} hívás | FMP API: {fmp_calls} hívás"
+    footer = f"Generated: {elapsed:.1f}s | Anthropic API: {anthropic_calls} calls | FMP API: {fmp_calls} calls"
     print(f"\n{footer}")
 
     # Telegram output
@@ -444,7 +573,7 @@ def main():
             tg_footer = f"<i>{footer}</i>"
             sent = send_telegram_chunked(tg_blocks, tg_header, tg_footer,
                                          tg_token, tg_chat)
-            print(f"\nTelegram: {sent} üzenet elküldve")
+            print(f"\nTelegram: {sent} messages sent")
 
 
 if __name__ == "__main__":
