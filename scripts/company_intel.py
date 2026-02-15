@@ -90,16 +90,26 @@ def fetch_price_target(symbol: str, api_key: str) -> dict | None:
 
 
 def fetch_earnings_surprises(symbol: str, api_key: str) -> list:
-    """Fetch last 4 quarters of earnings surprises."""
-    # Try stable first, fall back to v3
-    data = _fmp_get("/stable/earnings-surprises",
+    """Fetch last 4 quarters of earnings data with beat/miss calculation."""
+    data = _fmp_get("/stable/earnings",
                     {"symbol": symbol}, api_key)
     if not data:
-        data = _fmp_get("/api/v3/earnings-surprises/" + symbol,
-                        {}, api_key)
-    if data:
-        return data[:4]
-    return []
+        return []
+
+    results = []
+    for item in data[:4]:
+        actual = item.get("epsActual")
+        estimated = item.get("epsEstimated")
+        surprise_pct = None
+        if isinstance(actual, (int, float)) and isinstance(estimated, (int, float)) and estimated != 0:
+            surprise_pct = (actual - estimated) / abs(estimated) * 100
+        results.append({
+            "date": item.get("date", "?"),
+            "actualEarningResult": actual,
+            "estimatedEarning": estimated,
+            "surprisePct": surprise_pct,
+        })
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -124,8 +134,10 @@ def generate_brief(symbol: str, sector: str, score: float, price: float,
             actual = s.get("actualEarningResult", "?")
             est = s.get("estimatedEarning", "?")
             dt = s.get("date", "?")
+            pct = s.get("surprisePct")
             beat = "BEAT" if isinstance(actual, (int, float)) and isinstance(est, (int, float)) and actual >= est else "MISS"
-            lines.append(f"  {dt}: Actual={actual}, Est={est} → {beat}")
+            pct_str = f" ({pct:+.1f}%)" if pct is not None else ""
+            lines.append(f"  {dt}: Actual={actual}, Est={est} → {beat}{pct_str}")
         earnings_text = "\n".join(lines)
     else:
         earnings_text = "  Nincs elérhető adat"
