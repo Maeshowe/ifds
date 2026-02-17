@@ -73,8 +73,8 @@ def main():
         print(f"\n  Closing {len(positions)} positions at MARKET...")
         for pos in positions:
             contract = pos.contract
-            if not contract.exchange:
-                contract.exchange = 'SMART'
+            contract.exchange = 'SMART'
+            if not contract.currency:
                 contract.currency = 'USD'
 
             action = 'SELL' if pos.position > 0 else 'BUY'
