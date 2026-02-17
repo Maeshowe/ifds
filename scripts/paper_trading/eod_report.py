@@ -8,7 +8,9 @@ sends Telegram summary, cancels all remaining orders.
 Usage:
     python scripts/paper_trading/eod_report.py
 """
+import argparse
 import csv
+import glob
 import json
 import logging
 import os
@@ -267,11 +269,114 @@ def update_cumulative_pnl(trades, today_str):
 # ---------------------------------------------------------------------------
 
 
+def load_latest_trades_csv():
+    """Load trades from the most recent daily CSV."""
+    pattern = f"{LOG_DIR}/trades_*.csv"
+    files = sorted(glob.glob(pattern))
+    if not files:
+        return [], None
+    csv_path = files[-1]
+    trades = []
+    with open(csv_path, newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            trades.append({
+                'date': row['date'],
+                'ticker': row['ticker'],
+                'direction': row['direction'],
+                'entry_price': float(row['entry_price']),
+                'entry_qty': int(row['entry_qty']),
+                'exit_price': float(row['exit_price']),
+                'exit_qty': int(row['exit_qty']),
+                'exit_type': row['exit_type'],
+                'pnl': float(row['pnl']),
+                'pnl_pct': float(row['pnl_pct']),
+                'commission': float(row['commission']),
+                'score': float(row['score']),
+                'sector': row['sector'],
+                'sl_price': float(row['sl_price']),
+                'tp1_price': float(row['tp1_price']),
+                'tp2_price': float(row['tp2_price']),
+            })
+    return trades, csv_path
+
+
+def make_dummy_trades():
+    """Generate dummy trades for Telegram format testing."""
+    today_str = date.today().isoformat()
+    return [
+        {'date': today_str, 'ticker': 'TEST1', 'direction': 'LONG',
+         'entry_price': 100.0, 'entry_qty': 10, 'exit_price': 103.0,
+         'exit_qty': 10, 'exit_type': 'TP1', 'pnl': 30.0, 'pnl_pct': 3.0,
+         'commission': 1.0, 'score': 85.0, 'sector': 'Technology',
+         'sl_price': 97.0, 'tp1_price': 103.0, 'tp2_price': 106.0},
+        {'date': today_str, 'ticker': 'TEST2', 'direction': 'LONG',
+         'entry_price': 50.0, 'entry_qty': 20, 'exit_price': 48.5,
+         'exit_qty': 20, 'exit_type': 'SL', 'pnl': -30.0, 'pnl_pct': -3.0,
+         'commission': 1.0, 'score': 72.0, 'sector': 'Healthcare',
+         'sl_price': 48.5, 'tp1_price': 52.0, 'tp2_price': 54.0},
+    ]
+
+
 def main():
-    from lib.connection import connect, get_account, disconnect
+    parser = argparse.ArgumentParser(description='IBKR Paper Trading — EOD Report')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Send test Telegram report without IBKR connection')
+    args = parser.parse_args()
 
     today_str = date.today().isoformat()
     print(f"\nEOD Report — {today_str}")
+
+    # --- Dry-run mode: send Telegram from CSV or dummy data ---
+    if args.dry_run:
+        print("[DRY RUN] — No IBKR connection\n")
+        trades, csv_path = load_latest_trades_csv()
+        if trades:
+            print(f"Loaded {len(trades)} trades from {csv_path}")
+        else:
+            trades = make_dummy_trades()
+            print("No trades CSV found — using dummy data")
+
+        for t in trades:
+            pnl_sign = '+' if t['pnl'] >= 0 else ''
+            print(f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}")
+
+        daily_pnl = sum(t['pnl'] for t in trades)
+        total_trades = len(trades)
+        tp1_hits = len([t for t in trades if t['exit_type'] == 'TP1'])
+        tp2_hits = len([t for t in trades if t['exit_type'] == 'TP2'])
+        sl_hits = len([t for t in trades if t['exit_type'] == 'SL'])
+        moc_exits = len([t for t in trades if t['exit_type'] == 'MOC'])
+        filled = len([t for t in trades if t['exit_type'] != 'UNFILLED'])
+
+        # Load cumulative P&L if available
+        cum_pnl = 0.0
+        cum_pct = 0.0
+        trading_days = 0
+        if os.path.exists(CUMULATIVE_PNL_FILE):
+            with open(CUMULATIVE_PNL_FILE) as f:
+                cum_data = json.load(f)
+            cum_pnl = cum_data.get('cumulative_pnl', 0.0)
+            cum_pct = cum_data.get('cumulative_pnl_pct', 0.0)
+            trading_days = cum_data.get('trading_days', 0)
+
+        print(f"\nP&L today: ${daily_pnl:+,.2f}")
+        print(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/21]")
+
+        tg_lines = [
+            f"📊 PAPER TRADING EOD [DRY RUN] — {today_str}",
+            "",
+            f"Trades: {total_trades} | Filled: {filled}/{total_trades}",
+            f"TP1: {tp1_hits} | TP2: {tp2_hits} | SL: {sl_hits} | MOC: {moc_exits}",
+            "",
+            f"P&L today: ${daily_pnl:+,.2f} ({daily_pnl / INITIAL_CAPITAL * 100:+.2f}%)",
+            f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/21]",
+        ]
+        send_telegram("\n".join(tg_lines))
+        print("Telegram sent.")
+        return
+
+    from lib.connection import connect, get_account, disconnect
 
     ib = connect()
     account = get_account(ib)

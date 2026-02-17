@@ -219,6 +219,7 @@ def main():
         print(f"\n[DRY RUN] — No IBKR connection\n")
         exposure = 0.0
         submitted = 0
+        submitted_tickers = []
         skipped = []
 
         for t in tickers:
@@ -230,6 +231,7 @@ def main():
 
             exposure += ticker_exposure
             submitted += 1
+            submitted_tickers.append(t['symbol'])
             print(f"  {t['symbol']}: {t['direction']} {t['total_qty']} @ ${t['limit_price']} | SL ${t['stop_loss']}")
             print(f"    Bracket A: {t['qty_tp1']} shares → TP1 ${t['take_profit_1']}")
             print(f"    Bracket B: {t['qty_tp2']} shares → TP2 ${t['take_profit_2']}")
@@ -237,6 +239,16 @@ def main():
         print(f"\nWould submit: {submitted} tickers ({submitted * 2} brackets) | Exposure: ${exposure:,.0f}")
         if skipped:
             print(f"Skipped (exposure limit): {', '.join(skipped)}")
+
+        if submitted > 0:
+            tg_msg = (
+                f"📊 PAPER TRADING [DRY RUN] — {today_str}\n"
+                f"Would submit: {submitted} tickers ({submitted * 2} brackets)\n"
+                f"Exposure: ${exposure:,.0f} / ${MAX_DAILY_EXPOSURE:,} limit\n"
+                f"Tickers: {', '.join(submitted_tickers)}"
+            )
+            send_telegram(tg_msg)
+            print("Telegram sent.")
         return
 
     # --- Live mode ---
