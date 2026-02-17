@@ -24,7 +24,7 @@ load_dotenv()
 # Configuration
 # ---------------------------------------------------------------------------
 
-MAX_DAILY_EXPOSURE = 50_000
+MAX_DAILY_EXPOSURE = 100_000
 CIRCUIT_BREAKER_USD = -5_000
 SCALE_OUT_PCT = 0.33
 MIN_QUANTITY = 2
