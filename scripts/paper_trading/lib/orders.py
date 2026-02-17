@@ -75,9 +75,9 @@ def submit_bracket(ib, contract, orders, dry_run=False):
     return trades
 
 
-def create_moc_order(qty, account):
-    """Create Market-on-Close SELL order."""
-    order = MarketOrder('SELL', qty)
+def create_moc_order(qty, account, action='SELL'):
+    """Create Market-on-Close order."""
+    order = MarketOrder(action, qty)
     order.tif = 'DAY'
     order.orderType = 'MOC'
     order.account = account

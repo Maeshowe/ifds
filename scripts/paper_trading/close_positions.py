@@ -64,8 +64,13 @@ def main():
     ib = connect()
     account = get_account(ib)
 
-    # Get open positions
-    positions = [p for p in ib.positions() if p.position > 0]
+    from ib_insync import Stock
+
+    # Get open positions (long and short, skip non-tradable)
+    positions = [p for p in ib.positions()
+                 if p.position != 0
+                 and '.CVR' not in p.contract.symbol
+                 and p.contract.secType == 'STK']
 
     if not positions:
         print("No positions to close")
@@ -76,11 +81,18 @@ def main():
 
     for pos in positions:
         sym = pos.contract.symbol
-        qty = int(pos.position)
-        order = create_moc_order(qty, account)
-        ib.placeOrder(pos.contract, order)
-        moc_submitted.append((sym, qty))
-        print(f"  {sym}: MOC SELL {qty} shares")
+        con_id = pos.contract.conId
+
+        # Create fresh contract with SMART routing (avoids Error 10311)
+        contract = Stock(conId=con_id, exchange='SMART')
+        ib.qualifyContracts(contract)
+
+        action = 'SELL' if pos.position > 0 else 'BUY'
+        qty = int(abs(pos.position))
+        order = create_moc_order(qty, account, action=action)
+        ib.placeOrder(contract, order)
+        moc_submitted.append((sym, qty, action))
+        print(f"  {sym}: MOC {action} {qty} shares")
 
     ib.sleep(1)  # Let orders propagate
 
@@ -90,8 +102,8 @@ def main():
     if moc_submitted:
         lines = [f"🔔 PAPER TRADING MOC — {today_str}",
                  f"Closing {len(moc_submitted)} remaining positions at market close:"]
-        for sym, qty in moc_submitted:
-            lines.append(f"{sym}: {qty} shares")
+        for sym, qty, action in moc_submitted:
+            lines.append(f"{sym}: {action} {qty} shares")
         send_telegram("\n".join(lines))
 
     disconnect(ib)
