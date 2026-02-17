@@ -72,10 +72,18 @@ def main():
     if do_positions and positions:
         print(f"\n  Closing {len(positions)} positions at MARKET...")
         for pos in positions:
-            contract = pos.contract
-            contract.exchange = 'SMART'
-            if not contract.currency:
-                contract.currency = 'USD'
+            symbol = pos.contract.symbol
+            con_id = pos.contract.conId
+
+            # Skip non-tradable contracts (e.g. CVR, warrants)
+            if '.CVR' in symbol or pos.contract.secType != 'STK':
+                print(f"    {symbol}: SKIP (non-tradable)")
+                continue
+
+            # Create fresh contract with SMART routing
+            from ib_insync import Stock
+            contract = Stock(conId=con_id, exchange='SMART')
+            ib.qualifyContracts(contract)
 
             action = 'SELL' if pos.position > 0 else 'BUY'
             qty = abs(pos.position)
@@ -83,7 +91,7 @@ def main():
             order = MarketOrder(action, qty)
             order.tif = 'DAY'
             ib.placeOrder(contract, order)
-            print(f"    {contract.symbol}: {action} {qty} shares (MKT)")
+            print(f"    {symbol}: {action} {qty} shares (MKT via SMART)")
 
         ib.sleep(2)
 
