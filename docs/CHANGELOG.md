@@ -4,6 +4,32 @@
 
 ---
 
+## Paper Trading + Bugfixes (2026-02-17 – 2026-02-18)
+
+### IBKR Paper Trading Module
+- **New module**: `scripts/paper_trading/` — 21-day daytrading test via IBKR Paper ($100K)
+  - `submit_orders.py` — CSV → two independent bracket orders per ticker (33% TP1 / 67% TP2), Adaptive algo, DAY TIF
+  - `close_positions.py` — MOC close for remaining positions at 15:45 ET
+  - `eod_report.py` — EOD report, daily CSV, cumulative P&L JSON, Telegram summary
+  - `nuke.py` — Emergency cancel all orders + close all positions (MKT via SMART)
+  - `lib/connection.py` — IBKR Gateway connector (port 7497, Python 3.14+ asyncio compat)
+  - `lib/orders.py` — Bracket order creation, MOC orders, contract validation
+- Safety rails: $100K exposure limit, circuit breaker at -$5K, min qty 2, idempotency check, CVR/non-STK filter
+- `--dry-run` mode in submit_orders + eod_report sends Telegram without IBKR connection
+- Cron: 15:35 submit, 21:45 MOC close, 22:05 EOD report (CET, Mon-Fri)
+
+### Bugfixes
+- **close_positions.py late-fill bug**: Cancel all unfilled IFDS bracket orders (orderRef `IFDS_*`) before querying positions for MOC — prevents overnight carry from late fills after 15:50 ET cutoff
+- **OBSIDIAN day counter**: Added `baseline_days` field to `ObsidianAnalysis`, populated from store entry count. Telegram now shows actual `day N/21` instead of hardcoded "day 1/21"
+- **nuke.py contract routing**: `qualifyContracts()` + `Stock(conId=..., exchange='SMART')` instead of reusing position contract (avoids Error 10311)
+
+### Company Intel v2
+- `scripts/company_intel.py` — 4 new FMP endpoints (profile, grades-consensus, grades, news/stock)
+- English prompt with 10 data sources, anti-hallucination rules, max 200 words
+- Transcript: first 1500 + last 1500 chars (captures analyst Q&A)
+
+---
+
 ## SIM-L1 — Forward Validation Engine (752 tests)
 
 **SimEngine Level 1: bracket order simulation from execution plan CSVs**
