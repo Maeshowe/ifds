@@ -287,6 +287,13 @@ TUNING = {
     "factor_volatility_enabled": False,               # Feature flag (opt-in)
     "factor_volatility_window": 20,                   # Rolling σ window (trading days)
     "factor_volatility_confidence_floor": 0.6,        # Minimum confidence multiplier
+
+    # Danger Zone Filter (BC18-prep — T3 Bottom 10)
+    "danger_zone_enabled": True,                      # Explicit negative filter
+    "danger_zone_debt_equity": 5.0,                   # D/E > 5.0 = extreme leverage
+    "danger_zone_net_margin": -0.10,                  # Net margin < -10% = burning cash
+    "danger_zone_interest_coverage": 1.0,             # IC < 1.0 = can't cover debt
+    "danger_zone_min_signals": 2,                     # Need 2+ danger signals to filter
 }
 
 # ============================================================================

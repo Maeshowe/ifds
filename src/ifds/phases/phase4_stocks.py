@@ -35,6 +35,35 @@ from ifds.models.market import (
 _BASE_SCORE = 50
 
 
+def _is_danger_zone(fundamental: FundamentalScoring, config: Config) -> bool:
+    """Check if ticker has Bottom 10 risk profile.
+
+    Based on MoneyFlows Outlier analysis (T3):
+    - Extreme debt (D/E > 5.0)
+    - Negative net margin (< -10%)
+    - Critical interest coverage (< 1.0)
+    Need 2+ signals to trigger (avoid false positives from single metric).
+    """
+    if not config.tuning.get("danger_zone_enabled", True):
+        return False
+
+    danger_signals = 0
+
+    if fundamental.debt_equity is not None:
+        if fundamental.debt_equity > config.tuning.get("danger_zone_debt_equity", 5.0):
+            danger_signals += 1
+
+    if fundamental.net_margin is not None:
+        if fundamental.net_margin < config.tuning.get("danger_zone_net_margin", -0.10):
+            danger_signals += 1
+
+    if fundamental.interest_coverage is not None:
+        if fundamental.interest_coverage < config.tuning.get("danger_zone_interest_coverage", 1.0):
+            danger_signals += 1
+
+    return danger_signals >= config.tuning.get("danger_zone_min_signals", 2)
+
+
 def run_phase4(config: Config, logger: EventLogger,
                polygon: PolygonClient, fmp: FMPClient,
                dp_provider: DarkPoolProvider | None,
@@ -74,6 +103,7 @@ def run_phase4(config: Config, logger: EventLogger,
         tech_filter_count = 0
         min_score_count = 0
         clipped_count = 0
+        danger_zone_count = 0
 
         min_score = config.tuning["combined_score_minimum"]
         clipping_threshold = config.core["clipping_threshold"]
@@ -135,6 +165,23 @@ def run_phase4(config: Config, logger: EventLogger,
             # 4. Fundamental Scoring
             fundamental = _analyze_fundamental(symbol, fmp, config,
                                                skip_inst=not inst_ownership_available)
+
+            # 4b. Danger Zone check (T3 — Bottom 10 filter)
+            if _is_danger_zone(fundamental, config):
+                danger_zone_count += 1
+                logger.log(EventType.TICKER_FILTERED, Severity.INFO, phase=4,
+                           message=f"{symbol} filtered: danger zone "
+                                   f"(D/E={fundamental.debt_equity}, "
+                                   f"margin={fundamental.net_margin}, "
+                                   f"IC={fundamental.interest_coverage})",
+                           data={"ticker": symbol, "reason": "danger_zone"})
+                analysis = StockAnalysis(
+                    ticker=symbol, sector=ticker_obj.sector,
+                    technical=technical, flow=flow, fundamental=fundamental,
+                    excluded=True, exclusion_reason="danger_zone",
+                )
+                analyzed.append(analysis)
+                continue
 
             # 5. Combined Score
             sector_adj = sector_adj_map.get(ticker_obj.sector, 0)
@@ -204,7 +251,7 @@ def run_phase4(config: Config, logger: EventLogger,
                       "tech_total": tech_total, "price": t.price, "sma_50": t.sma_50},
             )
 
-        excluded_count = tech_filter_count + min_score_count + clipped_count
+        excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
 
         result = Phase4Result(
             analyzed=analyzed,
@@ -213,6 +260,7 @@ def run_phase4(config: Config, logger: EventLogger,
             clipped_count=clipped_count,
             tech_filter_count=tech_filter_count,
             min_score_count=min_score_count,
+            danger_zone_count=danger_zone_count,
             clipping_threshold=config.core.get("clipping_threshold", 95),
         )
 
@@ -221,7 +269,7 @@ def run_phase4(config: Config, logger: EventLogger,
             message=(
                 f"Analyzed {len(analyzed)} → Passed {len(passed)} "
                 f"(tech_filter={tech_filter_count}, min_score={min_score_count}, "
-                f"clipped={clipped_count})"
+                f"clipped={clipped_count}, danger_zone={danger_zone_count})"
             ),
             data={
                 "analyzed": len(analyzed),
@@ -878,6 +926,7 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
     tech_filter_count = 0
     min_score_count = 0
     clipped_count = 0
+    danger_zone_count = 0
 
     # Probe institutional ownership endpoint availability
     inst_ownership_available = True
@@ -950,6 +999,14 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                 inst_data=inst_data,
             )
 
+            # Stage 4b: Danger Zone check (T3 — Bottom 10 filter)
+            if _is_danger_zone(fundamental, config):
+                return StockAnalysis(
+                    ticker=symbol, sector=ticker_obj.sector,
+                    technical=technical, flow=flow, fundamental=fundamental,
+                    excluded=True, exclusion_reason="danger_zone",
+                )
+
             sector_adj = sector_adj_map.get(ticker_obj.sector, 0)
             combined = _calculate_combined_score(
                 technical, flow, fundamental, sector_adj, config,
@@ -979,6 +1036,14 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                 logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=4,
                            message=f"{result.ticker} failed SMA200 trend filter",
                            data={"ticker": result.ticker, "reason": "tech_filter"})
+            elif result.excluded and result.exclusion_reason == "danger_zone":
+                danger_zone_count += 1
+                logger.log(EventType.TICKER_FILTERED, Severity.INFO, phase=4,
+                           message=f"{result.ticker} filtered: danger zone "
+                                   f"(D/E={result.fundamental.debt_equity}, "
+                                   f"margin={result.fundamental.net_margin}, "
+                                   f"IC={result.fundamental.interest_coverage})",
+                           data={"ticker": result.ticker, "reason": "danger_zone"})
             elif result.combined_score > clipping_threshold:
                 result.excluded = True
                 result.exclusion_reason = "clipping"
@@ -1027,7 +1092,7 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                       "tech_total": tech_total, "price": t.price, "sma_50": t.sma_50},
             )
 
-        excluded_count = tech_filter_count + min_score_count + clipped_count
+        excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
 
         phase4_result = Phase4Result(
             analyzed=analyzed,
@@ -1036,6 +1101,7 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             clipped_count=clipped_count,
             tech_filter_count=tech_filter_count,
             min_score_count=min_score_count,
+            danger_zone_count=danger_zone_count,
             clipping_threshold=config.core.get("clipping_threshold", 95),
         )
 
@@ -1044,7 +1110,7 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             message=(
                 f"Analyzed {len(analyzed)} → Passed {len(passed)} "
                 f"(tech_filter={tech_filter_count}, min_score={min_score_count}, "
-                f"clipped={clipped_count})"
+                f"clipped={clipped_count}, danger_zone={danger_zone_count})"
             ),
             data={
                 "analyzed": len(analyzed),

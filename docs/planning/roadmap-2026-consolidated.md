@@ -15,7 +15,7 @@
 | Paper Trading | 🔄 Day 4/21 (IBKR DUH118657) |
 | OBSIDIAN Baseline | 🔄 Day 4/21 (aktiválás ~márc 4) |
 | Phase 4 Snapshot | ✅ Aktív (gyűjtés holnaptól) |
-| Tesztek | 784 passing, 0 failure |
+| Tesztek | 810 passing, 0 failure |
 
 ---
 
@@ -132,13 +132,13 @@ SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
 |---|----------|---------|-----|
 | T1 | Energy szektor gap | ❌ ELENGEDVE — nem elegendő információ | — |
 | T2 | Outlier 50 benchmark (+3% alpha, 66% WR) | ✅ AKTÍV — SIM-L1 méri | — |
-| T3 | Bottom 10 negatív szűrő | 📋 TERVEZETT | BC18 |
+| T3 | Bottom 10 negatív szűrő | ✅ KÉSZ (2026-02-18) | BC18-prep |
 | T4 | Rotation vs Liquidation OBSIDIAN | 📋 TERVEZETT | BC21 |
 | T5 | BMI extreme oversold (<25%) sizing | 📋 TERVEZETT | BC17 |
 | T6 | WOW Signals validálás | 📋 TERVEZETT | BC20 |
 | T7 | New Kid + Repeat Freshness Alpha | 📋 TERVEZETT | BC20 |
 | T8 | Félvezető szub-szektor faktor | ❌ ELENGEDVE | — |
-| T9 | Trading Calendar earnings exclusion | 📋 TERVEZETT | BC18 |
+| T9 | Trading Calendar earnings exclusion | ✅ KÉSZ (2026-02-18) | BC18-prep |
 | T10 | Freshness Alpha vs WOW A/B teszt | 📋 TERVEZETT | BC20 |
 | T11 | Company Intelligence Phase 7 | 🔄 Standalone kész, pipeline later | BC24+ |
 
@@ -191,7 +191,7 @@ Comp.    │                   │ First Run ▲       │ BC20 A/B tesztek  │
 | 3 | FMP tier review | ✅ LEZÁRVA — API_STACK.md kész |
 | 4 | Félvezető szub-szektor | ❌ LEZÁRVA — elengedve |
 | 5 | VectorBT paraméter sweep | 📋 SimEngine L3 scope (Q3) |
-| 6 | Cache TTL fix (stale forward-looking) | 📋 Backlog — workaround: rm -rf |
+| 6 | Cache TTL fix (stale forward-looking) | ✅ LEZÁRVA (to_date cap + trading calendar) |
 | 7 | ETF BMI broad universe scope | 📋 BC23 (Q2/Q3) |
 
 ---

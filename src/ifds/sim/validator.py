@@ -120,11 +120,18 @@ async def _fetch_bars_for_trades(trades: list[Trade],
     from ifds.data.async_clients import AsyncPolygonClient
 
     # Deduplicate (ticker, from_date, to_date) requests
+    today = date.today()
     requests: dict[tuple[str, str, str], list] = {}
     for trade in trades:
         from_date = (trade.run_date + timedelta(days=1)).isoformat()
-        # Extra days for weekends/holidays
-        to_date = (trade.run_date + timedelta(days=max_hold_days + fill_window_days + 5)).isoformat()
+        # Use trading calendar for precise range, cap at today to avoid stale cache
+        try:
+            from ifds.utils.trading_calendar import add_trading_days
+            raw_to = add_trading_days(trade.run_date, max_hold_days + fill_window_days + 2)
+        except Exception:
+            # Fallback: calendar days + padding for weekends/holidays
+            raw_to = trade.run_date + timedelta(days=max_hold_days + fill_window_days + 5)
+        to_date = min(today, raw_to).isoformat()
         key = (trade.ticker, from_date, to_date)
         if key not in requests:
             requests[key] = []

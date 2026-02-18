@@ -9,7 +9,7 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
 - **BC16 kész** — Phase 1 async (282s→17s), factor volatility framework, SIM-L1 validation engine
 - **BC19 kész** — SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
-- **784 teszt**, 0 failure
+- **810 teszt**, 0 failure
 - **OBSIDIAN store**: gyűjtés folyamatban (day 4/21, aktiválás ~2026-03-04)
 - **Paper Trading**: Day 2/21 (IBKR paper account DUH118657, Mac Mini cron)
 - **Következő**: BC17 (EWMA + crowdedness mérés + OBSIDIAN aktiválás) — ~márc. 4
