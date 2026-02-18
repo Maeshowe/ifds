@@ -8,9 +8,11 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 ## Státusz
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
 - **BC16 kész** — Phase 1 async (282s→17s), factor volatility framework, SIM-L1 validation engine
-- **752 teszt**, 0 failure
-- **OBSIDIAN store**: gyűjtés folyamatban (day 2/21, aktiválás ~2026-03-04)
-- **Következő**: BC17 (factor vol aktiválás + EWMA + crowdedness mérés) — ~márc. 4
+- **BC19 kész** — SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
+- **784 teszt**, 0 failure
+- **OBSIDIAN store**: gyűjtés folyamatban (day 4/21, aktiválás ~2026-03-04)
+- **Paper Trading**: Day 2/21 (IBKR paper account DUH118657, Mac Mini cron)
+- **Következő**: BC17 (EWMA + crowdedness mérés + OBSIDIAN aktiválás) — ~márc. 4
 
 ## Alapszabályok
 - Ez PÉNZÜGYI rendszer — Human-in-the-loop minden döntésnél
@@ -24,6 +26,7 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 - API-k: Polygon (bars, options), FMP (fundamentals), Unusual Whales (dark pool, GEX), FRED (VIX, TNX)
 - Futtatás: `source .env && python -m ifds run`
 - Validáció: `python -m ifds validate --days 10`
+- Comparison: `python -m ifds compare --config sim_variants_test.yaml`
 
 ---
 
@@ -124,13 +127,21 @@ src/ifds/
 │   ├── phase5_obsidian.py      # OBSIDIAN MM classifier (factor vol BC16)
 │   └── phase6_sizing.py        # Position sizing + risk management
 ├── sim/
-│   ├── models.py               # Trade, ValidationSummary
+│   ├── models.py               # Trade, ValidationSummary, SimVariant, ComparisonReport
 │   ├── broker_sim.py           # IBKR bracket simulation
-│   ├── validator.py            # Forward validation engine
-│   └── report.py               # Validation report
+│   ├── validator.py            # L1 forward validation engine
+│   ├── replay.py               # L2 parameter sweep orchestrator
+│   ├── comparison.py           # L2 paired t-test comparison
+│   └── report.py               # Validation + comparison reports
 ├── output/telegram.py          # Daily Telegram report
 ├── models/market.py            # All dataclasses and enums
 └── data/                       # API clients, cache, adapters
+│   └── phase4_snapshot.py      # Daily Phase 4 data persistence
+
+scripts/paper_trading/          # IBKR paper trading (submit, close, eod)
+docs/planning/                  # Design docs (SimEngine L2 etc.)
+docs/tasks/                     # CC task files
+docs/journal/                   # Chat session állapotmentések
 
 src/conductor/                  # CONDUCTOR session & agent system
 .conductor/agents/              # Agent personality definitions
@@ -142,15 +153,17 @@ docs/journal/                   # Chat session állapotmentések (READ ONLY)
 
 ```
 Q1: BC1-18 (pipeline + validáció + crowdedness)         ← CURRENT
-Q2: BC19-22 (risk layer + HRP + SimEngine L2-L3)
+    BC19 kész (SIM-L2 Mód 1) — independent BC17/18-tól
+Q2: BC20-22 (SIM-L2 Mód 2 + risk layer + HRP)
 Q3: BC23-26 (BL + auto execution + multi-strategy)
 Q4: BC27-30 (dashboard + alpha decay + retail packaging)
 ```
 
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-02-12-session-bc16-sim-roadmap.md
-- **Aktív BC**: nincs (BC16 kész, BC17 márc. 4)
-- **Aktív egyéb**: SIM-L1 kész, adatgyűjtés folyamatban (első validáció ~feb. 19)
+- **Utolsó journal**: docs/journal/2026-02-18-session-bugfix-sim-l2.md
+- **Aktív BC**: nincs (BC19 kész, BC17 márc. 4)
+- **Aktív egyéb**: Paper Trading Day 2/21, OBSIDIAN gyűjtés day 4/21, Phase 4 snapshot aktív
 - **Blokkolók**: nincs
-- **OBSIDIAN baseline**: day 2/21
+- **OBSIDIAN baseline**: day 4/21
+- **Következő mérföldkő**: 2026-03-02 SIM-L2 first comparison run (task: docs/tasks/2026-03-02)

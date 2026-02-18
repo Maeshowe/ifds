@@ -1,0 +1,19 @@
+{
+  "start_date": "2026-02-17",
+  "initial_capital": 100000,
+  "trading_days": 1,
+  "cumulative_pnl": 18.25,
+  "cumulative_pnl_pct": 0.018,
+  "daily_history": [
+    {
+      "date": "2026-02-17",
+      "pnl": 18.25,
+      "trades": 4,
+      "filled": 4,
+      "tp1_hits": 0,
+      "tp2_hits": 0,
+      "sl_hits": 0,
+      "moc_exits": 4
+    }
+  ]
+}

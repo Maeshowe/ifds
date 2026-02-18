@@ -1,0 +1,5 @@
+date,ticker,direction,entry_price,entry_qty,exit_price,exit_qty,exit_type,pnl,pnl_pct,commission,score,sector,sl_price,tp1_price,tp2_price
+2026-02-17,IFF,LONG,83.0,87,82.76,87,MOC,-20.88,-0.29,3.02,94.0,Basic Materials,79.29,87.94,90.42
+2026-02-17,OHI,LONG,47.4,376,47.83,376,MOC,161.68,0.91,4.21,94.5,Real Estate,45.66,49.72,50.88
+2026-02-17,AEE,LONG,110.97,180,110.47,180,MOC,-90.0,-0.45,3.04,94.0,Utilities,108.03,114.89,116.84
+2026-02-17,WEC,LONG,115.79,93,115.44,93,MOC,-32.55,-0.3,3.02,95.0,Utilities,112.26,120.49,122.84

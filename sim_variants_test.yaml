@@ -1,0 +1,21 @@
+# SimEngine L2 — First test run
+# Baseline (current production) vs two challengers
+
+variants:
+  - name: baseline
+    description: "Current production: SL=1.5×ATR, TP1=2×ATR, TP2=3×ATR, hold=10d"
+    overrides: {}
+
+  - name: wide_stops
+    description: "Wider stops and targets: SL=2×ATR, TP1=3×ATR, TP2=4×ATR"
+    overrides:
+      stop_loss_atr_multiple: 2.0
+      tp1_atr_multiple: 3.0
+      tp2_atr_multiple: 4.0
+
+  - name: tight_stops
+    description: "Tighter stops: SL=1×ATR, TP1=1.5×ATR, TP2=2×ATR"
+    overrides:
+      stop_loss_atr_multiple: 1.0
+      tp1_atr_multiple: 1.5
+      tp2_atr_multiple: 2.0
