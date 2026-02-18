@@ -249,14 +249,12 @@ def _format_phases_5_to_6(ctx: PipelineContext, config: Config) -> str:
             states = {"complete": 0, "partial": 0, "empty": 0}
             for o in ctx.obsidian_analyses:
                 states[o.baseline_state.value] = states.get(o.baseline_state.value, 0) + 1
-            if states["complete"] > 0:
-                day_est = "21+"
-            elif states["partial"] > 0:
-                day_est = "~10"
+            if ctx.obsidian_analyses:
+                max_days = max(o.baseline_days for o in ctx.obsidian_analyses)
             else:
-                day_est = "1"
+                max_days = 0
             min_periods = config.core.get("obsidian_min_periods", 21)
-            lines.append(f"OBSIDIAN: {status} (day {day_est}/{min_periods})")
+            lines.append(f"OBSIDIAN: {status} (day {max_days}/{min_periods})")
             lines.append(
                 f"Baseline: {states['complete']} complete"
                 f" / {states['partial']} partial"

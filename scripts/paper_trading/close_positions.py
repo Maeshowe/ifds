@@ -66,6 +66,19 @@ def main():
 
     from ib_insync import Stock
 
+    # Cancel unfilled IFDS bracket orders to prevent late fills after MOC cutoff
+    open_orders = ib.openOrders()
+    ifds_orders = [o for o in open_orders
+                   if hasattr(o, 'orderRef') and o.orderRef
+                   and o.orderRef.startswith('IFDS_')]
+    if ifds_orders:
+        for order in ifds_orders:
+            ib.cancelOrder(order)
+        ib.sleep(2)
+        print(f"  Cancelled {len(ifds_orders)} unfilled IFDS bracket orders")
+    else:
+        print("  No unfilled IFDS orders to cancel")
+
     # Get open positions (long and short, skip non-tradable)
     positions = [p for p in ib.positions()
                  if p.position != 0

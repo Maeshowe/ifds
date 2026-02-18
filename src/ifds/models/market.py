@@ -409,6 +409,8 @@ class ObsidianAnalysis:
     # Factor Volatility (BC16)
     regime_confidence: float = 1.0                   # [0.0, 1.0] — confidence in regime stability
     factor_volatility: dict = field(default_factory=dict)  # Per-feature σ_20 values
+    # Day counter
+    baseline_days: int = 0                           # Number of historical entries in store
 
 
 @dataclass

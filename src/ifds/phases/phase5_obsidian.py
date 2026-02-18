@@ -496,6 +496,7 @@ def run_obsidian_analysis(
     if not bar_features:
         result.mm_regime = MMRegime.UNDETERMINED
         result.baseline_state = BaselineState.EMPTY
+        result.baseline_days = len(store.load(ticker))
         result.regime_multiplier = _get_regime_multiplier(MMRegime.UNDETERMINED, config_tuning)
         return result
 
@@ -520,6 +521,7 @@ def run_obsidian_analysis(
 
     # 2. Load history from store
     historical = store.load(ticker)
+    result.baseline_days = len(historical)
 
     # 3. Compute z-scores
     z_scores = _compute_z_scores(today_features, historical, bar_features, min_periods)
