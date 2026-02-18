@@ -33,6 +33,7 @@ data/cache/
 /logs/
 /output/
 /state/
+scripts/paper_trading/logs/
 
 # Reference (v13 source, not committed)
 /reference
