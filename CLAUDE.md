@@ -151,12 +151,19 @@ docs/journal/                   # Chat session állapotmentések (READ ONLY)
 
 ## Roadmap 2026
 
+Részletes: `docs/planning/roadmap-2026-consolidated.md`
+
 ```
-Q1: BC1-18 (pipeline + validáció + crowdedness)         ← CURRENT
-    BC19 kész (SIM-L2 Mód 1) — independent BC17/18-tól
-Q2: BC20-22 (SIM-L2 Mód 2 + risk layer + HRP)
-Q3: BC23-26 (BL + auto execution + multi-strategy)
-Q4: BC27-30 (dashboard + alpha decay + retail packaging)
+Q1 (jan-márc):  BC1-18 (pipeline + validation + crowdedness)     ← MOST ITT
+                BC19 KÉSZ (SIM-L2 Mód 1)
+Q2 (ápr-jún):   BC20 SIM-L2 Mód 2 + T10 A/B
+                BC21 Risk Layer (korrelációs guard + VaR)
+                BC22 HRP allokáció (Riskfolio-Lib, 8→15 pozíció)
+                BC23 ETF BMI (broad ETF universe flow intelligence)
+Q3 (júl-szept):  BC24 Black-Litterman + analyst estimates
+                BC25 Auto Execution (Polygon WS → IBKR)
+                BC26 Multi-Strategy framework
+Q4 (okt-dec):   BC27-30 Dashboard + Alpha Decay + Retail
 ```
 
 ## Aktuális Kontextus
