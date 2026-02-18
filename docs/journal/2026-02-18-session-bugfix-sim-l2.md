@@ -58,18 +58,32 @@ Kompromisszum: csak "passed" tickers (~390/nap) snapshot-olása, nem mind 1200. 
 ### [D5] Presidents' Day (2026-02-16) NYSE zárva
 Megerősítve: feb 16 hétfő ünnep. Kereskedési napok feb 12-től: 12, 13, 17. 3 bar/ticker helyes.
 
-## Tesztek: 784 passing (752 + 32 új)
+## Tesztek: 810 passing (752 + 32 + 26 új)
 
 ## Pipeline Státusz
 - OBSIDIAN: day 4/21 (fix deployed, holnaptól helyes counter)
 - Paper Trading: Day 2 (close_positions fix deployed, 21:45 CET-re aktív)
 - Phase 4 Snapshot: aktív (holnapi pipeline futtatáskor első snapshot)
 
+### BC18-prep: Trading Calendar + Bottom 10 + Cache Fix (commit: TBD)
+- **T9:** `trading_calendar.py` — `exchange_calendars` NYSE, `is_trading_day()`, `add_trading_days()` stb.
+- **T3:** Danger Zone filter — Phase 4 kiszűri D/E > 5, margin < -10%, IC < 1 (2+ jel kell)
+- **Cache fix:** `to_date = min(today, calculated)` + trading calendar a SimEngine-ben
+- 810 teszt (784 + 26 új), 0 failure
+
+### Paper Trading BHP/EGP cleanup
+- nuke.py futtatva Mac Mini-n, BHP (51) és EGP (55) market orderrel zárva
+- AVDL.CVR skip (non-tradable CVR)
+
+### Konszolidált Roadmap
+- `docs/planning/roadmap-2026-consolidated.md` — egyetlen master roadmap
+- BC17-BC26 ütemterv, MoneyFlows tanulságok hozzárendelve, ETF BMI BC23-ba
+- Nyitott kérdések frissítve (energy gap + félvezető elengedve)
+
 ## Következő Lépések
 1. 2026-03-02: SIM-L2 first meaningful comparison (task: `docs/tasks/2026-03-02-sim-l2-first-comparison-run.md`)
 2. BC17 (márc 4): EWMA + crowdedness + OBSIDIAN aktiválás
-3. Cache TTL fix: backlog (nem blokkoló)
-4. BHP/EGP: ma 21:45-kor close_positions.py kezeli (ha még nyitva vannak)
+3. Holnap reggel: Paper Trading ellenőrzés (BHP/EGP zárva? close_positions.py fix működik?)
 
 ## Fájlok
 - Design doc: `docs/planning/simengine-l2-design.md` (APPROVED)
