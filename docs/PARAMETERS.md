@@ -2,7 +2,7 @@
 
 > Generálva: `src/ifds/config/defaults.py` (CORE + TUNING + RUNTIME)
 > V13 referencia: `reference/settings.yaml`
-> Frissitve: 2026-02-12 (BC16 + SIM-L1 utan, 752 teszt)
+> Frissitve: 2026-02-18 (BC19 utan, 784 teszt)
 
 ---
 
@@ -443,6 +443,13 @@ Per-futtatás beállítások, .env-ből / config fájlból betöltve.
 |-------|-------|-----|------------|
 | `obsidian_store_dir` | state/obsidian | Nincs | Per-ticker JSON feature history mappa |
 | `obsidian_max_store_entries` | 100 | Nincs | Max napi entry per ticker (trim oldest) |
+
+### Phase 4 Snapshot (BC19)
+
+| Kulcs | Érték | V13 | Megjegyzés |
+|-------|-------|-----|------------|
+| `phase4_snapshot_enabled` | True | Nincs | Napi Phase 4 StockAnalysis mentés |
+| `phase4_snapshot_dir` | state/phase4_snapshots | Nincs | Gzipped JSON snapshot mappa |
 
 ### Output
 

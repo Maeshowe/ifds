@@ -1,6 +1,42 @@
 # IFDS v2.0 Changelog
 
-> Build Cycle BC1 → BC16 + SIM-L1 | 2026-02-06 – 2026-02-12
+> Build Cycle BC1 → BC19 | 2026-02-06 – 2026-02-18
+
+---
+
+## BC19 — SIM-L2 Mód 1: Parameter Sweep + Phase 4 Snapshot (784 tests)
+
+### Deliverable 1: Parameter Sweep Engine
+- **New module**: `src/ifds/sim/replay.py` — multi-variant bracket order comparison
+  - `recalculate_bracket()` — ATR-implied recalculation from original SL: `ATR = (entry - stop) / original_sl_atr_mult`
+  - `load_variants_from_yaml()` — YAML config loading for variant definitions
+  - `run_comparison()` — full orchestrator: load CSVs, fetch bars once, run N variants, compare
+  - `run_comparison_with_bars()` — offline testing version (pre-provided bars)
+- **New module**: `src/ifds/sim/comparison.py` — statistical comparison (scipy)
+  - `compare_variants()` — first variant = baseline, rest = challengers
+  - Paired t-test (`scipy.stats.ttest_rel`) on per-trade P&L matched by (ticker, run_date)
+  - `MIN_PAIRED_TRADES = 30` — below this → `insufficient_data=True`
+- **Extended**: `src/ifds/sim/report.py` — comparison report
+  - `print_comparison_report()` — colorama console: baseline vs challengers, ΔP&L, Δwin rate, p-value
+  - `write_comparison_csv()` — CSV with variant metrics + deltas + significance
+- **Extended**: `src/ifds/sim/models.py` — L2 dataclasses
+  - `SimVariant` (name, description, overrides, trades, summary)
+  - `VariantDelta` (pnl_delta, win_rate deltas, p_value, is_significant)
+  - `ComparisonReport` (baseline, challengers, deltas)
+  - `ValidationSummary.fill_rate` property
+- **CLI**: `python -m ifds compare` subcommand
+  - `--config variants.yaml` — YAML-based multi-variant definition
+  - `--baseline` / `--challenger` — inline variant naming
+  - `--override-sl-atr`, `--override-tp1-atr`, `--override-tp2-atr`, `--override-hold-days`
+
+### Deliverable 2: Phase 4 Snapshot Persistence
+- **New module**: `src/ifds/data/phase4_snapshot.py`
+  - `save_phase4_snapshot()` — daily gzipped JSON (`{date}.json.gz`) of StockAnalysis data
+  - `load_phase4_snapshot()` — load by date string, returns list of flat dicts
+  - `_stock_to_dict()` — flat dict from StockAnalysis (technical + flow + fundamental fields)
+- **Pipeline wired**: Phase 4 snapshot saved automatically after Phase 6 in `runner.py`
+- **Config**: `phase4_snapshot_enabled=True`, `phase4_snapshot_dir="state/phase4_snapshots"`
+- Tesztek: 32 új (24 test_sim_replay.py + 8 test_phase4_snapshot.py)
 
 ---
 

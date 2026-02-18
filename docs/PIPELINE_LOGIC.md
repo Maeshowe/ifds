@@ -3,7 +3,7 @@
 > Generálva a `src/ifds/` forráskódból, 2026-02-11.
 > Minden képlet, küszöbérték és logika a **ténylegesen implementált kódból** van kiolvasva.
 > Konfigurációs értékek forrása: `src/ifds/config/defaults.py`
-> Frissítve: BC16 + SIM-L1 után (752 teszt)
+> Frissítve: BC19 után (784 teszt)
 
 ---
 
@@ -1553,8 +1553,14 @@ Level 1 (KÉSZ): Forward Validation
   → Bracket order szimuláció
   → Aggregált statisztikák + export
 
-Level 2 (TERVEZETT): Replay
-  → Historikus pipeline újrafuttatás
+Level 2 Mód 1 (KÉSZ — BC19): Parameter Sweep
+  → Execution plan CSV-k beolvasása (egyszer)
+  → Polygon bar fetch egyszer (megosztva variánsok között)
+  → N variáns: deep copy + TP/SL override → szimuláció → összehasonlítás
+  → Páros t-teszt (scipy) → p-value, szignifikancia
+
+Level 2 Mód 2 (TERVEZETT — BC20): Re-score
+  → Phase 4 snapshot betöltés → módosított config → újrascorolás
   → Cachelt API adatokból
 
 Level 3 (TERVEZETT): Full Backtest
@@ -1627,6 +1633,147 @@ write_validation_trades(trades, output_dir):
 write_validation_summary(summary, output_dir):
   → validation_summary.json
 ```
+
+---
+
+## SimEngine L2 — Parameter Sweep (BC19)
+
+**Forrás**: `src/ifds/sim/replay.py`, `src/ifds/sim/comparison.py`
+
+### Mit csinál?
+
+Multi-variáns A/B teszt: ugyanazokat az execution plan trade-eket különböző TP/SL/hold paraméterekkel futtatja, és statisztikailag összehasonlítja az eredményeket.
+
+**Input**: Execution plan CSV-k + Polygon bars + variant definíciók (YAML vagy CLI)
+**Output**: `ComparisonReport` (delta metrikák + p-value), console report, CSV export
+
+### ATR-Implied Recalculation
+
+```
+recalculate_bracket(trade, overrides, original_sl_atr_mult=1.5):
+  ATR = (entry_price - stop_loss) / original_sl_atr_mult
+
+  new_stop = entry - overrides["stop_loss_atr_multiple"] × ATR
+  new_tp1  = entry + overrides["tp1_atr_multiple"] × ATR
+  new_tp2  = entry + overrides["tp2_atr_multiple"] × ATR
+```
+
+- Guard: entry <= 0, stop <= 0, ATR <= 0 → nincs recalc
+- A trade objektumot in-place módosítja (deep copy-n dolgozik)
+
+### YAML Variáns Definíció
+
+```yaml
+variants:
+  - name: baseline
+    description: "Default 1.5/2.0/3.0 ATR config"
+    overrides: {}
+  - name: wide_stops
+    description: "2× ATR stop, 3× TP1, 4× TP2"
+    overrides:
+      stop_loss_atr_multiple: 2.0
+      tp1_atr_multiple: 3.0
+      tp2_atr_multiple: 4.0
+  - name: tight_exits
+    description: "Tight stops, quick profit"
+    overrides:
+      stop_loss_atr_multiple: 1.0
+      tp1_atr_multiple: 1.5
+      tp2_atr_multiple: 2.0
+      max_hold_days: 5
+```
+
+### Comparison Flow
+
+```
+run_comparison(variants, output_dir, polygon_api_key):
+  1. load_execution_plans(output_dir) → base_trades
+  2. _fetch_bars_once(base_trades, ...) → bars_by_ticker (egyszer)
+  3. Minden variant-ra:
+     a. deep_copy_trades(base_trades)
+     b. recalculate_bracket(trade, variant.overrides) ha van override
+     c. validate_trades_with_bars(trades, bars) → trades, summary
+  4. compare_variants(variants) → ComparisonReport
+```
+
+### Páros t-teszt (Statisztikai Összehasonlítás)
+
+```
+compare_variants(variants):
+  baseline = variants[0]
+  challengers = variants[1:]
+
+  Minden challenger-re:
+    1. _pair_trade_pnls(baseline, challenger)
+       → (ticker, run_date) match → paired P&L listák
+    2. Ha len(pairs) < 30 → insufficient_data=True
+    3. Ha len(pairs) ≥ 30 → scipy.stats.ttest_rel(base_pnls, chal_pnls)
+       → p_value, is_significant = bool(p < 0.05)
+```
+
+- MIN_PAIRED_TRADES = 30 (statisztikai minimum)
+- Csak `filled=True` trade-ek párosítva
+- A p-value kerekítve 6 tizedesre
+
+### CLI Használat
+
+```bash
+# YAML config
+python -m ifds compare --config variants.yaml
+
+# Inline override (baseline vs 1 challenger)
+python -m ifds compare --challenger "wide_stops" --override-sl-atr 2.0 --override-tp1-atr 3.0
+
+# Különböző output dir
+python -m ifds compare --config variants.yaml --output-dir output --cache-dir data/cache
+```
+
+---
+
+## Phase 4 Snapshot Persistence (BC19)
+
+**Forrás**: `src/ifds/data/phase4_snapshot.py`
+
+### Mit csinál?
+
+Napi szinten menti a Phase 4 StockAnalysis adatokat gzipped JSON formátumban. Ez a SIM-L2 Mód 2 (re-score, BC20) előkészítése.
+
+### Mentés
+
+```
+save_phase4_snapshot(passed_analyses, snapshot_dir):
+  1. mkdir -p snapshot_dir
+  2. Minden StockAnalysis → flat dict (_stock_to_dict):
+     ticker, sector, combined_score, sector_adjustment,
+     price, sma_200, sma_50, rsi_14, atr_14, rs_vs_spy,
+     rvol, dark_pool_pct, pcr, block_trade_count, buy_pressure_score,
+     revenue_growth_yoy, eps_growth_yoy, insider_score, inst_ownership_trend,
+     ...
+  3. gzip.open("{date}.json.gz", "wt") → json.dump(records)
+```
+
+- Idempotens: ugyanazon nap újraírja (felülírja)
+- Dir automatikusan létrejön ha nem létezik
+
+### Betöltés
+
+```
+load_phase4_snapshot(date_str, snapshot_dir):
+  1. Keresés: "{date_str}.json.gz" → gzip.open
+  2. Fallback: "{date_str}.json" → open
+  3. Ha nem létezik → return []
+```
+
+### Pipeline Integration
+
+```python
+# runner.py — Phase 6 után, Telegram előtt:
+if config.runtime.get("phase4_snapshot_enabled", True) and ctx.stock_analyses:
+    save_phase4_snapshot(ctx.stock_analyses, snap_dir)
+```
+
+- Konfig: `phase4_snapshot_enabled=True`, `phase4_snapshot_dir="state/phase4_snapshots"`
+- ~2-5 KB per nap (gzipped, ~8-15 ticker)
 
 ---
 
