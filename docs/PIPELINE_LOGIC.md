@@ -3,7 +3,7 @@
 > Generálva a `src/ifds/` forráskódból, 2026-02-11.
 > Minden képlet, küszöbérték és logika a **ténylegesen implementált kódból** van kiolvasva.
 > Konfigurációs értékek forrása: `src/ifds/config/defaults.py`
-> Frissítve: BC19 után (784 teszt)
+> Frissítve: BC18-prep után (810 teszt)
 
 ---
 
@@ -839,6 +839,7 @@ combined *= insider_multiplier
 | Szűrő | Feltétel | Konfig | Hatás |
 |--------|----------|--------|-------|
 | **SMA200 Trend** | LONG: price <= SMA200 | `sma_long_period=200` | Kizár (tech_filter) |
+| **Danger Zone** | D/E>5 + margin<-10% + IC<1.0 (2+) | `danger_zone_*` (TUNING) | Kizár (danger_zone) |
 | **Minimum Score** | combined < 70 | `combined_score_minimum=70` | Kizár (min_score) |
 | **Clipping** | combined > 95 | `clipping_threshold=95` | Kizár (crowded trade) |
 | **Insufficient Data** | < 50 bár | Hardcoded | Skip (nincs analysis) |

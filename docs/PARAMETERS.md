@@ -2,7 +2,7 @@
 
 > Generálva: `src/ifds/config/defaults.py` (CORE + TUNING + RUNTIME)
 > V13 referencia: `reference/settings.yaml`
-> Frissitve: 2026-02-18 (BC19 utan, 784 teszt)
+> Frissitve: 2026-02-18 (BC18-prep utan, 810 teszt)
 
 ---
 
@@ -311,6 +311,16 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | XLC | 12 | 80 | 12 | 80 | ✅ |
 | XLRE | 9 | 85 | 9 | 85 | ✅ |
 | XLU | 15 | 75 | 15 | 75 | ✅ |
+
+### Danger Zone Filter (BC18-prep — T3 Bottom 10)
+
+| Kulcs | Érték | Phase | Hatás |
+|-------|-------|-------|-------|
+| `danger_zone_enabled` | True | P4 | Explicit negatív szűrő engedélyezés |
+| `danger_zone_debt_equity` | 5.0 | P4 | D/E > 5.0 = extrém tőkeáttétel |
+| `danger_zone_net_margin` | -0.10 | P4 | Nettó margin < -10% = pénzégetés |
+| `danger_zone_interest_coverage` | 1.0 | P4 | IC < 1.0 = adósságszolgálat fedezetlen |
+| `danger_zone_min_signals` | 2 | P4 | Min 2 veszélyjel a szűréshez |
 
 ---
 

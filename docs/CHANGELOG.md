@@ -4,6 +4,33 @@
 
 ---
 
+## BC18-prep — Trading Calendar + Danger Zone + Cache TTL Fix (810 tests)
+
+### D1: NYSE Trading Calendar (`exchange_calendars`)
+- **New module**: `src/ifds/utils/trading_calendar.py`
+  - `is_trading_day()` — NYSE ünnepnap + hétvége detekció
+  - `next_trading_day()`, `prev_trading_day()` — n kereskedési nap előre/hátra
+  - `trading_days_between()` — kereskedési napok listája tartományban
+  - `add_trading_days()` — n kereskedési nap hozzáadás (pozitív/negatív)
+  - `count_trading_days()` — kereskedési napok száma két dátum között
+- **Dependency**: `exchange_calendars` v4.13.1 (NYSE=XNYS, cached singleton)
+- Integrálva: SimEngine `validator.py` — `to_date` számítás kereskedési napokkal
+
+### D2: Bottom 10 Danger Zone Filter (T3)
+- **New function**: `_is_danger_zone()` in `phase4_stocks.py`
+  - D/E > 5.0, net margin < -10%, interest coverage < 1.0
+  - 2+ szignál kell a szűréshez (false positive elkerülés)
+- Integrálva: Phase 4 sync + async path (step 4b, funda scoring után, combined score előtt)
+- `danger_zone_count` hozzáadva `Phase4Result`-hoz (`market.py`)
+- 5 TUNING konfig kulcs: `danger_zone_enabled`, `_debt_equity`, `_net_margin`, `_interest_coverage`, `_min_signals`
+
+### D3: Cache TTL Fix (forward-looking date ranges)
+- `to_date = min(today, raw_to)` — jövőbeli dátumok cap-elése stale cache elkerülésére
+- Kereskedési naptár használat pontosabb tartományhoz (fallback: calendar days + 5)
+- Tesztek: 26 új (15 calendar + 9 danger zone + 2 cache TTL)
+
+---
+
 ## BC19 — SIM-L2 Mód 1: Parameter Sweep + Phase 4 Snapshot (784 tests)
 
 ### Deliverable 1: Parameter Sweep Engine
