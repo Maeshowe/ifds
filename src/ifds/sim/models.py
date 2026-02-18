@@ -1,7 +1,8 @@
 """SimEngine data models.
 
 Level 1: Forward validation from execution plan CSVs.
-Designed for Level 2 (replay) and Level 3 (full backtest) extension.
+Level 2: Parameter sweep with multi-variant comparison.
+Designed for Level 3 (full backtest) extension.
 """
 
 from dataclasses import dataclass, field
@@ -99,3 +100,48 @@ class ValidationSummary:
     plan_count: int = 0              # Number of execution plan CSVs processed
     date_range_start: date | None = None
     date_range_end: date | None = None
+
+    # Fill rate (convenience)
+    @property
+    def fill_rate(self) -> float:
+        if self.total_trades == 0:
+            return 0.0
+        return self.filled_trades / self.total_trades * 100
+
+
+# ============================================================================
+# Level 2: Parameter Sweep Models (BC19)
+# ============================================================================
+
+@dataclass
+class SimVariant:
+    """A single configuration variant for A/B testing."""
+    name: str
+    description: str = ""
+    overrides: dict = field(default_factory=dict)
+    trades: list[Trade] = field(default_factory=list)
+    summary: ValidationSummary = field(default_factory=ValidationSummary)
+
+
+@dataclass
+class VariantDelta:
+    """Delta between baseline and one challenger."""
+    challenger_name: str
+    pnl_delta: float = 0.0
+    win_rate_leg1_delta: float = 0.0
+    win_rate_leg2_delta: float = 0.0
+    avg_pnl_delta: float = 0.0
+    avg_holding_days_delta: float = 0.0
+    fill_rate_delta: float = 0.0
+    p_value: float | None = None
+    is_significant: bool = False
+    insufficient_data: bool = False
+    paired_trade_count: int = 0
+
+
+@dataclass
+class ComparisonReport:
+    """Multi-variant comparison results."""
+    baseline: SimVariant = field(default_factory=lambda: SimVariant(name="baseline"))
+    challengers: list[SimVariant] = field(default_factory=list)
+    deltas: list[VariantDelta] = field(default_factory=list)

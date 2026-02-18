@@ -63,12 +63,50 @@ def main():
         help="Path to custom config file (default: built-in defaults + env vars)",
     )
 
+    # compare — parameter sweep comparison (SIM-L2)
+    compare_parser = subparsers.add_parser(
+        "compare", help="Run parameter sweep comparison (SIM-L2)")
+    compare_parser.add_argument(
+        "--config", type=str,
+        help="Path to YAML variant config file",
+    )
+    compare_parser.add_argument(
+        "--baseline", type=str, default="baseline",
+        help="Baseline variant name (default: baseline)",
+    )
+    compare_parser.add_argument(
+        "--challenger", type=str,
+        help="Challenger variant name",
+    )
+    compare_parser.add_argument(
+        "--override-sl-atr", type=float,
+        help="Override stop loss ATR multiple for challenger",
+    )
+    compare_parser.add_argument(
+        "--override-tp1-atr", type=float,
+        help="Override TP1 ATR multiple for challenger",
+    )
+    compare_parser.add_argument(
+        "--override-tp2-atr", type=float,
+        help="Override TP2 ATR multiple for challenger",
+    )
+    compare_parser.add_argument(
+        "--override-hold-days", type=int,
+        help="Override max hold days for challenger",
+    )
+    compare_parser.add_argument(
+        "--output-dir", type=str, default="output",
+        help="Directory with execution plan CSVs (default: output)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "run":
         _cmd_run(args)
     elif args.command == "check":
         _cmd_check(args)
+    elif args.command == "compare":
+        _cmd_compare(args)
 
 
 def _cmd_run(args):
@@ -89,6 +127,54 @@ def _cmd_check(args):
 
     result = check_system(config_path=args.config)
     sys.exit(0 if result.success else 1)
+
+
+def _cmd_compare(args):
+    """Run parameter sweep comparison."""
+    import os
+
+    from ifds.sim.models import SimVariant
+    from ifds.sim.replay import load_variants_from_yaml, run_comparison
+    from ifds.sim.report import print_comparison_report, write_comparison_csv
+
+    # Build variants from YAML or CLI args
+    if args.config:
+        variants = load_variants_from_yaml(args.config)
+    else:
+        # Build from CLI args
+        variants = [SimVariant(name=args.baseline, description="Current production config")]
+
+        if args.challenger:
+            overrides = {}
+            if args.override_sl_atr is not None:
+                overrides["stop_loss_atr_multiple"] = args.override_sl_atr
+            if args.override_tp1_atr is not None:
+                overrides["tp1_atr_multiple"] = args.override_tp1_atr
+            if args.override_tp2_atr is not None:
+                overrides["tp2_atr_multiple"] = args.override_tp2_atr
+            if args.override_hold_days is not None:
+                overrides["max_hold_days"] = args.override_hold_days
+            variants.append(SimVariant(
+                name=args.challenger,
+                overrides=overrides,
+            ))
+        else:
+            print("Error: --challenger required when not using --config")
+            sys.exit(1)
+
+    polygon_key = os.environ.get("IFDS_POLYGON_API_KEY", "")
+    cache_dir = os.environ.get("IFDS_CACHE_DIR", "data/cache")
+
+    report = run_comparison(
+        variants,
+        output_dir=args.output_dir,
+        polygon_api_key=polygon_key if polygon_key else None,
+        cache_dir=cache_dir,
+    )
+
+    print_comparison_report(report)
+    csv_path = write_comparison_csv(report, args.output_dir)
+    print(f"CSV: {csv_path}")
 
 
 if __name__ == "__main__":

@@ -446,6 +446,19 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
         logger.log(EventType.PIPELINE_END, Severity.INFO,
                    message=f"Pipeline run complete in {duration:.1f}s.")
 
+        # Phase 4 Snapshot (BC19 — SIM-L2 data prep)
+        if config.runtime.get("phase4_snapshot_enabled", True) and ctx.stock_analyses:
+            try:
+                from ifds.data.phase4_snapshot import save_phase4_snapshot
+                snap_dir = config.runtime.get("phase4_snapshot_dir",
+                                              "state/phase4_snapshots")
+                snap_path = save_phase4_snapshot(ctx.stock_analyses, snap_dir)
+                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                           message=f"Phase 4 snapshot saved: {snap_path}")
+            except Exception as e:
+                logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
+                           message=f"Phase 4 snapshot error: {e}")
+
         log_file = str(logger.log_file)
         print_pipeline_result(ctx, log_file, config=config)
 

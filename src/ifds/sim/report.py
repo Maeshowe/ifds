@@ -11,7 +11,7 @@ import json
 from datetime import date
 from pathlib import Path
 
-from ifds.sim.models import Trade, ValidationSummary
+from ifds.sim.models import ComparisonReport, Trade, ValidationSummary, VariantDelta
 
 
 # ============================================================================
@@ -227,5 +227,156 @@ def write_validation_summary(summary: ValidationSummary,
 
     with open(file_path, "w") as f:
         json.dump(data, f, indent=2)
+
+    return str(file_path)
+
+
+# ============================================================================
+# Comparison Report (Level 2 — BC19)
+# ============================================================================
+
+def print_comparison_report(report: ComparisonReport) -> str:
+    """Print formatted comparison report to console.
+
+    Returns:
+        The formatted report string.
+    """
+    try:
+        from colorama import Fore, Style
+        G = Fore.GREEN
+        R = Fore.RED
+        Y = Fore.YELLOW
+        C = Fore.CYAN
+        W = Fore.WHITE
+        RST = Style.RESET_ALL
+    except ImportError:
+        G = R = Y = C = W = RST = ""
+
+    lines = []
+    _box = f"{C}{'=' * 62}{RST}"
+    _mid = f"{C}{'-' * 62}{RST}"
+
+    lines.append("")
+    lines.append(_box)
+    lines.append(f"{C}{'IFDS Parameter Sweep — Comparison Report':^62}{RST}")
+    lines.append(_box)
+
+    # Baseline summary
+    bs = report.baseline.summary
+    lines.append(f"  {W}BASELINE: {report.baseline.name}{RST}")
+    if report.baseline.description:
+        lines.append(f"    {report.baseline.description}")
+    pnl_c = G if bs.total_pnl >= 0 else R
+    lines.append(f"    Trades: {bs.total_trades} | Filled: {bs.filled_trades}"
+                 f" | P&L: {pnl_c}${bs.total_pnl:+,.2f}{RST}")
+    lines.append(f"    Leg1 WR: {bs.leg1_win_rate:.1f}% | Leg2 WR: {bs.leg2_win_rate:.1f}%"
+                 f" | Avg hold: {bs.avg_holding_days:.1f}d")
+    lines.append(_mid)
+
+    # Each challenger
+    for delta in report.deltas:
+        challenger = next(
+            (c for c in report.challengers if c.name == delta.challenger_name),
+            None,
+        )
+        if not challenger:
+            continue
+
+        cs = challenger.summary
+        lines.append(f"  {W}CHALLENGER: {challenger.name}{RST}")
+        if challenger.description:
+            lines.append(f"    {challenger.description}")
+
+        overrides_str = ", ".join(f"{k}={v}" for k, v in challenger.overrides.items())
+        if overrides_str:
+            lines.append(f"    Overrides: {overrides_str}")
+
+        pnl_c = G if cs.total_pnl >= 0 else R
+        lines.append(f"    Trades: {cs.total_trades} | Filled: {cs.filled_trades}"
+                     f" | P&L: {pnl_c}${cs.total_pnl:+,.2f}{RST}")
+
+        # Deltas
+        _delta_color = lambda v: G if v > 0 else (R if v < 0 else W)
+        dc = _delta_color(delta.pnl_delta)
+        lines.append(f"    ΔP&L: {dc}${delta.pnl_delta:+,.2f}{RST}"
+                     f" | ΔAvg: ${delta.avg_pnl_delta:+,.2f}"
+                     f" | ΔFill: {delta.fill_rate_delta:+.1f}%")
+        lines.append(f"    ΔLeg1 WR: {delta.win_rate_leg1_delta:+.1f}%"
+                     f" | ΔLeg2 WR: {delta.win_rate_leg2_delta:+.1f}%"
+                     f" | ΔHold: {delta.avg_holding_days_delta:+.1f}d")
+
+        # Statistical significance
+        if delta.insufficient_data:
+            lines.append(f"    {Y}⚠ Insufficient data ({delta.paired_trade_count} paired trades < 30){RST}")
+        elif delta.p_value is not None:
+            sig_color = G if delta.is_significant else Y
+            sig_label = "SIGNIFICANT" if delta.is_significant else "not significant"
+            lines.append(f"    p-value: {sig_color}{delta.p_value:.4f} ({sig_label}){RST}"
+                         f" | {delta.paired_trade_count} paired trades")
+
+        lines.append(_mid)
+
+    lines.append(_box)
+    lines.append("")
+
+    report_str = "\n".join(lines)
+    print(report_str)
+    return report_str
+
+
+def write_comparison_csv(report: ComparisonReport,
+                         output_dir: str = "output") -> str:
+    """Write comparison results to CSV.
+
+    Returns:
+        Path to the written CSV file.
+    """
+    from datetime import datetime
+
+    out_path = Path(output_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    file_path = out_path / f"sim_comparison_{timestamp}.csv"
+
+    fieldnames = [
+        "variant", "description", "total_trades", "filled", "fill_rate",
+        "total_pnl", "avg_pnl", "leg1_wr", "leg2_wr", "avg_hold_days",
+        "delta_pnl", "delta_avg_pnl", "delta_leg1_wr", "delta_leg2_wr",
+        "delta_fill_rate", "delta_hold_days", "p_value", "significant",
+        "paired_trades",
+    ]
+
+    all_variants = [report.baseline] + report.challengers
+    delta_map = {d.challenger_name: d for d in report.deltas}
+
+    with open(file_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for v in all_variants:
+            s = v.summary
+            d = delta_map.get(v.name)
+            writer.writerow({
+                "variant": v.name,
+                "description": v.description,
+                "total_trades": s.total_trades,
+                "filled": s.filled_trades,
+                "fill_rate": round(s.fill_rate, 1),
+                "total_pnl": round(s.total_pnl, 2),
+                "avg_pnl": round(s.avg_pnl_per_trade, 2),
+                "leg1_wr": round(s.leg1_win_rate, 1),
+                "leg2_wr": round(s.leg2_win_rate, 1),
+                "avg_hold_days": round(s.avg_holding_days, 1),
+                "delta_pnl": round(d.pnl_delta, 2) if d else "",
+                "delta_avg_pnl": round(d.avg_pnl_delta, 2) if d else "",
+                "delta_leg1_wr": round(d.win_rate_leg1_delta, 1) if d else "",
+                "delta_leg2_wr": round(d.win_rate_leg2_delta, 1) if d else "",
+                "delta_fill_rate": round(d.fill_rate_delta, 1) if d else "",
+                "delta_hold_days": round(d.avg_holding_days_delta, 1) if d else "",
+                "p_value": round(d.p_value, 6) if d and d.p_value is not None else "",
+                "significant": d.is_significant if d else "",
+                "paired_trades": d.paired_trade_count if d else "",
+            })
 
     return str(file_path)

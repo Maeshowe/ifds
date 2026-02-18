@@ -372,6 +372,10 @@ RUNTIME = {
     "obsidian_store_dir": "state/obsidian",
     "obsidian_max_store_entries": 100,
 
+    # Phase 4 Snapshot (BC19 — SIM-L2 Mód 2 prep)
+    "phase4_snapshot_enabled": True,
+    "phase4_snapshot_dir": "state/phase4_snapshots",
+
     # Output
     "output_dir": "output",
     "log_dir": "logs",
