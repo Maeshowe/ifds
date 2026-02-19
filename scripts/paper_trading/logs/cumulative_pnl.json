@@ -1,19 +1,31 @@
 {
   "start_date": "2026-02-17",
   "initial_capital": 100000,
-  "trading_days": 1,
-  "cumulative_pnl": 18.25,
-  "cumulative_pnl_pct": 0.018,
+  "trading_days": 2,
+  "cumulative_pnl": -46.73,
+  "cumulative_pnl_pct": -0.047,
   "daily_history": [
     {
       "date": "2026-02-17",
-      "pnl": 18.25,
-      "trades": 4,
-      "filled": 4,
+      "pnl": 168.69,
+      "trades": 6,
+      "filled": 6,
       "tp1_hits": 0,
       "tp2_hits": 0,
       "sl_hits": 0,
-      "moc_exits": 4
+      "moc_exits": 4,
+      "nuke_exits": 2,
+      "note": "BHP +45.39, EGP +105.05 overnight carry, nuke.py closed feb 18"
+    },
+    {
+      "date": "2026-02-18",
+      "pnl": -215.42,
+      "trades": 6,
+      "filled": 6,
+      "tp1_hits": 0,
+      "tp2_hits": 0,
+      "sl_hits": 0,
+      "moc_exits": 6
     }
   ]
 }

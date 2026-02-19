@@ -9,9 +9,10 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
 - **BC16 kész** — Phase 1 async (282s→17s), factor volatility framework, SIM-L1 validation engine
 - **BC19 kész** — SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
-- **810 teszt**, 0 failure
+- **817 teszt**, 0 failure, 0 warning
 - **OBSIDIAN store**: gyűjtés folyamatban (day 4/21, aktiválás ~2026-03-04)
 - **Paper Trading**: Day 2/21 (IBKR paper account DUH118657, Mac Mini cron)
+- **Swing Hybrid Exit**: design APPROVED (`docs/planning/swing-hybrid-exit-design.md`)
 - **Következő**: BC17 (EWMA + crowdedness mérés + OBSIDIAN aktiválás) — ~márc. 4
 
 ## Alapszabályok
@@ -171,6 +172,7 @@ Q4 (okt-dec):   BC27-30 Dashboard + Alpha Decay + Retail
 - **Utolsó journal**: docs/journal/2026-02-18-session-bugfix-sim-l2.md
 - **Aktív BC**: nincs (BC19 kész, BC17 márc. 4)
 - **Aktív egyéb**: Paper Trading Day 2/21, OBSIDIAN gyűjtés day 4/21, Phase 4 snapshot aktív
+- **Swing Hybrid**: design doc APPROVED, implementáció BC20A-ba tervezve
 - **Blokkolók**: nincs
 - **OBSIDIAN baseline**: day 4/21
 - **Következő mérföldkő**: 2026-03-02 SIM-L2 first comparison run (task: docs/tasks/2026-03-02)

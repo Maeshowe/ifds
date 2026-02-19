@@ -15,19 +15,32 @@
 | Paper Trading | 🔄 Day 4/21 (IBKR DUH118657) |
 | OBSIDIAN Baseline | 🔄 Day 4/21 (aktiválás ~márc 4) |
 | Phase 4 Snapshot | ✅ Aktív (gyűjtés holnaptól) |
-| Tesztek | 810 passing, 0 failure |
+| Tesztek | 817 passing, 0 failure, 0 warning |
+| Swing Hybrid Exit | ✅ Design APPROVED |
 
 ---
 
 ## BC Ütemterv
 
-### BC17 — Factor Vol + EWMA + Crowdedness Mérés
+### BC17 — Factor Vol + EWMA + Crowdedness Mérés + OBSIDIAN Aktiválás
 **Tervezett:** ~2026-03-04 (OBSIDIAN 21 nap elérése)
 **Scope:**
 - EWMA smoothing (span=10) a scoring-ban — [D1 Gemini javaslat elfogadva]
 - Good/Bad Crowding mérés (shadow mode — mér, nem szűr)
 - OBSIDIAN factor volatility aktiválás (21 nap baseline megvan)
 - **T5:** BMI extreme oversold (<25%) agresszív sizing zóna
+- **OBSIDIAN rezsim multiplier értékek élesítése Phase 6-ban:**
+  | Rezsim | Multiplier | Indoklás |
+  |--------|-----------|----------|
+  | Γ⁺ (gamma_positive) | 1.0–1.05 | Stabil, alacsony vol környezet — nem veszélyes |
+  | Γ⁻ (gamma_negative) | 0.6–0.7 | Dealer short gamma, amplifikált mozgások — érdemi kockázat |
+  | DD (dark_dominant) | 1.1–1.15 | Intézményi akkumuláció — pozitív signal (feltéve: DP adat megbízható) |
+  | ABS (absorption) | 1.05–1.1 | Passzív felszívás — pozitív LONG-ban |
+  | DIST (distribution) | 0.85 | Smart money elad — negatív, de nem akut (Γ⁻ + DIST = 0.7×0.85 = 0.595, nem túl agresszív) |
+  | VOLATILE | 0.75 | Instabil rezsim — óvatosság |
+  | NEU (neutral) | 1.0 | Nincs hatás |
+  | UND (undetermined) | 1.0 | Nincs hatás (baseline gyűjtés közben) |
+- **OBSIDIAN dark pool küszöb kalibráció:** A DD (`dark_share > 0.70`) és ABS (`dark_share > 0.50`) küszöbök az eredeti aetherveil rendszerből származnak, ir-reálisan magasak a jelenlegi UW batch adatokhoz képest (tipikus dark_share: 0.001-0.005). 21 nap adat alapján az eloszlást kiértékeljük és a küszöböket újrakalibráljuk. Emellett: UW batch `max_pages` (15→30-50) növelés mérlegelése a jobb DP coverage-ért.
 
 **Előfeltétel:** OBSIDIAN day 21/21 ✅ (márc 4-re meglesz)
 
@@ -55,13 +68,37 @@ SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
 
 **Előfeltétel:** Phase 4 snapshot-ok gyűlnek (feb 19-től), minimum 30 nap adat
 
-### BC21 — Risk Layer: Korrelációs Guard + Portfolio VaR
+### BC21 — Risk Layer: Korrelációs Guard + Portfolio VaR + Cross-Asset Rezsim
 **Tervezett:** ~2026-04-második fele
 **Scope:**
 - Pozíció-korrelációs guard (ne legyen 5 utility egyszerre)
 - Portfolio-szintű VaR kalkuláció
 - **T4:** Rotation vs Liquidation megkülönböztetés OBSIDIAN-ban
 - Max szektor koncentráció limit
+- **Cross-asset rezsim réteg (piac-szintű):**
+  - 3 arány monitorozása: **HYG/IEF** (credit spread, legsúlyozottabb), **RSP/SPY** (breadth), **IWM/SPY** (small cap rel. erő)
+  - UUP kihagyva (kontextusfüggő, nem tiszta rezsim-indikátor)
+  - **4 szintű gradiens** szavazási rendszerrel (3 arány, hány SMA20 alatt):
+    | Szint | Feltétel | VIX küszöb | Max pozíció | Min score |
+    |-------|---------|------------|-------------|----------|
+    | NORMAL | 0/3 negatív | 20 (alap) | 8 | 70 |
+    | CAUTIOUS | 1/3 negatív | 19 (-1) | 8 | 70 |
+    | RISK_OFF | 2/3 negatív | 17 (-3) | 6 | 75 |
+    | CRISIS | 3/3 negatív + VIX > 30 | 15 (-5) | 4 | 80 |
+  - **Nem önálló szorzó** a multiplier chain-ben, hanem a **VIX küszöböket tolja el** rezsim szerint (exponenciális szorzó-lánc büntetés elkerülése)
+  - **IWM/SPY feltételes szavazat:** IWM/SPY önmagában NEM szavaz (kamatkörnyezet-érzékeny, zajos). Csak ha HYG/IEF is negatív, akkor kap szavazatot. Logika:
+    ```python
+    votes = 0
+    if hyg_ief < sma20(hyg_ief):   votes += 1  # credit spread — mindig szavaz
+    if rsp_spy < sma20(rsp_spy):   votes += 1  # breadth — mindig szavaz
+    if iwm_spy < sma20(iwm_spy) and hyg_ief < sma20(hyg_ief):
+        votes += 1                              # small cap — csak credit megerősítéssel
+    ```
+  - Eredmény: HYG/IEF a "kapuőr", IWM csak megerősítő. IWM egyedül = 0 szavazat (pl. kamatemelési ciklus nem triggerel CAUTIOUS-t)
+  - Indoklás: a VIX küszöb-tolás megakadályozza a szorzó-lánc exponenciális büntetését, miközben a cross-asset és VIX információ egy dimenzióba olvad
+  - HYG/IEF prioritás: credit market gyorsabban áraz be kockázatot mint equity, ritkán hamis pozitív
+  - **Kapcsolódás OBSIDIAN-hoz:** két rétegű rezsim-információ — piac-szintű (cross-asset = globális kapu) + ticker-szintű (OBSIDIAN = egyedi finomhangolás)
+  - API: Polygon ETF bars (HYG, IEF, RSP, SPY, IWM) — már elérhető Advanced tierben
 
 **Eredeti terv:** BC19 volt → eltolódott, mert BC19 = SIM-L2
 
