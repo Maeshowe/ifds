@@ -185,7 +185,7 @@ def _format_phases_0_to_4(ctx: PipelineContext, duration: float,
     lines.append("")
     lines.append(f"<b>[ 3/6 ] Sector Rotation</b>")
     if ctx.sector_scores:
-        lines.append(_format_sector_table(ctx.sector_scores))
+        lines.append(_format_sector_table(ctx.sector_scores, benchmark=ctx.agg_benchmark))
         if ctx.vetoed_sectors:
             lines.append(f"Vetoed sectors: {', '.join(ctx.vetoed_sectors)}")
 
@@ -289,7 +289,7 @@ def _format_phases_5_to_6(ctx: PipelineContext, config: Config) -> str:
     return "\n".join(lines)
 
 
-def _format_sector_table(sector_scores: list) -> str:
+def _format_sector_table(sector_scores: list, benchmark=None) -> str:
     """Format sector table as monospace <pre> block."""
     rows: list[str] = []
     header = (
@@ -329,6 +329,36 @@ def _format_sector_table(sector_scores: list) -> str:
             f"{mom_str:>9} "
             f"{status:<9}"
             f"{trend:<6}"
+            f"{bmi_str:<5}"
+            f"{regime:<9}"
+            f"{b_score_str:<6}"
+            f"{b_regime_str:<8}"
+        )
+        rows.append(row)
+
+    if benchmark is not None:
+        rows.append("-" * len(header))
+
+        mom = benchmark.momentum_5d
+        arrow = "^" if mom > 0 else "v"
+        mom_str = f"{arrow} {mom:+.2f}%"
+
+        bmi_str = f"{benchmark.sector_bmi:.0f}%" if benchmark.sector_bmi is not None else "N/A"
+        regime = benchmark.sector_bmi_regime.value.upper()
+
+        if benchmark.breadth is not None:
+            b_score_str = f"{benchmark.breadth.breadth_score:.0f}"
+            raw_regime = benchmark.breadth.breadth_regime.value.upper()
+            b_regime_str = _BREADTH_SHORT.get(raw_regime, raw_regime)
+        else:
+            b_score_str = "N/A"
+            b_regime_str = "N/A"
+
+        row = (
+            f"{benchmark.etf:<5}"
+            f"{mom_str:>9} "
+            f"{'Benchmark':<9}"
+            f"{'--':<6}"
             f"{bmi_str:<5}"
             f"{regime:<9}"
             f"{b_score_str:<6}"

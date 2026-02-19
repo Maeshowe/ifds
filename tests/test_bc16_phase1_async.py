@@ -292,7 +292,7 @@ class TestPhase1AsyncDispatch:
         """run_phase1() dispatches to _run_phase1_async when async_enabled=True."""
         bars = _make_grouped_bars()
 
-        with patch("ifds.phases.phase1_regime._run_phase1_async") as mock_async, \
+        with patch("ifds.phases.phase1_regime._run_phase1_async", new=MagicMock()) as mock_async, \
              patch("ifds.phases.phase1_regime.asyncio") as mock_asyncio:
             from ifds.models.market import BMIData, Phase1Result
             mock_result = Phase1Result(

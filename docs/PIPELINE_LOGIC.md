@@ -3,7 +3,7 @@
 > Generálva a `src/ifds/` forráskódból, 2026-02-11.
 > Minden képlet, küszöbérték és logika a **ténylegesen implementált kódból** van kiolvasva.
 > Konfigurációs értékek forrása: `src/ifds/config/defaults.py`
-> Frissítve: BC18-prep után (810 teszt)
+> Frissítve: AGG Telegram fix után (817 teszt)
 
 ---
 
@@ -1238,8 +1238,9 @@ Hiba esetén:
 send_daily_report():
   Ha token és chat_id nincs → return False (disabled)
   Egyetlen üzenet: BMI, sectors, breadth, scanned, GEX, OBSIDIAN stats, exec plan
+  Szektortábla: 11 SPDR szektor + AGG benchmark sor szeparátorral (ctx.agg_benchmark)
   POST https://api.telegram.org/bot{token}/sendMessage
-    → Markdown format, max 4 ticker/sor az exec planben
+    → HTML format, max 4 ticker/sor az exec planben
     → timeout=5s
 
 send_failure_report():

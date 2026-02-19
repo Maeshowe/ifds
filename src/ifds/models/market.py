@@ -510,6 +510,7 @@ class PipelineContext:
     phase3: Phase3Result | None = None
     sector_scores: list[SectorScore] = field(default_factory=list)
     vetoed_sectors: list[str] = field(default_factory=list)
+    agg_benchmark: SectorScore | None = None
 
     # Phase 4 output
     phase4: Phase4Result | None = None

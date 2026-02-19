@@ -251,8 +251,8 @@ class TestPairedTTest:
         random.seed(42)
         n = 50
         baseline_pnls = [random.gauss(0, 10) for _ in range(n)]
-        # Challenger is systematically +20 better
-        challenger_pnls = [p + 20 for p in baseline_pnls]
+        # Challenger is systematically +20 better (slight noise avoids scipy precision warning)
+        challenger_pnls = [p + 20 + random.gauss(0, 0.1) for p in baseline_pnls]
 
         baseline = self._make_variant_with_trades("base", baseline_pnls)
         challenger = self._make_variant_with_trades("better", challenger_pnls)

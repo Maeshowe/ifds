@@ -2,7 +2,7 @@
 
 > Generálva: `src/ifds/config/defaults.py` (CORE + TUNING + RUNTIME)
 > V13 referencia: `reference/settings.yaml`
-> Frissitve: 2026-02-18 (BC18-prep utan, 810 teszt)
+> Frissitve: 2026-02-19 (AGG Telegram fix, 817 teszt)
 
 ---
 

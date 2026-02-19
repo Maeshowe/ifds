@@ -248,6 +248,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                                                           name_override={"AGG": "Bonds (Benchmark)"})
                     agg_benchmark = agg_scores[0] if agg_scores else None
 
+                ctx.agg_benchmark = agg_benchmark
                 print_sector_table(phase3, prev_sectors=prev_sectors,
                                    benchmark=agg_benchmark)
             finally:

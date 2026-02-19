@@ -4,6 +4,22 @@
 
 ---
 
+## AGG Telegram Fix + Warning Cleanup (817 tests)
+
+### AGG Benchmark in Telegram Sector Table
+- **Bugfix**: AGG (iShares Core U.S. Aggregate Bond ETF) benchmark sor hiányzott a Telegram szektortáblázatból
+- `PipelineContext.agg_benchmark` mező hozzáadva (`market.py`)
+- `runner.py`: `ctx.agg_benchmark = agg_benchmark` mentés Phase 3-ban
+- `telegram.py`: `_format_sector_table()` kapott `benchmark` paramétert — AGG sor szeparátorral a tábla végén
+- 7 új teszt (`test_agg_telegram_fix.py`)
+
+### Test Warning Cleanup
+- **AsyncMock coroutine warning**: `_run_phase1_async` patch `new=MagicMock()`-kal (asyncio.run is mock → coroutine sosem awaited)
+- **scipy precision warning**: paired t-test adatokhoz kis noise hozzáadva (identikus differenciák → catastrophic cancellation)
+- **Eredmény**: 817 passed, 0 warnings
+
+---
+
 ## BC18-prep — Trading Calendar + Danger Zone + Cache TTL Fix (810 tests)
 
 ### D1: NYSE Trading Calendar (`exchange_calendars`)
