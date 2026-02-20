@@ -178,7 +178,7 @@ def main():
     # --- Test connection mode ---
     if args.test_connection:
         from lib.connection import connect, get_account, disconnect
-        ib = connect()
+        ib = connect(client_id=10)
         account = get_account(ib)
         summary = ib.accountSummary(account)
         for item in summary:
@@ -255,7 +255,7 @@ def main():
     from lib.connection import connect, get_account, disconnect
     from lib.orders import validate_contract, create_day_bracket, submit_bracket
 
-    ib = connect()
+    ib = connect(client_id=10)
     account = get_account(ib)
 
     existing = get_existing_symbols(ib)

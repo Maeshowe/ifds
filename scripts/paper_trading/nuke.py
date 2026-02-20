@@ -22,7 +22,7 @@ from ib_insync import IB, MarketOrder
 
 HOST = '127.0.0.1'
 PORT = 7497
-CLIENT_ID = 99  # Dedicated for nuke script
+CLIENT_ID = 13  # Dedicated for nuke script
 
 
 def main():

@@ -59,9 +59,10 @@ def main():
     from lib.orders import create_moc_order
 
     today_str = date.today().strftime('%Y-%m-%d')
-    print(f"\nMOC Close — {today_str}")
 
-    ib = connect()
+    ib = connect(client_id=11)
+    ib.sleep(3)  # Wait for position/order synchronization
+    print(f"\nMOC Close — {today_str}")
     account = get_account(ib)
 
     from ib_insync import Stock

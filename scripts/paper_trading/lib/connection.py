@@ -14,18 +14,19 @@ from ib_insync import IB
 logger = logging.getLogger(__name__)
 
 PAPER_PORT = 7497
-CLIENT_ID = 10
+DEFAULT_CLIENT_ID = 10
 
 
-def connect(host='127.0.0.1', port=PAPER_PORT, client_id=CLIENT_ID):
+def connect(host='127.0.0.1', port=PAPER_PORT, client_id=DEFAULT_CLIENT_ID):
     """Connect to IBKR Gateway. Exits on failure."""
     ib = IB()
     try:
         ib.connect(host, port, clientId=client_id)
-        logger.info(f"Connected to IBKR: {host}:{port}")
+        ib.sleep(2)  # Wait for initial synchronization
+        logger.info(f"Connected to IBKR: {host}:{port} (clientId={client_id})")
         return ib
     except Exception as e:
-        logger.error(f"IBKR connection failed: {e}")
+        logger.error(f"IBKR connection FAILED (clientId={client_id}): {e}")
         sys.exit(1)
 
 

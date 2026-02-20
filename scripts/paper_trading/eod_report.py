@@ -378,7 +378,7 @@ def main():
 
     from lib.connection import connect, get_account, disconnect
 
-    ib = connect()
+    ib = connect(client_id=12)
     account = get_account(ib)
 
     # --- Query today's executions ---
