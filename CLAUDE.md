@@ -10,10 +10,12 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 - **BC16 kész** — Phase 1 async (282s→17s), factor volatility framework, SIM-L1 validation engine
 - **BC19 kész** — SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
 - **817 teszt**, 0 failure, 0 warning
-- **OBSIDIAN store**: gyűjtés folyamatban (day 4/21, aktiválás ~2026-03-04)
-- **Paper Trading**: Day 2/21 (IBKR paper account DUH118657, Mac Mini cron)
+- **BC18-prep kész** — Trading calendar, danger zone filter, cache TTL fix
+- **OBSIDIAN store**: gyűjtés folyamatban (day 8/21, aktiválás ha store >=21 entry/ticker)
+- **Paper Trading**: Day 5/21 (IBKR paper account DUH118657, Mac Mini cron, cum. PnL +$278 estimated)
 - **Swing Hybrid Exit**: design APPROVED (`docs/planning/swing-hybrid-exit-design.md`)
-- **Következő**: BC17 (EWMA + crowdedness mérés + OBSIDIAN aktiválás) — ~márc. 4
+- **BC18 scope**: + IBKR connection hardening (retry wrapper, timeout, port konstans) — tervezve
+- **Következő**: BC17 (EWMA + crowdedness mérés + OBSIDIAN aktiválás) — ha store >=21 entry
 
 ## Alapszabályok
 - Ez PÉNZÜGYI rendszer — Human-in-the-loop minden döntésnél
@@ -156,23 +158,25 @@ Részletes: `docs/planning/roadmap-2026-consolidated.md`
 
 ```
 Q1 (jan-márc):  BC1-18 (pipeline + validation + crowdedness)     ← MOST ITT
+                BC18 scope: + IBKR connection hardening (retry, timeout, port)
                 BC19 KÉSZ (SIM-L2 Mód 1)
 Q2 (ápr-jún):   BC20 SIM-L2 Mód 2 + T10 A/B
                 BC21 Risk Layer (korrelációs guard + VaR)
                 BC22 HRP allokáció (Riskfolio-Lib, 8→15 pozíció)
                 BC23 ETF BMI (broad ETF universe flow intelligence)
 Q3 (júl-szept):  BC24 Black-Litterman + analyst estimates
-                BC25 Auto Execution (Polygon WS → IBKR)
+                BC25 Auto Execution (Polygon WS → IBKR + long-running mode)
                 BC26 Multi-Strategy framework
 Q4 (okt-dec):   BC27-30 Dashboard + Alpha Decay + Retail
 ```
 
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-02-18-session-bugfix-sim-l2.md
-- **Aktív BC**: nincs (BC19 kész, BC17 márc. 4)
-- **Aktív egyéb**: Paper Trading Day 2/21, OBSIDIAN gyűjtés day 4/21, Phase 4 snapshot aktív
+- **Utolsó journal**: docs/journal/2026-02-19-swing-hybrid-design.md
+- **Aktív BC**: nincs (BC19 kész, BC17 ~márc 4)
+- **Aktív egyéb**: Paper Trading Day 5/21, OBSIDIAN gyűjtés day 8/21, Phase 4 snapshot aktív
 - **Swing Hybrid**: design doc APPROVED, implementáció BC20A-ba tervezve
 - **Blokkolók**: nincs
-- **OBSIDIAN baseline**: day 4/21
+- **OBSIDIAN baseline**: day 8/21 (461 ticker, 8 pipeline run, max 6 entry/ticker AQN-nél, 0 ticker >=21). Megjelenési ráta ~75% a top tickereknél → 21 entry-hez ~28 run kell (~márc 20). Aktiválás fokozatos: stabil, visszatérő tickerek érik el először a küszöböt. Ez kívánt viselkedés (swing universe szelekció). BC17 márc 4: EWMA + crowdedness indul, OBSIDIAN fokozatosan aktiválódik utána.
+- **Paper Trading**: cum. PnL +$278 estimated (+0.28%), 7 open positions over weekend. Megjegyzés: nuke árak tegnapi zárón, nem tényleges fill — hétfőn korrigálandó
 - **Következő mérföldkő**: 2026-03-02 SIM-L2 first comparison run (task: docs/tasks/2026-03-02)
