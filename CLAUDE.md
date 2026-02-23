@@ -172,11 +172,11 @@ Q4 (okt-dec):   BC27-30 Dashboard + Alpha Decay + Retail
 
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-02-19-swing-hybrid-design.md
+- **Utolsó journal**: docs/journal/2026-02-23-session-pnl-reconstruction.md
 - **Aktív BC**: nincs (BC19 kész, BC17 ~márc 4)
-- **Aktív egyéb**: Paper Trading Day 5/21, OBSIDIAN gyűjtés day 8/21, Phase 4 snapshot aktív
+- **Aktív egyéb**: Paper Trading Day 5/21 (folyamatban, EOD 22:05 CET), OBSIDIAN gyűjtés day 8/21, Phase 4 snapshot aktív
 - **Swing Hybrid**: design doc APPROVED, implementáció BC20A-ba tervezve
 - **Blokkolók**: nincs
-- **OBSIDIAN baseline**: day 8/21 (461 ticker, 8 pipeline run, max 6 entry/ticker AQN-nél, 0 ticker >=21). Megjelenési ráta ~75% a top tickereknél → 21 entry-hez ~28 run kell (~márc 20). Aktiválás fokozatos: stabil, visszatérő tickerek érik el először a küszöböt. Ez kívánt viselkedés (swing universe szelekció). BC17 márc 4: EWMA + crowdedness indul, OBSIDIAN fokozatosan aktiválódik utána.
-- **Paper Trading**: cum. PnL +$278 estimated (+0.28%), 7 open positions over weekend. Megjegyzés: nuke árak tegnapi zárón, nem tényleges fill — hétfőn korrigálandó
+- **OBSIDIAN baseline**: day 8/21 (Feb 11,12,13,17,18,19,20,23 — Feb 16 Presidents' Day stale törölve, 100 fájl tisztítva). Megjelenési ráta ~75% a top tickereknél → 21 entry-hez ~28 run kell (~márc 20). BC17 márc 4: EWMA + crowdedness indul, OBSIDIAN fokozatosan aktiválódik utána.
+- **Paper Trading**: cum. PnL -$61.63 (-0.062%), Day 4/21 lezárva (Feb 17-20). trades_2026-02-20.csv rekonstruálva, cumulative_pnl.json helyreállítva.
 - **Következő mérföldkő**: 2026-03-02 SIM-L2 first comparison run (task: docs/tasks/2026-03-02)
