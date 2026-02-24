@@ -183,6 +183,43 @@ class FMPClient(BaseAPIClient):
             self._cache.put("fmp", "etf-holdings", yesterday, etf_symbol, result)
         return result
 
+    def get_next_earnings_date(self, ticker: str) -> str | None:
+        """Get the next upcoming earnings date for a ticker from FMP.
+
+        Uses /stable/earnings?symbol={ticker} endpoint (ticker-specific,
+        more reliable than bulk /stable/earnings-calendar for ADRs).
+
+        Returns:
+            Date string 'YYYY-MM-DD' of next earnings, or None if not found.
+        """
+        today = date.today().isoformat()
+
+        params = {"apikey": self._api_key, "symbol": ticker}
+        result = self._get("/stable/earnings", params=params,
+                           headers=self._auth_headers())
+
+        if not result or not isinstance(result, list):
+            return None
+
+        # Find the next upcoming earnings date (date >= today, epsActual is null)
+        upcoming = [
+            entry for entry in result
+            if entry.get("date", "") >= today and entry.get("epsActual") is None
+        ]
+
+        if not upcoming:
+            # Fallback: first entry with date >= today regardless of epsActual
+            upcoming = [
+                entry for entry in result
+                if entry.get("date", "") >= today
+            ]
+
+        if not upcoming:
+            return None
+
+        # Return earliest upcoming date
+        return min(upcoming, key=lambda e: e["date"])["date"]
+
     def get_financial_growth(self, ticker: str) -> dict | None:
         """Get most recent financial growth rates.
 

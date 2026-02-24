@@ -466,7 +466,18 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
         # Telegram — single unified daily report
         try:
             from ifds.output.telegram import send_daily_report
-            send_daily_report(ctx, config, logger, duration)
+            from ifds.data.fmp import FMPClient as FMPTelegram
+            fmp_tg = FMPTelegram(
+                api_key=config.get_api_key("fmp"),
+                timeout=config.runtime["api_timeout_fmp"],
+                max_retries=config.runtime["api_max_retries"],
+                cache=cache,
+                circuit_breaker=cb_fmp,
+            )
+            try:
+                send_daily_report(ctx, config, logger, duration, fmp=fmp_tg)
+            finally:
+                fmp_tg.close()
         except Exception as e:
             logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
                        message=f"Telegram error: {e}")

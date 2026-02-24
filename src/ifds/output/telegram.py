@@ -27,7 +27,8 @@ _BREADTH_SHORT = {
 
 
 def send_daily_report(ctx: PipelineContext, config: Config,
-                      logger: EventLogger, duration: float) -> bool:
+                      logger: EventLogger, duration: float,
+                      fmp=None) -> bool:
     """Send full pipeline daily report to Telegram.
 
     Mirrors console dashboard structure with HTML formatting.
@@ -38,6 +39,7 @@ def send_daily_report(ctx: PipelineContext, config: Config,
         config: Pipeline config.
         logger: Event logger.
         duration: Pipeline wall-clock duration in seconds.
+        fmp: Optional FMPClient for earnings date lookup.
 
     Returns:
         True if sent successfully, False otherwise.
@@ -52,7 +54,7 @@ def send_daily_report(ctx: PipelineContext, config: Config,
         return False
 
     try:
-        part1, part2 = _format_success(ctx, duration, config)
+        part1, part2 = _format_success(ctx, duration, config, fmp=fmp)
 
         ok = _send_message(token, chat_id, part1, timeout)
         if ok and part2:
@@ -116,14 +118,14 @@ def _esc(text: str) -> str:
 
 
 def _format_success(ctx: PipelineContext, duration: float,
-                    config: Config) -> tuple[str, str]:
+                    config: Config, fmp=None) -> tuple[str, str]:
     """Format the full pipeline report in HTML.
 
     Returns (part1, part2). part2 is empty string if message fits in one.
     If total > 4096, part1 = Phase 0-4, part2 = Phase 5-6.
     """
     lines_04 = _format_phases_0_to_4(ctx, duration, config)
-    lines_56 = _format_phases_5_to_6(ctx, config)
+    lines_56 = _format_phases_5_to_6(ctx, config, fmp=fmp)
 
     full = lines_04 + "\n" + lines_56
     if len(full) <= _MAX_MSG_LEN:
@@ -208,7 +210,8 @@ def _format_phases_0_to_4(ctx: PipelineContext, duration: float,
     return "\n".join(lines)
 
 
-def _format_phases_5_to_6(ctx: PipelineContext, config: Config) -> str:
+def _format_phases_5_to_6(ctx: PipelineContext, config: Config,
+                          fmp=None) -> str:
     """Format Phase 5 and Phase 6."""
     lines: list[str] = []
 
@@ -282,7 +285,15 @@ def _format_phases_5_to_6(ctx: PipelineContext, config: Config) -> str:
             lines.append(f"Freshness Alpha applied to {p6.freshness_applied_count} ticker(s)")
 
         if positions:
-            lines.append(_format_exec_table(positions))
+            earnings_map = None
+            if fmp is not None:
+                earnings_map = {}
+                for p in positions:
+                    try:
+                        earnings_map[p.ticker] = fmp.get_next_earnings_date(p.ticker)
+                    except Exception:
+                        earnings_map[p.ticker] = None
+            lines.append(_format_exec_table(positions, earnings_map=earnings_map))
         else:
             lines.append("<i>No positions today.</i>")
 
@@ -369,10 +380,12 @@ def _format_sector_table(sector_scores: list, benchmark=None) -> str:
     return "<pre>" + "\n".join(rows) + "</pre>"
 
 
-def _format_exec_table(positions: list) -> str:
+def _format_exec_table(positions: list,
+                       earnings_map: dict[str, str | None] | None = None) -> str:
     """Format execution plan table as monospace <pre> block."""
     rows: list[str] = []
-    header = (
+
+    base_header = (
         f"{'TICKER':<7}"
         f"{'QTY':>4} "
         f"{'ENTRY':>8} "
@@ -381,6 +394,10 @@ def _format_exec_table(positions: list) -> str:
         f"{'TP2':>8} "
         f"{'RISK$':>6}"
     )
+    if earnings_map is not None:
+        header = base_header + f"  {'EARN':<5}"
+    else:
+        header = base_header
     rows.append(header)
 
     for p in positions:
@@ -393,6 +410,10 @@ def _format_exec_table(positions: list) -> str:
             f"${p.take_profit_2:>7.2f} "
             f"${p.risk_usd:>5.0f}"
         )
+        if earnings_map is not None:
+            full_date = earnings_map.get(p.ticker)
+            earn_str = full_date[5:] if full_date else "N/A"
+            row += f"  {earn_str:<5}"
         rows.append(row)
 
     return "<pre>" + "\n".join(rows) + "</pre>"
