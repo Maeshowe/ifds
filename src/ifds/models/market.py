@@ -228,6 +228,8 @@ class Phase2Result:
     total_screened: int = 0
     earnings_excluded: list[str] = field(default_factory=list)
     strategy_mode: StrategyMode = StrategyMode.LONG
+    bulk_excluded_count: int = 0
+    ticker_specific_excluded_count: int = 0
 
 
 # ============================================================================

@@ -55,7 +55,7 @@ def run_phase2(config: Config, logger: EventLogger,
 
         # Step 2: Earnings exclusion (Zombie Hunter)
         exclusion_days = config.tuning["earnings_exclusion_days"]
-        tickers, earnings_excluded = _exclude_earnings(
+        tickers, earnings_excluded, bulk_n, ticker_n = _exclude_earnings(
             raw_tickers, fmp, exclusion_days, logger
         )
 
@@ -64,6 +64,8 @@ def run_phase2(config: Config, logger: EventLogger,
             total_screened=total_screened,
             earnings_excluded=earnings_excluded,
             strategy_mode=strategy_mode,
+            bulk_excluded_count=bulk_n,
+            ticker_specific_excluded_count=ticker_n,
         )
 
         # Survivorship bias protection: snapshot + diff
@@ -202,7 +204,7 @@ def _screen_short_universe(fmp: FMPClient, config: Config,
 
 def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
                       exclusion_days: int,
-                      logger: EventLogger) -> tuple[list[Ticker], list[str]]:
+                      logger: EventLogger) -> tuple[list[Ticker], list[str], int, int]:
     """Exclude tickers with earnings within the exclusion window.
 
     Two-pass approach:
@@ -210,10 +212,10 @@ def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
     2. Ticker-specific /stable/earnings?symbol= for any ticker that
        survived pass 1 (catches ADRs and others missed by bulk endpoint)
 
-    Returns (filtered_tickers, excluded_symbols).
+    Returns (filtered_tickers, excluded_symbols, bulk_count, ticker_specific_count).
     """
     if not tickers:
-        return tickers, []
+        return tickers, [], 0, 0
 
     today = date.today()
     to_date = today + timedelta(days=exclusion_days)
@@ -313,7 +315,7 @@ def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
         },
     )
 
-    return pass2_filtered, excluded
+    return pass2_filtered, excluded, bulk_excluded_count, len(pass2_excluded)
 
 
 def _fmp_to_ticker(item: dict) -> Ticker:

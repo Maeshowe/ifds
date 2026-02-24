@@ -5,12 +5,15 @@ Covers:
 - _format_exec_table() with earnings_map
 - _format_phases_5_to_6() earnings lookup integration
 - send_daily_report() fmp parameter passthrough
+- Phase 2 earnings breakdown in Telegram (bulk vs ticker-specific)
 """
 
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
-from ifds.output.telegram import _format_exec_table, _format_phases_5_to_6
+from ifds.output.telegram import (
+    _format_exec_table, _format_phases_0_to_4, _format_phases_5_to_6,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -301,3 +304,53 @@ class TestSendDailyReportFmpParam:
 
         assert result is True
         fmp.get_next_earnings_date.assert_called_once_with("T")
+
+
+# =========================================================================
+# Telegram Phase 2 earnings breakdown
+# =========================================================================
+class TestPhase2EarningsBreakdown:
+    """Test Telegram Phase 2 shows bulk/ticker-specific breakdown."""
+
+    def _make_ctx(self, bulk=10, ticker_specific=2, total_excluded=12):
+        from ifds.models.market import PipelineContext, Phase2Result, Ticker
+        excluded = [f"T{i}" for i in range(total_excluded)]
+        tickers = [Ticker(symbol="AAPL"), Ticker(symbol="NVDA")]
+        phase2 = Phase2Result(
+            tickers=tickers,
+            total_screened=100,
+            earnings_excluded=excluded,
+            bulk_excluded_count=bulk,
+            ticker_specific_excluded_count=ticker_specific,
+        )
+        ctx = PipelineContext(run_id="test", started_at=None, phase2=phase2)
+        return ctx
+
+    def _make_config(self):
+        config = MagicMock()
+        config.tuning = {}
+        return config
+
+    def test_breakdown_shown_when_ticker_specific_positive(self):
+        """When ticker-specific > 0, breakdown shown in parentheses."""
+        ctx = self._make_ctx(bulk=10, ticker_specific=2, total_excluded=12)
+        config = self._make_config()
+        result = _format_phases_0_to_4(ctx, 5.0, config)
+        assert "Earnings excluded: 12 (bulk=10, ticker-specific=2)" in result
+
+    def test_no_breakdown_when_ticker_specific_zero(self):
+        """When ticker-specific == 0, no parentheses shown."""
+        ctx = self._make_ctx(bulk=10, ticker_specific=0, total_excluded=10)
+        config = self._make_config()
+        result = _format_phases_0_to_4(ctx, 5.0, config)
+        assert "Earnings excluded: 10" in result
+        assert "bulk=" not in result
+        assert "ticker-specific=" not in result
+
+    def test_zero_excluded_no_breakdown(self):
+        """When no exclusions at all, just shows 0."""
+        ctx = self._make_ctx(bulk=0, ticker_specific=0, total_excluded=0)
+        config = self._make_config()
+        result = _format_phases_0_to_4(ctx, 5.0, config)
+        assert "Earnings excluded: 0" in result
+        assert "bulk=" not in result

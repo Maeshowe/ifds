@@ -9,12 +9,12 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
 - **BC16 kész** — Phase 1 async (282s→17s), factor volatility framework, SIM-L1 validation engine
 - **BC19 kész** — SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
-- **839 teszt**, 0 failure, 0 warning
+- **848 teszt**, 0 failure, 0 warning
 - **BC18-prep kész** — Trading calendar, danger zone filter, cache TTL fix
+- **IBKR Connection Hardening kész** — retry logic, timeout, Telegram alert, port konstansok
 - **OBSIDIAN store**: gyűjtés folyamatban (day 8/21, aktiválás ha store >=21 entry/ticker)
 - **Paper Trading**: Day 5/21 (IBKR paper account DUH118657, Mac Mini cron, cum. PnL +$278 estimated)
 - **Swing Hybrid Exit**: design APPROVED (`docs/planning/swing-hybrid-exit-design.md`)
-- **BC18 scope**: + IBKR connection hardening (retry wrapper, timeout, port konstans) — tervezve
 - **Következő**: BC17 (EWMA + crowdedness mérés + OBSIDIAN aktiválás) — ha store >=21 entry
 
 ## Alapszabályok

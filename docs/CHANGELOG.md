@@ -4,6 +4,24 @@
 
 ---
 
+## IBKR Connection Hardening + Telegram Phase 2 Breakdown (848 tests)
+
+### IBKR Connection Hardening
+- `connect()` retry logika: konfigurálható `max_retries=3`, `retry_delay=5.0s`, `timeout=15.0s`
+- Port konstansok: `PAPER_PORT=7497`, `LIVE_PORT=7496`, `DEFAULT_CLIENT_ID=10`
+- Env var override: `IBKR_CONNECT_MAX_RETRIES`, `IBKR_CONNECT_RETRY_DELAY`, `IBKR_CONNECT_TIMEOUT`
+- `_send_telegram_alert()`: Telegram értesítés ha minden retry kimerül
+- Retry közben `ib.disconnect()` hívás (clean reconnect)
+- 6 új teszt (`test_ibkr_connection.py`)
+
+### Telegram Phase 2 Earnings Breakdown
+- `Phase2Result` bővítés: `bulk_excluded_count`, `ticker_specific_excluded_count` mezők
+- `_exclude_earnings()` return type: 2-tuple → 4-tuple `(filtered, excluded, bulk_n, ticker_n)`
+- Telegram Phase 2 sor: `Earnings excluded: 12 (bulk=10, ticker-specific=2)` — csak ha ticker_specific > 0
+- 3 új teszt (`TestPhase2EarningsBreakdown` in `test_earnings_telegram.py`)
+
+---
+
 ## Earnings Date Telegram + Zombie Hunter Fix (839 tests)
 
 ### Earnings Date Column in Telegram Exec Table

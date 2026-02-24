@@ -177,10 +177,18 @@ def _format_phases_0_to_4(ctx: PipelineContext, duration: float,
     lines.append("")
     lines.append(f"<b>[ 2/6 ] Universe Building</b>")
     if ctx.phase2:
+        p2 = ctx.phase2
+        earn_count = len(p2.earnings_excluded)
+        ticker_n = getattr(p2, "ticker_specific_excluded_count", 0)
+        if ticker_n > 0:
+            bulk_n = getattr(p2, "bulk_excluded_count", 0)
+            earn_str = f"{earn_count} (bulk={bulk_n}, ticker-specific={ticker_n})"
+        else:
+            earn_str = str(earn_count)
         lines.append(
-            f"Screened: {ctx.phase2.total_screened}"
-            f"  Passed: {len(ctx.phase2.tickers)}"
-            f"  Earnings excluded: {len(ctx.phase2.earnings_excluded)}"
+            f"Screened: {p2.total_screened}"
+            f"  Passed: {len(p2.tickers)}"
+            f"  Earnings excluded: {earn_str}"
         )
 
     # Phase 3: Sector Rotation

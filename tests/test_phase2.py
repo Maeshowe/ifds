@@ -155,7 +155,7 @@ class TestEarningsExclusion:
         fmp.get_earnings_calendar.return_value = [
             {"symbol": "NVDA", "date": "2026-02-10"},
         ]
-        filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
+        filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 5, logger)
         assert len(filtered) == 2
         assert "NVDA" in excluded
         assert all(t.symbol != "NVDA" for t in filtered)
@@ -165,7 +165,7 @@ class TestEarningsExclusion:
         fmp = MagicMock()
         fmp.get_earnings_calendar.return_value = []
         fmp.get_next_earnings_date.return_value = None  # Pass 2: no earnings
-        filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
+        filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 5, logger)
         assert len(filtered) == 2
         assert len(excluded) == 0
 
@@ -174,13 +174,13 @@ class TestEarningsExclusion:
         fmp = MagicMock()
         fmp.get_earnings_calendar.return_value = None
         fmp.get_next_earnings_date.return_value = None  # Pass 2: no earnings
-        filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
+        filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 5, logger)
         assert len(filtered) == 1
         assert len(excluded) == 0
 
     def test_empty_tickers_returns_empty(self, logger):
         fmp = MagicMock()
-        filtered, excluded = _exclude_earnings([], fmp, 5, logger)
+        filtered, excluded, _, _ = _exclude_earnings([], fmp, 5, logger)
         assert filtered == []
         assert excluded == []
 
@@ -188,7 +188,7 @@ class TestEarningsExclusion:
         tickers = [Ticker(symbol="aapl")]
         fmp = MagicMock()
         fmp.get_earnings_calendar.return_value = [{"symbol": "AAPL"}]
-        filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
+        filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 5, logger)
         assert len(filtered) == 0
         assert "aapl" in excluded
 
@@ -211,7 +211,7 @@ class TestEarningsExclusionPass2:
         with patch("ifds.phases.phase2_universe.date") as mock_date:
             mock_date.today.return_value = date(2026, 2, 24)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
-            filtered, excluded = _exclude_earnings(tickers, fmp, 7, logger)
+            filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 7, logger)
 
         assert "ALC" in excluded
         assert len(filtered) == 1
@@ -225,7 +225,7 @@ class TestEarningsExclusionPass2:
         # Pass 2 should only check AAPL (NVDA already excluded)
         fmp.get_next_earnings_date.return_value = None
 
-        filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
+        filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 5, logger)
 
         assert "NVDA" in excluded
         assert len(filtered) == 1
@@ -241,7 +241,7 @@ class TestEarningsExclusionPass2:
         fmp.get_earnings_calendar.return_value = []
         fmp.get_next_earnings_date.side_effect = Exception("FMP timeout")
 
-        filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
+        filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 5, logger)
 
         assert len(filtered) == 1
         assert filtered[0].symbol == "BADAPI"
@@ -254,7 +254,7 @@ class TestEarningsExclusionPass2:
         fmp.get_earnings_calendar.return_value = []
         fmp.get_next_earnings_date.return_value = None
 
-        filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
+        filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 5, logger)
 
         assert len(filtered) == 1
         assert len(excluded) == 0
@@ -269,7 +269,7 @@ class TestEarningsExclusionPass2:
         with patch("ifds.phases.phase2_universe.date") as mock_date:
             mock_date.today.return_value = date(2026, 2, 24)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
-            filtered, excluded = _exclude_earnings(tickers, fmp, 7, logger)
+            filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 7, logger)
 
         assert len(filtered) == 1
         assert len(excluded) == 0
@@ -293,11 +293,13 @@ class TestEarningsExclusionPass2:
         with patch("ifds.phases.phase2_universe.date") as mock_date:
             mock_date.today.return_value = date(2026, 2, 24)
             mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
-            filtered, excluded = _exclude_earnings(tickers, fmp, 7, logger)
+            filtered, excluded, bulk_n, ticker_n = _exclude_earnings(tickers, fmp, 7, logger)
 
         assert len(excluded) == 2
         assert "BULK" in excluded
         assert "ADR" in excluded
+        assert bulk_n == 1
+        assert ticker_n == 1
         assert len(filtered) == 1
 
         # Check summary log
