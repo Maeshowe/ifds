@@ -1,21 +1,24 @@
 # IFDS Konszolidált Roadmap 2026
 
-**Utolsó frissítés:** 2026-02-18
+**Utolsó frissítés:** 2026-02-24
 **Státusz:** AKTÍV — véglegesítve
 
 ---
 
-## Aktuális állapot (2026-02-18)
+## Aktuális állapot (2026-02-24)
 
 | Elem | Státusz |
 |------|---------|
 | Pipeline (Phase 1-6) | ✅ Production (BC16) |
 | SIM-L1 Forward Validation | ✅ Kész, adatgyűjtés folyamatban |
 | SIM-L2 Mód 1 Parameter Sweep | ✅ Kész (BC19, commit 66242a8) |
-| Paper Trading | 🔄 Day 5/21 (IBKR DUH118657, cum PnL +$278 est.) |
-| OBSIDIAN Baseline | 🔄 Day 8/21 (461 ticker, max 6 entry/ticker, 0 ticker >=21) |
-| Phase 4 Snapshot | ✅ Aktív (gyűjtés holnaptól) |
-| Tesztek | 817 passing, 0 failure, 0 warning |
+| Paper Trading | 🔄 Day 6/21 (IBKR DUH118657, cum PnL -$61.63) |
+| OBSIDIAN Baseline | 🔄 Day 9/21 (461 ticker, max 7 entry/ticker, 0 ticker >=21) |
+| Phase 4 Snapshot | ✅ Aktív (gyűjtés feb 19-től) |
+| IBKR Connection Hardening | ✅ Kész (retry 3x, timeout 15s, Telegram alert) |
+| Zombie Hunter 2-pass | ✅ Kész (bulk + ticker-specific earnings exclusion) |
+| Telegram EARN oszlop | ✅ Kész (per-ticker FMP earnings date) |
+| Tesztek | 848 passing, 0 failure, 0 warning |
 | Swing Hybrid Exit | ✅ Design APPROVED |
 
 ---
@@ -46,19 +49,16 @@
 
 **Előfeltétel:** OBSIDIAN store gyűjtés folyamatos (márc 4-re ~12 run, első 21-es küszöb ~márc 20)
 
-### BC18 — Crowdedness Filtering Aktiválás + IBKR Connection Hardening
+### BC18 — Crowdedness Filtering Aktiválás
 **Tervezett:** ~2026-03-18
 **Scope:**
 - Crowdedness composite score élesítése (BC17-ben shadow mode-ban méri)
 - Clipping threshold finomhangolás a mért adatok alapján
-- **T3:** Bottom 10 explicit negatív szűrő (Phase 4)
-- **T9:** Trading calendar earnings exclusion (`pandas_market_calendars`)
-- **IBKR connection hardening (paper trading scriptek):**
-  - Retry wrapper a `connect()`-ben (max 3 próba, 5 sec delay)
-  - `timeout=20` paraméter a connect hívásban (jelenleg nincs)
-  - Port konstans: 4002 paper / 4001 live (jelenleg hardcoded 7497 TWS port)
-  - Telegram alert ha connect végleg sikertelen
-  - Forrás: IBGatewayManager javaslat (reconnect wrapper, error kódok: 1100/1101/504/502)
+- ~~**IBKR connection hardening**~~ → ✅ KÉSZ (2026-02-24, commit aa22f5a)
+  - Retry (3x, 5s delay, 15s timeout), Telegram alert, env var override
+  - Port konstansok: PAPER_PORT=7497, LIVE_PORT=7496
+- ~~**T3:** Bottom 10 explicit negatív szűrő~~ → ✅ KÉSZ (BC18-prep, 2026-02-18)
+- ~~**T9:** Trading calendar earnings exclusion~~ → ✅ KÉSZ (BC18-prep, 2026-02-18)
 
 **Előfeltétel:** BC17 + 2 hét crowdedness adat
 

@@ -158,7 +158,7 @@ Részletes: `docs/planning/roadmap-2026-consolidated.md`
 
 ```
 Q1 (jan-márc):  BC1-18 (pipeline + validation + crowdedness)     ← MOST ITT
-                BC18 scope: + IBKR connection hardening (retry, timeout, port)
+                IBKR Connection Hardening KÉSZ (retry, timeout, Telegram alert)
                 BC19 KÉSZ (SIM-L2 Mód 1)
 Q2 (ápr-jún):   BC20 SIM-L2 Mód 2 + T10 A/B
                 BC21 Risk Layer (korrelációs guard + VaR)
@@ -172,12 +172,12 @@ Q4 (okt-dec):   BC27-30 Dashboard + Alpha Decay + Retail
 
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-02-23-session-pnl-reconstruction.md
+- **Utolsó journal**: docs/journal/2026-02-24-session-close-2.md
 - **Aktív BC**: nincs (BC19 kész, BC17 ~márc 4)
-- **Friss fix**: Zombie Hunter 2-pass earnings (bulk + ticker-specific), Telegram EARN oszlop — 839 teszt
+- **Feb 24 deliveries**: EARN oszlop Telegram, Zombie Hunter 2-pass, IBKR Connection Hardening, Telegram Phase 2 breakdown — 848 teszt
 - **Aktív egyéb**: Paper Trading Day 6/21 (folyamatban, EOD 22:05 CET), OBSIDIAN gyűjtés day 9/21, Phase 4 snapshot aktív
 - **Swing Hybrid**: design doc APPROVED, implementáció BC20A-ba tervezve
 - **Blokkolók**: nincs
-- **OBSIDIAN baseline**: day 8/21 (Feb 11,12,13,17,18,19,20,23 — Feb 16 Presidents' Day stale törölve, 100 fájl tisztítva). Megjelenési ráta ~75% a top tickereknél → 21 entry-hez ~28 run kell (~márc 20). BC17 márc 4: EWMA + crowdedness indul, OBSIDIAN fokozatosan aktiválódik utána.
+- **OBSIDIAN baseline**: day 9/21 (Feb 11,12,13,17,18,19,20,23,24). Megjelenési ráta ~75% a top tickereknél → 21 entry-hez ~28 run kell (~márc 20). BC17 márc 4: EWMA + crowdedness indul, OBSIDIAN fokozatosan aktiválódik utána.
 - **Paper Trading**: cum. PnL -$61.63 (-0.062%), Day 4/21 lezárva (Feb 17-20). trades_2026-02-20.csv rekonstruálva, cumulative_pnl.json helyreállítva.
 - **Következő mérföldkő**: 2026-03-02 SIM-L2 first comparison run (task: docs/tasks/2026-03-02)

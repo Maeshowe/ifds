@@ -2,7 +2,7 @@
 
 > Generálva: `src/ifds/config/defaults.py` (CORE + TUNING + RUNTIME)
 > V13 referencia: `reference/settings.yaml`
-> Frissitve: 2026-02-19 (AGG Telegram fix, 817 teszt)
+> Frissitve: 2026-02-24 (IBKR Connection Hardening + Telegram Phase 2 Breakdown, 848 teszt)
 
 ---
 
@@ -460,6 +460,19 @@ Per-futtatás beállítások, .env-ből / config fájlból betöltve.
 |-------|-------|-----|------------|
 | `phase4_snapshot_enabled` | True | Nincs | Napi Phase 4 StockAnalysis mentés |
 | `phase4_snapshot_dir` | state/phase4_snapshots | Nincs | Gzipped JSON snapshot mappa |
+
+### IBKR Connection (Paper Trading)
+
+| Kulcs | Érték | Env Var | Megjegyzés |
+|-------|-------|---------|------------|
+| `PAPER_PORT` | 7497 | — | TWS paper trading port (konstans) |
+| `LIVE_PORT` | 7496 | — | TWS live trading port (konstans) |
+| `DEFAULT_CLIENT_ID` | 10 | — | Default clientId (submit=10, close=11, eod=12, nuke=13) |
+| `CONNECT_MAX_RETRIES` | 3 | IBKR_CONNECT_MAX_RETRIES | Max újrapróbálkozás |
+| `CONNECT_RETRY_DELAY` | 5.0s | IBKR_CONNECT_RETRY_DELAY | Delay retryk között |
+| `CONNECT_TIMEOUT` | 15.0s | IBKR_CONNECT_TIMEOUT | Socket timeout per kísérlet |
+
+Telegram alert küldés ha minden retry kimerül. Forrás: `scripts/paper_trading/lib/connection.py`
 
 ### Output
 
