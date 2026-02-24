@@ -205,6 +205,11 @@ def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
                       logger: EventLogger) -> tuple[list[Ticker], list[str]]:
     """Exclude tickers with earnings within the exclusion window.
 
+    Two-pass approach:
+    1. Bulk FMP earnings-calendar (fast, covers most tickers)
+    2. Ticker-specific /stable/earnings?symbol= for any ticker that
+       survived pass 1 (catches ADRs and others missed by bulk endpoint)
+
     Returns (filtered_tickers, excluded_symbols).
     """
     if not tickers:
@@ -212,44 +217,103 @@ def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
 
     today = date.today()
     to_date = today + timedelta(days=exclusion_days)
+    today_str = today.isoformat()
+    to_date_str = to_date.isoformat()
 
+    # --- Pass 1: Bulk calendar ---
     earnings_data = fmp.get_earnings_calendar(
-        from_date=today.isoformat(),
-        to_date=to_date.isoformat(),
+        from_date=today_str,
+        to_date=to_date_str,
     )
 
     ec_count = len(earnings_data) if earnings_data else 0
     logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=2,
-               message=f"Earnings calendar: {ec_count} entries ({today} to {to_date})",
+               message=f"Earnings calendar: {ec_count} entries ({today_str} to {to_date_str})",
                data={"earnings_entries": ec_count,
-                     "from_date": today.isoformat(),
-                     "to_date": to_date.isoformat()})
+                     "from_date": today_str,
+                     "to_date": to_date_str})
 
-    if not earnings_data:
-        return tickers, []
+    # Build set of symbols caught by bulk
+    bulk_earnings_symbols: set[str] = set()
+    if earnings_data:
+        for entry in earnings_data:
+            symbol = entry.get("symbol")
+            if symbol:
+                bulk_earnings_symbols.add(symbol.upper())
 
-    # Build set of symbols with upcoming earnings
-    earnings_symbols: set[str] = set()
-    for entry in earnings_data:
-        symbol = entry.get("symbol")
-        if symbol:
-            earnings_symbols.add(symbol.upper())
-
-    # Filter
+    # Pass 1 filter
     filtered = []
     excluded = []
     for ticker in tickers:
-        if ticker.symbol.upper() in earnings_symbols:
+        if ticker.symbol.upper() in bulk_earnings_symbols:
             excluded.append(ticker.symbol)
             logger.log(
                 EventType.EARNINGS_EXCLUSION, Severity.DEBUG, phase=2,
                 ticker=ticker.symbol,
-                message=f"{ticker.symbol} excluded: earnings within {exclusion_days} days",
+                message=f"{ticker.symbol} excluded: earnings within {exclusion_days} days (bulk calendar)",
             )
         else:
             filtered.append(ticker)
 
-    return filtered, excluded
+    bulk_excluded_count = len(excluded)
+
+    # --- Pass 2: Ticker-specific check for survivors ---
+    # Uses /stable/earnings?symbol= — more reliable for ADRs and smaller caps
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    pass2_excluded: list[str] = []
+    pass2_filtered: list[Ticker] = []
+
+    def _check_one(ticker: Ticker) -> tuple[Ticker, bool, str | None]:
+        """Check single ticker earnings. Returns (ticker, should_exclude, date)."""
+        try:
+            next_date = fmp.get_next_earnings_date(ticker.symbol)
+            if next_date and today_str <= next_date <= to_date_str:
+                return ticker, True, next_date
+            return ticker, False, next_date
+        except Exception:
+            return ticker, False, None  # fail-open
+
+    max_workers = min(20, len(filtered)) if filtered else 1
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_check_one, t): t for t in filtered}
+        for future in as_completed(futures):
+            try:
+                ticker_obj, should_exclude, next_date = future.result()
+            except Exception:
+                ticker_obj = futures[future]
+                pass2_filtered.append(ticker_obj)
+                continue
+
+            if should_exclude:
+                pass2_excluded.append(ticker_obj.symbol)
+                excluded.append(ticker_obj.symbol)
+                logger.log(
+                    EventType.EARNINGS_EXCLUSION, Severity.INFO, phase=2,
+                    ticker=ticker_obj.symbol,
+                    message=(
+                        f"{ticker_obj.symbol} excluded: earnings within {exclusion_days} days "
+                        f"(ticker-specific: {next_date}, missed by bulk calendar)"
+                    ),
+                )
+            else:
+                pass2_filtered.append(ticker_obj)
+
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
+        message=(
+            f"Earnings exclusion: {len(excluded)} total "
+            f"(bulk={bulk_excluded_count}, ticker-specific={len(pass2_excluded)})"
+        ),
+        data={
+            "total_excluded": len(excluded),
+            "bulk_excluded": bulk_excluded_count,
+            "ticker_specific_excluded": len(pass2_excluded),
+            "ticker_specific_catches": pass2_excluded,
+        },
+    )
+
+    return pass2_filtered, excluded
 
 
 def _fmp_to_ticker(item: dict) -> Ticker:

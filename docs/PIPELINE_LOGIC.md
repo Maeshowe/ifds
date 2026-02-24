@@ -261,12 +261,18 @@ Eredmény: ~200 ticker
 
 ### Zombie Hunter (Earnings Kizárás)
 
+Kétlépcsős ellenőrzés:
+
 ```
-Ha a ticker earnings-je a következő 5 naptári napon belül van → KIZÁR
+Pass 1 (Bulk): /stable/earnings-calendar → gyors, lefedi a legtöbb tickert
+Pass 2 (Ticker-specific): /stable/earnings?symbol= → survivor-okra fut,
+         elkapja az ADR-eket és kisebb részvényeket (ThreadPoolExecutor, max 20 worker)
+Ha bármelyik pass-ban a ticker earnings-je a következő N napon belül van → KIZÁR
+API hiba → fail-open (ticker átengedett, WARNING log)
 ```
 
 - Konfig: `earnings_exclusion_days=5`
-- FMP endpoint: `/stable/earnings-calendar`
+- FMP endpoints: `/stable/earnings-calendar` (bulk) + `/stable/earnings?symbol=` (per-ticker)
 
 ### Survivorship Bias Protection (BC13)
 
@@ -1478,7 +1484,7 @@ Phase 1: BMI (async: BC16, semaphore: polygon=10)
   ↓ StrategyMode + sector_bmi_values + grouped_daily_bars (BC14)
 Phase 2: Universe
   │ FMP screener → ~3000 (LONG) / ~200 (SHORT) ticker
-  │ Earnings exclusion → kizár ha <5 napra earnings
+  │ Earnings exclusion (2-pass: bulk calendar + per-ticker) → kizár ha <5 napra earnings
   ↓ list[Ticker]
 Phase 3: Sector Rotation
   │ 11 ETF × Polygon OHLCV

@@ -9,7 +9,7 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
 - **BC16 kész** — Phase 1 async (282s→17s), factor volatility framework, SIM-L1 validation engine
 - **BC19 kész** — SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
-- **817 teszt**, 0 failure, 0 warning
+- **839 teszt**, 0 failure, 0 warning
 - **BC18-prep kész** — Trading calendar, danger zone filter, cache TTL fix
 - **OBSIDIAN store**: gyűjtés folyamatban (day 8/21, aktiválás ha store >=21 entry/ticker)
 - **Paper Trading**: Day 5/21 (IBKR paper account DUH118657, Mac Mini cron, cum. PnL +$278 estimated)
@@ -174,7 +174,8 @@ Q4 (okt-dec):   BC27-30 Dashboard + Alpha Decay + Retail
 <!-- CC frissíti a /wrap-up során -->
 - **Utolsó journal**: docs/journal/2026-02-23-session-pnl-reconstruction.md
 - **Aktív BC**: nincs (BC19 kész, BC17 ~márc 4)
-- **Aktív egyéb**: Paper Trading Day 5/21 (folyamatban, EOD 22:05 CET), OBSIDIAN gyűjtés day 8/21, Phase 4 snapshot aktív
+- **Friss fix**: Zombie Hunter 2-pass earnings (bulk + ticker-specific), Telegram EARN oszlop — 839 teszt
+- **Aktív egyéb**: Paper Trading Day 6/21 (folyamatban, EOD 22:05 CET), OBSIDIAN gyűjtés day 9/21, Phase 4 snapshot aktív
 - **Swing Hybrid**: design doc APPROVED, implementáció BC20A-ba tervezve
 - **Blokkolók**: nincs
 - **OBSIDIAN baseline**: day 8/21 (Feb 11,12,13,17,18,19,20,23 — Feb 16 Presidents' Day stale törölve, 100 fájl tisztítva). Megjelenési ráta ~75% a top tickereknél → 21 entry-hez ~28 run kell (~márc 20). BC17 márc 4: EWMA + crowdedness indul, OBSIDIAN fokozatosan aktiválódik utána.

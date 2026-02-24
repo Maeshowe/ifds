@@ -164,6 +164,7 @@ class TestEarningsExclusion:
         tickers = [Ticker(symbol="AAPL"), Ticker(symbol="NVDA")]
         fmp = MagicMock()
         fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.return_value = None  # Pass 2: no earnings
         filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
         assert len(filtered) == 2
         assert len(excluded) == 0
@@ -172,6 +173,7 @@ class TestEarningsExclusion:
         tickers = [Ticker(symbol="AAPL")]
         fmp = MagicMock()
         fmp.get_earnings_calendar.return_value = None
+        fmp.get_next_earnings_date.return_value = None  # Pass 2: no earnings
         filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
         assert len(filtered) == 1
         assert len(excluded) == 0
@@ -191,6 +193,126 @@ class TestEarningsExclusion:
         assert "aapl" in excluded
 
 
+class TestEarningsExclusionPass2:
+    """Test two-pass earnings exclusion (ticker-specific fallback)."""
+
+    def test_ticker_specific_catch(self, logger):
+        """Ticker not in bulk calendar but caught by ticker-specific endpoint."""
+        tickers = [Ticker(symbol="ALC"), Ticker(symbol="GE")]
+        fmp = MagicMock()
+        # Bulk calendar misses ALC
+        fmp.get_earnings_calendar.return_value = []
+        # Ticker-specific catches ALC (within 7-day window)
+        fmp.get_next_earnings_date.side_effect = lambda t: {
+            "ALC": "2026-02-24",  # today or within window
+            "GE": "2026-04-22",   # far out — not excluded
+        }.get(t)
+
+        with patch("ifds.phases.phase2_universe.date") as mock_date:
+            mock_date.today.return_value = date(2026, 2, 24)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            filtered, excluded = _exclude_earnings(tickers, fmp, 7, logger)
+
+        assert "ALC" in excluded
+        assert len(filtered) == 1
+        assert filtered[0].symbol == "GE"
+
+    def test_bulk_catches_ticker_specific_skips(self, logger):
+        """Ticker caught by bulk → not checked again in Pass 2."""
+        tickers = [Ticker(symbol="NVDA"), Ticker(symbol="AAPL")]
+        fmp = MagicMock()
+        fmp.get_earnings_calendar.return_value = [{"symbol": "NVDA"}]
+        # Pass 2 should only check AAPL (NVDA already excluded)
+        fmp.get_next_earnings_date.return_value = None
+
+        filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
+
+        assert "NVDA" in excluded
+        assert len(filtered) == 1
+        # NVDA should NOT have been checked in Pass 2
+        calls = [c[0][0] for c in fmp.get_next_earnings_date.call_args_list]
+        assert "NVDA" not in calls
+        assert "AAPL" in calls
+
+    def test_ticker_specific_error_passthrough(self, logger):
+        """API error on ticker-specific → fail-open, ticker passes through."""
+        tickers = [Ticker(symbol="BADAPI")]
+        fmp = MagicMock()
+        fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.side_effect = Exception("FMP timeout")
+
+        filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
+
+        assert len(filtered) == 1
+        assert filtered[0].symbol == "BADAPI"
+        assert len(excluded) == 0
+
+    def test_both_passes_miss(self, logger):
+        """Neither bulk nor ticker-specific has earnings → ticker passes."""
+        tickers = [Ticker(symbol="SAFE")]
+        fmp = MagicMock()
+        fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.return_value = None
+
+        filtered, excluded = _exclude_earnings(tickers, fmp, 5, logger)
+
+        assert len(filtered) == 1
+        assert len(excluded) == 0
+
+    def test_ticker_specific_date_outside_window(self, logger):
+        """Ticker-specific returns date beyond the exclusion window → passes."""
+        tickers = [Ticker(symbol="FAR")]
+        fmp = MagicMock()
+        fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.return_value = "2026-06-15"
+
+        with patch("ifds.phases.phase2_universe.date") as mock_date:
+            mock_date.today.return_value = date(2026, 2, 24)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            filtered, excluded = _exclude_earnings(tickers, fmp, 7, logger)
+
+        assert len(filtered) == 1
+        assert len(excluded) == 0
+
+    def test_log_summary_counts(self, logger):
+        """Summary log contains correct bulk and ticker-specific counts."""
+        tickers = [
+            Ticker(symbol="BULK"),
+            Ticker(symbol="ADR"),
+            Ticker(symbol="SAFE"),
+        ]
+        fmp = MagicMock()
+        # BULK caught by bulk calendar
+        fmp.get_earnings_calendar.return_value = [{"symbol": "BULK"}]
+        # ADR caught by ticker-specific
+        fmp.get_next_earnings_date.side_effect = lambda t: {
+            "ADR": "2026-02-25",
+            "SAFE": "2026-05-01",
+        }.get(t)
+
+        with patch("ifds.phases.phase2_universe.date") as mock_date:
+            mock_date.today.return_value = date(2026, 2, 24)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            filtered, excluded = _exclude_earnings(tickers, fmp, 7, logger)
+
+        assert len(excluded) == 2
+        assert "BULK" in excluded
+        assert "ADR" in excluded
+        assert len(filtered) == 1
+
+        # Check summary log
+        summary_logs = [
+            e for e in logger.events
+            if "Earnings exclusion:" in e.get("message", "")
+        ]
+        assert len(summary_logs) == 1
+        data = summary_logs[0]["data"]
+        assert data["total_excluded"] == 2
+        assert data["bulk_excluded"] == 1
+        assert data["ticker_specific_excluded"] == 1
+        assert data["ticker_specific_catches"] == ["ADR"]
+
+
 class TestPhase2Integration:
     def test_long_mode_full_flow(self, config, logger):
         fmp = MagicMock()
@@ -200,6 +322,7 @@ class TestPhase2Integration:
             _make_fmp_ticker("MSFT"),
         ]
         fmp.get_earnings_calendar.return_value = [{"symbol": "MSFT"}]
+        fmp.get_next_earnings_date.return_value = None  # Pass 2: no extra catch
 
         result = run_phase2(config, logger, fmp, StrategyMode.LONG)
 
@@ -215,6 +338,7 @@ class TestPhase2Integration:
                              interest_coverage=0.8),
         ]
         fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.return_value = None
 
         result = run_phase2(config, logger, fmp, StrategyMode.SHORT)
 
@@ -226,6 +350,7 @@ class TestPhase2Integration:
         fmp = MagicMock()
         fmp.screener.return_value = [_make_fmp_ticker("AAPL")]
         fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.return_value = None
 
         run_phase2(config, logger, fmp, StrategyMode.LONG)
 

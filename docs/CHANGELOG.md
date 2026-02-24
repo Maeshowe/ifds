@@ -4,6 +4,27 @@
 
 ---
 
+## Earnings Date Telegram + Zombie Hunter Fix (839 tests)
+
+### Earnings Date Column in Telegram Exec Table
+- `FMPClient.get_next_earnings_date()`: ticker-specific `/stable/earnings?symbol=` endpoint
+- `_format_exec_table()`: opcionális `earnings_map` paraméter → EARN oszlop (MM-DD vagy N/A)
+- Format chain: `send_daily_report()` → `_format_success()` → `_format_phases_5_to_6()` — `fmp` param átadás
+- Pipeline runner: dedikált FMPTelegram client a Telegram híváshoz
+- 16 új teszt (`test_earnings_telegram.py`)
+- **Trigger**: KEP earnings dátum hibás volt a bulk FMP calendar-ban
+
+### Zombie Hunter — Ticker-specific Earnings Fallback
+- `_exclude_earnings()` kétlépcsős megközelítés:
+  - **Pass 1**: Bulk `/stable/earnings-calendar` (változatlan, gyors)
+  - **Pass 2**: `/stable/earnings?symbol=` per-ticker a survivor-okra (`ThreadPoolExecutor`, max_workers=20)
+- Fail-open policy: API hiba → ticker átengedett (WARNING log)
+- Summary log: `bulk=N, ticker-specific=M` — látható melyik pass mit fogott
+- 6 új teszt (`TestEarningsExclusionPass2` in `test_phase2.py`)
+- **Trigger**: ALC (Feb 24) és KEP (Feb 23) kimaradt a bulk calendar-ból
+
+---
+
 ## AGG Telegram Fix + Warning Cleanup (817 tests)
 
 ### AGG Benchmark in Telegram Sector Table
