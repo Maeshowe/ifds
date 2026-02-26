@@ -23,6 +23,7 @@ from ib_insync import IB, MarketOrder
 HOST = '127.0.0.1'
 PORT = 7497
 CLIENT_ID = 13  # Dedicated for nuke script
+MAX_ORDER_SIZE = 500  # IBKR precautionary size limit
 
 
 def main():
@@ -86,12 +87,26 @@ def main():
             ib.qualifyContracts(contract)
 
             action = 'SELL' if pos.position > 0 else 'BUY'
-            qty = abs(pos.position)
+            qty = int(abs(pos.position))
 
-            order = MarketOrder(action, qty)
-            order.tif = 'DAY'
-            ib.placeOrder(contract, order)
-            print(f"    {symbol}: {action} {qty} shares (MKT via SMART)")
+            if qty <= MAX_ORDER_SIZE:
+                order = MarketOrder(action, qty)
+                order.tif = 'DAY'
+                ib.placeOrder(contract, order)
+                print(f"    {symbol}: {action} {qty} shares (MKT via SMART)")
+            else:
+                remaining = qty
+                leg = 1
+                total_legs = -(-qty // MAX_ORDER_SIZE)
+                while remaining > 0:
+                    leg_qty = min(remaining, MAX_ORDER_SIZE)
+                    order = MarketOrder(action, leg_qty)
+                    order.tif = 'DAY'
+                    ib.placeOrder(contract, order)
+                    print(f"    {symbol}: {action} {leg_qty} shares (MKT via SMART, leg {leg}/{total_legs})")
+                    remaining -= leg_qty
+                    leg += 1
+                    ib.sleep(0.5)
 
         ib.sleep(2)
 
