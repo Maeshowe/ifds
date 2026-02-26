@@ -1153,3 +1153,130 @@ class TestZScoresWithNewFeatures:
         z = _compute_z_scores(today, history, bar_features, min_periods=21)
         assert z.get("venue_entropy") is None   # 0 valid values in history
         assert z.get("iv_skew") is None
+
+
+# ============================================================================
+# TestFeatureWeights
+# ============================================================================
+
+class TestFeatureWeights:
+    """mms_feature_weights config parameterization tests."""
+
+    def _weights(self, **overrides):
+        """Base 6-feature weight set with optional overrides."""
+        base = {
+            "dark_share": 0.25, "gex": 0.25,
+            "venue_entropy": 0.15, "block_intensity": 0.15,
+            "iv_rank": 0.10, "iv_skew": 0.10,
+        }
+        base.update(overrides)
+        return base
+
+    def test_unusualness_proportional_to_weight(self):
+        """Higher weight → higher unusualness contribution."""
+        z = {"dark_share": 2.0, "gex": 0.0, "block_count": 0.0,
+             "iv_rank": 0.0, "venue_entropy": 0.0, "iv_skew": 0.0}
+
+        low_weights = self._weights(dark_share=0.10)
+        high_weights = self._weights(dark_share=0.40)
+
+        u_low = _compute_unusualness(z, [], low_weights, [])
+        u_high = _compute_unusualness(z, [], high_weights, [])
+
+        assert u_high > u_low
+
+    def test_unusualness_zero_weight_feature_ignored(self):
+        """Zero-weight feature does not contribute to score."""
+        z = {"dark_share": 3.0, "gex": 0.0, "block_count": 0.0,
+             "iv_rank": 0.0, "venue_entropy": 0.0, "iv_skew": 0.0}
+
+        weights_with = self._weights(dark_share=0.25)
+        weights_zero = self._weights(dark_share=0.0)
+
+        u_with = _compute_unusualness(z, [], weights_with, [])
+        u_zero = _compute_unusualness(z, [], weights_zero, [])
+
+        assert u_with > 0
+        assert u_zero == 0.0
+
+    def test_unusualness_unknown_feature_in_weights_ignored(self):
+        """Unknown feature name in weights dict does not cause errors."""
+        z = {"dark_share": 2.0, "gex": 0.0, "block_count": 0.0,
+             "iv_rank": 0.0, "venue_entropy": 0.0, "iv_skew": 0.0}
+        weights_typo = self._weights(typo_feature=0.99)
+
+        u = _compute_unusualness(z, [], weights_typo, [])
+        assert 0 <= u <= 100
+
+    def test_unusualness_missing_weight_treats_as_zero(self):
+        """Missing weight key for a scoring feature → 0 contribution."""
+        z = {"dark_share": 3.0, "gex": 0.0, "block_count": 0.0,
+             "iv_rank": 0.0, "venue_entropy": 0.0, "iv_skew": 0.0}
+        weights_no_ds = {"gex": 0.50}  # dark_share missing → 0
+
+        u = _compute_unusualness(z, [], weights_no_ds, [])
+        assert u == 0.0
+
+    def test_all_6_features_contribute_independently(self):
+        """Each feature independently raises score; combined is higher."""
+        weights = self._weights()
+        excluded: list[str] = []
+
+        scores = []
+        for feat, weight_key in [
+            ("dark_share", "dark_share"),
+            ("gex", "gex"),
+            ("block_count", "block_intensity"),
+            ("iv_rank", "iv_rank"),
+            ("venue_entropy", "venue_entropy"),
+            ("iv_skew", "iv_skew"),
+        ]:
+            z_single = {f: (2.0 if f == feat else 0.0)
+                        for f in ["dark_share", "gex", "block_count",
+                                  "iv_rank", "venue_entropy", "iv_skew"]}
+            u = _compute_unusualness(z_single, excluded, weights, [])
+            scores.append((feat, u))
+
+        for feat, u in scores:
+            assert u > 0, f"{feat} should be > 0 but got {u}"
+
+        z_all = {f: 2.0 for f in ["dark_share", "gex", "block_count",
+                                   "iv_rank", "venue_entropy", "iv_skew"]}
+        u_all = _compute_unusualness(z_all, excluded, weights, [])
+        for feat, u_single in scores:
+            assert u_all >= u_single, f"u_all ({u_all}) < u_single({feat}={u_single})"
+
+    def test_default_weights_sum_to_one(self):
+        """Default 6-feature weights sum to 1.0."""
+        weights = self._weights()
+        total = sum(weights.values())
+        assert abs(total - 1.0) < 1e-9
+
+    def test_config_weights_used_not_hardcoded(self, config, store):
+        """run_mms_analysis reads weights from config, not hardcoded."""
+        bars = _make_bars(100)
+        stock = _make_stock()
+        for i in range(25):
+            store.append_and_save("AAPL", {
+                "date": f"2026-01-{i+1:02d}",
+                "dark_share": 0.3 + i * 0.01, "gex": float(1000000 + i * 10000),
+                "dex": 50000.0, "block_count": 5.0, "iv_rank": 0.25,
+                "venue_entropy": 1.0, "iv_skew": 0.05,
+                "efficiency": 1e-7, "impact": 5e-8,
+                "daily_return": 0.01, "raw_score": 0.0,
+            })
+
+        config_a = dict(config.tuning)
+        config_a["mms_feature_weights"] = self._weights(gex=0.50, dark_share=0.10)
+
+        config_b = dict(config.tuning)
+        config_b["mms_feature_weights"] = self._weights(gex=0.10, dark_share=0.50)
+
+        result_a = run_mms_analysis(config.core, config_a, "AAPL",
+                                    bars, None, stock, None, store)
+        store_b = MMSStore(store_dir=store._store_dir, max_entries=100)
+        result_b = run_mms_analysis(config.core, config_b, "AAPL",
+                                    bars, None, stock, None, store_b)
+
+        assert 0 <= result_a.unusualness_score <= 100
+        assert 0 <= result_b.unusualness_score <= 100

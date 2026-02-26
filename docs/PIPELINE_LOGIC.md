@@ -1113,13 +1113,13 @@ Final multiplier = base_regime_mult × max(floor, confidence)
 #### Unusualness Score
 
 ```
-S = Σ(w_k × |z_k|) ahol k = valid features (venue_mix excluded)
+S = Σ(w_k × |z_k|) ahol k = 6 scoring features
 U = PercentileRank(S | historical raw_scores) × 100
-Ha nincs history: U = min(S × 20, 100) (linear mapping)
+Ha nincs history: U = min(S × 50, 100) (linear mapping)
 ```
 
 - U ∈ [0, 100], stored on PositionSizing.unusualness_score
-- Max effective weight = 0.80 (venue_mix 0.20 excluded, NO renormalization)
+- 6 features: dark_share(0.25), gex(0.25), venue_entropy(0.15), block_intensity(0.15), iv_rank(0.10), iv_skew(0.10)
 
 #### Cold Start Viselkedés
 
@@ -1818,7 +1818,7 @@ if config.runtime.get("phase4_snapshot_enabled", True) and ctx.stock_analyses:
 | `breadth_composite_weights` | (0.20, 0.50, 0.30) | SMA20/50/200 súlyok (BC14) |
 | `mms_window` | 63 | Rolling baseline ablak (BC15) |
 | `mms_min_periods` | 21 | Min observations z-score-hoz (BC15) |
-| `mms_feature_weights` | {0.25, 0.25, 0.20, 0.15, 0.15} | Feature súlyok (BC15) |
+| `mms_feature_weights` | {0.25, 0.25, 0.15, 0.15, 0.10, 0.10} | 6-feature súlyok (ds, gex, ve, bi, iv, ivs) |
 | `mms_z_gex_threshold` | 1.5 | Γ⁺/Γ⁻ z-score küszöb (BC15) |
 | `mms_z_dex_threshold` | 1.0 | ABS/DIST z-score küszöb (BC15) |
 | `mms_z_block_threshold` | 1.0 | DD z-score küszöb (BC15) |

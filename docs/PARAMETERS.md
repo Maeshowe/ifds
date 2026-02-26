@@ -39,7 +39,7 @@ Csak fejlesztői módosítás. A matematikai képletek fix paraméterei.
 | `breadth_composite_weights` | (0.20, 0.50, 0.30) | P3 | SMA20/50/200 súlyok a breadth score-ban (BC14) | Nincs | V2 újdonság |
 | `mms_window` | 63 | P5 | Rolling baseline ablak (trading days) (BC15) | Nincs | V2 újdonság |
 | `mms_min_periods` | 21 | P5 | Min observations z-score validity-hez (BC15) | Nincs | V2 újdonság |
-| `mms_feature_weights` | {dark_share: 0.25, gex: 0.25, venue_mix: 0.20, block: 0.15, iv: 0.15} | P5 | Diagnostic feature súlyok (NOT tunable) (BC15) | Nincs | V2 újdonság |
+| `mms_feature_weights` | {dark_share: 0.25, gex: 0.25, venue_entropy: 0.15, block_intensity: 0.15, iv_rank: 0.10, iv_skew: 0.10} | P5 | 6-feature unusualness súlyok (sum=1.0) | Nincs | V2 újdonság |
 | `mms_z_gex_threshold` | 1.5 | P5 | ±1.5 z-score Γ⁺/Γ⁻ klasszifikációhoz (~93rd pctile) (BC15) | Nincs | V2 újdonság |
 | `mms_z_dex_threshold` | 1.0 | P5 | ±1.0 z-score ABS/DIST klasszifikációhoz (~84th pctile) (BC15) | Nincs | V2 újdonság |
 | `mms_z_block_threshold` | 1.0 | P5 | +1.0 z-score DD klasszifikációhoz (BC15) | Nincs | V2 újdonság |

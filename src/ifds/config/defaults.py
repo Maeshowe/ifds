@@ -45,13 +45,13 @@ CORE = {
     # MMS — Market Microstructure Scorer (BC15)
     "mms_window": 63,                                    # Rolling baseline window (trading days)
     "mms_min_periods": 21,                               # Min observations for z-score validity
-    "mms_feature_weights": {                             # Diagnostic weights (NOT tunable)
+    "mms_feature_weights": {                             # 6-feature weights (sum = 1.0)
         "dark_share": 0.25,
         "gex": 0.25,
-        "venue_entropy": 0.20,                             # Shannon entropy of DP venue distribution
+        "venue_entropy": 0.15,                             # Shannon entropy of DP venue distribution
         "block_intensity": 0.15,
-        "iv_rank": 0.15,
-        "iv_skew": 0.0,                                    # ATM put IV - call IV (activated in Lépés 4)
+        "iv_rank": 0.10,
+        "iv_skew": 0.10,                                   # ATM put IV - call IV
     },
     "mms_z_gex_threshold": 1.5,                          # ±1.5 for Γ⁺/Γ⁻ (~93rd percentile)
     "mms_z_dex_threshold": 1.0,                          # ±1.0 for ABS/DIST (~84th percentile)
