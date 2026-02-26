@@ -1,7 +1,7 @@
 [project]
 name = "ifds-suite"
 version = "2.0.0a1"
-description = "IFDS — Institutional Flow Decision Suite + CONDUCTOR agent system"
+description = "IFDS — Institutional Flow Decision Suite"
 requires-python = ">=3.11"
 dependencies = [
     "requests>=2.31.0",

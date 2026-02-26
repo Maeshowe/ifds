@@ -1,8 +1,10 @@
 # CONDUCTOR — project-level data (contains SQLite DB)
 .conductor/
 
-# Claude Code
-.claude/
+# Claude Code — local only (not shared)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/.DS_Store
 
 # Secrets
 .env
@@ -40,3 +42,4 @@ scripts/paper_trading/logs/
 
 # Temp config files
 obsidian_on.json
+.conductor/memory/*.db

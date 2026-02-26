@@ -33,64 +33,26 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 
 ---
 
-## CONDUCTOR — Session & Agent Management
+## Session Management (Native CC)
 
-A CONDUCTOR a projekt session-kezelő és agent-rendszere. SQLite DB: `.conductor/memory/project.db`
-Agent definíciók: `.conductor/agents/*.md`
-
-### Session Workflow (KÖTELEZŐ)
-
-**Session indítás** — minden munkamenet elején:
-```bash
-python -m conductor continue --project-dir .
-```
-Ez betölti az előző session kontextusát (summary, open tasks, decisions, rules) és új session-t indít.
+**Session indítás** — automatikus (hook betölti a journal kontextust)
 
 **Session lezárás** — minden munkamenet végén:
-```bash
-python -m conductor wrap-up --summary "<összefoglaló>" --project-dir .
-```
-Az összefoglalóban legyen: mit csináltunk, hány teszt, milyen commit, mi a következő lépés.
+/wrap-up
+
+A `/wrap-up` command generálja az összefoglalót és ír egy új journal entry-t
+`docs/journal/YYYY-MM-DD-session-close-N.md` formátumban.
 
 Ha a user `/wrap-up`-ot mond ARGUMENTS nélkül, NE kérdezd meg a user-t — generáld az összefoglalót magad az adott session-ből.
 
-**Emergency save** (ha a session megszakad):
-```bash
-python -m conductor pause --project-dir .
-```
+**Tanulság rögzítés:**
+/learn [rule|discovery|correction] <tartalom>
 
-### Tanulság rögzítés
-Ha bármilyen fontos felfedezés, hiba, vagy szabály merül fel a session során:
-```bash
-python -m conductor learn --content "<tanulság>" --category "<rule|discovery|correction>" --project-dir .
-```
-- **rule**: állandó szabály, mindig kövesd (pl. "FMP semaphore max 8, mert 12-nél 429-ek jönnek")
-- **discovery**: hasznos felfedezés (pl. "Freshness Alpha score-t nem szabad 100-ra cap-elni")
-- **correction**: hiba javítás (pl. "Phase 1 async-hoz asyncio.run() kell, nem await")
+Rule kategória → `.claude/rules/ifds-rules.md`-be kerül (CC legközelebb olvassa).
+Discovery/correction → `docs/planning/learnings-archive.md`-be kerül.
 
-### Mikor használd a többi CONDUCTOR parancsot
-
-**Új feature ötlet** → `/analyze-idea` (BA agent strukturálja a követelményeket)
-**Build terv készítés** → `/build plan` (Lead Dev agent lépésekre bontja)
-**Kód review** → `/review` (Code Review agent ellenőrzi)
-**Döntés rögzítés** → `/decide` (döntés a DB-be kerül)
-**Teszt eredmény** → `/test save` (teszt futtatás eredménye a DB-be)
-
-### Automatikus CONDUCTOR használat
-
-A következő helyzetekben MINDIG használd a megfelelő CONDUCTOR parancsot, ne várd meg hogy a user kérje:
-
-1. **Session eleje** → `/continue` (kontextus betöltés)
-2. **Session vége** → `/wrap-up` (állapot mentés)
-3. **Fontos felfedezés** → `/learn --category discovery`
-4. **Hiba amit máskor is el kellene kerülni** → `/learn --category rule`
-5. **Döntés ami befolyásolja a projekt irányát** → `/decide`
-
-### Amit NE csinálj
-- NE hagyj session-t lezáratlanul
-- NE felejtsd el a `/continue`-t session elején
-- NE kérdezd meg a user-t a wrap-up summary-ról — generáld magad
-- NE használj CONDUCTOR parancsot ha nincs inicializálva (`.conductor/` mappa hiányzik)
+**Agent delegálás:**
+Speciális feladatokhoz: @lead-dev, @code-reviewer, @test-engineer, @refactor, @devops
 
 ---
 
@@ -99,17 +61,7 @@ A következő helyzetekben MINDIG használd a megfelelő CONDUCTOR parancsot, ne
 A `docs/journal/` könyvtár tartalmazza a Claude Chat session-ök állapotmentéseit.
 Ezek a stratégiai döntéseket, architektúrális gondolkodást, és a "miértek"-et tartalmazzák.
 
-**Session elején MINDIG olvasd el az utolsó 1-2 journal entry-t:**
-```bash
-ls -t docs/journal/ | head -2 | xargs -I{} cat docs/journal/{}
-```
-
-A journal entry-k struktúrája:
-- Elvégzett munka
-- Döntések (sorszámozva: D1, D2, ...)
-- Következő lépések
-- Nyitott kérdések
-- Roadmap referencia
+Session elején a hook automatikusan betölti az utolsó 2 journal entry-t.
 
 **A journal a Chat-ben keletkezik, nem CC-ben.** Te (CC) olvasod, de nem írod.
 Ha a user hivatkozik egy korábbi döntésre vagy kontextusra, keresd a journal-ban.
@@ -144,12 +96,11 @@ src/ifds/
 scripts/paper_trading/          # IBKR paper trading (submit, close, eod)
 docs/planning/                  # Design docs (SimEngine L2 etc.)
 docs/tasks/                     # CC task files
-docs/journal/                   # Chat session állapotmentések
-
-src/conductor/                  # CONDUCTOR session & agent system
-.conductor/agents/              # Agent personality definitions
-.conductor/memory/project.db    # Session DB (SQLite + FTS5)
 docs/journal/                   # Chat session állapotmentések (READ ONLY)
+
+.claude/rules/                  # CC rules (permanent, per-session loaded)
+.claude/agents/                 # CC agent definitions
+.claude/scripts/                # Session hooks (start/end)
 ```
 
 ## Roadmap 2026
