@@ -9,7 +9,7 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
 - **BC16 kész** — Phase 1 async (282s→17s), factor volatility framework, SIM-L1 validation engine
 - **BC19 kész** — SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
-- **848 teszt**, 0 failure, 0 warning
+- **853 teszt**, 0 failure, 0 warning
 - **BC18-prep kész** — Trading calendar, danger zone filter, cache TTL fix
 - **IBKR Connection Hardening kész** — retry logic, timeout, Telegram alert, port konstansok
 - **OBSIDIAN store**: gyűjtés folyamatban (day 8/21, aktiválás ha store >=21 entry/ticker)
@@ -174,6 +174,7 @@ Q4 (okt-dec):   BC27-30 Dashboard + Alpha Decay + Retail
 <!-- CC frissíti a /wrap-up során -->
 - **Utolsó journal**: docs/journal/2026-02-24-session-close-2.md
 - **Aktív BC**: nincs (BC19 kész, BC17 ~márc 4)
+- **Feb 26**: MOC order split fix (IBKR Error 383, KMI 611 db) — 853 teszt
 - **Feb 24 deliveries**: EARN oszlop Telegram, Zombie Hunter 2-pass, IBKR Connection Hardening, Telegram Phase 2 breakdown — 848 teszt
 - **Aktív egyéb**: Paper Trading Day 6/21 (folyamatban, EOD 22:05 CET), OBSIDIAN gyűjtés day 9/21, Phase 4 snapshot aktív
 - **Swing Hybrid**: design doc APPROVED, implementáció BC20A-ba tervezve

@@ -4,6 +4,17 @@
 
 ---
 
+## MOC Order Size Limit Fix (853 tests)
+
+### MOC Order Split
+- `MAX_ORDER_SIZE = 500` konstans (IBKR precautionary size limit)
+- `close_positions.py`: ha `abs(position) > 500`, while loop-ban `min(remaining, 500)` leg-ekben adja le a MOC ordert
+- Telegram üzenet: összesített qty per ticker (nem leg-enként)
+- 5 új teszt (`test_close_positions_split.py`)
+- **Trigger**: KMI 611 db MOC SELL → Error 383 (2026-02-25)
+
+---
+
 ## IBKR Connection Hardening + Telegram Phase 2 Breakdown (848 tests)
 
 ### IBKR Connection Hardening
