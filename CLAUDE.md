@@ -9,13 +9,13 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
 - **BC16 kész** — Phase 1 async (282s→17s), factor volatility framework, SIM-L1 validation engine
 - **BC19 kész** — SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
-- **861 teszt**, 0 failure, 0 warning
+- **880 teszt**, 0 failure, 0 warning
 - **BC18-prep kész** — Trading calendar, danger zone filter, cache TTL fix
 - **IBKR Connection Hardening kész** — retry logic, timeout, Telegram alert, port konstansok
-- **MMS store**: gyűjtés folyamatban (day 8/21, aktiválás ha store >=21 entry/ticker)
-- **Paper Trading**: Day 5/21 (IBKR paper account DUH118657, Mac Mini cron, cum. PnL +$278 estimated)
+- **MMS store**: gyűjtés folyamatban (day 9/21, aktiválás ha store >=21 entry/ticker) — venue_entropy + iv_skew mostantól gyűl
+- **Paper Trading**: Day 7/21 (IBKR paper account DUH118657, Mac Mini cron, cum. PnL +$328.65)
 - **Swing Hybrid Exit**: design APPROVED (`docs/planning/swing-hybrid-exit-design.md`)
-- **Következő**: BC17 (EWMA + crowdedness mérés + MMS aktiválás) — ha store >=21 entry
+- **Következő**: BC17 (EWMA + crowdedness mérés + MMS aktiválás) — ha store >=21 entry/ticker
 
 ## Alapszabályok
 - Ez PÉNZÜGYI rendszer — Human-in-the-loop minden döntésnél
@@ -123,13 +123,12 @@ Q4 (okt-dec):   BC27-30 Dashboard + Alpha Decay + Retail
 
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-02-24-session-close-2.md
+- **Utolsó journal**: docs/journal/2026-02-26-session-close-1.md
 - **Aktív BC**: nincs (BC19 kész, BC17 ~márc 4)
-- **Feb 26**: QA fixes (asyncio.gather, EOD idempotency, circuit breaker halt, doc sync) + MOC split — 861 teszt
-- **Feb 24 deliveries**: EARN oszlop Telegram, Zombie Hunter 2-pass, IBKR Connection Hardening, Telegram Phase 2 breakdown — 848 teszt
-- **Aktív egyéb**: Paper Trading Day 6/21 (folyamatban, EOD 22:05 CET), MMS gyűjtés day 9/21, Phase 4 snapshot aktív
+- **Feb 26 deliveries**: MMS rename (OBSIDIAN→MMS) + venue_entropy + iv_skew + 6-feature weights — 880 teszt, 4 commit
+- **Aktív egyéb**: Paper Trading Day 7/21 (cum. PnL +$328.65, +0.33%), MMS gyűjtés day 9/21, Phase 4 snapshot aktív
 - **Swing Hybrid**: design doc APPROVED, implementáció BC20A-ba tervezve
 - **Blokkolók**: nincs
-- **MMS baseline**: day 9/21 (Feb 11,12,13,17,18,19,20,23,24). Megjelenési ráta ~75% a top tickereknél → 21 entry-hez ~28 run kell (~márc 20). BC17 márc 4: EWMA + crowdedness indul, MMS fokozatosan aktiválódik utána.
-- **Paper Trading**: cum. PnL -$61.63 (-0.062%), Day 4/21 lezárva (Feb 17-20). trades_2026-02-20.csv rekonstruálva, cumulative_pnl.json helyreállítva.
+- **MMS baseline**: day 9/21. venue_entropy + iv_skew mostantól gyűl. Megjelenési ráta ~75% → 21 entry-hez ~28 run kell (~márc 20). BC17 márc 4: EWMA + crowdedness indul, MMS fokozatosan aktiválódik tickerenkénti alapon amint store >=21 entry.
+- **Paper Trading**: cum. PnL +$328.65 (+0.33%), Day 7/21. Mac Mini cron aktív.
 - **Következő mérföldkő**: 2026-03-02 SIM-L2 first comparison run (task: docs/tasks/2026-03-02)
