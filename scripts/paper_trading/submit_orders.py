@@ -170,6 +170,8 @@ def main():
     parser.add_argument('--test-connection', action='store_true',
                         help='Test IBKR connection only')
     parser.add_argument('--file', help='Specific execution plan CSV path')
+    parser.add_argument('--override-circuit-breaker', action='store_true',
+                        help='Override circuit breaker and submit orders anyway (use with caution)')
     args = parser.parse_args()
 
     today_str = date.today().strftime('%Y-%m-%d')
@@ -210,9 +212,15 @@ def main():
     # --- Circuit breaker check ---
     cum_pnl, cb_alert = check_circuit_breaker()
     if cb_alert:
-        msg = f"⚠️ CIRCUIT BREAKER: Cumulative P&L ${cum_pnl:,.0f} (threshold: ${CIRCUIT_BREAKER_USD:,.0f}). Continuing."
-        logger.warning(msg)
-        send_telegram(msg)
+        if args.override_circuit_breaker:
+            msg = f"⚠️ CIRCUIT BREAKER TRIGGERED — override flag used, continuing.\nCumulative P&L: ${cum_pnl:,.0f} (threshold: ${CIRCUIT_BREAKER_USD:,.0f})"
+            logger.warning(msg)
+            send_telegram(msg)
+        else:
+            msg = f"🛑 CIRCUIT BREAKER TRIGGERED — order submission HALTED.\nCumulative P&L: ${cum_pnl:,.0f} (threshold: ${CIRCUIT_BREAKER_USD:,.0f})\nUse --override-circuit-breaker to proceed."
+            logger.error(msg)
+            send_telegram(msg)
+            sys.exit(1)
 
     # --- Dry run mode ---
     if args.dry_run:
