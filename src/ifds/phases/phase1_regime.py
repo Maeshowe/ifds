@@ -184,7 +184,8 @@ def _fetch_daily_history(polygon: PolygonClient,
     return daily_data
 
 
-async def _fetch_daily_history_async(polygon, lookback_calendar_days: int = 55) -> list[dict]:
+async def _fetch_daily_history_async(polygon, lookback_calendar_days: int = 55,
+                                     logger=None) -> list[dict]:
     """Fetch grouped daily bars concurrently with asyncio.gather.
 
     Same logic as _fetch_daily_history() but fires all requests in parallel,
@@ -201,13 +202,20 @@ async def _fetch_daily_history_async(polygon, lookback_calendar_days: int = 55) 
 
     # Fire all requests concurrently — semaphore handles rate limiting
     results = await asyncio.gather(
-        *[polygon.get_grouped_daily(day_str) for day_str in days]
+        *[polygon.get_grouped_daily(day_str) for day_str in days],
+        return_exceptions=True
     )
 
     daily_data = []
-    for day_str, bars in zip(days, results):
-        if bars:
-            daily_data.append({"date": day_str, "bars": bars})
+    for day_str, result in zip(days, results):
+        if isinstance(result, BaseException):
+            if logger:
+                from ifds.events.types import EventType, Severity
+                logger.log(EventType.API_ERROR, Severity.WARNING,
+                           phase=1, message=f"Polygon request failed for {day_str}: {result}")
+            continue
+        if result:
+            daily_data.append({"date": day_str, "bars": result})
 
     return daily_data
 
@@ -487,7 +495,7 @@ async def _run_phase1_async(config: Config, logger: EventLogger,
         else:
             lookback = 75
 
-        daily_bars = await _fetch_daily_history_async(polygon, lookback_calendar_days=lookback)
+        daily_bars = await _fetch_daily_history_async(polygon, lookback_calendar_days=lookback, logger=logger)
 
         if not daily_bars or len(daily_bars) < 25:
             logger.phase_error(1, "Market Regime (BMI)",

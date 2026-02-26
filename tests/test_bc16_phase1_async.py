@@ -230,7 +230,7 @@ class TestRunPhase1Async:
 
     @pytest.mark.asyncio
     async def test_async_client_cleanup_on_error(self, config, logger):
-        """Client is closed even when an exception occurs."""
+        """Client is closed even when all API calls fail (return_exceptions=True)."""
         with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly:
             mock_poly = AsyncMock()
             mock_poly.get_grouped_daily = AsyncMock(
@@ -239,8 +239,10 @@ class TestRunPhase1Async:
             mock_poly.close = AsyncMock()
             MockPoly.return_value = mock_poly
 
-            with pytest.raises(ConnectionError):
-                await _run_phase1_async(config, logger)
+            # With return_exceptions=True, errors are captured not raised
+            # → insufficient data fallback (YELLOW)
+            result = await _run_phase1_async(config, logger)
+            assert result.bmi.bmi_regime == BMIRegime.YELLOW
 
             mock_poly.close.assert_awaited_once()
 
