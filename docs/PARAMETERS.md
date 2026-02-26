@@ -82,7 +82,7 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | `zombie_min_debt_equity` | 3.0 | P2 | D/E > 3.0 = pénzügyi nehézség | `universe.zombie.debt_equity_min: 3.0` | ✅ Azonos |
 | `zombie_max_net_margin` | 0.0 | P2 | Negatív margin | `universe.zombie.net_margin_max: 0` | ✅ Azonos |
 | `zombie_max_interest_coverage` | 1.5 | P2 | Alacsony kamatfedezet | `universe.zombie.interest_coverage_max: 1.5` | ✅ Azonos |
-| `earnings_exclusion_days` | 5 | P2 | Earnings előtti kizárás | Implicit (5 nap) | ✅ Azonos |
+| `earnings_exclusion_days` | 7 | P2 | Earnings előtti kizárás | Implicit (7 nap) | ✅ Azonos |
 
 ### Sector Momentum (Phase 3)
 
