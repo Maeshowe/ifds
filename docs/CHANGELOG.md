@@ -4,11 +4,30 @@
 
 ---
 
-## MOC Order Size Limit Fix (853 tests)
+## QA Audit Fixes + MOC Order Split (861 tests)
+
+### Phase 1 asyncio.gather fix [CRITICAL]
+- `_fetch_daily_history_async()`: `return_exceptions=True` + BaseException filter
+- Egy Polygon 429/timeout többé nem crasheli az egész Phase 1 pipeline-t
+- 3 új teszt (`test_phase1_gather_fix.py`)
+
+### EOD Idempotency Guard [CRITICAL]
+- `update_cumulative_pnl()`: duplicate date check (`existing_dates` set)
+- Dupla EOD futás nem duplázza a cumulative P&L-t és trading_days-t
+- 2 új teszt (`test_eod_idempotency.py`)
+
+### Circuit Breaker Halt [CRITICAL]
+- `submit_orders.py`: circuit breaker trigger → `sys.exit(1)` (korábban: warn + continue)
+- `--override-circuit-breaker` flag tudatos override-hoz
+- Telegram alert: HALTED vs override megkülönböztetés
+- 3 új teszt (`test_circuit_breaker_halt.py`)
+
+### Doc Sync: earnings_exclusion_days 5→7
+- `PARAMETERS.md` (1x), `PIPELINE_LOGIC.md` (2x) — kód (defaults.py) 7-et használ
 
 ### MOC Order Split
 - `MAX_ORDER_SIZE = 500` konstans (IBKR precautionary size limit)
-- `close_positions.py`: ha `abs(position) > 500`, while loop-ban `min(remaining, 500)` leg-ekben adja le a MOC ordert
+- `close_positions.py` + `nuke.py`: while loop split >500 db pozíciókra
 - Telegram üzenet: összesített qty per ticker (nem leg-enként)
 - 5 új teszt (`test_close_positions_split.py`)
 - **Trigger**: KMI 611 db MOC SELL → Error 383 (2026-02-25)
