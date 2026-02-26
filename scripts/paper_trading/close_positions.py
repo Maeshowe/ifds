@@ -27,6 +27,12 @@ logging.basicConfig(
 logger = logging.getLogger('close_positions')
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+MAX_ORDER_SIZE = 500  # IBKR precautionary size limit (Global Configuration/Presets)
+
+# ---------------------------------------------------------------------------
 # Telegram
 # ---------------------------------------------------------------------------
 
@@ -103,21 +109,42 @@ def main():
 
         action = 'SELL' if pos.position > 0 else 'BUY'
         qty = int(abs(pos.position))
-        order = create_moc_order(qty, account, action=action)
-        ib.placeOrder(contract, order)
-        moc_submitted.append((sym, qty, action))
-        print(f"  {sym}: MOC {action} {qty} shares")
+
+        if qty <= MAX_ORDER_SIZE:
+            order = create_moc_order(qty, account, action=action)
+            ib.placeOrder(contract, order)
+            moc_submitted.append((sym, qty, action))
+            print(f"  {sym}: MOC {action} {qty} shares")
+        else:
+            # Split into multiple legs to stay under IBKR size limit
+            remaining = qty
+            leg = 1
+            total_legs = -(-qty // MAX_ORDER_SIZE)  # ceil division
+            while remaining > 0:
+                leg_qty = min(remaining, MAX_ORDER_SIZE)
+                order = create_moc_order(leg_qty, account, action=action)
+                ib.placeOrder(contract, order)
+                moc_submitted.append((sym, leg_qty, action))
+                print(f"  {sym}: MOC {action} {leg_qty} shares (leg {leg}/{total_legs})")
+                remaining -= leg_qty
+                leg += 1
 
     ib.sleep(1)  # Let orders propagate
 
     print(f"MOC submitted: {len(moc_submitted)} positions")
 
-    # Telegram notification
+    # Telegram notification — aggregate split legs per ticker
     if moc_submitted:
+        ticker_totals = {}
+        for sym, leg_qty, action in moc_submitted:
+            if sym not in ticker_totals:
+                ticker_totals[sym] = (0, action)
+            ticker_totals[sym] = (ticker_totals[sym][0] + leg_qty, action)
+
         lines = [f"🔔 PAPER TRADING MOC — {today_str}",
-                 f"Closing {len(moc_submitted)} remaining positions at market close:"]
-        for sym, qty, action in moc_submitted:
-            lines.append(f"{sym}: {action} {qty} shares")
+                 f"Closing {len(ticker_totals)} positions at market close:"]
+        for sym, (total_qty, action) in ticker_totals.items():
+            lines.append(f"{sym}: {action} {total_qty} shares")
         send_telegram("\n".join(lines))
 
     disconnect(ib)
