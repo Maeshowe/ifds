@@ -1,20 +1,28 @@
-Record a learning in CONDUCTOR memory.
+Learning rögzítése fájlba.
 
-Parse $ARGUMENTS to extract the content and category. Expected format:
-- `/learn [category] [content]` — e.g., `/learn discovery A Python SQLite FTS5 triggers need special handling`
-- If $ARGUMENTS contains a category keyword (rule, discovery, correction) at the start, use it
-- If no category is specified, ask the user which category applies:
-  - **rule** — permanent correction, always follow this
-  - **discovery** — something new learned, useful context
-  - **correction** — a mistake was made, this is the fix
+## 1. Parsing
+Parse `$ARGUMENTS` — elvárt formátum: `[category] [content]`
+- Ha `$ARGUMENTS` elején category kulcsszó áll (rule, discovery, correction) → használd
+- Ha nincs category → kérdezd meg:
+  - **rule** — állandó szabály, mindig kövesd
+  - **discovery** — hasznos felfedezés, kontextus
+  - **correction** — hiba javítás, ezt csináld másképp legközelebb
 
-Then run:
-```bash
-python -m conductor learn --content "<content>" --category "<category>" --project-dir .
+## 2. Mentés
+
+**Ha category == "rule":**
+Fűzd hozzá a `.claude/rules/ifds-rules.md` fájlhoz:
+```
+## [rövid cím] (rule, YYYY-MM-DD)
+[content]
 ```
 
-Parse the JSON output and confirm:
-- **Learning saved** — ID, category, content
-- **Total learnings** — how many we have now
+**Ha category == "discovery" VAGY "correction":**
+Fűzd hozzá a `docs/planning/learnings-archive.md` fájlhoz:
+```
+## [rövid cím] ([category], YYYY-MM-DD)
+[content]
+```
 
-If category is "rule", note that it was also saved to the central rules (~/.conductor/rules.json).
+## 3. Megerősítés
+Erősítsd meg: "Learning mentve → [fájl]"

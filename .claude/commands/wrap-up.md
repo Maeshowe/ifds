@@ -1,30 +1,31 @@
-End the current CONDUCTOR session.
+Session lezárás: journal entry írása.
 
-## Ha a user megadott summary-t a $ARGUMENTS-ben:
-```bash
-python -m conductor wrap-up --summary "$ARGUMENTS" --project-dir .
-```
-
-## Ha $ARGUMENTS üres:
-NE kérdezd meg a user-t! Generáld magad az összefoglalót a session-ből:
-- Mit csináltunk (feature-ök, fix-ek)
+## 1. Summary generálás
+Ha a `$ARGUMENTS` tartalmaz summary-t → használd azt.
+Ha `$ARGUMENTS` üres → NE kérdezd meg a user-t! Generáld magad a session alapján:
+- Mit csináltunk (feature-ök, fix-ek, döntések)
 - Hány teszt fut (ha volt teszt futtatás)
 - Commit hash (ha volt commit)
 - Mi a következő lépés
 
-Formátum: egy tömör, 1-2 mondatos összefoglaló. Példa:
-"BC16 complete: Phase 1 async (282s→17s), factor volatility framework, SIM-L1 engine. 752 tests. Next: BC17 March 4."
+## 2. Journal entry írása
+Írj journal entry-t: `docs/journal/YYYY-MM-DD-session-close.md`
 
-Aztán futtasd:
-```bash
-python -m conductor wrap-up --summary "<generált összefoglaló>" --project-dir .
+Formátum:
+```
+# Session Close — YYYY-MM-DD HH:MM
+
+## Mit csináltunk
+[összefoglaló]
+
+## Következő lépés
+[mi jön]
+
+## Commit(ok)
+[hash(ek) ha volt]
 ```
 
-## Output feldolgozás
-Parse the JSON output and present:
-- **Session closed** — ID, duration
-- **Summary** — amit mentettünk
-- **Tasks snapshot** — open/done/blocked
-- **Decisions snapshot** — active count
+Ha a nap folyamán már volt session-close → az új fájl neve legyen `session-close-2.md`, `-3.md` stb.
 
-Ha nincs aktív session, jelezd a user-nek.
+## 3. Megerősítés
+Erősítsd meg: "Session lezárva, journal mentve: docs/journal/YYYY-MM-DD-session-close.md"

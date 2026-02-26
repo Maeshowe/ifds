@@ -1,17 +1,15 @@
-Run the CONDUCTOR orientation command to show where we are:
+Gyors orientáció: hol tartunk a projektben.
 
-```bash
-python -m conductor where-am-i --project-dir $ARGUMENTS
-```
+## 1. Kontextus betöltés
+Olvasd el:
+- CLAUDE.md — "Aktuális Kontextus" szekció + roadmap
+- `docs/journal/` legutolsó entry
 
-If $ARGUMENTS is empty, use the current working directory.
+## 2. Mutasd strukturáltan:
+- **Projekt**: IFDS, aktuális BC
+- **Paper trading státusz**: CLAUDE.md-ből
+- **Open tasks**: CLAUDE.md-ből (ha van)
+- **Legutolsó session**: journal entry summary-ja
+- **Következő mérföldkő**: BC17 / BC18 stb.
 
-Parse the JSON output and present it in a clear, structured format:
-- **Project** name and current phase
-- **Active session** (when started, how long ago)
-- **Open tasks** (list with status)
-- **Active decisions** (list)
-- **Recent learnings** (last 5)
-
-If there's no active session, suggest running `/continue` to start one.
-If CONDUCTOR is not initialized, tell the user to run `python -m conductor init`.
+Ha nincs journal entry, jelezd: "Nincs korábbi session — futtasd `/continue`-t az induláshoz."
