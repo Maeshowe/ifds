@@ -231,6 +231,13 @@ def update_cumulative_pnl(trades, today_str):
             'daily_history': [],
         }
 
+    # Idempotency guard — skip if date already recorded
+    existing_dates = {d['date'] for d in data.get('daily_history', [])}
+    if today_str in existing_dates:
+        logger.warning(f"EOD idempotency: {today_str} already in history — skipping update")
+        daily_pnl = sum(t['pnl'] for t in trades)
+        return data, daily_pnl
+
     # Calculate daily stats
     daily_pnl = sum(t['pnl'] for t in trades)
     total_trades = len(trades)
