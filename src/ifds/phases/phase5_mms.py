@@ -1,6 +1,6 @@
-"""OBSIDIAN MM — Market Microstructure Diagnostic Engine (BC15).
+"""MMS — Market Microstructure Scorer (BC15).
 
-Reimplements the OBSIDIAN classifier from aetherveil using IFDS data.
+Market microstructure diagnostic engine for IFDS.
 No new API calls — reuses Polygon bars, options snapshot, and dark pool batch.
 
 7 regimes (priority-ordered):
@@ -18,12 +18,12 @@ Unusualness score U ∈ [0, 100]: weighted |Z| sum → percentile rank.
 import math
 from datetime import date as _date
 
-from ifds.data.obsidian_store import ObsidianStore
+from ifds.data.mms_store import MMSStore
 from ifds.models.market import (
     BaselineState,
     GEXRegime,
     MMRegime,
-    ObsidianAnalysis,
+    MMSAnalysis,
     StockAnalysis,
 )
 
@@ -153,7 +153,7 @@ def _z_score(value: float, values: list[float], min_n: int) -> float | None:
 
 def _compute_z_scores(today_features: dict, historical_entries: list[dict],
                       bar_features: dict, min_periods: int) -> dict[str, float | None]:
-    """Compute z-scores for each OBSIDIAN feature.
+    """Compute z-scores for each MMS feature.
 
     Price features (efficiency, impact): use bar_features series (250 values available).
     Microstructure features (gex, dex, dark_share, block, iv): use store entries.
@@ -310,7 +310,7 @@ def _classify_regime(z_scores: dict, raw_features: dict,
                      config_core: dict,
                      factor_vol: dict | None = None,
                      median_sigmas: dict | None = None) -> tuple[MMRegime, dict]:
-    """Priority-ordered OBSIDIAN classification.
+    """Priority-ordered MMS classification.
 
     Rules (first match wins):
     0. UND: baseline empty
@@ -324,13 +324,13 @@ def _classify_regime(z_scores: dict, raw_features: dict,
 
     Returns (regime, triggering_conditions).
     """
-    z_gex_th = config_core.get("obsidian_z_gex_threshold", 1.5)
-    z_dex_th = config_core.get("obsidian_z_dex_threshold", 1.0)
-    z_block_th = config_core.get("obsidian_z_block_threshold", 1.0)
-    dark_dd = config_core.get("obsidian_dark_share_dd", 0.70)
-    dark_abs = config_core.get("obsidian_dark_share_abs", 0.50)
-    return_abs = config_core.get("obsidian_return_abs", -0.005)
-    return_dist = config_core.get("obsidian_return_dist", 0.005)
+    z_gex_th = config_core.get("mms_z_gex_threshold", 1.5)
+    z_dex_th = config_core.get("mms_z_dex_threshold", 1.0)
+    z_block_th = config_core.get("mms_z_block_threshold", 1.0)
+    dark_dd = config_core.get("mms_dark_share_dd", 0.70)
+    dark_abs = config_core.get("mms_dark_share_abs", 0.50)
+    return_abs = config_core.get("mms_return_abs", -0.005)
+    return_dist = config_core.get("mms_return_dist", 0.005)
 
     z_gex = z_scores.get("gex")
     z_dex = z_scores.get("dex")
@@ -458,11 +458,11 @@ def _compute_unusualness(z_scores: dict, excluded_features: list[str],
 
 def _get_regime_multiplier(regime: MMRegime, config_tuning: dict) -> float:
     """Look up sizing multiplier for a regime."""
-    multipliers = config_tuning.get("obsidian_regime_multipliers", {})
+    multipliers = config_tuning.get("mms_regime_multipliers", {})
     return multipliers.get(regime.value, 0.75)
 
 
-def run_obsidian_analysis(
+def run_mms_analysis(
     config_core: dict,
     config_tuning: dict,
     ticker: str,
@@ -470,9 +470,9 @@ def run_obsidian_analysis(
     options_data: list[dict] | None,
     stock: StockAnalysis,
     gex_data: dict | None,
-    store: ObsidianStore,
-) -> ObsidianAnalysis:
-    """Full OBSIDIAN analysis for one ticker.
+    store: MMSStore,
+) -> MMSAnalysis:
+    """Full MMS analysis for one ticker.
 
     1. Extract features from bars/options/stock.flow
     2. Load historical entries from store
@@ -483,13 +483,13 @@ def run_obsidian_analysis(
     7. Get multiplier from regime
     8. Append today's features to store
     """
-    result = ObsidianAnalysis(ticker=ticker)
+    result = MMSAnalysis(ticker=ticker)
     excluded_features = ["venue_mix"]  # Always excluded
     result.excluded_features = excluded_features
 
-    window = config_core.get("obsidian_window", 63)
-    min_periods = config_core.get("obsidian_min_periods", 21)
-    feature_weights = config_core.get("obsidian_feature_weights", {})
+    window = config_core.get("mms_window", 63)
+    min_periods = config_core.get("mms_min_periods", 21)
+    feature_weights = config_core.get("mms_feature_weights", {})
 
     # 1. Extract features
     bar_features = _extract_features_from_bars(bars, window) if bars else {}

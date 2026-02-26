@@ -244,28 +244,28 @@ def _format_phases_5_to_6(ctx: PipelineContext, config: Config,
                 dominant = max(regime_counts, key=regime_counts.get)  # type: ignore[arg-type]
                 lines.append(f"Breadth: {dominant} ({len(breadth_sectors)}/11)")
 
-        # OBSIDIAN
-        if ctx.obsidian_analyses:
-            obsidian_enabled = config.tuning.get("obsidian_enabled", False)
-            status = "ENABLED" if obsidian_enabled else "collect-only"
+        # MMS
+        if ctx.mms_analyses:
+            mms_enabled = config.tuning.get("mms_enabled", False)
+            status = "ENABLED" if mms_enabled else "collect-only"
 
             regime_counts_obs: dict[str, int] = {}
-            for o in ctx.obsidian_analyses:
+            for o in ctx.mms_analyses:
                 regime_counts_obs[o.mm_regime.value] = regime_counts_obs.get(o.mm_regime.value, 0) + 1
             parts = [f"{k}={v}" for k, v in sorted(regime_counts_obs.items())]
-            label = "OBSIDIAN" if obsidian_enabled else "OBSIDIAN (collect-only)"
+            label = "MMS" if mms_enabled else "MMS (collect-only)"
             lines.append(f"{label}: {' '.join(parts)}")
 
             # Day estimation and baseline
             states = {"complete": 0, "partial": 0, "empty": 0}
-            for o in ctx.obsidian_analyses:
+            for o in ctx.mms_analyses:
                 states[o.baseline_state.value] = states.get(o.baseline_state.value, 0) + 1
-            if ctx.obsidian_analyses:
-                max_days = max(o.baseline_days for o in ctx.obsidian_analyses)
+            if ctx.mms_analyses:
+                max_days = max(o.baseline_days for o in ctx.mms_analyses)
             else:
                 max_days = 0
-            min_periods = config.core.get("obsidian_min_periods", 21)
-            lines.append(f"OBSIDIAN: {status} (day {max_days}/{min_periods})")
+            min_periods = config.core.get("mms_min_periods", 21)
+            lines.append(f"MMS: {status} (day {max_days}/{min_periods})")
             lines.append(
                 f"Baseline: {states['complete']} complete"
                 f" / {states['partial']} partial"

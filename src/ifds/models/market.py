@@ -78,7 +78,7 @@ class BreadthRegime(Enum):
 
 
 class MMRegime(Enum):
-    """OBSIDIAN MM market microstructure regime (BC15)."""
+    """MMS market microstructure regime (BC15)."""
     GAMMA_POSITIVE = "gamma_positive"     # Γ⁺: volatility suppression
     GAMMA_NEGATIVE = "gamma_negative"     # Γ⁻: liquidity vacuum
     DARK_DOMINANT = "dark_dominant"        # DD: institutional accumulation
@@ -90,7 +90,7 @@ class MMRegime(Enum):
 
 
 class BaselineState(Enum):
-    """OBSIDIAN feature store maturity (BC15)."""
+    """MMS feature store maturity (BC15)."""
     EMPTY = "empty"         # No feature store history
     PARTIAL = "partial"     # Some features have z-scores, some don't
     COMPLETE = "complete"   # All features have ≥ min_periods history
@@ -390,8 +390,8 @@ class GEXAnalysis:
 
 
 @dataclass
-class ObsidianAnalysis:
-    """OBSIDIAN MM analysis result for a single ticker (BC15)."""
+class MMSAnalysis:
+    """MMS analysis result for a single ticker (BC15)."""
     ticker: str
     mm_regime: MMRegime = MMRegime.UNDETERMINED
     unusualness_score: float = 0.0               # U ∈ [0, 100]
@@ -423,8 +423,8 @@ class Phase5Result:
     passed: list[GEXAnalysis] = field(default_factory=list)
     excluded_count: int = 0
     negative_regime_count: int = 0
-    obsidian_analyses: list[ObsidianAnalysis] = field(default_factory=list)
-    obsidian_enabled: bool = False
+    mms_analyses: list[MMSAnalysis] = field(default_factory=list)
+    mms_enabled: bool = False
 
 
 # ============================================================================
@@ -462,7 +462,7 @@ class PositionSizing:
     is_mean_reversion: bool = False
     shark_detected: bool = False
     mm_regime: str = ""                 # MMRegime.value (BC15)
-    unusualness_score: float = 0.0      # OBSIDIAN U score (BC15)
+    unusualness_score: float = 0.0      # MMS U score (BC15)
 
 
 @dataclass
@@ -521,7 +521,7 @@ class PipelineContext:
     # Phase 5 output
     phase5: Phase5Result | None = None
     gex_analyses: list[GEXAnalysis] = field(default_factory=list)
-    obsidian_analyses: list[ObsidianAnalysis] = field(default_factory=list)
+    mms_analyses: list[MMSAnalysis] = field(default_factory=list)
 
     # Phase 6 output
     phase6: Phase6Result | None = None

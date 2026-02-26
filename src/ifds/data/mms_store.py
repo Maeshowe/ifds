@@ -1,7 +1,7 @@
-"""OBSIDIAN feature store — per-ticker JSON persistence (BC15).
+"""MMS feature store — per-ticker JSON persistence (BC15).
 
 Stores daily microstructure features for z-score computation.
-One JSON file per ticker: state/obsidian/{TICKER}.json
+One JSON file per ticker: state/mms/{TICKER}.json
 Atomic writes via tempfile + os.replace (same pattern as FileCache).
 """
 
@@ -11,14 +11,14 @@ import tempfile
 from pathlib import Path
 
 
-class ObsidianStore:
-    """Per-ticker feature history for OBSIDIAN z-score computation.
+class MMSStore:
+    """Per-ticker feature history for MMS z-score computation.
 
     Each ticker's file is a JSON array of daily entries:
     [{"date": "2026-02-09", "dark_share": 0.42, "gex": 1200000, ...}, ...]
     """
 
-    def __init__(self, store_dir: str = "state/obsidian", max_entries: int = 100):
+    def __init__(self, store_dir: str = "state/mms", max_entries: int = 100):
         self._store_dir = Path(store_dir)
         self._max_entries = max_entries
 

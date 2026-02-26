@@ -205,7 +205,7 @@ class TestPhasesEarningsIntegration:
     def _make_config(self):
         """Minimal Config mock."""
         config = MagicMock()
-        config.tuning = {"obsidian_enabled": False}
+        config.tuning = {"mms_enabled": False}
         return config
 
     def test_with_fmp_earn_column_appears(self):
@@ -293,7 +293,7 @@ class TestSendDailyReportFmpParam:
             "telegram_chat_id": "fake-chat",
             "telegram_timeout": 1,
         }
-        config.tuning = {"obsidian_enabled": False}
+        config.tuning = {"mms_enabled": False}
         logger = MagicMock()
 
         fmp = MagicMock()

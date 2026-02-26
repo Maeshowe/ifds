@@ -2,7 +2,7 @@
 
 ## Projekt
 Multi-faktoros kvantitatív kereskedési rendszer (swing trading, US equities).
-6-fázisú pipeline: BMI regime → Universe → Sectors → Stock Analysis → GEX/OBSIDIAN → Position Sizing.
+6-fázisú pipeline: BMI regime → Universe → Sectors → Stock Analysis → GEX/MMS → Position Sizing.
 Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek: docs/PARAMETERS.md
 
 ## Státusz
@@ -12,10 +12,10 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 - **861 teszt**, 0 failure, 0 warning
 - **BC18-prep kész** — Trading calendar, danger zone filter, cache TTL fix
 - **IBKR Connection Hardening kész** — retry logic, timeout, Telegram alert, port konstansok
-- **OBSIDIAN store**: gyűjtés folyamatban (day 8/21, aktiválás ha store >=21 entry/ticker)
+- **MMS store**: gyűjtés folyamatban (day 8/21, aktiválás ha store >=21 entry/ticker)
 - **Paper Trading**: Day 5/21 (IBKR paper account DUH118657, Mac Mini cron, cum. PnL +$278 estimated)
 - **Swing Hybrid Exit**: design APPROVED (`docs/planning/swing-hybrid-exit-design.md`)
-- **Következő**: BC17 (EWMA + crowdedness mérés + OBSIDIAN aktiválás) — ha store >=21 entry
+- **Következő**: BC17 (EWMA + crowdedness mérés + MMS aktiválás) — ha store >=21 entry
 
 ## Alapszabályok
 - Ez PÉNZÜGYI rendszer — Human-in-the-loop minden döntésnél
@@ -78,8 +78,8 @@ src/ifds/
 │   ├── phase2_universe.py      # FMP screener + earnings exclusion
 │   ├── phase3_sectors.py       # Sector rotation + breadth
 │   ├── phase4_stocks.py        # Multi-factor scoring
-│   ├── phase5_gex.py           # GEX regime + OBSIDIAN dispatch
-│   ├── phase5_obsidian.py      # OBSIDIAN MM classifier (factor vol BC16)
+│   ├── phase5_gex.py           # GEX regime + MMS dispatch
+│   ├── phase5_mms.py           # MMS (Market Microstructure Scorer) classifier (factor vol BC16)
 │   └── phase6_sizing.py        # Position sizing + risk management
 ├── sim/
 │   ├── models.py               # Trade, ValidationSummary, SimVariant, ComparisonReport
@@ -127,9 +127,9 @@ Q4 (okt-dec):   BC27-30 Dashboard + Alpha Decay + Retail
 - **Aktív BC**: nincs (BC19 kész, BC17 ~márc 4)
 - **Feb 26**: QA fixes (asyncio.gather, EOD idempotency, circuit breaker halt, doc sync) + MOC split — 861 teszt
 - **Feb 24 deliveries**: EARN oszlop Telegram, Zombie Hunter 2-pass, IBKR Connection Hardening, Telegram Phase 2 breakdown — 848 teszt
-- **Aktív egyéb**: Paper Trading Day 6/21 (folyamatban, EOD 22:05 CET), OBSIDIAN gyűjtés day 9/21, Phase 4 snapshot aktív
+- **Aktív egyéb**: Paper Trading Day 6/21 (folyamatban, EOD 22:05 CET), MMS gyűjtés day 9/21, Phase 4 snapshot aktív
 - **Swing Hybrid**: design doc APPROVED, implementáció BC20A-ba tervezve
 - **Blokkolók**: nincs
-- **OBSIDIAN baseline**: day 9/21 (Feb 11,12,13,17,18,19,20,23,24). Megjelenési ráta ~75% a top tickereknél → 21 entry-hez ~28 run kell (~márc 20). BC17 márc 4: EWMA + crowdedness indul, OBSIDIAN fokozatosan aktiválódik utána.
+- **MMS baseline**: day 9/21 (Feb 11,12,13,17,18,19,20,23,24). Megjelenési ráta ~75% a top tickereknél → 21 entry-hez ~28 run kell (~márc 20). BC17 márc 4: EWMA + crowdedness indul, MMS fokozatosan aktiválódik utána.
 - **Paper Trading**: cum. PnL -$61.63 (-0.062%), Day 4/21 lezárva (Feb 17-20). trades_2026-02-20.csv rekonstruálva, cumulative_pnl.json helyreállítva.
 - **Következő mérföldkő**: 2026-03-02 SIM-L2 first comparison run (task: docs/tasks/2026-03-02)

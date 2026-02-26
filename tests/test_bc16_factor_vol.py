@@ -9,7 +9,7 @@ import math
 import pytest
 
 from ifds.models.market import BaselineState, MMRegime
-from ifds.phases.phase5_obsidian import (
+from ifds.phases.phase5_mms import (
     _classify_regime,
     _compute_factor_volatility,
     _compute_median_rolling_sigmas,
@@ -210,7 +210,7 @@ class TestVolatileRegime:
 
         regime, _ = _classify_regime(
             z_scores, raw, medians, 0.001, BaselineState.COMPLETE,
-            {"obsidian_z_gex_threshold": 1.5},
+            {"mms_z_gex_threshold": 1.5},
             factor_vol=factor_vol, median_sigmas=median_sigs,
         )
 
@@ -218,8 +218,8 @@ class TestVolatileRegime:
 
     def test_volatile_multiplier_value(self):
         """VOLATILE regime has multiplier 0.60."""
-        from ifds.phases.phase5_obsidian import _get_regime_multiplier
-        tuning = {"obsidian_regime_multipliers": {"volatile": 0.60}}
+        from ifds.phases.phase5_mms import _get_regime_multiplier
+        tuning = {"mms_regime_multipliers": {"volatile": 0.60}}
         assert _get_regime_multiplier(MMRegime.VOLATILE, tuning) == 0.60
 
     def test_no_volatile_without_factor_vol(self):
@@ -273,21 +273,21 @@ class TestUnusualnessWithFactorVol:
 
 
 # ============================================================================
-# TestObsidianAnalysisNewFields
+# TestMMSAnalysisNewFields
 # ============================================================================
 
-class TestObsidianAnalysisNewFields:
-    """Test new BC16 fields on ObsidianAnalysis."""
+class TestMMSAnalysisNewFields:
+    """Test new BC16 fields on MMSAnalysis."""
 
     def test_default_values(self):
-        from ifds.models.market import ObsidianAnalysis
-        obs = ObsidianAnalysis(ticker="TEST")
+        from ifds.models.market import MMSAnalysis
+        obs = MMSAnalysis(ticker="TEST")
         assert obs.regime_confidence == 1.0
         assert obs.factor_volatility == {}
 
     def test_volatile_regime_enum(self):
         """VOLATILE is a valid MMRegime."""
         assert MMRegime.VOLATILE.value == "volatile"
-        from ifds.models.market import ObsidianAnalysis
-        obs = ObsidianAnalysis(ticker="TEST", mm_regime=MMRegime.VOLATILE)
+        from ifds.models.market import MMSAnalysis
+        obs = MMSAnalysis(ticker="TEST", mm_regime=MMRegime.VOLATILE)
         assert obs.mm_regime == MMRegime.VOLATILE

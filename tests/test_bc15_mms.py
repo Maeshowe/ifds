@@ -1,4 +1,4 @@
-"""BC15 OBSIDIAN MM Tests — Feature Store, Engine, Classification, Integration.
+"""BC15 MMS (Market Microstructure Scorer) Tests — Feature Store, Engine, Classification, Integration.
 
 ~50 tests covering:
 - MMRegime/BaselineState enums
@@ -6,10 +6,10 @@
 - Z-score computation
 - Classification (7 regimes, priority ordering)
 - Unusualness score
-- ObsidianStore (load, save, trim)
+- MMSStore (load, save, trim)
 - Regime multiplier mapping
 - Phase 5 integration (enabled, disabled, exclusion)
-- Phase 5 async integration (OBSIDIAN with async data fetch)
+- Phase 5 async integration (MMS with async data fetch)
 - Phase 6 integration (mm_regime on PositionSizing)
 """
 
@@ -22,7 +22,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from ifds.config.loader import Config
-from ifds.data.obsidian_store import ObsidianStore
+from ifds.data.mms_store import MMSStore
 from ifds.events.logger import EventLogger
 from ifds.models.market import (
     BaselineState,
@@ -33,14 +33,14 @@ from ifds.models.market import (
     MMRegime,
     MacroRegime,
     MarketVolatilityRegime,
-    ObsidianAnalysis,
+    MMSAnalysis,
     Phase5Result,
     PositionSizing,
     StockAnalysis,
     StrategyMode,
     TechnicalAnalysis,
 )
-from ifds.phases.phase5_obsidian import (
+from ifds.phases.phase5_mms import (
     _classify_regime,
     _compute_aggregate_iv,
     _compute_dex,
@@ -53,7 +53,7 @@ from ifds.phases.phase5_obsidian import (
     _mean,
     _std,
     _z_score,
-    run_obsidian_analysis,
+    run_mms_analysis,
 )
 
 
@@ -76,7 +76,7 @@ def logger(tmp_path):
 
 @pytest.fixture
 def store(tmp_path):
-    return ObsidianStore(store_dir=str(tmp_path / "obsidian"), max_entries=100)
+    return MMSStore(store_dir=str(tmp_path / "mms"), max_entries=100)
 
 
 def _make_bars(n=100, base_price=100.0, volume=1_000_000):
@@ -295,13 +295,13 @@ class TestClassifyRegime:
 
     def _default_core(self):
         return {
-            "obsidian_z_gex_threshold": 1.5,
-            "obsidian_z_dex_threshold": 1.0,
-            "obsidian_z_block_threshold": 1.0,
-            "obsidian_dark_share_dd": 0.70,
-            "obsidian_dark_share_abs": 0.50,
-            "obsidian_return_abs": -0.005,
-            "obsidian_return_dist": 0.005,
+            "mms_z_gex_threshold": 1.5,
+            "mms_z_dex_threshold": 1.0,
+            "mms_z_block_threshold": 1.0,
+            "mms_dark_share_dd": 0.70,
+            "mms_dark_share_abs": 0.50,
+            "mms_return_abs": -0.005,
+            "mms_return_dist": 0.005,
         }
 
     def test_gamma_positive(self):
@@ -385,13 +385,13 @@ class TestPriorityOrdering:
 
     def _default_core(self):
         return {
-            "obsidian_z_gex_threshold": 1.5,
-            "obsidian_z_dex_threshold": 1.0,
-            "obsidian_z_block_threshold": 1.0,
-            "obsidian_dark_share_dd": 0.70,
-            "obsidian_dark_share_abs": 0.50,
-            "obsidian_return_abs": -0.005,
-            "obsidian_return_dist": 0.005,
+            "mms_z_gex_threshold": 1.5,
+            "mms_z_dex_threshold": 1.0,
+            "mms_z_block_threshold": 1.0,
+            "mms_dark_share_dd": 0.70,
+            "mms_dark_share_abs": 0.50,
+            "mms_return_abs": -0.005,
+            "mms_return_dist": 0.005,
         }
 
     def test_gamma_positive_beats_dark_dominant(self):
@@ -441,10 +441,10 @@ class TestUnusualnessScore:
 
 
 # ============================================================================
-# TestObsidianStore
+# TestMMSStore
 # ============================================================================
 
-class TestObsidianStore:
+class TestMMSStore:
     def test_load_empty(self, store):
         entries = store.load("NONEXISTENT")
         assert entries == []
@@ -457,7 +457,7 @@ class TestObsidianStore:
         assert loaded[0]["dark_share"] == 0.42
 
     def test_max_entries_trim(self, tmp_path):
-        small_store = ObsidianStore(store_dir=str(tmp_path / "obs"), max_entries=5)
+        small_store = MMSStore(store_dir=str(tmp_path / "obs"), max_entries=5)
         for i in range(10):
             entry = {"date": f"2026-01-{i+1:02d}", "gex": i * 1000}
             small_store.append_and_save("TSLA", entry)
@@ -493,7 +493,7 @@ class TestObsidianStore:
 class TestRegimeMultiplier:
     def test_all_regime_multipliers(self):
         tuning = {
-            "obsidian_regime_multipliers": {
+            "mms_regime_multipliers": {
                 "gamma_positive": 1.5,
                 "gamma_negative": 0.25,
                 "dark_dominant": 1.25,
@@ -517,21 +517,21 @@ class TestRegimeMultiplier:
 
 
 # ============================================================================
-# TestRunObsidianAnalysis
+# TestRunMMSAnalysis
 # ============================================================================
 
-class TestRunObsidianAnalysis:
+class TestRunMMSAnalysis:
     def test_full_analysis_cold_start(self, config, store):
         """Day 1: no history → UND regime."""
         bars = _make_bars(100)
         options = _make_options(20)
         stock = _make_stock()
 
-        result = run_obsidian_analysis(
+        result = run_mms_analysis(
             config.core, config.tuning,
             "AAPL", bars, options, stock, {"net_gex": 500000}, store,
         )
-        assert isinstance(result, ObsidianAnalysis)
+        assert isinstance(result, MMSAnalysis)
         assert result.ticker == "AAPL"
         # First run with no history → UND or NEU depending on bar-based z-scores
         assert result.mm_regime in (MMRegime.UNDETERMINED, MMRegime.NEUTRAL)
@@ -541,7 +541,7 @@ class TestRunObsidianAnalysis:
     def test_full_analysis_no_bars(self, config, store):
         """No bars → UND with EMPTY baseline."""
         stock = _make_stock()
-        result = run_obsidian_analysis(
+        result = run_mms_analysis(
             config.core, config.tuning,
             "AAPL", None, None, stock, None, store,
         )
@@ -552,7 +552,7 @@ class TestRunObsidianAnalysis:
         """Feature store should have 1 entry after first analysis."""
         bars = _make_bars(100)
         stock = _make_stock()
-        run_obsidian_analysis(
+        run_mms_analysis(
             config.core, config.tuning,
             "AAPL", bars, None, stock, None, store,
         )
@@ -568,8 +568,8 @@ class TestRunObsidianAnalysis:
 # ============================================================================
 
 class TestPhase5Integration:
-    def test_obsidian_disabled_no_polygon(self, config, logger):
-        """When obsidian disabled and no polygon → no obsidian analyses."""
+    def test_mms_disabled_no_polygon(self, config, logger):
+        """When MMS disabled and no polygon → no MMS analyses."""
         from ifds.phases.phase5_gex import run_phase5
 
         mock_gex = MagicMock()
@@ -579,22 +579,22 @@ class TestPhase5Integration:
         }
 
         stocks = [_make_stock("AAPL")]
-        # obsidian_enabled=False, obsidian_store_always_collect=False → no OBSIDIAN
-        config.tuning["obsidian_enabled"] = False
-        config.tuning["obsidian_store_always_collect"] = False
+        # mms_enabled=False, mms_store_always_collect=False → no MMS
+        config.tuning["mms_enabled"] = False
+        config.tuning["mms_store_always_collect"] = False
 
         result = run_phase5(config, logger, mock_gex, stocks, StrategyMode.LONG,
                             polygon=None)
-        assert result.obsidian_analyses == []
-        assert result.obsidian_enabled is False
+        assert result.mms_analyses == []
+        assert result.mms_enabled is False
 
-    def test_obsidian_always_collect_stores_data(self, config, logger, tmp_path):
+    def test_mms_always_collect_stores_data(self, config, logger, tmp_path):
         """When always_collect=True, store gets populated even if disabled."""
         from ifds.phases.phase5_gex import run_phase5
 
-        config.tuning["obsidian_enabled"] = False
-        config.tuning["obsidian_store_always_collect"] = True
-        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
+        config.tuning["mms_enabled"] = False
+        config.tuning["mms_store_always_collect"] = True
+        config.runtime["mms_store_dir"] = str(tmp_path / "mms")
 
         mock_gex = MagicMock()
         mock_gex.get_gex.return_value = {
@@ -609,20 +609,20 @@ class TestPhase5Integration:
         stocks = [_make_stock("AAPL")]
         result = run_phase5(config, logger, mock_gex, stocks, StrategyMode.LONG,
                             polygon=mock_polygon)
-        assert len(result.obsidian_analyses) == 1
-        assert result.obsidian_enabled is False
+        assert len(result.mms_analyses) == 1
+        assert result.mms_enabled is False
         # Store should have data
-        store = ObsidianStore(store_dir=str(tmp_path / "obsidian"))
+        store = MMSStore(store_dir=str(tmp_path / "mms"))
         entries = store.load("AAPL")
         assert len(entries) == 1
 
-    def test_obsidian_enabled_overrides_multiplier(self, config, logger, tmp_path):
-        """When enabled, obsidian overrides gex_multiplier."""
+    def test_mms_enabled_overrides_multiplier(self, config, logger, tmp_path):
+        """When enabled, MMS overrides gex_multiplier."""
         from ifds.phases.phase5_gex import run_phase5
 
-        config.tuning["obsidian_enabled"] = True
-        config.tuning["obsidian_store_always_collect"] = True
-        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
+        config.tuning["mms_enabled"] = True
+        config.tuning["mms_store_always_collect"] = True
+        config.runtime["mms_store_dir"] = str(tmp_path / "mms")
 
         mock_gex = MagicMock()
         mock_gex.get_gex.return_value = {
@@ -637,19 +637,19 @@ class TestPhase5Integration:
         stocks = [_make_stock("AAPL")]
         result = run_phase5(config, logger, mock_gex, stocks, StrategyMode.LONG,
                             polygon=mock_polygon)
-        assert result.obsidian_enabled is True
-        assert len(result.obsidian_analyses) == 1
-        # The gex_multiplier on the passed GEXAnalysis should reflect OBSIDIAN
+        assert result.mms_enabled is True
+        assert len(result.mms_analyses) == 1
+        # The gex_multiplier on the passed GEXAnalysis should reflect MMS
         gex = result.passed[0]
-        obs = result.obsidian_analyses[0]
+        obs = result.mms_analyses[0]
         assert gex.gex_multiplier == obs.regime_multiplier
 
-    def test_obsidian_gex_data_preserved(self, config, logger, tmp_path):
-        """OBSIDIAN carries GEX structural data (call_wall etc.)."""
+    def test_mms_gex_data_preserved(self, config, logger, tmp_path):
+        """MMS carries GEX structural data (call_wall etc.)."""
         from ifds.phases.phase5_gex import run_phase5
 
-        config.tuning["obsidian_enabled"] = True
-        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
+        config.tuning["mms_enabled"] = True
+        config.runtime["mms_store_dir"] = str(tmp_path / "mms")
 
         mock_gex = MagicMock()
         mock_gex.get_gex.return_value = {
@@ -664,7 +664,7 @@ class TestPhase5Integration:
         stocks = [_make_stock("AAPL")]
         result = run_phase5(config, logger, mock_gex, stocks, StrategyMode.LONG,
                             polygon=mock_polygon)
-        obs = result.obsidian_analyses[0]
+        obs = result.mms_analyses[0]
         assert obs.call_wall == 160.0
         assert obs.put_wall == 140.0
         assert obs.net_gex == 500000
@@ -677,7 +677,7 @@ class TestPhase5Integration:
 
 class TestPhase6Integration:
     def test_mm_regime_on_position_sizing(self, config, logger):
-        """PositionSizing includes mm_regime from OBSIDIAN."""
+        """PositionSizing includes mm_regime from MMS."""
         from ifds.phases.phase6_sizing import _calculate_position
 
         stock = _make_stock("AAPL", price=150.0)
@@ -691,8 +691,8 @@ class TestPhase6Integration:
             vix_multiplier=1.0, tnx_value=4.0, tnx_sma20=3.9,
             tnx_rate_sensitive=False,
         )
-        obsidian_map = {
-            "AAPL": ObsidianAnalysis(
+        mms_map = {
+            "AAPL": MMSAnalysis(
                 ticker="AAPL",
                 mm_regime=MMRegime.DARK_DOMINANT,
                 unusualness_score=75.5,
@@ -701,14 +701,14 @@ class TestPhase6Integration:
 
         pos = _calculate_position(
             stock, gex, macro, config, StrategyMode.LONG,
-            obsidian_map=obsidian_map,
+            mms_map=mms_map,
         )
         assert pos is not None
         assert pos.mm_regime == "dark_dominant"
         assert pos.unusualness_score == 75.5
 
-    def test_no_obsidian_empty_fields(self, config, logger):
-        """Without obsidian, mm_regime is empty string."""
+    def test_no_mms_empty_fields(self, config, logger):
+        """Without MMS, mm_regime is empty string."""
         from ifds.phases.phase6_sizing import _calculate_position
 
         stock = _make_stock("AAPL", price=150.0)
@@ -777,12 +777,12 @@ class TestHelperFunctions:
 
 
 # ============================================================================
-# TestObsidianAnalysisDataclass
+# TestMMSAnalysisDataclass
 # ============================================================================
 
-class TestObsidianAnalysisDataclass:
+class TestMMSAnalysisDataclass:
     def test_default_values(self):
-        obs = ObsidianAnalysis(ticker="AAPL")
+        obs = MMSAnalysis(ticker="AAPL")
         assert obs.mm_regime == MMRegime.UNDETERMINED
         assert obs.unusualness_score == 0.0
         assert obs.regime_multiplier == 0.75
@@ -790,27 +790,27 @@ class TestObsidianAnalysisDataclass:
         assert obs.excluded is False
         assert obs.gex_regime == GEXRegime.POSITIVE
 
-    def test_phase5_result_obsidian_fields(self):
+    def test_phase5_result_mms_fields(self):
         result = Phase5Result()
-        assert result.obsidian_analyses == []
-        assert result.obsidian_enabled is False
+        assert result.mms_analyses == []
+        assert result.mms_enabled is False
 
 
 # ============================================================================
-# TestPhase5AsyncOBSIDIAN
+# TestPhase5AsyncMMS
 # ============================================================================
 
-class TestPhase5AsyncOBSIDIAN:
-    """Test the async Phase 5 path with OBSIDIAN enabled."""
+class TestPhase5AsyncMMS:
+    """Test the async Phase 5 path with MMS enabled."""
 
     @pytest.mark.asyncio
-    async def test_async_obsidian_fetches_bars_and_options(self, config, logger, tmp_path):
-        """Async path fetches bars+options and runs OBSIDIAN analysis."""
+    async def test_async_mms_fetches_bars_and_options(self, config, logger, tmp_path):
+        """Async path fetches bars+options and runs MMS analysis."""
         from ifds.phases.phase5_gex import _run_phase5_async
 
-        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
-        config.tuning["obsidian_enabled"] = False
-        config.tuning["obsidian_store_always_collect"] = True
+        config.runtime["mms_store_dir"] = str(tmp_path / "mms")
+        config.tuning["mms_enabled"] = False
+        config.tuning["mms_store_always_collect"] = True
 
         stocks = [_make_stock("AAPL")]
 
@@ -825,23 +825,23 @@ class TestPhase5AsyncOBSIDIAN:
 
             result = await _run_phase5_async(
                 config, logger, stocks, StrategyMode.LONG,
-                run_obsidian=True,
+                run_mms=True,
             )
 
-            assert len(result.obsidian_analyses) == 1
-            assert result.obsidian_analyses[0].ticker == "AAPL"
+            assert len(result.mms_analyses) == 1
+            assert result.mms_analyses[0].ticker == "AAPL"
             # Store should have been populated
-            store = ObsidianStore(store_dir=str(tmp_path / "obsidian"))
+            store = MMSStore(store_dir=str(tmp_path / "mms"))
             entries = store.load("AAPL")
             assert len(entries) == 1
 
     @pytest.mark.asyncio
-    async def test_async_obsidian_carries_gex_data(self, config, logger, tmp_path):
-        """Async OBSIDIAN carries GEX structural data (call_wall, put_wall, etc.)."""
+    async def test_async_mms_carries_gex_data(self, config, logger, tmp_path):
+        """Async MMS carries GEX structural data (call_wall, put_wall, etc.)."""
         from ifds.phases.phase5_gex import _run_phase5_async
 
-        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
-        config.tuning["obsidian_enabled"] = True
+        config.runtime["mms_store_dir"] = str(tmp_path / "mms")
+        config.tuning["mms_enabled"] = True
 
         stocks = [_make_stock("AAPL")]
 
@@ -866,19 +866,19 @@ class TestPhase5AsyncOBSIDIAN:
 
             result = await _run_phase5_async(
                 config, logger, stocks, StrategyMode.LONG,
-                run_obsidian=True,
+                run_mms=True,
             )
 
-            assert len(result.obsidian_analyses) == 1
-            obs = result.obsidian_analyses[0]
+            assert len(result.mms_analyses) == 1
+            obs = result.mms_analyses[0]
             assert obs.call_wall == 160.0
             assert obs.put_wall == 140.0
             assert obs.net_gex == 500000
             assert obs.data_source == "polygon_calculated"
 
     @pytest.mark.asyncio
-    async def test_async_obsidian_disabled_no_fetch(self, config, logger):
-        """When run_obsidian=False, no bars/options fetch happens."""
+    async def test_async_mms_disabled_no_fetch(self, config, logger):
+        """When run_mms=False, no bars/options fetch happens."""
         from ifds.phases.phase5_gex import _run_phase5_async
 
         stocks = [_make_stock("AAPL")]
@@ -894,20 +894,20 @@ class TestPhase5AsyncOBSIDIAN:
 
             result = await _run_phase5_async(
                 config, logger, stocks, StrategyMode.LONG,
-                run_obsidian=False,
+                run_mms=False,
             )
 
-            assert result.obsidian_analyses == []
-            # get_aggregates should NOT have been called (only for OBSIDIAN)
+            assert result.mms_analyses == []
+            # get_aggregates should NOT have been called (only for MMS)
             mock_poly.get_aggregates.assert_not_awaited()
 
     @pytest.mark.asyncio
-    async def test_async_obsidian_data_fetch_failure_graceful(self, config, logger, tmp_path):
-        """OBSIDIAN data fetch failure doesn't break GEX analysis."""
+    async def test_async_mms_data_fetch_failure_graceful(self, config, logger, tmp_path):
+        """MMS data fetch failure doesn't break GEX analysis."""
         from ifds.phases.phase5_gex import _run_phase5_async
 
-        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
-        config.tuning["obsidian_enabled"] = True
+        config.runtime["mms_store_dir"] = str(tmp_path / "mms")
+        config.tuning["mms_enabled"] = True
 
         stocks = [_make_stock("AAPL")]
 
@@ -923,21 +923,21 @@ class TestPhase5AsyncOBSIDIAN:
 
             result = await _run_phase5_async(
                 config, logger, stocks, StrategyMode.LONG,
-                run_obsidian=True,
+                run_mms=True,
             )
 
             # GEX still works
             assert len(result.passed) == 1
-            # OBSIDIAN gracefully skipped (data fetch failed)
-            assert result.obsidian_analyses == []
+            # MMS gracefully skipped (data fetch failed)
+            assert result.mms_analyses == []
 
     @pytest.mark.asyncio
-    async def test_async_obsidian_overrides_multiplier_when_enabled(self, config, logger, tmp_path):
-        """When obsidian_enabled=True, async path overrides gex_multiplier."""
+    async def test_async_mms_overrides_multiplier_when_enabled(self, config, logger, tmp_path):
+        """When mms_enabled=True, async path overrides gex_multiplier."""
         from ifds.phases.phase5_gex import _run_phase5_async
 
-        config.runtime["obsidian_store_dir"] = str(tmp_path / "obsidian")
-        config.tuning["obsidian_enabled"] = True
+        config.runtime["mms_store_dir"] = str(tmp_path / "mms")
+        config.tuning["mms_enabled"] = True
 
         stocks = [_make_stock("AAPL")]
 
@@ -952,12 +952,12 @@ class TestPhase5AsyncOBSIDIAN:
 
             result = await _run_phase5_async(
                 config, logger, stocks, StrategyMode.LONG,
-                run_obsidian=True,
+                run_mms=True,
             )
 
-            assert result.obsidian_enabled is True
-            assert len(result.obsidian_analyses) == 1
-            obs = result.obsidian_analyses[0]
+            assert result.mms_enabled is True
+            assert len(result.mms_analyses) == 1
+            obs = result.mms_analyses[0]
             gex = result.passed[0]
-            # Multiplier should reflect OBSIDIAN regime
+            # Multiplier should reflect MMS regime
             assert gex.gex_multiplier == obs.regime_multiplier

@@ -37,16 +37,16 @@ Csak fejlesztői módosítás. A matematikai képletek fix paraméterei.
 | `breadth_sma_periods` | [20, 50, 200] | P3 | SMA periódusok breadth számításhoz (BC14) | Nincs | V2 újdonság |
 | `breadth_lookback_calendar_days` | 330 | P1 | Lookback Phase 1-ben ha breadth enabled (~220 trading day) (BC14) | Nincs | V2 újdonság |
 | `breadth_composite_weights` | (0.20, 0.50, 0.30) | P3 | SMA20/50/200 súlyok a breadth score-ban (BC14) | Nincs | V2 újdonság |
-| `obsidian_window` | 63 | P5 | Rolling baseline ablak (trading days) (BC15) | Nincs | V2 újdonság |
-| `obsidian_min_periods` | 21 | P5 | Min observations z-score validity-hez (BC15) | Nincs | V2 újdonság |
-| `obsidian_feature_weights` | {dark_share: 0.25, gex: 0.25, venue_mix: 0.20, block: 0.15, iv: 0.15} | P5 | Diagnostic feature súlyok (NOT tunable) (BC15) | Nincs | V2 újdonság |
-| `obsidian_z_gex_threshold` | 1.5 | P5 | ±1.5 z-score Γ⁺/Γ⁻ klasszifikációhoz (~93rd pctile) (BC15) | Nincs | V2 újdonság |
-| `obsidian_z_dex_threshold` | 1.0 | P5 | ±1.0 z-score ABS/DIST klasszifikációhoz (~84th pctile) (BC15) | Nincs | V2 újdonság |
-| `obsidian_z_block_threshold` | 1.0 | P5 | +1.0 z-score DD klasszifikációhoz (BC15) | Nincs | V2 újdonság |
-| `obsidian_dark_share_dd` | 0.70 | P5 | DarkShare abszolút küszöb DD rule-hoz (BC15) | Nincs | V2 újdonság |
-| `obsidian_dark_share_abs` | 0.50 | P5 | DarkShare abszolút küszöb ABS rule-hoz (BC15) | Nincs | V2 újdonság |
-| `obsidian_return_abs` | -0.005 | P5 | Daily return küszöb ABS-hoz (≥ -0.5%) (BC15) | Nincs | V2 újdonság |
-| `obsidian_return_dist` | 0.005 | P5 | Daily return küszöb DIST-hoz (≤ +0.5%) (BC15) | Nincs | V2 újdonság |
+| `mms_window` | 63 | P5 | Rolling baseline ablak (trading days) (BC15) | Nincs | V2 újdonság |
+| `mms_min_periods` | 21 | P5 | Min observations z-score validity-hez (BC15) | Nincs | V2 újdonság |
+| `mms_feature_weights` | {dark_share: 0.25, gex: 0.25, venue_mix: 0.20, block: 0.15, iv: 0.15} | P5 | Diagnostic feature súlyok (NOT tunable) (BC15) | Nincs | V2 újdonság |
+| `mms_z_gex_threshold` | 1.5 | P5 | ±1.5 z-score Γ⁺/Γ⁻ klasszifikációhoz (~93rd pctile) (BC15) | Nincs | V2 újdonság |
+| `mms_z_dex_threshold` | 1.0 | P5 | ±1.0 z-score ABS/DIST klasszifikációhoz (~84th pctile) (BC15) | Nincs | V2 újdonság |
+| `mms_z_block_threshold` | 1.0 | P5 | +1.0 z-score DD klasszifikációhoz (BC15) | Nincs | V2 újdonság |
+| `mms_dark_share_dd` | 0.70 | P5 | DarkShare abszolút küszöb DD rule-hoz (BC15) | Nincs | V2 újdonság |
+| `mms_dark_share_abs` | 0.50 | P5 | DarkShare abszolút küszöb ABS rule-hoz (BC15) | Nincs | V2 újdonság |
+| `mms_return_abs` | -0.005 | P5 | Daily return küszöb ABS-hoz (≥ -0.5%) (BC15) | Nincs | V2 újdonság |
+| `mms_return_dist` | 0.005 | P5 | Daily return küszöb DIST-hoz (≤ +0.5%) (BC15) | Nincs | V2 újdonság |
 | `factor_volatility_window` | 20 | P5 | Rolling σ ablak faktor volatilitáshoz (BC16) | Nincs | V2 újdonság |
 
 ---
@@ -255,13 +255,13 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | `breadth_divergence_breadth_threshold` | 5.0 | P3 | SMA50 breadth momentum pont küszöb | Nincs | V2 újdonság |
 | `breadth_min_constituents` | 10 | P3 | Min holdings a breadth számításhoz | Nincs | V2 újdonság |
 
-### OBSIDIAN MM (BC15+BC16)
+### MMS — Market Microstructure Scorer (BC15+BC16)
 
 | Kulcs | Érték | Phase | Hatás | V13 | Eltérés? |
 |-------|-------|-------|-------|-----|----------|
-| `obsidian_enabled` | False | P5 | OBSIDIAN klasszifikáció be/ki | Nincs | V2 újdonság |
-| `obsidian_store_always_collect` | True | P5 | Feature store akkumuláció enabled/disabled-tól függetlenül | Nincs | V2 újdonság |
-| `obsidian_regime_multipliers` | {VOLATILE: 0.6, Γ⁺: 1.5, Γ⁻: 0.25, DD: 1.25, ABS: 1.0, DIST: 0.5, NEU: 1.0, UND: 0.75} | P6 | Per-regime position sizing multiplier (8 regime — BC16) | Nincs | V2 újdonság |
+| `mms_enabled` | False | P5 | MMS klasszifikáció be/ki | Nincs | V2 újdonság |
+| `mms_store_always_collect` | True | P5 | Feature store akkumuláció enabled/disabled-tól függetlenül | Nincs | V2 újdonság |
+| `mms_regime_multipliers` | {VOLATILE: 0.6, Γ⁺: 1.5, Γ⁻: 0.25, DD: 1.25, ABS: 1.0, DIST: 0.5, NEU: 1.0, UND: 0.75} | P6 | Per-regime position sizing multiplier (8 regime — BC16) | Nincs | V2 újdonság |
 | `factor_volatility_enabled` | False | P5 | Factor volatility framework be/ki (BC16) | Nincs | V2 újdonság |
 | `factor_volatility_confidence_floor` | 0.6 | P5 | Min regime confidence — multiplier floor (BC16) | Nincs | V2 újdonság |
 
@@ -447,12 +447,12 @@ Per-futtatás beállítások, .env-ből / config fájlból betöltve.
 | `max_position_notional` | 25,000 | `global_guard.max_order_value: 1500` | ⚠️ **V13=$1.5K, V2=$25K** |
 | `daily_notional_file` | state/daily_notional.json | Nincs | State file (midnight reset) |
 
-### OBSIDIAN Feature Store (BC15)
+### MMS Feature Store (BC15)
 
 | Kulcs | Érték | V13 | Megjegyzés |
 |-------|-------|-----|------------|
-| `obsidian_store_dir` | state/obsidian | Nincs | Per-ticker JSON feature history mappa |
-| `obsidian_max_store_entries` | 100 | Nincs | Max napi entry per ticker (trim oldest) |
+| `mms_store_dir` | state/mms | Nincs | Per-ticker JSON feature history mappa |
+| `mms_max_store_entries` | 100 | Nincs | Max napi entry per ticker (trim oldest) |
 
 ### Phase 4 Snapshot (BC19)
 

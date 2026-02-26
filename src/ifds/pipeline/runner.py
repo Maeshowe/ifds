@@ -378,17 +378,17 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
 
                 try:
                     strategy = ctx.strategy_mode or StrategyMode.LONG
-                    # Pass polygon5 for OBSIDIAN (BC15) — cached bars/options
-                    obsidian_on = config.tuning.get("obsidian_enabled", False)
-                    always_collect = config.tuning.get("obsidian_store_always_collect", True)
-                    pass_polygon = polygon5 if (obsidian_on or always_collect) else None
+                    # Pass polygon5 for MMS (BC15) — cached bars/options
+                    mms_on = config.tuning.get("mms_enabled", False)
+                    always_collect = config.tuning.get("mms_store_always_collect", True)
+                    pass_polygon = polygon5 if (mms_on or always_collect) else None
                     phase5 = run_phase5(
                         config, logger, gex_provider, ctx.stock_analyses, strategy,
                         polygon=pass_polygon,
                     )
                     ctx.phase5 = phase5
                     ctx.gex_analyses = phase5.passed
-                    ctx.obsidian_analyses = phase5.obsidian_analyses
+                    ctx.mms_analyses = phase5.mms_analyses
                     print_gex_summary(phase5)
                 finally:
                     polygon5.close()
@@ -417,7 +417,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     signal_history_path=config.runtime["signal_history_file"],
                     sector_scores=ctx.sector_scores,
                     signal_hash_file=config.runtime.get("signal_hash_file"),
-                    obsidian_analyses=ctx.obsidian_analyses,
+                    mms_analyses=ctx.mms_analyses,
                 )
                 ctx.phase6 = phase6
                 ctx.positions = phase6.positions
