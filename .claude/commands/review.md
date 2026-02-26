@@ -1,41 +1,17 @@
-Te most a CONDUCTOR Code Reviewer vagy. Feladatod: az elkészült munkát a brief és a build terv alapján ellenőrizni.
+Code review — kód vizsgálat és értékelés.
 
-Olvasd el az agent definíciót:
-```bash
-cat .conductor/agents/code-review.md
-```
+## 1. Scope meghatározása
+Ha a `$ARGUMENTS` tartalmaz fájl/modul nevet → azt reviewzd.
+Ha a `$ARGUMENTS` üres → kérdezd meg: "Mit vizsgáljak?"
 
-## Mit vizsgáljunk?
+## 2. Kód vizsgálat
+Az érintett fájlokra:
+- **Helyesség:** Azt csinálja amit kell?
+- **Minták:** Követi a meglévő kód konvenciókat?
+- **Tesztek:** Vannak tesztek az új/változott kódhoz?
+- **Edge case-ek:** Kezeli a nyilvánvaló szélső eseteket?
 
-Ha a `$ARGUMENTS` tartalmaz plan ID-t, azt a build terv outputját vizsgáld.
-Ha a `$ARGUMENTS` üres, keresd a nemrég befejezett terveket:
-
-```bash
-python -m conductor build list --status completed
-```
-
-Kérdezd meg: "Melyik buildet vizsgáljam?"
-
-## Review folyamat
-
-### 1. Kontextus betöltés
-```bash
-python -m conductor build get --id <PLAN_ID>
-```
-Töltsd be a build tervet ÉS a linkelt briefet, hogy megértsd mit kértek vs. mit építettek.
-
-### 2. Kód vizsgálat
-Minden fájlra a `files_to_create` és `files_to_modify` listából:
-- Olvasd el a fájlt
-- Ellenőrizd a brief `scope_essential` elemei alapján
-- Ellenőrizd az acceptance criteria alapján
-- Nézd meg:
-  - **Helyesség:** Azt csinálja amit a brief kért?
-  - **Minták:** Követi a meglévő kód konvenciókat?
-  - **Tesztek:** Vannak tesztek az új/változott kódhoz?
-  - **Edge case-ek:** Kezeli a nyilvánvaló szélső eseteket?
-
-### 3. Eredmények bemutatása
+## 3. Eredmények bemutatása
 Minden találatot kategorizálj:
 - **CRITICAL:** Bugok, hiányzó kötelező funkció, biztonsági problémák
 - **WARNING:** Hiányzó tesztek, inkonzisztens minták, potenciális problémák
@@ -44,27 +20,13 @@ Minden találatot kategorizálj:
 Mutasd be táblázatban:
 | # | Súlyosság | Fájl | Találat | Javaslat |
 |---|-----------|------|---------|----------|
-| 1 | CRITICAL  | path/to/file.py | ... | ... |
-| 2 | WARNING   | path/to/file.py | ... | ... |
+| 1 | CRITICAL  | ... | ... | ... |
 
-### 4. Verdikt
-A találatok alapján:
+## 4. Verdikt
 - **APPROVED** — Nincs kritikus probléma, a warning-ok elfogadhatók
 - **CHANGES_REQUESTED** — Kritikus problémák vagy túl sok warning
-- **REJECTED** — Alapvető problémák, nem felel meg a briefnek
+- **REJECTED** — Alapvető problémák
 
-Kérdezd meg: "Ez a review eredmény. Egyetértesz? Mentsem?"
-
-### 5. Mentés
-```bash
-python -m conductor review create --plan-id <PLAN_ID> --brief-id <BRIEF_ID> --type code --data '{"scope": "...", "findings": [{"severity": "...", "file": "...", "finding": "...", "suggestion": "..."}], "verdict": "...", "summary": "..."}'
-```
-
-Ha a verdikt **approved**:
-```bash
-python -m conductor analyze-idea status --id <BRIEF_ID> --set completed
-```
-Mondd: "A brief lezárva! A munka jóváhagyva."
-
-Ha a verdikt **changes_requested**:
-Mondd el pontosan mit kell javítani, és javasold a `/build execute` újrafuttatását.
+## 5. Mentés
+Ha CHANGES_REQUESTED vagy CRITICAL találat van →
+írj task fájlt: `docs/tasks/YYYY-MM-DD-review-findings.md` (táblázat + verdikt).

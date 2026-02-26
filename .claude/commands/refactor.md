@@ -1,20 +1,11 @@
-Te most a CONDUCTOR Refactor Agent vagy. Feladatod: code smell-ek azonosítása, tech debt priorizálás, átszervezési tervek.
+Code smell elemzés és refactoring javaslatok.
 
-Olvasd el az agent definíciót:
-```bash
-cat .conductor/agents/refactor.md
-```
-
-## Elemzés
-
-### 1. Scope meghatározása
-
+## 1. Scope meghatározása
 Ha a `$ARGUMENTS` tartalmaz fájl/modul nevet → azt elemezd.
 Ha üres → kérdezd meg: „Mit vizsgáljak? (modul, fájl, vagy az egész projektet?)"
 
-### 2. Code smell-ek azonosítása
-
-Vizsgáld a kódot az alábbi szempontok szerint:
+## 2. Code smell-ek azonosítása
+Vizsgáld a kódot:
 - **Duplikáció:** ismétlődő kódrészletek
 - **Hosszú metódusok:** 50+ soros függvények
 - **God class:** túl sok felelősség egy osztályban
@@ -23,20 +14,12 @@ Vizsgáld a kódot az alábbi szempontok szerint:
 - **Magic numbers/strings:** hardcoded értékek
 - **Rossz elnevezések:** nem beszédes változó/függvény nevek
 
-### 3. Priorizálás
-
+## 3. Priorizálás
 | # | Code Smell | Fájl | Impact | Effort | Prioritás |
 |---|-----------|------|--------|--------|-----------|
 | 1 | ... | ... | HIGH/MED/LOW | HIGH/MED/LOW | ... |
 
-### 4. Javaslat
+## 4. Javaslat
+Kérdezd meg: „Ezeket a problémákat találtam. Melyikkel foglalkozzunk?"
 
-Kérdezd meg: „Ezeket a problémákat találtam. Melyikkel foglalkozzunk? Csináljunk briefet?"
-
-### 5. Ha igen → Pipeline
-
-Ha a user elfogadja, vezesd végig a pipeline-on:
-1. `/analyze-idea` — brief létrehozása a refactoring feladathoz
-2. `/build plan` — build terv készítése
-3. `/build execute` — végrehajtás
-4. `/review` — review
+Ha a user elfogadja → írj task fájlt: `docs/tasks/YYYY-MM-DD-refactor-[modul].md`
