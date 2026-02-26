@@ -125,6 +125,43 @@ def _compute_aggregate_iv(options_data: list[dict], current_price: float) -> flo
     return sum(atm_ivs) / len(atm_ivs) if atm_ivs else 0.0
 
 
+def _compute_iv_skew(options_data: list[dict], current_price: float,
+                     atm_band: float = 0.05) -> float:
+    """ATM IV Skew = mean(put IV) - mean(call IV) for ATM-ish options.
+
+    ATM band: within atm_band (default 5%) of current_price.
+    Positive → puts more expensive (fear/hedge demand).
+    Negative → calls more expensive (greed/speculation).
+    Returns 0.0 if insufficient ATM options.
+    """
+    if not options_data or current_price <= 0:
+        return 0.0
+
+    low = current_price * (1 - atm_band)
+    high = current_price * (1 + atm_band)
+
+    put_ivs: list[float] = []
+    call_ivs: list[float] = []
+    for opt in options_data:
+        details = opt.get("details", {})
+        strike = details.get("strike_price", 0)
+        if not (low <= strike <= high):
+            continue
+        iv = opt.get("implied_volatility")
+        if iv is None or iv <= 0:
+            continue
+        ctype = details.get("contract_type", "").lower()
+        if ctype == "put":
+            put_ivs.append(iv)
+        elif ctype == "call":
+            call_ivs.append(iv)
+
+    if not put_ivs or not call_ivs:
+        return 0.0
+
+    return sum(put_ivs) / len(put_ivs) - sum(call_ivs) / len(call_ivs)
+
+
 # ============================================================================
 # Z-Score Computation
 # ============================================================================
@@ -172,7 +209,8 @@ def _compute_z_scores(today_features: dict, historical_entries: list[dict],
     )
 
     # Microstructure z-scores from store
-    store_features = ["dark_share", "gex", "dex", "block_count", "iv_rank", "venue_entropy"]
+    store_features = ["dark_share", "gex", "dex", "block_count", "iv_rank",
+                      "venue_entropy", "iv_skew"]
     for feat in store_features:
         series = [e.get(feat) for e in historical_entries if e.get(feat) is not None]
         series = [float(v) for v in series]
@@ -415,7 +453,7 @@ def _compute_unusualness(z_scores: dict, excluded_features: list[str],
     If no history, use linear mapping capped at 100.
     """
     # Scoring features (the weighted ones)
-    scoring_features = ["dark_share", "gex", "block_count", "iv_rank", "venue_entropy"]
+    scoring_features = ["dark_share", "gex", "block_count", "iv_rank", "venue_entropy", "iv_skew"]
 
     raw_score = 0.0
     for feat in scoring_features:
@@ -509,6 +547,7 @@ def run_mms_analysis(
     net_gex = gex_data.get("net_gex", 0.0) if gex_data else 0.0
 
     venue_entropy = stock.flow.venue_entropy if stock.flow else 0.0
+    iv_skew = _compute_iv_skew(options_data, current_price) if options_data else 0.0
 
     today_features = {
         "efficiency": bar_features.get("efficiency_today", 0.0),
@@ -519,6 +558,7 @@ def run_mms_analysis(
         "block_count": block_count,
         "iv_rank": iv_rank,
         "venue_entropy": venue_entropy,
+        "iv_skew": iv_skew,
     }
 
     # 2. Load history from store
@@ -555,7 +595,7 @@ def run_mms_analysis(
     # 6. Unusualness score
     historical_raw_scores = store.get_feature_series(historical, "raw_score")
     raw_score = 0.0
-    scoring_features = ["dark_share", "gex", "block_count", "iv_rank", "venue_entropy"]
+    scoring_features = ["dark_share", "gex", "block_count", "iv_rank", "venue_entropy", "iv_skew"]
     for feat in scoring_features:
         if feat in excluded_features:
             continue
@@ -600,6 +640,7 @@ def run_mms_analysis(
         "block_count": block_count,
         "iv_rank": iv_rank,
         "venue_entropy": venue_entropy,
+        "iv_skew": iv_skew,
         "efficiency": today_features["efficiency"],
         "impact": today_features["impact"],
         "daily_return": daily_return,

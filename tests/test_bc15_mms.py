@@ -44,6 +44,7 @@ from ifds.phases.phase5_mms import (
     _classify_regime,
     _compute_aggregate_iv,
     _compute_dex,
+    _compute_iv_skew,
     _compute_medians,
     _compute_unusualness,
     _compute_z_scores,
@@ -1013,3 +1014,142 @@ class TestVenueMix:
                          "AAPL", bars, None, stock, None, store)
         entries = store.load("AAPL")
         assert entries[0]["venue_entropy"] == 0.0
+
+
+# ============================================================================
+# TestIVSkew
+# ============================================================================
+
+class TestIVSkew:
+    """IV Skew (ATM put IV - call IV) feature tests."""
+
+    def test_iv_skew_puts_expensive(self):
+        """Puts more expensive → positive skew."""
+        options = [
+            {"details": {"strike_price": 150.0, "contract_type": "put"},
+             "implied_volatility": 0.35},
+            {"details": {"strike_price": 150.0, "contract_type": "call"},
+             "implied_volatility": 0.25},
+        ]
+        assert _compute_iv_skew(options, 150.0) == pytest.approx(0.10, abs=0.001)
+
+    def test_iv_skew_calls_expensive(self):
+        """Calls more expensive → negative skew."""
+        options = [
+            {"details": {"strike_price": 150.0, "contract_type": "put"},
+             "implied_volatility": 0.20},
+            {"details": {"strike_price": 150.0, "contract_type": "call"},
+             "implied_volatility": 0.30},
+        ]
+        assert _compute_iv_skew(options, 150.0) == pytest.approx(-0.10, abs=0.001)
+
+    def test_iv_skew_otm_filtered(self):
+        """OTM options excluded from ATM band."""
+        options = [
+            {"details": {"strike_price": 200.0, "contract_type": "put"},
+             "implied_volatility": 0.80},   # OTM — excluded
+            {"details": {"strike_price": 150.0, "contract_type": "put"},
+             "implied_volatility": 0.30},   # ATM
+            {"details": {"strike_price": 150.0, "contract_type": "call"},
+             "implied_volatility": 0.25},   # ATM
+        ]
+        assert _compute_iv_skew(options, 150.0) == pytest.approx(0.05, abs=0.001)
+
+    def test_iv_skew_empty(self):
+        """Empty or None options → 0.0."""
+        assert _compute_iv_skew([], 150.0) == 0.0
+        assert _compute_iv_skew(None, 150.0) == 0.0
+
+    def test_iv_skew_stored_in_entry(self, config, store):
+        """iv_skew is stored in MMS store entry."""
+        bars = _make_bars(100)
+        options = [
+            {"details": {"strike_price": 150.0, "contract_type": "put"},
+             "implied_volatility": 0.35},
+            {"details": {"strike_price": 150.0, "contract_type": "call"},
+             "implied_volatility": 0.25},
+        ]
+        stock = _make_stock(price=150.0)
+        run_mms_analysis(config.core, config.tuning,
+                         "AAPL", bars, options, stock, None, store)
+        entries = store.load("AAPL")
+        assert "iv_skew" in entries[0]
+        assert entries[0]["iv_skew"] == pytest.approx(0.10, abs=0.001)
+
+    def test_iv_skew_z_score_after_21_entries(self, config, store):
+        """iv_skew z-score computed after 21+ entries."""
+        bars = _make_bars(100)
+        stock = _make_stock(price=150.0)
+        for i in range(25):
+            store.append_and_save("AAPL", {
+                "date": f"2026-01-{i+1:02d}",
+                "dark_share": 0.3 + i * 0.01, "gex": 1000000.0 + i * 10000,
+                "dex": 50000.0 + i * 1000, "block_count": 5.0 + i,
+                "iv_rank": 0.30 + i * 0.005,
+                "venue_entropy": 1.0 + i * 0.02, "iv_skew": 0.05 + i * 0.002,
+                "efficiency": 1e-7, "impact": 5e-8,
+                "daily_return": 0.01, "raw_score": 0.0,
+            })
+        options = [
+            {"details": {"strike_price": 150.0, "contract_type": "put"},
+             "implied_volatility": 0.40},
+            {"details": {"strike_price": 150.0, "contract_type": "call"},
+             "implied_volatility": 0.25},
+        ]
+        result = run_mms_analysis(config.core, config.tuning,
+                                  "AAPL", bars, options, stock, None, store)
+        assert result.baseline_state in (BaselineState.PARTIAL, BaselineState.COMPLETE)
+
+
+# ============================================================================
+# TestZScoresWithNewFeatures
+# ============================================================================
+
+class TestZScoresWithNewFeatures:
+    """Tests for venue_entropy and iv_skew z-score computation."""
+
+    def test_z_scores_include_new_features(self):
+        """venue_entropy and iv_skew z-scores computed after 25 entries."""
+        bars = _make_bars(100)
+        bar_features = _extract_features_from_bars(bars, window=63)
+        history = []
+        for i in range(25):
+            history.append({
+                "date": f"2026-01-{i+1:02d}",
+                "dark_share": 0.3 + i * 0.01, "gex": 1000000 + i * 10000,
+                "dex": 50000.0, "block_count": 5.0, "iv_rank": 0.25,
+                "venue_entropy": 1.0 + i * 0.02, "iv_skew": 0.05 + i * 0.002,
+            })
+        today = {
+            "efficiency": bar_features["efficiency_today"],
+            "impact": bar_features["impact_today"],
+            "dark_share": 0.55, "gex": 1500000.0, "dex": 80000.0,
+            "block_count": 30.0, "iv_rank": 0.40,
+            "venue_entropy": 1.8, "iv_skew": 0.12,
+        }
+        z = _compute_z_scores(today, history, bar_features, min_periods=21)
+        assert z.get("venue_entropy") is not None
+        assert z.get("iv_skew") is not None
+
+    def test_z_scores_none_for_legacy_history(self):
+        """Legacy history without venue_entropy/iv_skew → z-score None."""
+        bars = _make_bars(100)
+        bar_features = _extract_features_from_bars(bars, window=63)
+        history = []
+        for i in range(25):
+            history.append({
+                "date": f"2026-01-{i+1:02d}",
+                "dark_share": 0.3 + i * 0.01, "gex": 1000000 + i * 10000,
+                "dex": 50000.0, "block_count": 5.0, "iv_rank": 0.25,
+                # No venue_entropy, no iv_skew — legacy entries
+            })
+        today = {
+            "efficiency": bar_features["efficiency_today"],
+            "impact": bar_features["impact_today"],
+            "dark_share": 0.55, "gex": 1500000.0, "dex": 80000.0,
+            "block_count": 30.0, "iv_rank": 0.40,
+            "venue_entropy": 1.8, "iv_skew": 0.12,
+        }
+        z = _compute_z_scores(today, history, bar_features, min_periods=21)
+        assert z.get("venue_entropy") is None   # 0 valid values in history
+        assert z.get("iv_skew") is None
