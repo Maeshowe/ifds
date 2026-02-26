@@ -322,6 +322,7 @@ class FlowAnalysis:
     block_trade_score: int = 0                    # +10 or +15
     vwap: float = 0.0                             # Volume-weighted average price
     buy_pressure_score: int = 0                   # buy pressure + VWAP signal
+    venue_entropy: float = 0.0                    # Shannon entropy of DP venue distribution
 
 
 @dataclass

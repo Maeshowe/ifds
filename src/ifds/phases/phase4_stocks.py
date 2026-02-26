@@ -628,6 +628,7 @@ def _analyze_flow_from_data(ticker: str, bars: list[dict],
         block_trade_score=block_trade_score,
         vwap=round(vwap, 4),
         buy_pressure_score=buy_pressure_score,
+        venue_entropy=dp_data.get("venue_entropy", 0.0) if dp_data else 0.0,
     )
 
 

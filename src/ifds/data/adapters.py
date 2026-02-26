@@ -376,11 +376,15 @@ def _aggregate_dp_records(records: list[dict]) -> dict:
     Uses the 'volume' field from DP records (total stock day volume)
     to compute dp_pct = dp_volume / total_volume * 100.
     """
+    import math
+    from collections import Counter
+
     dp_buys = 0
     dp_sells = 0
     dp_volume = 0
     total_volume = 0
     block_trade_count = 0
+    venue_counts: Counter = Counter()
 
     for record in records:
         size = _safe_int(record.get("size", 0))
@@ -396,6 +400,10 @@ def _aggregate_dp_records(records: list[dict]) -> dict:
         # Block trade detection ($500K+ notional)
         if size * price > 500_000:
             block_trade_count += 1
+
+        # Venue tracking for Shannon entropy
+        mc = record.get("market_center", "UNKNOWN")
+        venue_counts[mc] += size
 
         nbbo_ask = _safe_float(record.get("nbbo_ask", 0))
         nbbo_bid = _safe_float(record.get("nbbo_bid", 0))
@@ -416,6 +424,14 @@ def _aggregate_dp_records(records: list[dict]) -> dict:
 
     dp_pct = round((dp_volume / total_volume) * 100, 2) if total_volume > 0 else 0.0
 
+    # Venue entropy: Shannon entropy over volume-weighted venue distribution
+    total_venue_vol = sum(venue_counts.values())
+    if total_venue_vol > 0:
+        probs = [v / total_venue_vol for v in venue_counts.values()]
+        venue_entropy = -sum(p * math.log(p) for p in probs if p > 0)
+    else:
+        venue_entropy = 0.0
+
     return {
         "dp_volume": dp_volume,
         "total_volume": total_volume,
@@ -425,6 +441,7 @@ def _aggregate_dp_records(records: list[dict]) -> dict:
         "signal": signal,
         "source": "unusual_whales",
         "block_trade_count": block_trade_count,
+        "venue_entropy": venue_entropy,
     }
 
 

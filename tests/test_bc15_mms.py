@@ -961,3 +961,55 @@ class TestPhase5AsyncMMS:
             gex = result.passed[0]
             # Multiplier should reflect MMS regime
             assert gex.gex_multiplier == obs.regime_multiplier
+
+
+# ============================================================================
+# TestVenueMix
+# ============================================================================
+
+class TestVenueMix:
+    """Venue entropy (Shannon entropy from DP market_center) tests."""
+
+    def test_venue_entropy_single_venue(self):
+        """All prints on same venue → entropy = 0."""
+        from ifds.data.adapters import _aggregate_dp_records
+        records = [
+            {"size": "1000", "price": "150.0", "volume": "5000000",
+             "market_center": "FINRA", "nbbo_ask": "150.1", "nbbo_bid": "149.9"},
+        ] * 10
+        result = _aggregate_dp_records(records)
+        assert "venue_entropy" in result
+        assert result["venue_entropy"] == 0.0
+
+    def test_venue_entropy_equal_distribution(self):
+        """Equal distribution across N venues → entropy = log(N)."""
+        from ifds.data.adapters import _aggregate_dp_records
+        records = []
+        for venue in ["FINRA", "NYSE", "NASDAQ", "ARCA"]:
+            records.append({
+                "size": "1000", "price": "150.0", "volume": "5000000",
+                "market_center": venue, "nbbo_ask": "150.1", "nbbo_bid": "149.9",
+            })
+        result = _aggregate_dp_records(records)
+        assert abs(result["venue_entropy"] - math.log(4)) < 0.01
+
+    def test_venue_entropy_stored_in_entry(self, config, store):
+        """venue_entropy is stored in MMS store entry."""
+        bars = _make_bars(100)
+        stock = _make_stock(dp_pct=42.0)
+        stock.flow.venue_entropy = 1.38
+        run_mms_analysis(config.core, config.tuning,
+                         "AAPL", bars, None, stock, None, store)
+        entries = store.load("AAPL")
+        assert "venue_entropy" in entries[0]
+        assert entries[0]["venue_entropy"] == pytest.approx(1.38, abs=0.01)
+
+    def test_venue_entropy_zero_when_no_dp_data(self, config, store):
+        """No darkpool data → venue_entropy = 0.0."""
+        bars = _make_bars(100)
+        stock = _make_stock(dp_pct=0.0)
+        stock.flow.venue_entropy = 0.0
+        run_mms_analysis(config.core, config.tuning,
+                         "AAPL", bars, None, stock, None, store)
+        entries = store.load("AAPL")
+        assert entries[0]["venue_entropy"] == 0.0

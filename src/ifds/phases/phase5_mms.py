@@ -172,7 +172,7 @@ def _compute_z_scores(today_features: dict, historical_entries: list[dict],
     )
 
     # Microstructure z-scores from store
-    store_features = ["dark_share", "gex", "dex", "block_count", "iv_rank"]
+    store_features = ["dark_share", "gex", "dex", "block_count", "iv_rank", "venue_entropy"]
     for feat in store_features:
         series = [e.get(feat) for e in historical_entries if e.get(feat) is not None]
         series = [float(v) for v in series]
@@ -414,9 +414,8 @@ def _compute_unusualness(z_scores: dict, excluded_features: list[str],
     U = PercentileRank(S | historical raw scores) × 100.
     If no history, use linear mapping capped at 100.
     """
-    # Scoring features (the 5 weighted ones)
-    scoring_features = ["dark_share", "gex", "block_count", "iv_rank"]
-    # venue_mix always excluded
+    # Scoring features (the weighted ones)
+    scoring_features = ["dark_share", "gex", "block_count", "iv_rank", "venue_entropy"]
 
     raw_score = 0.0
     for feat in scoring_features:
@@ -484,7 +483,7 @@ def run_mms_analysis(
     8. Append today's features to store
     """
     result = MMSAnalysis(ticker=ticker)
-    excluded_features = ["venue_mix"]  # Always excluded
+    excluded_features: list[str] = []
     result.excluded_features = excluded_features
 
     window = config_core.get("mms_window", 63)
@@ -509,6 +508,8 @@ def run_mms_analysis(
     block_count = float(stock.flow.block_trade_count) if stock.flow else 0.0
     net_gex = gex_data.get("net_gex", 0.0) if gex_data else 0.0
 
+    venue_entropy = stock.flow.venue_entropy if stock.flow else 0.0
+
     today_features = {
         "efficiency": bar_features.get("efficiency_today", 0.0),
         "impact": bar_features.get("impact_today", 0.0),
@@ -517,6 +518,7 @@ def run_mms_analysis(
         "dex": dex,
         "block_count": block_count,
         "iv_rank": iv_rank,
+        "venue_entropy": venue_entropy,
     }
 
     # 2. Load history from store
@@ -553,7 +555,7 @@ def run_mms_analysis(
     # 6. Unusualness score
     historical_raw_scores = store.get_feature_series(historical, "raw_score")
     raw_score = 0.0
-    scoring_features = ["dark_share", "gex", "block_count", "iv_rank"]
+    scoring_features = ["dark_share", "gex", "block_count", "iv_rank", "venue_entropy"]
     for feat in scoring_features:
         if feat in excluded_features:
             continue
@@ -597,6 +599,7 @@ def run_mms_analysis(
         "dex": dex,
         "block_count": block_count,
         "iv_rank": iv_rank,
+        "venue_entropy": venue_entropy,
         "efficiency": today_features["efficiency"],
         "impact": today_features["impact"],
         "daily_return": daily_return,

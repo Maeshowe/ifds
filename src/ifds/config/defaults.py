@@ -48,7 +48,7 @@ CORE = {
     "mms_feature_weights": {                             # Diagnostic weights (NOT tunable)
         "dark_share": 0.25,
         "gex": 0.25,
-        "venue_mix": 0.20,                               # Excluded (no data), weight preserved
+        "venue_entropy": 0.20,                             # Shannon entropy of DP venue distribution
         "block_intensity": 0.15,
         "iv_rank": 0.15,
     },
