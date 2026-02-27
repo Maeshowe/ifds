@@ -331,9 +331,8 @@ def _apply_freshness_alpha(
             except FileNotFoundError:
                 combined = new_rows
 
-            import os
-            os.makedirs(os.path.dirname(signal_history_path) or ".", exist_ok=True)
-            combined.to_parquet(signal_history_path, index=False)
+            from ifds.utils.io import atomic_write_parquet
+            atomic_write_parquet(signal_history_path, combined)
         except Exception as e:
             logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=6,
                        message=f"Error saving signal history: {e}")
@@ -648,11 +647,10 @@ def _load_daily_counter(file_path: str) -> dict:
 
 
 def _save_daily_counter(file_path: str, counter: dict) -> None:
-    """Save a daily counter to JSON state file."""
+    """Save a daily counter to JSON state file (atomic write)."""
+    from ifds.utils.io import atomic_write_json
     try:
-        os.makedirs(os.path.dirname(file_path) or ".", exist_ok=True)
-        with open(file_path, "w") as f:
-            json.dump(counter, f)
+        atomic_write_json(file_path, counter)
     except OSError:
         pass
 

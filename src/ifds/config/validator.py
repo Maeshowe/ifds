@@ -80,6 +80,25 @@ def validate_config(config: Config) -> None:
     _check_range(config.tuning, "combined_score_minimum", 0, 100, errors)
     _check_range(config.tuning, "vix_multiplier_floor", 0.1, 1.0, errors)
 
+    # --- MMS regime multiplier keys ---
+    VALID_MMS_REGIMES = {
+        "gamma_positive", "gamma_negative", "dark_dominant",
+        "absorption", "distribution", "volatile", "neutral", "undetermined",
+    }
+    mms_multipliers = config.tuning.get("mms_regime_multipliers", {})
+    if mms_multipliers:
+        unknown = set(mms_multipliers.keys()) - VALID_MMS_REGIMES
+        if unknown:
+            errors.append(
+                f"Unknown MMS regime multiplier keys: {sorted(unknown)}. "
+                f"Valid keys: {sorted(VALID_MMS_REGIMES)}"
+            )
+        for regime, val in mms_multipliers.items():
+            if not isinstance(val, (int, float)) or val <= 0:
+                errors.append(
+                    f"MMS regime multiplier '{regime}' must be a positive number, got {val!r}"
+                )
+
     # --- Report ---
     if errors:
         msg = "Configuration validation failed:\n" + "\n".join(

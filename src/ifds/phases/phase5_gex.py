@@ -115,8 +115,12 @@ def run_phase5(config: Config, logger: EventLogger,
                         if mms_enabled:
                             gex_analysis.gex_multiplier = obs.regime_multiplier
                         mms_analyses.append(obs)
-                    except Exception:
-                        pass
+                    except Exception as mms_err:
+                        logger.log(
+                            EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=5,
+                            ticker=ticker,
+                            message=f"[MMS] {ticker} collection skipped (no GEX data): {mms_err}",
+                        )
                 analyzed.append(gex_analysis)
                 passed.append(gex_analysis)
                 continue
@@ -466,8 +470,12 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
                         if mms_enabled:
                             gex_analysis.gex_multiplier = obs.regime_multiplier
                         mms_analyses.append(obs)
-                    except Exception:
-                        pass
+                    except Exception as mms_err:
+                        logger.log(
+                            EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=5,
+                            ticker=ticker,
+                            message=f"[MMS] {ticker} collection skipped (no GEX data): {mms_err}",
+                        )
                 analyzed.append(gex_analysis)
                 passed.append(gex_analysis)
                 continue

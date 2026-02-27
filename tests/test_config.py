@@ -105,3 +105,42 @@ class TestConfigFile:
         Config(config_path=str(config_file))
         captured = capsys.readouterr()
         assert "Unknown key 'unknown_param'" in captured.err
+
+
+class TestMMSRegimeMultiplierValidation:
+    """F-23: MMS regime multiplier key validation."""
+
+    def test_valid_mms_multipliers_pass(self, monkeypatch):
+        _set_required_keys(monkeypatch)
+        config = Config()
+        config.tuning["mms_regime_multipliers"] = {
+            "gamma_positive": 1.5,
+            "gamma_negative": 0.65,
+            "dark_dominant": 1.1,
+        }
+        validate_config(config)  # should not raise
+
+    def test_unknown_mms_regime_key_raises(self, monkeypatch):
+        _set_required_keys(monkeypatch)
+        config = Config()
+        config.tuning["mms_regime_multipliers"] = {
+            "gamma_positiv": 1.0,  # typo
+        }
+        with pytest.raises(ConfigValidationError, match="Unknown MMS regime"):
+            validate_config(config)
+
+    def test_negative_mms_multiplier_raises(self, monkeypatch):
+        _set_required_keys(monkeypatch)
+        config = Config()
+        config.tuning["mms_regime_multipliers"] = {
+            "gamma_positive": -0.5,
+        }
+        with pytest.raises(ConfigValidationError, match="must be a positive number"):
+            validate_config(config)
+
+    def test_empty_mms_multipliers_pass(self, monkeypatch):
+        """No mms_regime_multipliers in config — validation skipped."""
+        _set_required_keys(monkeypatch)
+        config = Config()
+        config.tuning.pop("mms_regime_multipliers", None)
+        validate_config(config)  # should not raise

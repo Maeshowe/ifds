@@ -6,6 +6,8 @@ BC20 (Mód 2 re-score) will consume these snapshots.
 
 import gzip
 import json
+import os
+import tempfile
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
@@ -33,8 +35,19 @@ def save_phase4_snapshot(passed_analyses: list,
         record = _stock_to_dict(stock)
         records.append(record)
 
-    with gzip.open(file_path, "wt", encoding="utf-8") as f:
-        json.dump(records, f)
+    # Atomic write: temp file + os.replace
+    fd, tmp = tempfile.mkstemp(dir=str(out_dir), suffix=".tmp")
+    os.close(fd)
+    try:
+        with gzip.open(tmp, "wt", encoding="utf-8") as f:
+            json.dump(records, f)
+        os.replace(tmp, str(file_path))
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
 
     return file_path
 
