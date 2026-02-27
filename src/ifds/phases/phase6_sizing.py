@@ -13,6 +13,7 @@ Formulas:
     Quantity = floor(AdjustedRisk / (stop_loss_atr_multiple × ATR14))
 """
 
+import dataclasses
 import json
 import math
 import os
@@ -619,30 +620,7 @@ def _apply_position_limits(
                        message=f"[GLOBALGUARD] {pos.ticker} reduced: exposure "
                                f"${ticker_exposure:.0f} > ${max_ticker:.0f}",
                        data={"ticker": pos.ticker, "reason": "ticker_exposure_reduced"})
-            pos = PositionSizing(
-                ticker=pos.ticker, sector=pos.sector,
-                direction=pos.direction, entry_price=pos.entry_price,
-                quantity=reduced_qty,
-                stop_loss=pos.stop_loss,
-                take_profit_1=pos.take_profit_1,
-                take_profit_2=pos.take_profit_2,
-                risk_usd=pos.risk_usd,
-                combined_score=pos.combined_score,
-                gex_regime=pos.gex_regime,
-                multiplier_total=pos.multiplier_total,
-                m_flow=pos.m_flow, m_insider=pos.m_insider,
-                m_funda=pos.m_funda, m_gex=pos.m_gex,
-                m_vix=pos.m_vix, m_utility=pos.m_utility,
-                scale_out_price=pos.scale_out_price,
-                scale_out_pct=pos.scale_out_pct,
-                is_fresh=pos.is_fresh,
-                original_score=pos.original_score,
-                sector_etf=pos.sector_etf,
-                sector_bmi=pos.sector_bmi,
-                sector_regime=pos.sector_regime,
-                is_mean_reversion=pos.is_mean_reversion,
-                shark_detected=pos.shark_detected,
-            )
+            pos = dataclasses.replace(pos, quantity=reduced_qty)
             ticker_exposure = reduced_qty * pos.entry_price
 
         accepted.append(pos)
@@ -681,27 +659,4 @@ def _save_daily_counter(file_path: str, counter: dict) -> None:
 
 def _replace_quantity(pos: PositionSizing, new_qty: int) -> PositionSizing:
     """Create a copy of PositionSizing with an updated quantity."""
-    return PositionSizing(
-        ticker=pos.ticker, sector=pos.sector,
-        direction=pos.direction, entry_price=pos.entry_price,
-        quantity=new_qty,
-        stop_loss=pos.stop_loss,
-        take_profit_1=pos.take_profit_1,
-        take_profit_2=pos.take_profit_2,
-        risk_usd=pos.risk_usd,
-        combined_score=pos.combined_score,
-        gex_regime=pos.gex_regime,
-        multiplier_total=pos.multiplier_total,
-        m_flow=pos.m_flow, m_insider=pos.m_insider,
-        m_funda=pos.m_funda, m_gex=pos.m_gex,
-        m_vix=pos.m_vix, m_utility=pos.m_utility,
-        scale_out_price=pos.scale_out_price,
-        scale_out_pct=pos.scale_out_pct,
-        is_fresh=pos.is_fresh,
-        original_score=pos.original_score,
-        sector_etf=pos.sector_etf,
-        sector_bmi=pos.sector_bmi,
-        sector_regime=pos.sector_regime,
-        is_mean_reversion=pos.is_mean_reversion,
-        shark_detected=pos.shark_detected,
-    )
+    return dataclasses.replace(pos, quantity=new_qty)

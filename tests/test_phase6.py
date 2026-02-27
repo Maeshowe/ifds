@@ -26,6 +26,7 @@ from ifds.phases.phase6_sizing import (
     _calculate_position,
     _apply_position_limits,
     _apply_freshness_alpha,
+    _replace_quantity,
 )
 
 
@@ -765,3 +766,50 @@ class TestPhase6Integration:
         assert result.positions[0].combined_score == 127.5  # 85 * 1.5
         assert result.positions[1].combined_score == 117.0  # 78 * 1.5
         assert result.positions[2].combined_score == 108.0  # 72 * 1.5
+
+
+# ============================================================================
+# dataclasses.replace() — mm_regime preservation (F2 fix)
+# ============================================================================
+
+
+class TestDataclassesReplace:
+    """Verify _replace_quantity and _apply_position_limits preserve all fields."""
+
+    def test_replace_quantity_preserves_mm_regime(self):
+        """_replace_quantity must not drop mm_regime or unusualness_score."""
+        pos = PositionSizing(
+            ticker="AAPL", sector="Technology", direction="BUY",
+            entry_price=150.0, quantity=100, stop_loss=145.0,
+            take_profit_1=158.0, take_profit_2=163.0,
+            risk_usd=500.0, combined_score=80.0,
+            gex_regime="POSITIVE", multiplier_total=1.2,
+            mm_regime="gamma_positive", unusualness_score=0.75,
+        )
+        updated = _replace_quantity(pos, new_qty=10)
+        assert updated.quantity == 10
+        assert updated.mm_regime == "gamma_positive"
+        assert updated.unusualness_score == 0.75
+        # Other fields unchanged
+        assert updated.ticker == "AAPL"
+        assert updated.entry_price == 150.0
+        assert updated.combined_score == 80.0
+
+    def test_apply_position_limits_preserves_mm_regime(self, config, logger):
+        """Exposure reduction in _apply_position_limits must not drop mm_regime."""
+        # Single position with notional > max_single_ticker_exposure ($20K)
+        # but within risk_usd and gross exposure limits
+        pos = PositionSizing(
+            ticker="NVDA", sector="Technology", direction="BUY",
+            entry_price=150.0, quantity=200, stop_loss=145.0,
+            take_profit_1=158.0, take_profit_2=163.0,
+            risk_usd=500.0, combined_score=90.0,
+            gex_regime="POSITIVE", multiplier_total=1.5,
+            mm_regime="dark_dominant", unusualness_score=0.62,
+        )
+        # 200 * 150 = $30K > max_single_ticker_exposure ($20K) → reduced
+        accepted, _ = _apply_position_limits([pos], config, logger)
+        assert len(accepted) == 1
+        assert accepted[0].mm_regime == "dark_dominant"
+        assert accepted[0].unusualness_score == 0.62
+        assert accepted[0].quantity < 200  # reduced
