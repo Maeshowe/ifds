@@ -31,6 +31,10 @@ CUMULATIVE_PNL_FILE = 'scripts/paper_trading/logs/cumulative_pnl.json'
 CIRCUIT_BREAKER_USD = -5_000
 INITIAL_CAPITAL = 100_000
 
+# Positions excluded from EOD clean-state check
+# AVDL.CVR: Contingent Value Right — cannot be removed from IBKR paper account
+IGNORED_POSITIONS = {"AVDL.CVR"}
+
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
@@ -444,7 +448,19 @@ def main():
         print("No open orders to cancel")
 
     # --- Verify clean state ---
-    positions = [p for p in ib.positions() if p.position != 0]
+    positions = [
+        p for p in ib.positions()
+        if p.position != 0 and p.contract.symbol not in IGNORED_POSITIONS
+    ]
+    ignored = [
+        p for p in ib.positions()
+        if p.position != 0 and p.contract.symbol in IGNORED_POSITIONS
+    ]
+    if ignored:
+        logger.info(
+            "Ignored positions (known, non-removable): "
+            + ", ".join(f"{p.contract.symbol} ({p.position})" for p in ignored)
+        )
     if positions:
         logger.warning(f"Still {len(positions)} open positions!")
         for p in positions:
