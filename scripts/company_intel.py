@@ -113,6 +113,7 @@ def fetch_earnings_surprises(symbol: str, api_key: str) -> list:
             "actualEarningResult": actual,
             "estimatedEarning": estimated,
             "surprisePct": surprise_pct,
+            "large_miss_flag": surprise_pct is not None and surprise_pct < -50,
         })
     return results
 
@@ -207,6 +208,7 @@ Market Cap: {mcap_str} | 52W Range: {profile.get('range52w', 'N/A')}"""
     # Earnings
     if surprises:
         lines = []
+        has_large_gaap_miss = False
         for s in surprises:
             actual = s.get("actualEarningResult", "N/A")
             est = s.get("estimatedEarning", "N/A")
@@ -217,7 +219,11 @@ Market Cap: {mcap_str} | 52W Range: {profile.get('range52w', 'N/A')}"""
             else:
                 beat = "N/A"
             pct_str = f" ({pct:+.1f}%)" if pct is not None else ""
-            lines.append(f"  {dt}: Actual={actual}, Est={est} → {beat}{pct_str}")
+            if s.get("large_miss_flag"):
+                has_large_gaap_miss = True
+                lines.append(f"  {dt}: Actual={actual}, Est={est} → MISS{pct_str} ⚠ LARGE GAAP MISS — adjusted EPS may differ")
+            else:
+                lines.append(f"  {dt}: Actual={actual}, Est={est} → {beat}{pct_str}")
         earnings_text = "\n".join(lines)
     else:
         earnings_text = "  No earnings data available."
@@ -287,7 +293,7 @@ Respond in EXACTLY this format (max 200 words total):
 
 DRIVER: [What is driving the business now? Based on transcript and earnings data only. 1-2 sentences.]
 RISK: [Biggest risk in the next 30 days? Earnings miss trend, price vs target gap, analyst downgrades, etc. 1-2 sentences.]
-CONTRADICTION: [Does anything in the data contradict the high IFDS score ({score})? E.g. serial earnings misses + high score, price above analyst target, analyst downgrades. If none: "No contradiction identified." 1 sentence.]
+CONTRADICTION: [Does anything in the data contradict the high IFDS score ({score})? E.g. serial earnings misses + high score, price above analyst target, analyst downgrades. IMPORTANT: If a large GAAP miss (< -50%) is flagged, note that GAAP figures may include one-time items (merger costs, write-offs) and adjusted EPS may differ significantly — do NOT treat a single large GAAP miss as a definitive contradiction without context. If none: "No contradiction identified." 1 sentence.]
 CATALYST: [Upcoming events from the data: earnings dates, acquisitions, analyst actions, news. List only what appears in the data above.]"""
 
     try:
@@ -360,7 +366,8 @@ def format_cli_ticker(t: dict, target: dict | None, surprises: list,
         if isinstance(a, (int, float)) and isinstance(e, (int, float)) and a >= e:
             beats += 1
     n = len(surprises)
-    earnings_line = f"{beats}/{n} beat (last {n}Q)" if n > 0 else "N/A"
+    gaap_note = " *GAAP" if any(s.get("large_miss_flag") for s in surprises) else ""
+    earnings_line = f"{beats}/{n} beat (last {n}Q){gaap_note}" if n > 0 else "N/A"
 
     lines = [
         f"\n{'='*60}",
@@ -399,7 +406,8 @@ def format_telegram_ticker(t: dict, target: dict | None, surprises: list,
                 and isinstance(s.get("estimatedEarning"), (int, float))
                 and s["actualEarningResult"] >= s["estimatedEarning"])
     n = len(surprises)
-    earnings_line = f"{beats}/{n} beat" if n > 0 else "N/A"
+    gaap_note = " *GAAP" if any(s.get("large_miss_flag") for s in surprises) else ""
+    earnings_line = f"{beats}/{n} beat{gaap_note}" if n > 0 else "N/A"
 
     lines = [
         f"<b>{name} ({sym}) — {sector}</b>",
