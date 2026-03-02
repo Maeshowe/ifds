@@ -1,4 +1,4 @@
-# IFDS API Stack — 2026-02-12
+# IFDS API Stack — 2026-03-01
 
 ## Összesítés
 
@@ -7,10 +7,11 @@
 | Polygon/Massive Stocks | **Advanced** | $199 | Unlimited, real-time |
 | Polygon/Massive Options | **Developer** | $79 | Unlimited, 15min delayed |
 | Polygon/Massive Indices | **Starter** | $49 | Unlimited, 15min delayed |
+| Polygon/Massive Currencies | **Starter** | $49 | Unlimited, 15min delayed |
 | FMP | **Ultimate** | $139 | 3000 req/min (50/s), 150GB/30d |
 | Unusual Whales | **Basic** | $150 | ? |
 | FRED | **Free** | $0 | Nincs limit |
-| **Összesen** | | **$616/hó** | |
+| **Összesen** | | **$665/hó** | |
 
 ## Polygon/Massive — Stocks Advanced ($199/hó)
 
@@ -73,6 +74,12 @@
 **Használat:** Phase 0 VIX fallback, Phase 3 sector ETF referencia
 **Megjegyzés:** A VIX elsődlegesen FRED-ből jön (ingyenes). A Polygon indices a fallback.
 
+## Polygon/Massive — Currencies Starter ($49/hó)
+
+**Előfizetés dátuma:** 2026-03-01
+**Elérhető:** Forex pairs, 15min delayed, unlimited API calls
+**Használat az IFDS-ben:** Jelenleg nem használt — DXY/currency correlation faktor tervezett (Q3+)
+
 ## FMP Ultimate ($139/hó)
 
 **Rate limit:** 3000 req/min (50 req/s)
@@ -131,7 +138,7 @@ hasonló eredményt ad, az UW Basic ($150/hó) potenciálisan kiváltható.
 ## Éves API költség becslés
 
 ```
-Jelenlegi: $616/hó × 12 = $7,392/év
-Ha Options Advanced (Q3): +$120/hó × 6 = +$720 → $8,112/év
-Ha UW kiváltható (Q2): -$150/hó × 8 = -$1,200 → $6,912/év
+Jelenlegi: $665/hó × 12 = $7,980/év
+Ha Options Advanced (Q3): +$120/hó × 6 = +$720 → $8,700/év
+Ha UW kiváltható (Q2): -$150/hó × 8 = -$1,200 → $7,500/év
 ```
