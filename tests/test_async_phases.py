@@ -35,6 +35,7 @@ def config(monkeypatch):
     monkeypatch.setenv("IFDS_FMP_API_KEY", "test_fmp")
     monkeypatch.setenv("IFDS_FRED_API_KEY", "test_fred")
     monkeypatch.setenv("IFDS_ASYNC_ENABLED", "true")
+    monkeypatch.delenv("IFDS_UW_API_KEY", raising=False)
     return Config()
 
 
