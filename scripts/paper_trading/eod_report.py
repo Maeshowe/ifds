@@ -117,8 +117,12 @@ def classify_exit(exit_price, sl_price, tp1_price, tp2_price, tolerance=0.02):
     return "MOC"
 
 
-def build_trade_report(executions, meta):
-    """Match BUY and SELL fills by symbol. Returns list of trade dicts."""
+def build_trade_report(executions, meta, pnl_by_symbol=None):
+    """Match BUY and SELL fills by symbol. Returns list of trade dicts.
+
+    pnl_by_symbol: dict[symbol, realized_pnl] from ib.portfolio(), used for
+    MOC closes where the entry fill is from a previous day (orderRef='').
+    """
     # Group executions by symbol
     by_symbol = defaultdict(lambda: {'buys': [], 'sells': []})
 
@@ -152,8 +156,44 @@ def build_trade_report(executions, meta):
 
         # Calculate average entry price
         total_buy_qty = sum(b['qty'] for b in fills['buys'])
+
+        # MOC close path: entry was on a previous day — no BUY fills today
+        if total_buy_qty == 0 and fills['sells'] and pnl_by_symbol:
+            realized_pnl = pnl_by_symbol.get(sym)
+            if realized_pnl is None:
+                continue
+            total_sell_qty = sum(s['qty'] for s in fills['sells'])
+            for sell in fills['sells']:
+                qty = sell['qty']
+                exit_price = sell['price']
+                # Distribute P&L proportionally for multi-fill closes
+                pnl = realized_pnl * (qty / total_sell_qty) if total_sell_qty else realized_pnl
+                # Back-calculate entry price from realized P&L
+                entry_price = round(exit_price - pnl / qty, 2) if qty else 0
+                pnl_pct = round((pnl / (entry_price * qty) * 100), 2) if entry_price and qty else 0
+                trades.append({
+                    'date': date.today().isoformat(),
+                    'ticker': sym,
+                    'direction': 'LONG',
+                    'entry_price': entry_price,
+                    'entry_qty': qty,
+                    'exit_price': round(exit_price, 2),
+                    'exit_qty': qty,
+                    'exit_type': 'MOC',
+                    'pnl': round(pnl, 2),
+                    'pnl_pct': pnl_pct,
+                    'commission': round(sell['commission'], 2),
+                    'score': score,
+                    'sector': sector,
+                    'sl_price': sl_price,
+                    'tp1_price': tp1_price,
+                    'tp2_price': tp2_price,
+                })
+            continue
+
         if total_buy_qty == 0:
             continue
+
         avg_entry = sum(b['price'] * b['qty'] for b in fills['buys']) / total_buy_qty
         buy_commission = sum(b['commission'] for b in fills['buys'])
 
@@ -402,6 +442,14 @@ def main():
         if e.execution.time.date() == today_date
     ]
 
+    # Portfolio P&L for MOC closes (entry on previous day, orderRef='')
+    portfolio = ib.portfolio()
+    pnl_by_symbol = {
+        item.contract.symbol: item.realizedPNL
+        for item in portfolio
+        if item.realizedPNL != 0.0
+    }
+
     if not todays_fills:
         print("No fills today")
         # Still cancel orders and update P&L with empty trades
@@ -410,8 +458,8 @@ def main():
         # Load execution plan metadata
         meta = load_execution_plan_metadata(today_str)
 
-        # Build trade report
-        trades = build_trade_report(todays_fills, meta)
+        # Build trade report (pnl_by_symbol handles MOC closes with orderRef='')
+        trades = build_trade_report(todays_fills, meta, pnl_by_symbol=pnl_by_symbol)
 
         # Print trade summary
         print(f"\nTrades: {len(trades)}")
