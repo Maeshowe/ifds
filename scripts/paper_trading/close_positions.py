@@ -56,6 +56,37 @@ def send_telegram(message):
 
 
 # ---------------------------------------------------------------------------
+# Net position helper
+# ---------------------------------------------------------------------------
+
+
+def get_net_open_qty(symbol: str, con_id: int, gross_qty: int, todays_fills) -> int:
+    """Return safe MOC qty after accounting for intraday bracket TP/SL fills.
+
+    Subtracts IFDS bracket SLD fills (orderRef startswith 'IFDS_') from
+    gross_qty to correct for cases where ib.positions() hasn't yet reflected
+    those fills due to synchronization delay.
+
+    If positions() is already synced, this conservatively undersells
+    (leaving shares open until next day) but never creates an inadvertent short.
+    Primary protection: reqPositions() + 5s sleep before reading positions().
+    """
+    bracket_sold = sum(
+        int(fill.execution.shares)
+        for fill in todays_fills
+        if fill.contract.conId == con_id
+        and fill.execution.side == 'SLD'
+        and (getattr(fill.execution, 'orderRef', '') or '').startswith('IFDS_')
+    )
+    if bracket_sold > 0:
+        logger.info(
+            f"{symbol}: {bracket_sold} shares closed intraday via bracket TP/SL — "
+            f"adjusting MOC qty {gross_qty} → {max(0, gross_qty - bracket_sold)}"
+        )
+    return max(0, gross_qty - bracket_sold)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -67,11 +98,15 @@ def main():
     today_str = date.today().strftime('%Y-%m-%d')
 
     ib = connect(client_id=11)
-    ib.sleep(3)  # Wait for position/order synchronization
+    ib.sleep(3)  # Initial sync
+    # Force fresh position data: reqPositions ensures intraday TP/SL fills are reflected
+    ib.reqPositions()
+    ib.sleep(5)  # Wait for IBKR to push updated positions (total: 8s)
+
     print(f"\nMOC Close — {today_str}")
     account = get_account(ib)
 
-    from ib_insync import Stock
+    from ib_insync import Stock, ExecutionFilter
 
     # Cancel unfilled IFDS bracket orders to prevent late fills after MOC cutoff
     open_orders = ib.openOrders()
@@ -85,6 +120,11 @@ def main():
         print(f"  Cancelled {len(ifds_orders)} unfilled IFDS bracket orders")
     else:
         print("  No unfilled IFDS orders to cancel")
+
+    # Fetch today's executions once for bracket fill detection (used by get_net_open_qty)
+    todays_fills = ib.reqExecutions(
+        ExecutionFilter(time=date.today().strftime('%Y%m%d') + ' 00:00:00')
+    )
 
     # Get open positions (long and short, skip non-tradable)
     positions = [p for p in ib.positions()
@@ -103,12 +143,24 @@ def main():
         sym = pos.contract.symbol
         con_id = pos.contract.conId
 
+        # Compute net open qty after intraday bracket TP/SL fills
+        gross_qty = int(abs(pos.position))
+        net_qty = get_net_open_qty(sym, con_id, gross_qty, todays_fills)
+
+        if net_qty == 0:
+            logger.info(f"{sym}: position fully closed intraday (TP/SL), skipping MOC")
+            print(f"  {sym}: SKIP — already closed (intraday TP/SL)")
+            continue
+
+        if net_qty != gross_qty:
+            print(f"  {sym}: qty adjusted {gross_qty} → {net_qty} (intraday partial fill)")
+
         # Create fresh contract with SMART routing (avoids Error 10311)
         contract = Stock(conId=con_id, exchange='SMART')
         ib.qualifyContracts(contract)
 
         action = 'SELL' if pos.position > 0 else 'BUY'
-        qty = int(abs(pos.position))
+        qty = net_qty
 
         if qty <= MAX_ORDER_SIZE:
             order = create_moc_order(qty, account, action=action)
