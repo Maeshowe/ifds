@@ -1,253 +1,458 @@
-# IFDS Konszolidált Roadmap 2026
+# IFDS — Master Roadmap & BC Registry
 
-**Utolsó frissítés:** 2026-02-24
-**Státusz:** AKTÍV — véglegesítve
+**Utolsó frissítés:** 2026-03-07
+**Státusz:** AKTÍV
 
----
-
-## Aktuális állapot (2026-02-24)
-
-| Elem | Státusz |
-|------|---------|
-| Pipeline (Phase 1-6) | ✅ Production (BC16) |
-| SIM-L1 Forward Validation | ✅ Kész, adatgyűjtés folyamatban |
-| SIM-L2 Mód 1 Parameter Sweep | ✅ Kész (BC19, commit 66242a8) |
-| Paper Trading | 🔄 Day 6/21 (IBKR DUH118657, cum PnL -$61.63) |
-| OBSIDIAN Baseline | 🔄 Day 9/21 (461 ticker, max 7 entry/ticker, 0 ticker >=21) |
-| Phase 4 Snapshot | ✅ Aktív (gyűjtés feb 19-től) |
-| IBKR Connection Hardening | ✅ Kész (retry 3x, timeout 15s, Telegram alert) |
-| Zombie Hunter 2-pass | ✅ Kész (bulk + ticker-specific earnings exclusion) |
-| Telegram EARN oszlop | ✅ Kész (per-ticker FMP earnings date) |
-| Tesztek | 848 passing, 0 failure, 0 warning |
-| Swing Hybrid Exit | ✅ Design APPROVED |
+**Referencia fájlok:**
+- Részletes BC scope: ez a fájl
+- CC workflow: `CLAUDE.md` + `.claude/commands/`
+- Permanens rules: `.claude/rules/ifds-rules.md`
+- Tanulságok: `docs/planning/learnings-archive.md`
+- Task fájlok: `docs/tasks/YYYY-MM-DD-*.md`
 
 ---
 
-## BC Ütemterv
+## Critical Task Audit (2026-03-07)
 
-### BC17 — Factor Vol + EWMA + Crowdedness Mérés + OBSIDIAN Aktiválás
-**Tervezett:** ~2026-03-04 (OBSIDIAN 21 nap elérése)
+A korábban OPEN-nek jelölt 6 critical task valójában **mind implementálva van** a kódban.
+Dokumentációs lag volt — a task fájlokban nincs `Status: DONE` fejléc.
+
+| # | Task | Kód státusz | Task fájl státusz |
+|---|------|-------------|-------------------|
+| 1 | `phase1_regime.py` asyncio.gather `return_exceptions=True` | ✅ Kész (`_fetch_daily_history_async`) | ⚠️ Hiányzó Status header |
+| 2 | `eod_report.py` idempotency guard | ✅ Kész (`existing_dates` check) | ⚠️ Hiányzó Status header |
+| 3 | `submit_orders.py` circuit breaker halt + `--override-circuit-breaker` | ✅ Kész (`sys.exit(1)` + flag) | ⚠️ Hiányzó Status header |
+| 4 | `close_positions.py` MOC split >500 | ✅ Kész (`MAX_ORDER_SIZE=500` + while loop) | ⚠️ Hiányzó Status header |
+| 5 | `eod_report.py` MOC orderRef='' fix | ✅ Kész (`pnl_by_symbol` + MOC path) | ⚠️ Hiányzó Status header |
+| 6 | `close_positions.py` TP/SL awareness | ✅ Kész (`get_net_open_qty` + `reqExecutions`) | ⚠️ Hiányzó Status header |
+
+**Teendő (CC):** Task fájlok tetejére `Status: DONE` / `Updated: 2026-03-07` fejléc hozzáadása.
+Lásd: CC Tooling Phase 4 — task státusz konvenció.
+
+**MISSING_FEATURES.md nyitott elemek:**
+- `strategy.dark_pool.min_block_size` + `min_notional` config kulcsok → BC17 preflight scope
+- SimEngine offline replay → BC20 (SIM-L2 Mód 2)
+- Trailing Stop Engine live → BC17-18 (pt_monitor.py)
+
+---
+
+## BC Registry — Priorizált Lista
+
+### Prioritizálási szempontok
+
+```
+P0 = Blokkoló — nélkülük a következő BC nem indítható
+P1 = BC hatékonyságot növelő — production quality javítás
+P2 = Tervezett fejlesztés — ütemezett
+P3 = Hosszú táv — Q2-Q3
+```
+
+---
+
+## FÁZIS 0 — Azonnal (márc 7-10)
+
+### Phase_00 — Task státusz dokumentáció
+**Prioritás:** P0 | **Effort:** 30 perc CC
 **Scope:**
-- EWMA smoothing (span=10) a scoring-ban — [D1 Gemini javaslat elfogadva]
-- Good/Bad Crowding mérés (shadow mode — mér, nem szűr)
-- OBSIDIAN factor volatility aktiválás (21 nap baseline megvan)
-- **T5:** BMI extreme oversold (<25%) agresszív sizing zóna
-- **OBSIDIAN rezsim multiplier értékek élesítése Phase 6-ban:**
-  | Rezsim | Multiplier | Indoklás |
-  |--------|-----------|----------|
-  | Γ⁺ (gamma_positive) | 1.0–1.05 | Stabil, alacsony vol környezet — nem veszélyes |
-  | Γ⁻ (gamma_negative) | 0.6–0.7 | Dealer short gamma, amplifikált mozgások — érdemi kockázat |
-  | DD (dark_dominant) | 1.1–1.15 | Intézményi akkumuláció — pozitív signal (feltéve: DP adat megbízható) |
-  | ABS (absorption) | 1.05–1.1 | Passzív felszívás — pozitív LONG-ban |
-  | DIST (distribution) | 0.85 | Smart money elad — negatív, de nem akut (Γ⁻ + DIST = 0.7×0.85 = 0.595, nem túl agresszív) |
-  | VOLATILE | 0.75 | Instabil rezsim — óvatosság |
-  | NEU (neutral) | 1.0 | Nincs hatás |
-  | UND (undetermined) | 1.0 | Nincs hatás (baseline gyűjtés közben) |
-- **OBSIDIAN dark pool küszöb kalibráció:** A DD (`dark_share > 0.70`) és ABS (`dark_share > 0.50`) küszöbök az eredeti aetherveil rendszerből származnak, ir-reálisan magasak a jelenlegi UW batch adatokhoz képest (tipikus dark_share: 0.001-0.005). 21 nap adat alapján az eloszlást kiértékeljük és a küszöböket újrakalibráljuk. Emellett: UW batch `max_pages` (15→30-50) növelés mérlegelése a jobb DP coverage-ért.
+- Mind a 6 closed critical task fájlba `Status: DONE` fejléc
+- CC Tooling Phase 4 aktiválása: minden task fájl tetejére status header
+  ```
+  Status: DONE
+  Updated: 2026-03-07
+  Note: Implementálva, tesztek passing
+  ```
+- `grep -rl "Status: OPEN\|Status: WIP" docs/tasks/` → Chat session nyitáskor futtatható
 
-**OBSIDIAN store helyzet (2026-02-21):** 461 ticker, 8 pipeline run, max 6 entry (AQN). Megjelenési ráta a top tickereknél ~75% (6/8 run). 21 entry-hez ~28 run kell → első tickerek ~márc 20 körül érik el. Aktiválás fokozatos: a stabil, visszatérő tickerek kapnak először z-score-t — ez kívánt viselkedés a swing trading universe-ben. BC17 márc 4-re indul (EWMA + crowdedness), OBSIDIAN fokozatosan aktiválódik utána.
+### Phase_01 — CRGY nuke (hétfő márc 9, 15:30 CET ELŐTT)
+**Prioritás:** P0 | **Effort:** manuális (Tamás)
+- `python scripts/paper_trading/nuke.py` — CRGY 672 db long lezárása
 
-**Előfeltétel:** OBSIDIAN store gyűjtés folyamatos (márc 4-re ~12 run, első 21-es küszöb ~márc 20)
+---
 
-### BC18 — Crowdedness Filtering Aktiválás
-**Tervezett:** ~2026-03-18
+## BC17 — EWMA + Crowdedness Shadow + OBSIDIAN Aktiválás
+**Tervezett:** ~2026-03-18 (paper trading vége előtt)
+**Prioritás:** P1
+
+### Phase_17A — BC17 Preflight Hardening
+**Task:** `docs/tasks/2026-02-27-bc17-preflight-hardening.md`
 **Scope:**
-- Crowdedness composite score élesítése (BC17-ben shadow mode-ban méri)
-- Clipping threshold finomhangolás a mért adatok alapján
-- ~~**IBKR connection hardening**~~ → ✅ KÉSZ (2026-02-24, commit aa22f5a)
-  - Retry (3x, 5s delay, 15s timeout), Telegram alert, env var override
-  - Port konstansok: PAPER_PORT=7497, LIVE_PORT=7496
-- ~~**T3:** Bottom 10 explicit negatív szűrő~~ → ✅ KÉSZ (BC18-prep, 2026-02-18)
-- ~~**T9:** Trading calendar earnings exclusion~~ → ✅ KÉSZ (BC18-prep, 2026-02-18)
+- `phase6_sizing.py` → `dataclasses.replace()` (MMS field drop megelőzés)
+- `validator.py` → OBSIDIAN regime multiplier keys validálás
+- Phase 2/4/6 atomic file write-ok
+- `deploy_daily.sh` → pytest pre-flight + flock + Telegram alert + state backup
+- `strategy.dark_pool.min_block_size` + `min_notional` config kulcsok (MISSING_FEATURES)
+- API retry tesztek: `test_base_client.py` + `test_async_base_client.py`
 
-**Előfeltétel:** BC17 + 2 hét crowdedness adat
+### Phase_17B — monitor_positions.py (leftover warning)
+**Task:** `docs/tasks/2026-03-07-monitor-positions-leftover-warning.md`
+**Scope:**
+- Új script: IBKR pozíciók vs mai execution plan — ha nincs a planben → Telegram WARNING
+- Crontab: `10 9 * * 1-5` (09:10 UTC = 10:10 CET)
+- clientId=14, log: `logs/pt_monitor_positions.log`
 
-### ~~BC19~~ → KÉSZ (2026-02-18)
-SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
+### Phase_17C — pt_monitor.py Trailing Stop Szcenárió A
+**Task:** `docs/tasks/2026-03-07-pt-monitor-trailing-stop-scenario-a.md`
+**Előfeltétel:** Phase_17A kész
+**Scope:**
+- `pt_submit.py` → `monitor_state_YYYY-MM-DD.json` inicializálás
+- Új script: `pt_monitor.py` — 5 percenként (09:00-19:55 UTC)
+- TP1 fill detektálás → Bracket B SL cancel → trail aktiválás
+- Breakeven protection: `trail_sl >= entry_price`
+- Telegram: aktiváláskor + SL ütésekor
+- clientId=15
 
-### BC20 — SIM-L2 Mód 2 (Re-Score) + T10 A/B
+### Phase_17D — EWMA + Crowdedness Shadow + OBSIDIAN Rezsim
+**Scope:**
+- EWMA smoothing (span=10) a scoring-ban
+- Good/Bad Crowding mérés (shadow mode)
+- OBSIDIAN factor volatility aktiválás (~márc 20, 21 nap baseline)
+- T5: BMI extreme oversold (<25%) agresszív sizing
+- OBSIDIAN rezsim multiplier élesítése Phase 6-ban
+- OBSIDIAN dark pool küszöb kalibráció (DD/ABS újrakalibrálás 21 nap után)
+
+---
+
+## BC18 — Crowdedness Filtering + Trailing Stop B
+**Tervezett:** ~2026-04-01
+**Prioritás:** P1
+
+### Phase_18A — Crowdedness Filtering Élesítés
+**Scope:**
+- BC17 shadow adatok elemzése (2 hét)
+- Crowdedness composite score élesítése
+- Clipping threshold finomhangolás
+
+### Phase_18B — pt_monitor.py Trailing Stop Szcenárió B
+**Task:** `docs/tasks/2026-03-07-pt-monitor-trailing-stop-scenario-b.md`
+**Előfeltétel:** Phase_17C (Szcenárió A) kész
+**Scope:**
+- 19:00 CET időalapú trail aktiválás
+- Küszöb: `current_price > entry_price * 1.005`
+- Trail scope: `full` (total_qty), orderRef: `IFDS_{sym}_TRAIL`
+- Cancel ALL SL orders (Bracket A + B)
+- TP1/TP2 limit orderek megmaradnak
+- CEST váltás automatikus (zoneinfo alapú)
+- `scenario_b_activated` + `scenario_b_eligible` state mezők
+
+---
+
+## BC19 — ✅ KÉSZ (2026-02-18)
+SIM-L2 Mód 1 — parameter sweep + Phase 4 snapshot persistence
+
+---
+
+## BC20 — SIM-L2 Mód 2 + T10 A/B + Trail Szimuláció
 **Tervezett:** ~2026-04-első fele
+**Prioritás:** P2
+
+### Phase_20A — SIM-L2 Mód 2 Re-Score Engine
 **Scope:**
-- Re-score engine a Phase 4 snapshot-okból
-- **T10:** Freshness Alpha vs WOW Signals A/B teszt
-- **T7:** New Kid + Repeat bónusz logika validálás
-- **T6:** WOW Signals ismétlődő score validálás
-- Döntés: Freshness Alpha módosítás production-be megy-e
+- Re-score engine a Phase 4 snapshot-okból (~30+ nap adat)
+- `replay.py` Mód 2 branch: Phase 4 intermediate data + override config
+- Tesztek: `test_sim_rescore.py`
 
-**Előfeltétel:** Phase 4 snapshot-ok gyűlnek (feb 19-től), minimum 30 nap adat
+### Phase_20B — T10 A/B Teszt (Freshness Alpha vs WOW Signals)
+**Scope:**
+- Variáns A (baseline): lineáris freshness penalty
+- Variáns B: U-alakú logika (New Kid +15%, WOW +10%, Stale -20%, Persistent +5%)
+- Paired t-test: p < 0.05 VAGY ΔP&L > +$500 és ΔWR > +5%
+- T7: New Kid + Repeat bónusz validálás
+- T6: WOW Signals ismétlődő score validálás
 
-### BC21 — Risk Layer: Korrelációs Guard + Portfolio VaR + Cross-Asset Rezsim
+### Phase_20C — SIM-L2 Trail Szimuláció Támogatás
+**Scope:**
+- `broker_sim.py` multi-day + partial exit szimulálás
+- SIM variáns config-ok: `tp1_atr`, `trailing_stop_atr`, `max_hold_days`
+- Paper Trading trail adatok összehasonlíthatósága SIM-mel
+- Dokumentálás: melyik naptól aktív a trail (PT vs SIM divergencia)
+
+---
+
+## BC20A — Swing Hybrid Exit (Pipeline Refactor)
+**Tervezett:** ~2026-04 (BC20-val párhuzamosan)
+**Prioritás:** P2
+**Design doc:** `docs/planning/swing-hybrid-exit-design.md`
+**Előfeltétel:** BC20C (SIM trail szimulációs support) kész
+
+### Phase_20A_1 — VWAP Modul
+**Scope:**
+- `src/ifds/phases/vwap.py` — VWAP kalkuláció Polygon 5-min bars-ból
+- VWAP guard logika: REJECT >2%, REDUCE >1%, BOOST <-1%, NORMAL ±1%
+- Tesztek
+
+### Phase_20A_2 — Position Tracker
+**Scope:**
+- `src/ifds/state/position_tracker.py`
+- State: `state/open_positions.json`
+- Mezők: entry_date, entry_price, total_qty, remaining_qty, tp1_triggered,
+  tp1_qty, trail_qty, sl_price, hold_days, max_hold_days, atr_at_entry
+
+### Phase_20A_3 — Pipeline Split + MKT Entry
+**Scope:**
+- `runner.py` → `--phases 1-3` / `--phases 4-6` CLI flag
+- `scripts/deploy_intraday.sh` — 15:45 CET cron: Phase 4-6 + submit
+- `submit_orders.py` → MKT entry (nem LMT), partial TP1 bracket (33%/67%), OCA group
+- `phase6_sizing.py` → VWAP guard + TP1 = 0.75× ATR + position split info
+
+**IBKR bracket struktúra:**
+```
+Parent: BUY {qty} MKT
+  Child 1: SELL {qty_tp1} LMT @ entry + 0.75×ATR  (TP1, 33%, OCA)
+  Child 2: SELL {qty}     STP @ entry - 1.5×ATR    (SL, full, OCA)
+```
+
+### Phase_20A_4 — close_positions.py Swing Management
+**Scope:**
+- Hold day tracking (trading nap számolás, pandas_market_calendars)
+- Breakeven SL: ha ár > entry + 0.3×ATR → SL felhúzás entry-re
+- IBKR TRAIL order: 1× ATR (VOLATILE regime: 0.75× ATR)
+- Max hold D+5 → MOC fallback
+- Earnings check: T9 trading calendar (korai exit)
+
+### Phase_20A_5 — SimEngine Swing Support
+**Scope:**
+- `broker_sim.py` + `validator.py` multi-day swing szimulálás
+- TP1 (33% partial exit) + trail + SL + max_hold_days napról napra
+
+---
+
+## BC21 — Risk Layer: Korrelációs Guard + Portfolio VaR + Cross-Asset Rezsim
 **Tervezett:** ~2026-04-második fele
+**Prioritás:** P2
+
+### Phase_21A — Korrelációs Guard + Portfolio VaR
 **Scope:**
 - Pozíció-korrelációs guard (ne legyen 5 utility egyszerre)
 - Portfolio-szintű VaR kalkuláció
-- **T4:** Rotation vs Liquidation megkülönböztetés OBSIDIAN-ban
+- T4: Rotation vs Liquidation megkülönböztetés OBSIDIAN-ban
 - Max szektor koncentráció limit
-- **Cross-asset rezsim réteg (piac-szintű):**
-  - 3 arány monitorozása: **HYG/IEF** (credit spread, legsúlyozottabb), **RSP/SPY** (breadth), **IWM/SPY** (small cap rel. erő)
-  - UUP kihagyva (kontextusfüggő, nem tiszta rezsim-indikátor)
-  - **4 szintű gradiens** szavazási rendszerrel (3 arány, hány SMA20 alatt):
-    | Szint | Feltétel | VIX küszöb | Max pozíció | Min score |
-    |-------|---------|------------|-------------|----------|
-    | NORMAL | 0/3 negatív | 20 (alap) | 8 | 70 |
-    | CAUTIOUS | 1/3 negatív | 19 (-1) | 8 | 70 |
-    | RISK_OFF | 2/3 negatív | 17 (-3) | 6 | 75 |
-    | CRISIS | 3/3 negatív + VIX > 30 | 15 (-5) | 4 | 80 |
-  - **Nem önálló szorzó** a multiplier chain-ben, hanem a **VIX küszöböket tolja el** rezsim szerint (exponenciális szorzó-lánc büntetés elkerülése)
-  - **IWM/SPY feltételes szavazat:** IWM/SPY önmagában NEM szavaz (kamatkörnyezet-érzékeny, zajos). Csak ha HYG/IEF is negatív, akkor kap szavazatot. Logika:
-    ```python
-    votes = 0
-    if hyg_ief < sma20(hyg_ief):   votes += 1  # credit spread — mindig szavaz
-    if rsp_spy < sma20(rsp_spy):   votes += 1  # breadth — mindig szavaz
-    if iwm_spy < sma20(iwm_spy) and hyg_ief < sma20(hyg_ief):
-        votes += 1                              # small cap — csak credit megerősítéssel
-    ```
-  - Eredmény: HYG/IEF a "kapuőr", IWM csak megerősítő. IWM egyedül = 0 szavazat (pl. kamatemelési ciklus nem triggerel CAUTIOUS-t)
-  - Indoklás: a VIX küszöb-tolás megakadályozza a szorzó-lánc exponenciális büntetését, miközben a cross-asset és VIX információ egy dimenzióba olvad
-  - HYG/IEF prioritás: credit market gyorsabban áraz be kockázatot mint equity, ritkán hamis pozitív
-  - **Kapcsolódás OBSIDIAN-hoz:** két rétegű rezsim-információ — piac-szintű (cross-asset = globális kapu) + ticker-szintű (OBSIDIAN = egyedi finomhangolás)
-  - API: Polygon ETF bars (HYG, IEF, RSP, SPY, IWM) — már elérhető Advanced tierben
 
-**Eredeti terv:** BC19 volt → eltolódott, mert BC19 = SIM-L2
+### Phase_21B — Cross-Asset Rezsim Réteg
+**Scope:**
+- 3 arány monitorozása: HYG/IEF (kapuőr), RSP/SPY (breadth), IWM/SPY (feltételes)
+- 4 szintű gradiens — szavazási rendszer:
+  ```python
+  votes = 0
+  if hyg_ief < sma20(hyg_ief):   votes += 1  # mindig szavaz
+  if rsp_spy < sma20(rsp_spy):   votes += 1  # mindig szavaz
+  if iwm_spy < sma20(iwm_spy) and hyg_ief < sma20(hyg_ief):
+      votes += 1                              # csak HYG megerősítéssel
+  ```
+- VIX küszöb-tolás (NEM multiplikátor-lánc):
+  | Szint | Feltétel | VIX küszöb delta | Max pozíció | Min score |
+  |-------|---------|------------|-------------|----------|
+  | NORMAL | 0 szavazat | ±0 | 8 | 70 |
+  | CAUTIOUS | 1 szavazat | -1 | 8 | 70 |
+  | RISK_OFF | 2 szavazat | -3 | 6 | 75 |
+  | CRISIS | 3 szavazat + VIX>30 | -5 | 4 | 80 |
+- API: Polygon ETF bars — HYG, IEF, RSP, SPY, IWM (Advanced tier)
 
-### BC22 — HRP Allokáció + Riskfolio-Lib
+---
+
+## BC22 — HRP Allokáció + Riskfolio-Lib
 **Tervezett:** ~2026-05
-**Scope:**
-- Hierarchical Risk Parity allokáció integrálás (Riskfolio-Lib)
-- Pozíciószám növelés: 8 → 15
-- OBSIDIAN portfólió-szintű regime (ticker→szektor→portfólió)
-- Score-alapú allokáció (nem egyenlő súlyozás)
+**Prioritás:** P2
 
-### BC23 — ETF BMI: Broad ETF Flow Intelligence
-**Tervezett:** ~2026-05/06
+### Phase_22A — HRP Engine
 **Scope:**
-- **Széles ETF univerzum flow elemzés** (~100-200 ETF, nem csak 11 SPDR)
-  - Tematikus ETF-ek (ARKK, SOXX, XBI, TAN, HACK stb.)
-  - Size-factor ETF-ek (IWM, MDY, IJR)
-  - Regionális / nemzetközi (EEM, VEA, FXI)
-  - Fixed income / commodity (TLT, GLD, USO)
-- UW `get_etf_in_outflow()` endpoint használata
+- Hierarchical Risk Parity allokáció (Riskfolio-Lib)
+- Score-alapú allokáció (nem egyenlő súlyozás)
+- OBSIDIAN portfólió-szintű regime (ticker→szektor→portfólió)
+
+### Phase_22B — Pozíciószám Bővítés
+**Scope:**
+- 8 → 15 pozíció (paper trading adatok alapján döntünk)
+- Exposure limit recalibráció az új mérethez
+
+---
+
+## BC23 — ETF BMI: Broad ETF Flow Intelligence
+**Tervezett:** ~2026-05/06
+**Prioritás:** P2
+**Design doc:** `docs/planning/etf-universe-design.md`
+
+### Phase_23A — ETF Flow Intelligence (Réteg 1, ~1000 ETF)
+**Scope:**
+- UW `get_etf_in_outflow()` endpoint
 - ETF flow → szektor rotációs megerősítés (Phase 3 kiegészítés)
-- ETF flow → makro regime jelzés (Phase 1 kiegészítés)
+- ETF flow → makró regime jelzés (Phase 1 kiegészítés)
 - Aggregált intézményi flow heatmap
 
-**Eredet:** HELIOS modul (v1.0), MoneyFlows "ETF 1000 dashboard" kiváltása, UW API feb 2 elemzés
-**API:** UW ETF flow endpoint (Basic tierben elérhető)
+### Phase_23B — L2 Szektoros Finomítás (Réteg 2, 42 ETF)
+**Scope:**
+- 10 CONDITIONAL ticker döntése (SKYY, HACK, KIE, XAR, ITA, JETS, XRT, TAN, ICLN, LIT)
+- L1→L2 mapping alkalmazása Phase 3-ban
+- L2 ETF-ek momentum rangsorolása szektoron belül
 
-### BC24 — Score-Implied μ + Black-Litterman Views
+### Phase_23C — MCP Server Alap
+**Scope:**
+- IFDS pipeline introspekció: státusz, P&L, pozíciók, rezsim, logok
+- Meglévő API-k (FRED, FMP, Polygon, UW) fölé rétegezve
+
+---
+
+## BC24 — Score-Implied μ + Black-Litterman Views
 **Tervezett:** ~2026-06/07
+**Prioritás:** P3
+
+### Phase_24A — Black-Litterman Integráció
 **Scope:**
 - IFDS score → expected return mapping
 - Black-Litterman modell: market equilibrium + IFDS views
 - FMP analyst estimates integráció
 - HRP → BL transition az allokációban
 
-### BC25 — Auto Execution
+### Phase_24B — Company Intel v2
+**Scope:**
+- MCP-alapú Company Intel
+- Adjusted EPS, short interest, options flow summary
+- Napi automatikus futás MCP pull modellben
+
+---
+
+## BC25 — Auto Execution
 **Tervezett:** ~2026-07/08
+**Prioritás:** P3
+
+### Phase_25A — WebSocket + Auto Submit
 **Scope:**
 - Polygon real-time WebSocket → IBKR automatikus order submission
-- Paper Trading eredmények alapján élesítés
-- Human approval loop (Telegram notification → confirmation)
+- Human approval loop (Telegram → confirmation)
 - Circuit breaker: max napi veszteség, max pozíciószám
-- **IBGatewayManager long-running mode:** heartbeat (30s polling), reconnect event loop, `on_reconnected()` hook (order/subscription újraindítás), Gateway watchdog (supervisord/launchd)
 
-### BC26 — Multi-Strategy Framework
-**Tervezett:** ~2026-08/09
+### Phase_25B — IBGatewayManager Long-Running
 **Scope:**
-- Mean Reversion stratégia (Laggard + OVERSOLD szektorok)
-- Momentum stratégia (Leader szektorok, WOW signals)
-- Stratégia allokáció a BMI regime alapján
+- Heartbeat (30s polling), reconnect event loop
+- `on_reconnected()` hook (order/subscription újraindítás)
+- Gateway watchdog (supervisord/launchd)
+
+---
+
+## BC26 — Multi-Strategy Framework
+**Tervezett:** ~2026-08/09
+**Prioritás:** P3
+
+### Phase_26A — Mean Reversion Stratégia
+**Scope:**
+- Laggard + OVERSOLD szektorok
+- Stratégia allokáció BMI regime alapján
+
+### Phase_26B — ETF-Szintű Kereskedés
+**Scope:**
 - ETF-szintű kereskedés (nem csak egyedi részvények)
+- Momentum stratégia (Leader szektorok, WOW signals)
 
 ---
 
-## SimEngine Levels
+## CC Tooling Roadmap (párhuzamos)
 
-| Level | Státusz | Scope |
-|-------|---------|-------|
-| **L1** | ✅ Kész (BC16) | Forward validation, egyetlen config |
-| **L2 Mód 1** | ✅ Kész (BC19) | Parameter sweep (ATR, hold days) |
-| **L2 Mód 2** | BC20 (április) | Re-score, Phase 4 snapshot-okból, T10 A/B |
-| **L3** | Q3 (BC24+) | Full backtest, Polygon 20Y history, VectorBT |
+| Fázis | Mikor | Mit | Státusz |
+|-------|-------|-----|---------|
+| 1 — CONDUCTOR → natív | 2026-02-26 | `.claude/` struktúra, slash commandok | ✅ KÉSZ |
+| 2 — Rules finomítás | BC17 közben | `/learn rule` organikus bővítés | 🔄 Folyamatos |
+| 3 — Skills + Contexts | BC17 után | `continuous-learning` skill, context injection | 📋 ~márc közepe |
+| 4 — Task státusz loop | BC17 után | Status header minden task fájlban, CLAUDE.md auto-update | 📋 ~márc közepe |
+| 5 — MCP integráció | BC20 előtt | GitHub MCP, custom IFDS MCP előkészítés | 📋 ~április |
+
+**Task fájl konvenció (Phase 4-től minden új taskban kötelező):**
+```
+Status: OPEN | WIP | DONE | BLOCKED
+Updated: YYYY-MM-DD
+Note: <opcionális>
+```
 
 ---
 
-## MoneyFlows Tanulságok Státusz
+## SimEngine Szintek
 
-| # | Tanulság | Státusz | BC |
-|---|----------|---------|-----|
-| T1 | Energy szektor gap | ❌ ELENGEDVE — nem elegendő információ | — |
-| T2 | Outlier 50 benchmark (+3% alpha, 66% WR) | ✅ AKTÍV — SIM-L1 méri | — |
-| T3 | Bottom 10 negatív szűrő | ✅ KÉSZ (2026-02-18) | BC18-prep |
-| T4 | Rotation vs Liquidation OBSIDIAN | 📋 TERVEZETT | BC21 |
-| T5 | BMI extreme oversold (<25%) sizing | 📋 TERVEZETT | BC17 |
-| T6 | WOW Signals validálás | 📋 TERVEZETT | BC20 |
-| T7 | New Kid + Repeat Freshness Alpha | 📋 TERVEZETT | BC20 |
+| Level | Státusz | BC |
+|-------|---------|-----|
+| L1 Forward Validation | ✅ Kész (BC16) | — |
+| L2 Mód 1 Parameter Sweep | ✅ Kész (BC19) | — |
+| L2 Mód 2 Re-Score | BC20 | Phase_20A |
+| L2 Trail Szimuláció | BC20 | Phase_20C |
+| L3 Full Backtest (VectorBT) | Q3 BC24+ | — |
+
+---
+
+## MoneyFlows Tanulságok
+
+| # | Tanulság | Státusz | Phase |
+|---|----------|---------|-------|
+| T1 | Energy szektor gap | ❌ ELENGEDVE | — |
+| T2 | Outlier 50 benchmark | ✅ AKTÍV — SIM-L1 méri | — |
+| T3 | Bottom 10 negatív szűrő | ✅ KÉSZ | — |
+| T4 | Rotation vs Liquidation OBSIDIAN | 📋 | Phase_21A |
+| T5 | BMI extreme oversold sizing | 📋 | Phase_17D |
+| T6 | WOW Signals validálás | 📋 | Phase_20B |
+| T7 | New Kid + Repeat Freshness Alpha | 📋 | Phase_20B |
 | T8 | Félvezető szub-szektor faktor | ❌ ELENGEDVE | — |
-| T9 | Trading Calendar earnings exclusion | ✅ KÉSZ (2026-02-18) | BC18-prep |
-| T10 | Freshness Alpha vs WOW A/B teszt | 📋 TERVEZETT | BC20 |
-| T11 | Company Intelligence Phase 7 | 🔄 Standalone kész, pipeline later | BC24+ |
+| T9 | Trading Calendar earnings exclusion | ✅ KÉSZ | — |
+| T10 | Freshness Alpha vs WOW A/B | 📋 | Phase_20B |
+| T11 | Company Intelligence Phase 7 | 🔄 Standalone kész | Phase_24B |
 
 ---
 
-## Párhuzamos Munkafolyamatok
+## Parkolt
+
+| Elem | Indok |
+|------|-------|
+| VectorBT CC Skill | BC20 előtt nincs elég snapshot adat |
+| MCP Server — IFDS introspekció | Phase_23C scope |
+| Company Intel v2 MCP | Phase_24B scope |
+
+---
+
+## Idővonal
 
 ```
-Idővonal:
-         Feb                  Márc                  Ápr                  Máj            
-    ─────┬───────────────────┬───────────────────┬───────────────────┬─────────
-         │                   │                   │                   │
-Paper    │ ████████████████████████ (21 nap) ████│                   │
-Trading  │ Day 4/21          │ KÉSZ márc 9       │ Éles döntés       │
-         │                   │                   │                   │
-OBSIDIAN │ ███████████████████│ AKTÍV márc 4      │                   │
-         │ Day 4/21          │ Day 21 ✓          │                   │
-         │                   │                   │                   │
-Phase 4  │ █████████████████████████████████████████████████████████████
-Snapshot │ Gyűjtés indul     │                   │ BC20 használja    │
-         │                   │                   │                   │
-BC17     │                   │ ████████          │                   │
-         │                   │ márc 4-18         │                   │
-         │                   │                   │                   │
-BC18     │                   │        ████████   │                   │
-         │                   │        márc 18+   │                   │
-         │                   │                   │                   │
-BC20     │                   │                   │ ████████          │
-         │                   │                   │ SIM-L2 Mód 2     │
-         │                   │                   │                   │
-BC21     │                   │                   │        ████████   │
-         │                   │                   │        Risk Layer │
-         │                   │                   │                   │
-SIM-L1   │ ████████████████████████████████████████████████████████████
-Futtatás │ Folyamatos (napi) │ Első benchmark    │ Éles monitoring   │
-         │                   │ márc közepe       │                   │
-         │                   │                   │                   │
-SIM-L2   │                   │ márc 2            │                   │
-Comp.    │                   │ First Run ▲       │ BC20 A/B tesztek  │
+         Márc                  Ápr                   Máj              Jún+
+    ─────┬───────────────────┬────────────────────┬─────────────────┬──────
+         │                   │                    │                 │
+Phase    │ 00+01              │                    │                 │
+_00/_01  │ Status docs + CRGY│                    │                 │
+         │                   │                    │                 │
+Paper    │ ████ márc 17 KÉSZ │                    │                 │
+Trading  │ Day 14→21         │ Éles döntés        │                 │
+         │                   │                    │                 │
+BC17     │ ████████████████  │                    │                 │
+17A+B+C  │ Preflight+Monitor │                    │                 │
++D       │ Trail A + EWMA    │                    │                 │
+         │                   │                    │                 │
+BC18     │        ███████████│                    │                 │
+18A+B    │        Crowd+Trail│                    │                 │
+         │        B ~ápr 1   │                    │                 │
+         │                   │                    │                 │
+BC20     │                   │ ████████           │                 │
+20A+B+C  │                   │ SIM Mód 2+T10+Trail│                 │
+         │                   │                    │                 │
+BC20A    │                   │ ████████████       │                 │
+Swing    │                   │ VWAP+PosTrk+Split  │                 │
+Exit     │                   │ +close+SimEng      │                 │
+         │                   │                    │                 │
+BC21     │                   │        ████████    │                 │
+Risk     │                   │        VaR+Cross-  │                 │
+Layer    │                   │        Asset       │                 │
+         │                   │                    │                 │
+BC22     │                   │                    │ ████████        │
+HRP      │                   │                    │ Riskfolio-Lib   │
+         │                   │                    │                 │
+BC23     │                   │                    │      ███████████│
+ETF BMI  │                   │                    │ +MCP server     │
+         │                   │                    │                 │
+SIM-L1   │ ████████████████████████████████████████████████████████
+         │ Folyamatos napi futás                                    │
+Phase 4  │ ████████████████████████████████████████████████████████
+Snapshot │ BC20-ra ~30+ nap  │ BC20 használja     │                 │
 ```
 
 ---
 
-## Nyitott Kérdések (frissített)
-
-| # | Kérdés | Státusz |
-|---|--------|---------|
-| 1 | Energy szektor gap | ❌ LEZÁRVA — elengedve |
-| 2 | Portfólió méret (8→15→20) | ⏸ PARKOLT — Paper Trading adatok alapján döntünk (BC22) |
-| 3 | FMP tier review | ✅ LEZÁRVA — API_STACK.md kész |
-| 4 | Félvezető szub-szektor | ❌ LEZÁRVA — elengedve |
-| 5 | VectorBT paraméter sweep | 📋 SimEngine L3 scope (Q3) |
-| 6 | Cache TTL fix (stale forward-looking) | ✅ LEZÁRVA (to_date cap + trading calendar) |
-| 7 | ETF BMI broad universe scope | 📋 BC23 (Q2/Q3) |
-
----
-
-## Éves Nézet
+## Éves nézet
 
 ```
-Q1 (jan-márc):  BC1-18 — Pipeline + Validation + Crowdedness         ← MOST ITT
-                BC19 KÉSZ (SIM-L2 Mód 1)
-Q2 (ápr-jún):   BC20-23 — SIM-L2 Mód 2, Risk Layer, HRP, ETF BMI
+Q1 (jan-márc):  BC1-17  — Pipeline + Validation + Crowdedness shadow + Trail Stop A
+Q2 (ápr-jún):   BC18-23 — Trail B, SIM-L2 Mód 2, Swing Exit, Risk Layer, HRP, ETF BMI
 Q3 (júl-szept):  BC24-26 — Black-Litterman, Auto Exec, Multi-Strategy
 Q4 (okt-dec):   BC27-30 — Dashboard, Alpha Decay, Retail Packaging
 ```

@@ -40,3 +40,15 @@ scipy paired t-test azonos különbségekkel: precision loss → adj slight nois
 
 A FileCache TTL check mindig frissnek mutatott stale adatot — proper expiry check kell.
 Javítva BC18-prep-ben.
+
+---
+
+## Cron env isolation — test fixture env var kontroll (rule, 2026-03-02)
+
+A `deploy_daily.sh` `source .env`-vel betölti a prod env-et (`IFDS_ASYNC_ENABLED`, `IFDS_UW_API_KEY` stb.)
+a pytest pre-flight ELŐTT. Minden test config fixture-nek KÖTELEZŐEN explicit kell kezelnie
+az összes viselkedés-módosító env var-t:
+1. Sync fixture-ökben: `monkeypatch.setenv("IFDS_ASYNC_ENABLED", "false")`
+2. Async fixture-ökben: `monkeypatch.delenv("IFDS_UW_API_KEY", raising=False)` ha a teszt nem számít UW client-re
+
+ÚJ fixture írásakor mindig ellenőrizd: milyen env var-ok változtatják meg a kódútat?

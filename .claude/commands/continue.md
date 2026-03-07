@@ -1,18 +1,35 @@
 Session indítás és kontextus betöltés. Futtasd MINDIG a munkamenet legelején.
 
 ## 1. Journal kontextus betöltés
-Olvasd el az utolsó 2 journal entry-t a stratégiai kontextusért:
+
 ```bash
-ls -t docs/journal/ 2>/dev/null | head -2 | while read f; do echo "=== $f ==="; cat "docs/journal/$f"; done
+ls -t docs/journal/ 2>/dev/null | head -2 | while read f; do
+  echo "=== $f ==="
+  cat "docs/journal/$f"
+done
 ```
-Ha a `docs/journal/` könyvtár nem létezik vagy üres, hagyd ki ezt a lépést.
 
-## 2. Aktuális állapot
-Olvasd el a CLAUDE.md "Aktuális Kontextus" szekciót az aktív task-okért és státuszért.
+Ha a `docs/journal/` könyvtár nem létezik vagy üres, hagyd ki.
 
-## 3. Mutasd tömören (max 8 sor):
+## 2. Nyitott taskok
+
+```bash
+grep -rl "Status: OPEN\|Status: WIP" docs/tasks/ 2>/dev/null
+```
+
+## 3. Gyors állapot
+
+```bash
+python -m pytest tests/ -q 2>/dev/null | tail -1
+git log --oneline -3
+```
+
+## 4. Mutasd tömören (max 10 sor)
+
 - **Előző session**: utolsó journal entry 1 soros summary-ja
-- **Open tasks**: CLAUDE.md-ből (ha van)
-- **Folytatás**: "Mivel folytatjuk?"
+- **Nyitott taskok**: lista (ha van)
+- **Tesztek**: N passing
+- **Utolsó commit**: hash — üzenet
+- **Folytatás**: „Mivel folytatjuk?"
 
-Legyél tömör — a user tudja mi a projekt, nem kell újra elmagyarázni.
+Legyél tömör — a user tudja mi a projekt.
