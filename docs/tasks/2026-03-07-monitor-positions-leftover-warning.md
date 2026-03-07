@@ -1,6 +1,6 @@
-Status: OPEN
+Status: DONE
 Updated: 2026-03-07
-Note: BC17 scope
+Note: Implementálva — 5 teszt, 916 passing
 
 # Task: monitor_positions.py — Leftover position warning (10:10 CET)
 
