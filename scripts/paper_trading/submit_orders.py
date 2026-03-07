@@ -353,6 +353,8 @@ def main():
                 'trail_scope': None,
                 'trail_sl_current': None,
                 'trail_high': None,
+                'scenario_b_activated': False,
+                'scenario_b_eligible': True,
             }
         state_path = f'{LOG_DIR}/monitor_state_{today_str}.json'
         with open(state_path, 'w') as f:

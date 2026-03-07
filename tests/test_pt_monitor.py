@@ -90,6 +90,8 @@ def _make_state(
             "trail_scope": "bracket_b" if trail_active else None,
             "trail_sl_current": trail_sl,
             "trail_high": trail_high,
+            "scenario_b_activated": False,
+            "scenario_b_eligible": not trail_active,
         }
     }
 
@@ -325,6 +327,9 @@ def test_scenario_a_tp2_not_cancelled(tmp_path):
 def test_all_resolved_monitor_idle(tmp_path):
     """All tickers tp1_filled=True and trail_active=False -> no IBKR connection."""
     state = _make_state(tp1_filled=True, trail_active=False)
+    # Mark Scenario B as resolved too
+    state["LION"]["scenario_b_eligible"] = False
+    state["LION"]["scenario_b_activated"] = True
     _write_state(tmp_path, state)
     mod = _import_pt_monitor(tmp_path)
 

@@ -1,6 +1,6 @@
-Status: OPEN
+Status: DONE
 Updated: 2026-03-07
-Note: BC18 scope
+Note: Implementálva — 10 teszt, 936 passing
 
 # Task: pt_monitor.py — Trailing Stop Szcenárió B (19:00 CET időalapú)
 
