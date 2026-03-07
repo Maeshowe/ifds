@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: BC17-preflight COMPLETE — kód ellenőrizve 2026-03-07
+
 # Task: BC17 előtt — F-23 validator + F5 silent except + F-16/17 atomic writes + C6/C7 API retry tesztek
 
 **Dátum:** 2026-02-27  

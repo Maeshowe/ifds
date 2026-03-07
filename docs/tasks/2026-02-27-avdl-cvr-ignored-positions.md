@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Implementálva — kód ellenőrizve 2026-03-07
+
 # Task: AVDL.CVR kizárás az EOD position ellenőrzésből
 
 **Dátum:** 2026-02-27  

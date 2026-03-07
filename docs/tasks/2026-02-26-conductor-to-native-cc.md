@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Migráció végrehajtva 2026-02-26
+
 # Task: CONDUCTOR → Native Claude Code Migration
 
 **Dátum:** 2026-02-26  

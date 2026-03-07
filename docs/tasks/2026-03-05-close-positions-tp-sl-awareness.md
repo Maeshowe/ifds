@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Implementálva — kód ellenőrizve 2026-03-07
+
 # Task: close_positions.py — TP/SL fill-aware MOC mennyiség kalkuláció
 
 **Dátum:** 2026-03-05

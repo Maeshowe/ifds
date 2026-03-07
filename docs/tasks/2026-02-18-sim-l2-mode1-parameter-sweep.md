@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: BC19 COMPLETE — kód ellenőrizve 2026-03-07
+
 # Task: SimEngine L2 — Mód 1 (Parameter Sweep + Phase 4 Snapshot)
 
 **Date:** 2026-02-18

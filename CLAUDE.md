@@ -235,8 +235,8 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 <!-- CC frissíti a /wrap-up során -->
 - **Utolsó journal**: docs/journal/2026-03-07-session-close.md
 - **Aktív BC**: BC17 (Phase_17A preflight → 17B monitor_positions → 17C Trail A → 17D EWMA)
-- **Critical taskok**: mind DONE — csak Status: DONE fejléc hiányzik a task fájlokból
-- **Nyitott taskok**: 2026-03-07-phase00-task-status-headers.md (P0), 2026-02-27-bc17-preflight-hardening.md, 2026-03-07-monitor-positions-leftover-warning.md, 2026-03-07-pt-monitor-trailing-stop-scenario-a.md, 2026-03-07-pt-monitor-trailing-stop-scenario-b.md
+- **Critical taskok**: mind DONE — Status fejlécek hozzáadva (30 DONE, 3 OPEN, 1 WIP)
+- **Nyitott taskok**: 2026-03-07-monitor-positions-leftover-warning.md, 2026-03-07-pt-monitor-trailing-stop-scenario-a.md, 2026-03-07-pt-monitor-trailing-stop-scenario-b.md
 - **Teszt szám**: 911 passing, 0 failure
 - **Paper Trading**: Day 14/21 (cum. PnL +$583.00, +0.58%), MMS gyűjtés ~day 17/21
 - **Blokkolók**: nincs

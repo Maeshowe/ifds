@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Implementálva — kód ellenőrizve 2026-03-07
+
 # Task: Fix Paper Trading ClientID Collision + MOC Reliability
 
 **Date:** 2026-02-20

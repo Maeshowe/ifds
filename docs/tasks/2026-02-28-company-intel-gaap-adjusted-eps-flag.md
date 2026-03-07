@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Implementálva — élesben tesztelve BTI márc 2
+
 # Task: Company Intel — GAAP vs Adjusted EPS distinction in CONTRADICTION section
 
 **Date:** 2026-02-28  

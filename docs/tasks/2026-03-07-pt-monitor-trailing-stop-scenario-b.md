@@ -1,3 +1,7 @@
+Status: OPEN
+Updated: 2026-03-07
+Note: BC18 scope
+
 # Task: pt_monitor.py — Trailing Stop Szcenárió B (19:00 CET időalapú)
 
 **Dátum:** 2026-03-07

@@ -1,3 +1,7 @@
+Status: OPEN
+Updated: 2026-03-07
+Note: BC17 scope
+
 # Task: monitor_positions.py — Leftover position warning (10:10 CET)
 
 **Dátum:** 2026-03-07

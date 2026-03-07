@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Session commit végrehajtva 2026-02-24
+
 # Session Commit — 2026-02-24 earnings-date-telegram
 
 ## CC feladatok

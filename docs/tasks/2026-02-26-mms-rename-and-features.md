@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: MMS rename COMPLETE — kód ellenőrizve 2026-03-07
+
 # MMS: Átnevezés + Venue Mix + IV Skew feature bővítés
 
 **Dátum:** 2026-02-26  

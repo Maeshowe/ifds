@@ -1,3 +1,7 @@
+Status: OPEN
+Updated: 2026-03-07
+Note: BC17 scope
+
 # Task: pt_monitor.py — Trailing Stop Szcenárió A + pt_submit.py state init
 
 **Dátum:** 2026-03-07

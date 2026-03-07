@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Futtatva márc 2 — kód ellenőrizve 2026-03-07
+
 # Task: SIM-L2 First Meaningful Comparison Run
 
 **Date:** 2026-03-02 (hétfő)

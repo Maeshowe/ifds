@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Implementálva — kód ellenőrizve 2026-03-07
+
 # Task: eod_report.py — MOC zárások felismerése (orderRef='' bug)
 
 **Dátum:** 2026-03-05  

@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Implementálva — kód ellenőrizve 2026-03-07
+
 # Task: 2 failing test fix + deploy_daily.sh pytest pre-flight + F2 mm_regime drop
 
 **Dátum:** 2026-02-27  

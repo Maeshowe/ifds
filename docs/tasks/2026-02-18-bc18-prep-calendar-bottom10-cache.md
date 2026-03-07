@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: BC18-prep COMPLETE — kód ellenőrizve 2026-03-07
+
 # Task: BC18-prep — Trading Calendar + Bottom 10 Filter + Cache TTL Fix
 
 **Date:** 2026-02-18

@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Implementálva — kód ellenőrizve 2026-03-07
+
 # Task: AGG ETF Benchmark — Telegram Sector Table Fix
 
 **Date:** 2026-02-19

@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Implementálva — kód ellenőrizve 2026-03-07
+
 # Task: submit_orders.py — circuit breaker halt + --override flag
 
 **Date:** 2026-02-26

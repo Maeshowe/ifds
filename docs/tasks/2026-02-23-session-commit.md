@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Session commit végrehajtva 2026-02-23
+
 # Task: Session zárás — commit (2026-02-23)
 
 Futtasd az IFDS repo gyökeréből:

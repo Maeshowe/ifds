@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-03-07
+Note: Implementálva — kód ellenőrizve 2026-03-07
+
 # Task: phase1_regime.py — asyncio.gather return_exceptions fix
 
 **Date:** 2026-02-26
