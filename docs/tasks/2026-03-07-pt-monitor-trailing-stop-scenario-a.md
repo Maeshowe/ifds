@@ -1,6 +1,6 @@
-Status: OPEN
+Status: DONE
 Updated: 2026-03-07
-Note: BC17 scope
+Note: Implementálva — 10 teszt, 926 passing
 
 # Task: pt_monitor.py — Trailing Stop Szcenárió A + pt_submit.py state init
 

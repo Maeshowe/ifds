@@ -337,6 +337,28 @@ def main():
         )
         send_telegram(tg_msg)
 
+    # --- Monitor state initialization ---
+    if submitted > 0:
+        monitor_state = {}
+        for t in [tk for tk in tickers if tk['symbol'] in submitted_tickers]:
+            monitor_state[t['symbol']] = {
+                'entry_price': t['limit_price'],
+                'sl_distance': round(t['limit_price'] - t['stop_loss'], 4),
+                'tp1_price': t['take_profit_1'],
+                'tp2_price': t['take_profit_2'],
+                'total_qty': t['total_qty'],
+                'qty_b': t['qty_tp2'],
+                'tp1_filled': False,
+                'trail_active': False,
+                'trail_scope': None,
+                'trail_sl_current': None,
+                'trail_high': None,
+            }
+        state_path = f'{LOG_DIR}/monitor_state_{today_str}.json'
+        with open(state_path, 'w') as f:
+            json.dump(monitor_state, f, indent=2)
+        logger.info(f'Monitor state written: {state_path} ({len(monitor_state)} tickers)')
+
     disconnect(ib)
 
 
