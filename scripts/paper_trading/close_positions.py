@@ -60,12 +60,16 @@ def send_telegram(message):
 # ---------------------------------------------------------------------------
 
 
-def get_net_open_qty(symbol: str, con_id: int, gross_qty: int, todays_fills) -> int:
-    """Return safe MOC qty after accounting for intraday bracket TP/SL fills.
+BRACKET_B_SUFFIXES = ('_B_SL', '_B_TRAIL', '_TRAIL')
 
-    Subtracts IFDS bracket SLD fills (orderRef startswith 'IFDS_') from
-    gross_qty to correct for cases where ib.positions() hasn't yet reflected
-    those fills due to synchronization delay.
+
+def get_net_open_qty(symbol: str, con_id: int, gross_qty: int, todays_fills) -> int:
+    """Return safe MOC qty after accounting for intraday Bracket B fills.
+
+    Only subtracts Bracket B SLD fills (_B_SL, _B_TRAIL, _TRAIL) from
+    gross_qty.  Bracket A TP1 fills (_A_TP) are NOT subtracted because
+    IBKR already removes A qty from pos.position when the TP fills —
+    subtracting them again would cause undersized MOC orders and leftovers.
 
     If positions() is already synced, this conservatively undersells
     (leaving shares open until next day) but never creates an inadvertent short.
@@ -76,7 +80,10 @@ def get_net_open_qty(symbol: str, con_id: int, gross_qty: int, todays_fills) -> 
         for fill in todays_fills
         if fill.contract.conId == con_id
         and fill.execution.side == 'SLD'
-        and (getattr(fill.execution, 'orderRef', '') or '').startswith('IFDS_')
+        and any(
+            (getattr(fill.execution, 'orderRef', '') or '').endswith(suffix)
+            for suffix in BRACKET_B_SUFFIXES
+        )
     )
     if bracket_sold > 0:
         logger.info(
