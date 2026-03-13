@@ -115,18 +115,18 @@ def main():
 
     from ib_insync import Stock, ExecutionFilter
 
-    # Cancel unfilled IFDS bracket orders to prevent late fills after MOC cutoff
+    # Cancel ALL open orders to prevent late fills after MOC cutoff.
+    # Covers: IFDS_ bracket orders + residual split-leg orders without IFDS_ tag
+    # (e.g. partial entry fills leaving orphaned SL/TP2 from OCA groups).
+    # Safe on paper account (DUH118657) where only IFDS orders exist.
     open_orders = ib.openOrders()
-    ifds_orders = [o for o in open_orders
-                   if hasattr(o, 'orderRef') and o.orderRef
-                   and o.orderRef.startswith('IFDS_')]
-    if ifds_orders:
-        for order in ifds_orders:
+    if open_orders:
+        for order in open_orders:
             ib.cancelOrder(order)
         ib.sleep(2)
-        print(f"  Cancelled {len(ifds_orders)} unfilled IFDS bracket orders")
+        print(f"  Cancelled {len(open_orders)} open orders before MOC")
     else:
-        print("  No unfilled IFDS orders to cancel")
+        print("  No open orders to cancel")
 
     # Fetch today's executions once for bracket fill detection (used by get_net_open_qty)
     todays_fills = ib.reqExecutions(
