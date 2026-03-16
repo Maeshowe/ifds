@@ -40,6 +40,14 @@ def _isolate_pt_env():
             sys.modules[k] = v
 
 
+def _mock_position(symbol: str, qty: int = 100):
+    """Create a mock IBKR Position object."""
+    pos = MagicMock()
+    pos.contract.symbol = symbol
+    pos.position = qty
+    return pos
+
+
 def _import_pt_monitor(tmp_path):
     """Import pt_monitor with STATE_DIR pointed at tmp_path."""
     scripts_dir = os.path.join(
@@ -128,17 +136,101 @@ def test_no_state_file_exits_cleanly(tmp_path):
     mock_connect.assert_not_called()
 
 
+# ---------------------------------------------------------------------------
+# Phantom position filter tests
+# ---------------------------------------------------------------------------
+
+
+def test_phantom_ticker_filtered_out(tmp_path):
+    """Ticker in state but no IBKR position -> not monitored, no Telegram."""
+    _write_state(tmp_path, _make_state(sym="DELL", entry=151.62))
+    mod = _import_pt_monitor(tmp_path)
+
+    mock_ib = MagicMock()
+    mock_ib.positions.return_value = []  # DELL never filled
+
+    with patch("lib.connection.connect", return_value=mock_ib), patch(
+        "lib.connection.disconnect"
+    ) as mock_disc, patch.object(mod, "tp1_was_filled") as mock_tp1, patch.object(
+        mod, "send_telegram"
+    ) as mock_tg:
+        mod.main()
+
+    # No TP1 check, no Telegram — phantom filtered before monitoring loop
+    mock_tp1.assert_not_called()
+    mock_tg.assert_not_called()
+    mock_disc.assert_called_once()
+
+
+def test_phantom_and_real_mix(tmp_path):
+    """State has DELL (phantom) + AAPL (real) -> only AAPL monitored."""
+    state = {
+        **_make_state(sym="DELL", entry=151.62),
+        **_make_state(sym="AAPL", entry=180.00, sl=175.00),
+    }
+    _write_state(tmp_path, state)
+    mod = _import_pt_monitor(tmp_path)
+
+    mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("AAPL", 50)]
+
+    tp1_calls = []
+
+    def _track_tp1(ib, sym):
+        tp1_calls.append(sym)
+        return False
+
+    with patch("lib.connection.connect", return_value=mock_ib), patch(
+        "lib.connection.disconnect"
+    ), patch.object(mod, "tp1_was_filled", side_effect=_track_tp1), patch.object(
+        mod, "get_last_price", return_value=180.50
+    ), patch.object(
+        mod, "send_telegram"
+    ):
+        mod.main()
+
+    # Only AAPL should be checked, not DELL
+    assert "AAPL" in tp1_calls
+    assert "DELL" not in tp1_calls
+
+
+def test_all_phantom_early_exit(tmp_path):
+    """All tickers phantom -> disconnect and exit, no monitoring."""
+    state = {
+        **_make_state(sym="DELL", entry=151.62),
+        **_make_state(sym="DOCN", entry=68.63),
+    }
+    _write_state(tmp_path, state)
+    mod = _import_pt_monitor(tmp_path)
+
+    mock_ib = MagicMock()
+    mock_ib.positions.return_value = []  # Neither filled
+
+    with patch("lib.connection.connect", return_value=mock_ib), patch(
+        "lib.connection.disconnect"
+    ) as mock_disc, patch.object(mod, "tp1_was_filled") as mock_tp1, patch.object(
+        mod, "send_telegram"
+    ) as mock_tg:
+        mod.main()
+
+    mock_tp1.assert_not_called()
+    mock_tg.assert_not_called()
+    mock_disc.assert_called_once()
+
+
 def test_tp1_not_filled_no_trail(tmp_path):
     """TP1 not yet filled -> trail not activated."""
     _write_state(tmp_path, _make_state())
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
-    mock_ib.positions.return_value = []
+    mock_ib.positions.return_value = [_mock_position("LION", 537)]
 
     with patch("lib.connection.connect", return_value=mock_ib), patch(
         "lib.connection.disconnect"
     ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
+        mod, "get_last_price", return_value=9.40
+    ), patch.object(
         mod, "send_telegram"
     ) as mock_tg:
         mod.main()
@@ -156,6 +248,7 @@ def test_scenario_a_trail_activation(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("LION", 537)]
 
     with patch("lib.connection.connect", return_value=mock_ib), patch(
         "lib.connection.disconnect"
@@ -187,6 +280,7 @@ def test_scenario_a_breakeven_protection(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("LION", 537)]
 
     # current_price = 9.55, sl_distance = 0.60
     # new_sl = 9.55 - 0.60 = 8.95 < entry 9.50
@@ -217,6 +311,7 @@ def test_scenario_a_trail_update(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("LION", 537)]
 
     # Price rose to 10.80 -> new_sl = 10.80 - 0.60 = 10.20 > current 9.60
     with patch("lib.connection.connect", return_value=mock_ib), patch(
@@ -241,6 +336,7 @@ def test_scenario_a_trail_sl_not_lowered(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("LION", 537)]
 
     # Price dropped to 10.40 -> new_sl = 10.40 - 0.60 = 9.80 < current 10.20
     with patch("lib.connection.connect", return_value=mock_ib), patch(
@@ -267,6 +363,7 @@ def test_scenario_a_trail_sl_hit(tmp_path):
 
     mock_ib = MagicMock()
     mock_ib.managedAccounts.return_value = ["DUH118657"]
+    mock_ib.positions.return_value = [_mock_position("LION", 360)]
 
     # Price dropped to 10.15 <= trail_sl 10.20 -> SELL
     with patch("lib.connection.connect", return_value=mock_ib), patch(
@@ -301,6 +398,7 @@ def test_scenario_a_tp2_not_cancelled(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("LION", 537)]
     # Set up open orders: B_SL and B_TP
     sl_order = MagicMock()
     sl_order.orderRef = "IFDS_LION_B_SL"

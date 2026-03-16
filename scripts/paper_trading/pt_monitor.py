@@ -154,7 +154,7 @@ def main() -> None:
     # - TP1 not yet filled (Scenario A candidate)
     # - trail active (A or B running)
     # - Scenario B eligible and not yet activated
-    active_tickers = [
+    candidate_tickers = [
         sym
         for sym, s in state.items()
         if (not s.get("tp1_filled"))
@@ -165,14 +165,27 @@ def main() -> None:
             and not s.get("trail_active")
         )
     ]
-    if not active_tickers:
+    if not candidate_tickers:
         logger.info("All positions resolved — monitor idle.")
         return
 
-    logger.info(f"Monitoring {len(active_tickers)} tickers: {active_tickers}")
-
     ib = connect(client_id=15)
     ib.sleep(3)
+
+    # Filter against actual IBKR positions — prevent phantom trail on unfilled entries
+    ib_positions = {p.contract.symbol for p in ib.positions() if p.position != 0}
+    active_tickers = [sym for sym in candidate_tickers if sym in ib_positions]
+    phantom = set(candidate_tickers) - set(active_tickers)
+    if phantom:
+        logger.warning(
+            f"Phantom tickers filtered out (no IBKR position): {sorted(phantom)}"
+        )
+    if not active_tickers:
+        logger.info("All candidate tickers are phantom — nothing to monitor.")
+        disconnect(ib)
+        return
+
+    logger.info(f"Monitoring {len(active_tickers)} tickers: {active_tickers}")
 
     state_changed = False
 

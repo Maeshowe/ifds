@@ -42,6 +42,14 @@ def _isolate_pt_env():
             sys.modules[k] = v
 
 
+def _mock_position(symbol: str, qty: int = 100):
+    """Create a mock IBKR Position object."""
+    pos = MagicMock()
+    pos.contract.symbol = symbol
+    pos.position = qty
+    return pos
+
+
 def _import_pt_monitor(tmp_path):
     """Import pt_monitor with STATE_DIR pointed at tmp_path."""
     scripts_dir = os.path.join(
@@ -112,6 +120,7 @@ def test_scenario_b_activation_at_19_cet(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     # Price $44.20 > threshold $43.92 (43.70 * 1.005)
     # Mock time to be >= 19:00 CET (scenario_b_hour_utc)
@@ -153,6 +162,7 @@ def test_scenario_b_not_activated_before_19(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     with patch("lib.connection.connect", return_value=mock_ib), patch(
         "lib.connection.disconnect"
@@ -181,6 +191,7 @@ def test_scenario_b_not_activated_if_not_profitable(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     # Price $43.80 <= threshold $43.92
     with patch("lib.connection.connect", return_value=mock_ib), patch(
@@ -218,6 +229,7 @@ def test_scenario_b_not_activated_if_scenario_a_active(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     with patch("lib.connection.connect", return_value=mock_ib), patch(
         "lib.connection.disconnect"
@@ -249,6 +261,7 @@ def test_scenario_b_full_qty_sell(tmp_path):
 
     mock_ib = MagicMock()
     mock_ib.managedAccounts.return_value = ["DUH118657"]
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     # Price $43.40 <= trail_sl $43.50
     with patch("lib.connection.connect", return_value=mock_ib), patch(
@@ -279,6 +292,7 @@ def test_scenario_b_tp1_tp2_not_cancelled(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
     # Set up open orders: A_SL, B_SL, A_TP, B_TP
     a_sl = MagicMock(); a_sl.orderRef = "IFDS_SDRL_A_SL"; a_sl.orderId = 100
     b_sl = MagicMock(); b_sl.orderRef = "IFDS_SDRL_B_SL"; b_sl.orderId = 101
@@ -318,6 +332,7 @@ def test_scenario_b_sl_orders_cancelled(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
     a_sl = MagicMock(); a_sl.orderRef = "IFDS_SDRL_A_SL"; a_sl.orderId = 100
     b_sl = MagicMock(); b_sl.orderRef = "IFDS_SDRL_B_SL"; b_sl.orderId = 101
     mock_ib.openOrders.return_value = [a_sl, b_sl]
@@ -379,6 +394,7 @@ def test_scenario_b_trail_updates_upward(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     # sl_distance = 43.70 - 41.41 = 2.29
     # Price $45.00 -> new_sl = 45.00 - 2.29 = 42.71 > current 42.00
@@ -409,6 +425,7 @@ def test_scenario_b_trail_sl_not_lowered(tmp_path):
     mod = _import_pt_monitor(tmp_path)
 
     mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     # Price $44.00 -> new_sl = 44.00 - 2.29 = 41.71 < current 42.71
     with patch("lib.connection.connect", return_value=mock_ib), patch(
