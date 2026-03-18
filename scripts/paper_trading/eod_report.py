@@ -284,6 +284,7 @@ def update_cumulative_pnl(trades, today_str):
 
     # Calculate daily stats
     daily_pnl = sum(t['pnl'] for t in trades)
+    daily_commission = round(sum(t.get('commission', 0.0) for t in trades), 4)
     total_trades = len(trades)
     filled = len([t for t in trades if t['exit_type'] != 'UNFILLED'])
     tp1_hits = len([t for t in trades if t['exit_type'] == 'TP1'])
@@ -301,6 +302,7 @@ def update_cumulative_pnl(trades, today_str):
     data['daily_history'].append({
         'date': today_str,
         'pnl': round(daily_pnl, 2),
+        'commission': daily_commission,
         'trades': total_trades,
         'filled': filled,
         'tp1_hits': tp1_hits,

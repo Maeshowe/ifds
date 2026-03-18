@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "unusual-whales": {
+      "command": "npx",
+      "args": ["-y", "@unusualwhales/mcp"],
+      "env": {
+        "UW_API_KEY": "256d77aa-4041-4b68-8757-e0f348f68652"
+      }
+    }
+  }
+}

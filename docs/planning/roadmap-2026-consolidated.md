@@ -101,28 +101,7 @@ P3 = Hosszú táv — Q2-Q3
 - Telegram: aktiváláskor + SL ütésekor
 - clientId=15
 
-### Phase_17D — EWMA + Crowdedness Shadow + OBSIDIAN Rezsim
-**Scope:**
-- EWMA smoothing (span=10) a scoring-ban
-- Good/Bad Crowding mérés (shadow mode)
-- OBSIDIAN factor volatility aktiválás (~márc 20, 21 nap baseline)
-- T5: BMI extreme oversold (<25%) agresszív sizing
-- OBSIDIAN rezsim multiplier élesítése Phase 6-ban
-- OBSIDIAN dark pool küszöb kalibráció (DD/ABS újrakalibrálás 21 nap után)
-
----
-
-## BC18 — Crowdedness Filtering + Trailing Stop B
-**Tervezett:** ~2026-04-01
-**Prioritás:** P1
-
-### Phase_18A — Crowdedness Filtering Élesítés
-**Scope:**
-- BC17 shadow adatok elemzése (2 hét)
-- Crowdedness composite score élesítése
-- Clipping threshold finomhangolás
-
-### Phase_18B — pt_monitor.py Trailing Stop Szcenárió B
+### Phase_17D — Trailing Stop Szcenárió B
 **Task:** `docs/tasks/2026-03-07-pt-monitor-trailing-stop-scenario-b.md`
 **Előfeltétel:** Phase_17C (Szcenárió A) kész
 **Scope:**
@@ -133,6 +112,28 @@ P3 = Hosszú táv — Q2-Q3
 - TP1/TP2 limit orderek megmaradnak
 - CEST váltás automatikus (zoneinfo alapú)
 - `scenario_b_activated` + `scenario_b_eligible` state mezők
+
+---
+
+## BC18 — Crowdedness Filtering + Trailing Stop B
+**Tervezett:** ~2026-04-01
+**Prioritás:** P1
+
+### Phase_18A — EWMA + Crowdedness Shadow
+**Előfeltétel:** BC17 shadow adatok elemzése (2 hét), Crowdedness design döntés
+**Scope:**
+- EWMA smoothing (span=10) a scoring-ban
+- Good/Bad Crowding mérés shadow mode-ban
+- Crowdedness composite score élesítése
+- Clipping threshold finomhangolás
+
+### Phase_18B — MMS Factor Volatility + T5 Sizing
+**Előfeltétel:** ~márc 20 (21 nap MMS baseline)
+**Scope:**
+- MMS factor volatility aktiválás (`factor_volatility_enabled: True`)
+- MMS rezsim multiplier élesítése Phase 6-ban
+- MMS dark pool küszöb kalibráció (DD/ABS újrakalibrálás 21 nap után)
+- T5: BMI extreme oversold (<25%) agresszív sizing
 
 ---
 

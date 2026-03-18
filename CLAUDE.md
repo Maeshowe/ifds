@@ -222,8 +222,8 @@ docs/qa/                        # QA audit kimenetek (READ ONLY for CC)
 Részletes (Phase-alapú struktúra): `docs/planning/roadmap-2026-consolidated.md`
 
 ```
-Q1 (jan-márc):  BC1-17  — Pipeline + Validation + Crowdedness shadow + Trail Stop A
-Q2 (ápr-jún):   BC18-23 — Trail B, SIM-L2 Mód 2, Swing Exit, Risk Layer, HRP, ETF BMI
+Q1 (jan-márc):  BC1-17  — Pipeline + Validation + Crowdedness shadow + Trail Stop A+B
+Q2 (ápr-jún):   BC18-23 — EWMA, SIM-L2 Mód 2, Swing Exit, Risk Layer, HRP, ETF BMI
 Q3 (júl-szept):  BC24-26 — Black-Litterman, Auto Exec, Multi-Strategy
 Q4 (okt-dec):   BC27-30 — Dashboard, Alpha Decay, Retail Packaging
 ```
@@ -233,10 +233,12 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-03-07-session-close.md
-- **Aktív BC**: BC17 (Phase_17A preflight → 17B monitor_positions → 17C Trail A → 17D EWMA)
-- **Critical taskok**: mind DONE — Status fejlécek hozzáadva (30 DONE, 3 OPEN, 1 WIP)
-- **Nyitott taskok**: 2026-03-07-monitor-positions-leftover-warning.md, 2026-03-07-pt-monitor-trailing-stop-scenario-a.md, 2026-03-07-pt-monitor-trailing-stop-scenario-b.md
-- **Teszt szám**: 911 passing, 0 failure
-- **Paper Trading**: Day 14/21 (cum. PnL +$583.00, +0.58%), MMS gyűjtés ~day 17/21
+- **Utolsó journal**: docs/journal/2026-03-11-session-close.md
+- **Aktív BC**: BC17 DONE, BC18 planned (~ápr 1)
+- **BC18 scope**: Phase_18A EWMA + Crowdedness shadow → Phase_18B MMS factor vol + T5 sizing
+- **Nyitott taskok**: `2026-03-13-scenario-b-loss-making-exit.md` (Low, BC20, vár 21-day data)
+- **Teszt szám**: 951 passing, 0 failure
+- **Utolsó commit**: `b98e588` — fix(pt_monitor): skip monitoring for tickers without open IBKR position
+- **Paper Trading**: Day 17/21 (cum. PnL +$903.04, +0.903%), MMS gyűjtés ~day 17/21
+- **MMS aktiválás**: store ≥21 entry/ticker → config toggle (`mms_enabled: True`), ~márc 20
 - **Blokkolók**: nincs
