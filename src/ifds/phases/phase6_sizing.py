@@ -40,6 +40,40 @@ from ifds.models.market import (
 _BASE_SCORE = 50  # Neutral starting point for sub-dimension scores
 
 
+def _ewma_score(current: float, prev_ewma: float | None, span: int = 10) -> float:
+    """Exponentially Weighted Moving Average for score smoothing.
+
+    EWMA(t) = α * current + (1 - α) * prev_ewma
+    where α = 2 / (span + 1)
+    """
+    if prev_ewma is None:
+        return current
+    alpha = 2.0 / (span + 1)
+    return alpha * current + (1 - alpha) * prev_ewma
+
+
+def _load_ewma_scores(path: str) -> dict[str, float]:
+    """Load previous EWMA scores from JSON state file."""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        today = date.today().isoformat()
+        if data.get("date") == today:
+            return {}  # Already ran today — don't use stale same-day data
+        return data.get("scores", {})
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return {}
+
+
+def _save_ewma_scores(path: str, scores: dict[str, float]) -> None:
+    """Save current EWMA scores to JSON state file."""
+    from ifds.utils.io import atomic_write_json
+    try:
+        atomic_write_json(path, {"date": date.today().isoformat(), "scores": scores})
+    except OSError:
+        pass
+
+
 def run_phase6(config: Config, logger: EventLogger,
                stock_analyses: list[StockAnalysis],
                gex_analyses: list[GEXAnalysis],
@@ -48,7 +82,8 @@ def run_phase6(config: Config, logger: EventLogger,
                signal_history_path: str | None = None,
                sector_scores: list[SectorScore] | None = None,
                signal_hash_file: str | None = None,
-               mms_analyses: list[MMSAnalysis] | None = None) -> Phase6Result:
+               mms_analyses: list[MMSAnalysis] | None = None,
+               bmi_value: float | None = None) -> Phase6Result:
     """Run Phase 6: Position Sizing & Risk Management.
 
     Args:
@@ -84,18 +119,37 @@ def run_phase6(config: Config, logger: EventLogger,
             candidates, config, signal_history_path, logger,
         )
 
-        # 4. Sort by original (pre-freshness) score to preserve ranking
+        # 4. Apply EWMA smoothing if enabled (BC18A)
+        ewma_path = config.runtime.get("ewma_scores_file", "state/ewma_scores.json")
+        ewma_applied = 0
+        if config.tuning.get("ewma_enabled", False):
+            span = config.tuning.get("ewma_span", 10)
+            prev_ewma = _load_ewma_scores(ewma_path)
+            new_ewma: dict[str, float] = {}
+            for stock, _gex in candidates:
+                prev = prev_ewma.get(stock.ticker)
+                smoothed = _ewma_score(stock.combined_score, prev, span)
+                new_ewma[stock.ticker] = smoothed
+                if prev is not None:
+                    stock.combined_score = smoothed
+                    ewma_applied += 1
+            _save_ewma_scores(ewma_path, new_ewma)
+            if ewma_applied:
+                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=6,
+                           message=f"[EWMA] Smoothed {ewma_applied} scores (span={span})")
+
+        # 5. Sort by original (pre-freshness) score to preserve ranking
         # Freshness is a multiplier bonus, not a reranking mechanism
         candidates.sort(key=lambda c: original_scores.get(c[0].ticker, c[0].combined_score),
                         reverse=True)
 
-        # 5. Build sector lookup for new PositionSizing fields
+        # 6. Build sector lookup for new PositionSizing fields
         _sector_map = {ss.sector_name: ss for ss in (sector_scores or [])}
 
         # MMS lookup (BC15)
         _mms_map = {o.ticker: o for o in (mms_analyses or [])}
 
-        # 6. Signal dedup + daily trade limit + position sizing
+        # 7. Signal dedup + daily trade limit + position sizing
         dedup = SignalDedup(signal_hash_file) if signal_hash_file else None
         dedup_count = 0
 
@@ -142,7 +196,7 @@ def run_phase6(config: Config, logger: EventLogger,
 
             pos = _calculate_position(stock, gex, macro, config, strategy_mode,
                                       original_scores, fresh_tickers, _sector_map,
-                                      _mms_map)
+                                      _mms_map, bmi_value)
             if pos is None:
                 sizing_failed_count += 1
                 if sizing_failed_count <= 5:
@@ -182,7 +236,7 @@ def run_phase6(config: Config, logger: EventLogger,
             if dedup:
                 dedup.record(stock.ticker, direction)
 
-        # 7. Apply position limits
+        # 8. Apply position limits
         final_positions, limit_counts = _apply_position_limits(
             raw_positions, config, logger,
         )
@@ -194,7 +248,7 @@ def run_phase6(config: Config, logger: EventLogger,
         daily_notional["count"] = initial_notional_count + sum(
             p.quantity * p.entry_price for p in final_positions)
 
-        # 8. Log each sized position
+        # 9. Log each sized position
         for pos in final_positions:
             logger.log(EventType.POSITION_SIZED, Severity.INFO, phase=6,
                        message=f"Sized {pos.ticker}: {pos.quantity} shares @ ${pos.entry_price:.2f}",
@@ -407,6 +461,7 @@ def _calculate_position(
     fresh_tickers: set[str] | None = None,
     sector_map: dict[str, SectorScore] | None = None,
     mms_map: dict[str, MMSAnalysis] | None = None,
+    bmi_value: float | None = None,
 ) -> PositionSizing | None:
     """Calculate position sizing for a single candidate.
 
@@ -427,6 +482,14 @@ def _calculate_position(
     base_risk = account_equity * risk_pct / 100  # e.g., $500
 
     m_total, multipliers = _calculate_multiplier_total(stock, gex, macro, config)
+
+    # T5: BMI extreme oversold → aggressive sizing (BC18B)
+    if bmi_value is not None:
+        bmi_threshold = config.tuning.get("bmi_oversold_threshold", 25)
+        if bmi_value < bmi_threshold:
+            bmi_mult = config.tuning.get("bmi_oversold_multiplier", 1.25)
+            m_total = min(2.0, m_total * bmi_mult)
+
     adjusted_risk = base_risk * m_total
 
     # Stop distance and quantity

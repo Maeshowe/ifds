@@ -271,7 +271,7 @@ TUNING = {
     },
 
     # MMS (BC15)
-    "mms_enabled": False,                              # Feature flag (opt-in)
+    "mms_enabled": True,                               # BC18B: activated (25-day baseline)
     "mms_store_always_collect": True,                  # Accumulate feature store even when disabled
     "mms_regime_multipliers": {                        # Phase 6 sizing multipliers per regime
         "gamma_positive": 1.5,
@@ -285,9 +285,17 @@ TUNING = {
     },
 
     # Factor Volatility (BC16)
-    "factor_volatility_enabled": False,               # Feature flag (opt-in)
+    "factor_volatility_enabled": True,                # BC18B: activated (25-day baseline)
     "factor_volatility_window": 20,                   # Rolling σ window (trading days)
     "factor_volatility_confidence_floor": 0.6,        # Minimum confidence multiplier
+
+    # T5: BMI Extreme Oversold Sizing (BC18B)
+    "bmi_oversold_threshold": 25,                     # BMI < 25% = extreme oversold
+    "bmi_oversold_multiplier": 1.25,                  # Aggressive sizing boost
+
+    # EWMA Score Smoothing (BC18A)
+    "ewma_enabled": False,                            # Feature flag (opt-in)
+    "ewma_span": 10,                                  # EWMA window (trading days)
 
     # Danger Zone Filter (BC18-prep — T3 Bottom 10)
     "danger_zone_enabled": True,                      # Explicit negative filter

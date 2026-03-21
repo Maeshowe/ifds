@@ -1,7 +1,7 @@
 ---
-Status: OPEN
+Status: DONE
 Updated: 2026-03-21
-Note: BC18 Phase_18B — MMS + Factor Vol aktiválás, T5 sizing. Baseline kész (25 nap).
+Note: Implemented — mms_enabled=True, factor_vol=True, T5 BMI oversold sizing, 8 tests
 ---
 
 # BC18 Phase_18B — MMS Activation + Factor Volatility + T5 Sizing

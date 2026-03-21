@@ -418,6 +418,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     sector_scores=ctx.sector_scores,
                     signal_hash_file=config.runtime.get("signal_hash_file"),
                     mms_analyses=ctx.mms_analyses,
+                    bmi_value=ctx.bmi_value,
                 )
                 ctx.phase6 = phase6
                 ctx.positions = phase6.positions
