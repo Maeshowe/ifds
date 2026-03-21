@@ -130,6 +130,24 @@ def cancel_all_sl_orders(ib, sym: str) -> int:
     return cancelled
 
 
+def cancel_all_orders(ib, sym: str) -> int:
+    """Cancel ALL IFDS orders for a ticker (SL + TP). Returns count cancelled."""
+    open_orders = ib.openOrders()
+    cancelled = 0
+    for order in open_orders:
+        ref = getattr(order, "orderRef", "")
+        if ref.startswith(f"IFDS_{sym}"):
+            ib.cancelOrder(order)
+            ib.sleep(0.5)
+            logger.info(f"{sym}: Cancelled — {ref} (orderId={order.orderId})")
+            cancelled += 1
+    if cancelled == 0:
+        logger.warning(f"{sym}: No orders found for cancellation")
+    return cancelled
+
+
+SCENARIO_B_LOSS_THRESHOLD = 0.98  # -2.0%
+
 CET = ZoneInfo("Europe/Budapest")
 
 
@@ -267,10 +285,42 @@ def main() -> None:
                     )
                     logger.info(msg)
                     send_telegram(msg)
+                elif current_price < s["entry_price"] * SCENARIO_B_LOSS_THRESHOLD:
+                    # Loss-making exit: close position immediately
+                    cancel_all_orders(ib, sym)
+
+                    qty = s["total_qty"]
+                    from ib_insync import MarketOrder, Stock
+
+                    contract = Stock(sym, "SMART", "USD")
+                    ib.qualifyContracts(contract)
+                    order = MarketOrder("SELL", qty)
+                    order.tif = "DAY"
+                    order.orderRef = f"IFDS_{sym}_LOSS_EXIT"
+                    order.account = ib.managedAccounts()[0]
+                    ib.placeOrder(contract, order)
+
+                    s["trail_active"] = False
+                    s["scenario_b_eligible"] = False
+                    s["scenario_b_activated"] = True
+                    state_changed = True
+
+                    loss_pct = ((current_price / s["entry_price"]) - 1) * 100
+                    msg = (
+                        f"LOSS EXIT {sym}: Scenario B loss-making close\n"
+                        f"19:00 CET — position down {loss_pct:.1f}%\n"
+                        f"Price: ${current_price:.2f} < threshold: "
+                        f"${s['entry_price'] * SCENARIO_B_LOSS_THRESHOLD:.2f}\n"
+                        f"SELL {qty} shares at MKT"
+                    )
+                    logger.warning(msg)
+                    send_telegram(msg)
                 else:
                     logger.info(
                         f"{sym}: Scenario B — not activated "
-                        f"(price ${current_price:.2f} <= threshold ${threshold:.2f})"
+                        f"(price ${current_price:.2f}, "
+                        f"profit threshold ${threshold:.2f}, "
+                        f"loss threshold ${s['entry_price'] * SCENARIO_B_LOSS_THRESHOLD:.2f})"
                     )
 
         # --- Trail SL update + hit detection ---

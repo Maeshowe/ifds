@@ -439,3 +439,195 @@ def test_scenario_b_trail_sl_not_lowered(tmp_path):
     assert state["SDRL"]["trail_sl_current"] == 42.71  # unchanged
     assert state["SDRL"]["trail_active"] is True
     mock_tg.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Scenario B loss-making exit tests
+# ---------------------------------------------------------------------------
+
+
+def test_scenario_b_loss_exit_at_minus_2_pct(tmp_path):
+    """19:00 CET + price < entry * 0.98 -> MKT SELL, loss exit."""
+    _write_state(tmp_path, _make_state_b())
+    mod = _import_pt_monitor(tmp_path)
+
+    mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
+    mock_ib.managedAccounts.return_value = ["DUH118657"]
+    mock_ib.openOrders.return_value = []
+
+    # entry=43.70, threshold=43.70*0.98=42.826
+    # Price $42.50 < 42.826 -> loss exit
+    with patch("lib.connection.connect", return_value=mock_ib), patch(
+        "lib.connection.disconnect"
+    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
+        mod, "get_last_price", return_value=42.50
+    ), patch.object(
+        mod, "get_scenario_b_hour_utc", return_value=17
+    ), patch(
+        "scripts.paper_trading.pt_monitor.datetime"
+    ) as mock_dt, patch.object(
+        mod, "send_telegram"
+    ) as mock_tg:
+        mock_now = MagicMock()
+        mock_now.hour = 18
+        mock_dt.now.return_value = mock_now
+        mod.main()
+
+    mock_ib.placeOrder.assert_called_once()
+    placed_order = mock_ib.placeOrder.call_args[0][1]
+    assert placed_order.action == "SELL"
+    assert placed_order.totalQuantity == 115
+    assert placed_order.orderRef == "IFDS_SDRL_LOSS_EXIT"
+
+    mock_tg.assert_called_once()
+    msg = mock_tg.call_args[0][0]
+    assert "LOSS EXIT" in msg
+    assert "SDRL" in msg
+
+    state = mod.load_state(date.today().strftime("%Y-%m-%d"))
+    assert state["SDRL"]["trail_active"] is False
+    assert state["SDRL"]["scenario_b_activated"] is True
+    assert state["SDRL"]["scenario_b_eligible"] is False
+
+
+def test_scenario_b_no_action_between_thresholds(tmp_path):
+    """Price between -2% and +0.5% -> no action, waits for MOC."""
+    _write_state(tmp_path, _make_state_b())
+    mod = _import_pt_monitor(tmp_path)
+
+    mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
+
+    # entry=43.70, loss threshold=42.826, profit threshold=43.918
+    # Price $43.00 is between thresholds -> no action
+    with patch("lib.connection.connect", return_value=mock_ib), patch(
+        "lib.connection.disconnect"
+    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
+        mod, "get_last_price", return_value=43.00
+    ), patch.object(
+        mod, "get_scenario_b_hour_utc", return_value=17
+    ), patch(
+        "scripts.paper_trading.pt_monitor.datetime"
+    ) as mock_dt, patch.object(
+        mod, "send_telegram"
+    ) as mock_tg:
+        mock_now = MagicMock()
+        mock_now.hour = 18
+        mock_dt.now.return_value = mock_now
+        mod.main()
+
+    mock_tg.assert_not_called()
+    mock_ib.placeOrder.assert_not_called()
+    state = mod.load_state(date.today().strftime("%Y-%m-%d"))
+    assert state["SDRL"]["trail_active"] is False
+    assert state["SDRL"]["scenario_b_activated"] is False
+
+
+def test_scenario_b_loss_exit_cancels_all_orders(tmp_path):
+    """Loss exit cancels ALL orders (SL + TP), not just SL."""
+    _write_state(tmp_path, _make_state_b())
+    mod = _import_pt_monitor(tmp_path)
+
+    mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
+    mock_ib.managedAccounts.return_value = ["DUH118657"]
+
+    a_sl = MagicMock(); a_sl.orderRef = "IFDS_SDRL_A_SL"; a_sl.orderId = 100
+    b_sl = MagicMock(); b_sl.orderRef = "IFDS_SDRL_B_SL"; b_sl.orderId = 101
+    a_tp = MagicMock(); a_tp.orderRef = "IFDS_SDRL_A_TP"; a_tp.orderId = 102
+    b_tp = MagicMock(); b_tp.orderRef = "IFDS_SDRL_B_TP"; b_tp.orderId = 103
+    mock_ib.openOrders.return_value = [a_sl, b_sl, a_tp, b_tp]
+
+    with patch("lib.connection.connect", return_value=mock_ib), patch(
+        "lib.connection.disconnect"
+    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
+        mod, "get_last_price", return_value=42.50
+    ), patch.object(
+        mod, "get_scenario_b_hour_utc", return_value=17
+    ), patch(
+        "scripts.paper_trading.pt_monitor.datetime"
+    ) as mock_dt, patch.object(
+        mod, "send_telegram"
+    ):
+        mock_now = MagicMock()
+        mock_now.hour = 18
+        mock_dt.now.return_value = mock_now
+        mod.main()
+
+    # All 4 orders should be cancelled (SL + TP)
+    assert mock_ib.cancelOrder.call_count == 4
+    cancelled_refs = [c[0][0].orderRef for c in mock_ib.cancelOrder.call_args_list]
+    assert "IFDS_SDRL_A_SL" in cancelled_refs
+    assert "IFDS_SDRL_B_SL" in cancelled_refs
+    assert "IFDS_SDRL_A_TP" in cancelled_refs
+    assert "IFDS_SDRL_B_TP" in cancelled_refs
+
+
+def test_scenario_b_loss_exit_at_exact_threshold(tmp_path):
+    """Price exactly at -2.0% threshold -> no loss exit (needs to be strictly below)."""
+    _write_state(tmp_path, _make_state_b())
+    mod = _import_pt_monitor(tmp_path)
+
+    mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
+
+    # entry=43.70, threshold=43.70*0.98=42.826
+    # Price exactly $42.826 -> NOT below threshold
+    threshold_price = round(43.70 * 0.98, 3)
+    with patch("lib.connection.connect", return_value=mock_ib), patch(
+        "lib.connection.disconnect"
+    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
+        mod, "get_last_price", return_value=threshold_price
+    ), patch.object(
+        mod, "get_scenario_b_hour_utc", return_value=17
+    ), patch(
+        "scripts.paper_trading.pt_monitor.datetime"
+    ) as mock_dt, patch.object(
+        mod, "send_telegram"
+    ) as mock_tg:
+        mock_now = MagicMock()
+        mock_now.hour = 18
+        mock_dt.now.return_value = mock_now
+        mod.main()
+
+    mock_tg.assert_not_called()
+    mock_ib.placeOrder.assert_not_called()
+
+
+def test_scenario_b_profitable_path_unchanged(tmp_path):
+    """Profitable path still works (trail activation, not loss exit)."""
+    _write_state(tmp_path, _make_state_b())
+    mod = _import_pt_monitor(tmp_path)
+
+    mock_ib = MagicMock()
+    mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
+
+    # Price $44.20 > profit threshold $43.918 -> trail (not loss exit)
+    with patch("lib.connection.connect", return_value=mock_ib), patch(
+        "lib.connection.disconnect"
+    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
+        mod, "get_last_price", return_value=44.20
+    ), patch.object(
+        mod, "cancel_all_sl_orders", return_value=2
+    ), patch.object(
+        mod, "get_scenario_b_hour_utc", return_value=17
+    ), patch(
+        "scripts.paper_trading.pt_monitor.datetime"
+    ) as mock_dt, patch.object(
+        mod, "send_telegram"
+    ) as mock_tg:
+        mock_now = MagicMock()
+        mock_now.hour = 18
+        mock_dt.now.return_value = mock_now
+        mod.main()
+
+    # Should activate trail, NOT loss exit
+    mock_tg.assert_called_once()
+    msg = mock_tg.call_args[0][0]
+    assert "Trail active" in msg
+    assert "LOSS EXIT" not in msg
+
+    state = mod.load_state(date.today().strftime("%Y-%m-%d"))
+    assert state["SDRL"]["trail_active"] is True
+    assert state["SDRL"]["trail_scope"] == "full"
