@@ -115,25 +115,20 @@ P3 = Hosszú táv — Q2-Q3
 
 ---
 
-## BC18 — Crowdedness Filtering + Trailing Stop B
-**Tervezett:** ~2026-04-01
-**Prioritás:** P1
+## BC18 — ✅ KÉSZ (2026-03-21)
+EWMA Smoothing + Crowdedness Shadow + MMS Activation + Factor Volatility + T5 Sizing
 
-### Phase_18A — EWMA + Crowdedness Shadow
-**Előfeltétel:** BC17 shadow adatok elemzése (2 hét), Crowdedness design döntés
-**Scope:**
-- EWMA smoothing (span=10) a scoring-ban
-- Good/Bad Crowding mérés shadow mode-ban
-- Crowdedness composite score élesítése
-- Clipping threshold finomhangolás
+### Phase_18A — EWMA + Crowdedness Shadow ✅
+- EWMA smoothing (span=10) — `_ewma_score()` in Phase 6 (`ewma_enabled` config flag)
+- Crowdedness composite score — `compute_crowding_score()` in Phase 5 (`crowdedness_shadow_enabled` flag)
+- Decision B+C+C: dark_share > 0.55, gradual bad crowding, no good boost
+- Shadow mode: scores logged, no Phase 6 impact yet (2-week data collection)
 
-### Phase_18B — MMS Factor Volatility + T5 Sizing
-**Előfeltétel:** ~márc 20 (21 nap MMS baseline)
-**Scope:**
-- MMS factor volatility aktiválás (`factor_volatility_enabled: True`)
-- MMS rezsim multiplier élesítése Phase 6-ban
-- MMS dark pool küszöb kalibráció (DD/ABS újrakalibrálás 21 nap után)
-- T5: BMI extreme oversold (<25%) agresszív sizing
+### Phase_18B — MMS Factor Volatility + T5 Sizing ✅
+- `mms_enabled: True` — 25-day baseline (21 minimum)
+- `factor_volatility_enabled: True` — VOLATILE regime detection (BC16 code)
+- T5: BMI extreme oversold (<25%) → ×1.25 aggressive sizing
+- Config: `bmi_oversold_threshold=25`, `bmi_oversold_multiplier=1.25`
 
 ---
 

@@ -7,18 +7,13 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 
 ## Státusz (2026-03-21)
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
-- **BC16 kész** — Phase 1 async (282s→17s), factor volatility framework, SIM-L1 validation engine
-- **BC19 kész** — SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
-- **987 teszt**, 0 failure, 0 warning
-- **BC18-prep kész** — Trading calendar, danger zone filter, cache TTL fix
-- **IBKR Connection Hardening kész** — retry logic, timeout, Telegram alert, port konstansok
-- **Witching Day Calendar kész** — `src/ifds/utils/calendar.py`, submit_orders.py skip + Telegram alert
-- **AVWAP Limit→MKT kész** — `scripts/paper_trading/pt_avwap.py`, unfilled entry → AVWAP dip+cross → MKT
-- **Scenario B Loss Exit kész** — 19:00 CET −2.0% threshold → immediate MKT close
+- **1015 teszt**, 0 failure, 0 warning
+- **BC1–BC19 kész** — Pipeline, SIM-L1/L2, async, MMS, factor vol, IBKR hardening
+- **BC18 kész** — MMS activation, factor vol, T5 oversold sizing, EWMA smoothing, crowdedness shadow
+- **Paper Trading infra kész** — Witching calendar, AVWAP limit→MKT, Scenario B loss exit, trailing stop A+B
 - **Paper Trading**: Day 25 lezárult (IBKR paper account DUH118657, cum. PnL +$20.37)
-- **Trailing Stop**: Scenario A + B implementálva (`pt_monitor.py`)
 - **Swing Hybrid Exit**: design APPROVED (`docs/planning/swing-hybrid-exit-design.md`)
-- **Következő**: BC18 (EWMA + crowdedness shadow + MMS aktiválás) — ~ápr 1
+- **Következő**: BC20 (SIM-L2 Mód 2, Freshness A/B, Trail Sim) — ~ápr első fele
 
 ## Alapszabályok
 - Ez PÉNZÜGYI rendszer — Human-in-the-loop minden döntésnél
@@ -228,8 +223,8 @@ docs/qa/                        # QA audit kimenetek (READ ONLY for CC)
 Részletes (Phase-alapú struktúra): `docs/planning/roadmap-2026-consolidated.md`
 
 ```
-Q1 (jan-márc):  BC1-17  — Pipeline + Validation + Crowdedness shadow + Trail Stop A+B
-Q2 (ápr-jún):   BC18-23 — EWMA, SIM-L2 Mód 2, Swing Exit, Risk Layer, HRP, ETF BMI
+Q1 (jan-márc):  BC1-18  — Pipeline + Validation + Trail Stop + MMS + EWMA + Crowdedness shadow
+Q2 (ápr-jún):   BC20-23 — SIM-L2 Mód 2, Swing Exit, Risk Layer, HRP, ETF BMI
 Q3 (júl-szept):  BC24-26 — Black-Litterman, Auto Exec, Multi-Strategy
 Q4 (okt-dec):   BC27-30 — Dashboard, Alpha Decay, Retail Packaging
 ```
@@ -240,12 +235,13 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
 - **Utolsó journal**: docs/journal/2026-03-11-session-close.md
-- **Aktív BC**: BC17 DONE, BC18 planned (~ápr 1)
-- **BC18 scope**: Phase_18A EWMA + Crowdedness shadow → Phase_18B MMS factor vol + T5 sizing
-- **Nyitott taskok**: nincs (mind DONE)
-- **Teszt szám**: 987 passing, 0 failure
-- **Utolsó commit**: `1b354e6` — feat(pt_monitor): Scenario B loss-making exit at 19:00 CET
+- **Aktív BC**: BC18 DONE, BC20 következő (~ápr első fele)
+- **BC20 scope**: Phase_20A SIM-L2 Mód 2 Re-Score → Phase_20B Freshness A/B → Phase_20C Trail Sim
+- **Nyitott taskok**: nincs (BC18 mind DONE)
+- **Teszt szám**: 1015 passing, 0 failure
+- **Utolsó commit**: `b700c18` — feat(phase5): crowdedness shadow mode (BC18A)
 - **Paper Trading**: Day 25 lezárult (cum. PnL +$20.37, +0.020%)
-- **MMS aktiválás**: store ≥21 entry/ticker → config toggle (`mms_enabled: True`)
+- **MMS**: `mms_enabled: True`, `factor_volatility_enabled: True` (25-day baseline)
 - **PT scriptek**: submit(10), close(11), eod(12), nuke(13), monitor(15), avwap(16)
+- **Config flags élesítés**: `crowdedness_shadow_enabled`, `ewma_enabled` — shadow mode, manuális toggle
 - **Blokkolók**: nincs
