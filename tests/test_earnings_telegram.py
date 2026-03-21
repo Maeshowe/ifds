@@ -28,6 +28,7 @@ class _Pos:
     take_profit_1: float = 160.0
     take_profit_2: float = 170.0
     risk_usd: float = 50.0
+    mm_regime: str = "neutral"
 
 
 # =========================================================================

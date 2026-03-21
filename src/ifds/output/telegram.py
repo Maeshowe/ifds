@@ -272,6 +272,13 @@ def _format_phases_5_to_6(ctx: PipelineContext, config: Config,
                 f" / {states['empty']} empty"
             )
 
+            # Crowdedness shadow summary (BC18A)
+            if config.tuning.get("crowdedness_shadow_enabled", False):
+                good = sum(1 for o in ctx.mms_analyses if o.crowding_score > 0.3)
+                bad = sum(1 for o in ctx.mms_analyses if o.crowding_score < -0.3)
+                neutral = len(ctx.mms_analyses) - good - bad
+                lines.append(f"Crowd: {good} good / {neutral} neutral / {bad} bad")
+
     # Phase 6: Position Sizing
     lines.append("")
     lines.append(f"<b>[ 6/6 ] Position Sizing</b>")
@@ -401,14 +408,28 @@ def _format_exec_table(positions: list,
         f"{'TP1':>8} "
         f"{'TP2':>8} "
         f"{'RISK$':>6}"
+        f"  {'MMS':<4}"
     )
     if earnings_map is not None:
-        header = base_header + f"  {'EARN':<5}"
+        header = base_header + f"{'EARN':<5}"
     else:
         header = base_header
     rows.append(header)
 
+    # MMS regime abbreviations
+    _MMS_SHORT = {
+        "gamma_positive": "G+",
+        "gamma_negative": "G-",
+        "dark_dominant": "DD",
+        "absorption": "ABS",
+        "distribution": "DST",
+        "neutral": "NEU",
+        "undetermined": "UND",
+        "volatile": "VOL",
+    }
+
     for p in positions:
+        mms_str = _MMS_SHORT.get(p.mm_regime, p.mm_regime[:3].upper() if p.mm_regime else "---")
         row = (
             f"{p.ticker:<7}"
             f"{p.quantity:>4} "
@@ -417,11 +438,12 @@ def _format_exec_table(positions: list,
             f"${p.take_profit_1:>7.2f} "
             f"${p.take_profit_2:>7.2f} "
             f"${p.risk_usd:>5.0f}"
+            f"  {mms_str:<4}"
         )
         if earnings_map is not None:
             full_date = earnings_map.get(p.ticker)
             earn_str = full_date[5:] if full_date else "N/A"
-            row += f"  {earn_str:<5}"
+            row += f"{earn_str:<5}"
         rows.append(row)
 
     return "<pre>" + "\n".join(rows) + "</pre>"
