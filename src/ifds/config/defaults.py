@@ -294,11 +294,11 @@ TUNING = {
     "bmi_oversold_multiplier": 1.25,                  # Aggressive sizing boost
 
     # EWMA Score Smoothing (BC18A)
-    "ewma_enabled": False,                            # Feature flag (opt-in)
+    "ewma_enabled": True,                             # BC18A: activated 2026-03-21
     "ewma_span": 10,                                  # EWMA window (trading days)
 
     # Crowdedness Shadow (BC18A) — Decision B+C+C
-    "crowdedness_shadow_enabled": False,              # Feature flag (shadow mode, no sizing impact)
+    "crowdedness_shadow_enabled": True,               # BC18A: activated 2026-03-21 (shadow, no sizing)
     "crowdedness_threshold": 0.55,                    # dark_share threshold for crowding detection
 
     # Danger Zone Filter (BC18-prep — T3 Bottom 10)

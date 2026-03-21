@@ -109,5 +109,5 @@ def test_ewma_config_keys_exist():
     from ifds.config.defaults import TUNING
     assert "ewma_enabled" in TUNING
     assert "ewma_span" in TUNING
-    assert TUNING["ewma_enabled"] is False
+    assert TUNING["ewma_enabled"] is True
     assert TUNING["ewma_span"] == 10

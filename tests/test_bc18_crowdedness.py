@@ -170,5 +170,5 @@ def test_score_clamped_negative():
 def test_crowdedness_config_keys():
     """Crowdedness config keys exist with correct defaults."""
     from ifds.config.defaults import TUNING
-    assert TUNING["crowdedness_shadow_enabled"] is False
+    assert TUNING["crowdedness_shadow_enabled"] is True
     assert TUNING["crowdedness_threshold"] == 0.55
