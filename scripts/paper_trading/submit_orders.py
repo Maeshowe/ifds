@@ -362,6 +362,7 @@ def main():
                 'sl_distance': round(t['limit_price'] - t['stop_loss'], 4),
                 'tp1_price': t['take_profit_1'],
                 'tp2_price': t['take_profit_2'],
+                'stop_loss': t['stop_loss'],
                 'total_qty': t['total_qty'],
                 'qty_b': t['qty_tp2'],
                 'tp1_filled': False,
@@ -371,6 +372,10 @@ def main():
                 'trail_high': None,
                 'scenario_b_activated': False,
                 'scenario_b_eligible': True,
+                'avwap_state': 'IDLE',
+                'avwap_dipped': False,
+                'avwap_last': None,
+                'avwap_converted': False,
             }
         state_path = f'{LOG_DIR}/monitor_state_{today_str}.json'
         with open(state_path, 'w') as f:
