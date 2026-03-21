@@ -493,6 +493,50 @@ def _compute_unusualness(z_scores: dict, excluded_features: list[str],
 # Top-level Per-ticker Function
 # ============================================================================
 
+# ============================================================================
+# Crowdedness Shadow (BC18A)
+# ============================================================================
+
+def compute_crowding_score(
+    dark_share: float,
+    z_block: float | None,
+    z_dex: float | None,
+    iv_skew: float,
+    median_iv_skew: float,
+    daily_return: float,
+    threshold_high: float = 0.55,
+) -> float:
+    """Crowdedness composite score ∈ [-1.0, +1.0].
+
+    Measures institutional crowding:
+      +1.0 = Good Crowding (coordinated accumulation, trend-enhancing)
+       0.0 = Neutral / not crowded
+      -1.0 = Bad Crowding (exit hazard, crowded long)
+
+    Decision B+C+C: dark_share > 0.55, gradual bad, no good boost.
+    """
+    if dark_share < threshold_high or z_block is None or z_block < 0.5:
+        return 0.0
+
+    # Direction: negative dex = institutions buying (good), positive return = good
+    direction = 0.0
+    if z_dex is not None:
+        direction -= z_dex * 0.4
+    direction += daily_return * 20
+    direction = max(-1.0, min(1.0, direction))
+
+    # Fear: higher iv_skew = more fear hedging = bad
+    fear = (iv_skew - median_iv_skew) * 5
+    fear = max(-1.0, min(1.0, fear))
+
+    # Crowd intensity: how crowded
+    intensity = min(1.0, (dark_share - threshold_high) / 0.3 + z_block / 3.0)
+
+    # Composite: direction leads (60%), fear corrects (40%), intensity scales
+    raw = (direction * 0.6 - fear * 0.4) * intensity
+    return max(-1.0, min(1.0, raw))
+
+
 def _get_regime_multiplier(regime: MMRegime, config_tuning: dict) -> float:
     """Look up sizing multiplier for a regime."""
     multipliers = config_tuning.get("mms_regime_multipliers", {})
@@ -630,6 +674,29 @@ def run_mms_analysis(
         result.regime_multiplier = base_mult * max(floor, confidence)
     else:
         result.regime_multiplier = base_mult
+
+    # 7b. Crowdedness shadow score (BC18A)
+    if config_tuning.get("crowdedness_shadow_enabled", False):
+        # Compute median iv_skew from historical entries
+        iv_skew_series = [float(e["iv_skew"]) for e in historical
+                          if e.get("iv_skew") is not None]
+        median_iv_skew_val = 0.0
+        if iv_skew_series:
+            sorted_ivs = sorted(iv_skew_series)
+            n = len(sorted_ivs)
+            median_iv_skew_val = (sorted_ivs[n // 2] if n % 2 else
+                                  (sorted_ivs[n // 2 - 1] + sorted_ivs[n // 2]) / 2)
+
+        threshold = config_tuning.get("crowdedness_threshold", 0.55)
+        result.crowding_score = compute_crowding_score(
+            dark_share=dark_share,
+            z_block=z_scores.get("block_count"),
+            z_dex=z_scores.get("dex"),
+            iv_skew=iv_skew,
+            median_iv_skew=median_iv_skew_val,
+            daily_return=daily_return,
+            threshold_high=threshold,
+        )
 
     # 8. Append today's entry to store
     entry = {

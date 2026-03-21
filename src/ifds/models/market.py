@@ -415,6 +415,8 @@ class MMSAnalysis:
     factor_volatility: dict = field(default_factory=dict)  # Per-feature σ_20 values
     # Day counter
     baseline_days: int = 0                           # Number of historical entries in store
+    # Crowdedness Shadow (BC18A)
+    crowding_score: float = 0.0                      # ∈ [-1.0, +1.0] — shadow mode
 
 
 @dataclass

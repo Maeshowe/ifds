@@ -1,7 +1,7 @@
 ---
-Status: BLOCKED
+Status: DONE
 Updated: 2026-03-21
-Note: BC18 Phase_18A/2 — crowdedness shadow. Vár Tamás döntésére (3 kérdés).
+Note: Implemented — compute_crowding_score(), MMSAnalysis.crowding_score, shadow mode, 11 tests
 ---
 
 # BC18 Phase_18A/2 — Crowdedness Shadow Mode
@@ -14,7 +14,7 @@ a score számolódik és logolódik, de a Phase 6 sizing-ot NEM módosítja.
 
 **Design doc:** `docs/planning/crowdedness-decision-prep.md` (245 sor, részletes)
 
-**Prioritás:** P1, de BLOCKED — 3 döntési pont vár Tamás válaszára
+**Prioritás:** P1, OPEN — döntések elfogadva (B+C+C)
 
 ---
 
@@ -27,7 +27,7 @@ a score számolódik és logolódik, de a Phase 6 sizing-ot NEM módosítja.
 | **B** | > 0.55 | Konzervatívabb, csak valóban crowded tickerek |
 | **C** | > 0.60 | Közel a DD küszöbhöz, legkevesebb false positive |
 
-Chat ajánlása: **B (0.55)**
+Chat ajánlása: **B (0.55)** ← **ELFOGADVA**
 
 ### 2. Bad Crowding hatás (élesítés után)
 | Opció | Leírás |
@@ -36,7 +36,7 @@ Chat ajánlása: **B (0.55)**
 | **B — Penalty** | Multiplier csökkentés (×0.5) |
 | **C — Mindkettő** | Erős bad (< -0.7) kiszűr, közepes penaltyzik |
 
-Chat ajánlása: **C (Mindkettő)**
+Chat ajánlása: **C (Mindkettő)** ← **ELFOGADVA**
 
 ### 3. Good Crowding boost
 | Opció | Leírás |
@@ -45,7 +45,7 @@ Chat ajánlása: **C (Mindkettő)**
 | **B — Override** | Crowdedness felváltja az MMS multiplier egy részét |
 | **C — Csak Bad** | Good Crowdingnál nincs boost, csak Bad penaltyzik |
 
-Chat ajánlása: **A (Additív)**
+Chat ajánlása: **C (Csak Bad)** ← **ELFOGADVA**
 
 ---
 
@@ -133,5 +133,4 @@ Config: crowdedness_shadow_enabled, crowdedness_threshold (default 0.55).
 
 ## Prioritás
 
-**P1, BLOCKED** — Tamás döntése szükséges a 3 kérdésben.
-Az EWMA (Phase_18A/1) és MMS aktiválás (Phase_18B) ettől függetlenül implementálható.
+**P1, OPEN** — Döntés elfogadva (2026-03-21): B+C+C. CC indulhat.
