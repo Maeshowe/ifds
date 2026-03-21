@@ -5,18 +5,20 @@ Multi-faktoros kvantitatív kereskedési rendszer (swing trading, US equities).
 6-fázisú pipeline: BMI regime → Universe → Sectors → Stock Analysis → GEX/MMS → Position Sizing.
 Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek: docs/PARAMETERS.md
 
-## Státusz (2026-03-07)
+## Státusz (2026-03-21)
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
 - **BC16 kész** — Phase 1 async (282s→17s), factor volatility framework, SIM-L1 validation engine
 - **BC19 kész** — SIM-L2 Mód 1 (parameter sweep + Phase 4 snapshot persistence)
-- **911 teszt**, 0 failure, 0 warning
+- **987 teszt**, 0 failure, 0 warning
 - **BC18-prep kész** — Trading calendar, danger zone filter, cache TTL fix
 - **IBKR Connection Hardening kész** — retry logic, timeout, Telegram alert, port konstansok
-- **MMS store**: gyűjtés folyamatban (~day 17/21, aktiválás ha store >=21 entry/ticker)
-- **Paper Trading**: Day 14/21 (IBKR paper account DUH118657, Mac Mini cron, cum. PnL +$583.00)
-- **Trailing Stop**: design APPROVED (`docs/planning/trailing-stop-design.md`)
+- **Witching Day Calendar kész** — `src/ifds/utils/calendar.py`, submit_orders.py skip + Telegram alert
+- **AVWAP Limit→MKT kész** — `scripts/paper_trading/pt_avwap.py`, unfilled entry → AVWAP dip+cross → MKT
+- **Scenario B Loss Exit kész** — 19:00 CET −2.0% threshold → immediate MKT close
+- **Paper Trading**: Day 25 lezárult (IBKR paper account DUH118657, cum. PnL +$20.37)
+- **Trailing Stop**: Scenario A + B implementálva (`pt_monitor.py`)
 - **Swing Hybrid Exit**: design APPROVED (`docs/planning/swing-hybrid-exit-design.md`)
-- **Következő**: BC17 (EWMA + crowdedness shadow + MMS aktiválás) — ~márc 18
+- **Következő**: BC18 (EWMA + crowdedness shadow + MMS aktiválás) — ~ápr 1
 
 ## Alapszabályok
 - Ez PÉNZÜGYI rendszer — Human-in-the-loop minden döntésnél
@@ -203,10 +205,14 @@ src/ifds/
 │   └── report.py               # Validation + comparison reports
 ├── output/telegram.py          # Daily Telegram report
 ├── models/market.py            # All dataclasses and enums
+├── utils/
+│   ├── trading_calendar.py    # NYSE calendar (exchange_calendars)
+│   ├── calendar.py            # Special market days (witching)
+│   └── io.py                  # Atomic JSON/Parquet write helpers
 └── data/                       # API clients, cache, adapters
     └── phase4_snapshot.py      # Daily Phase 4 data persistence
 
-scripts/paper_trading/          # IBKR paper trading (submit, close, eod, monitor)
+scripts/paper_trading/          # IBKR paper trading (submit, close, eod, monitor, avwap)
 docs/tasks/                     # CC task fájlok (Chat írja, CC implementálja)
 docs/planning/                  # Design docs, roadmap, backlog
 docs/journal/                   # Chat session állapotmentések (READ ONLY for CC)
@@ -236,9 +242,10 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 - **Utolsó journal**: docs/journal/2026-03-11-session-close.md
 - **Aktív BC**: BC17 DONE, BC18 planned (~ápr 1)
 - **BC18 scope**: Phase_18A EWMA + Crowdedness shadow → Phase_18B MMS factor vol + T5 sizing
-- **Nyitott taskok**: `2026-03-13-scenario-b-loss-making-exit.md` (Low, BC20, vár 21-day data)
-- **Teszt szám**: 951 passing, 0 failure
-- **Utolsó commit**: `b98e588` — fix(pt_monitor): skip monitoring for tickers without open IBKR position
-- **Paper Trading**: Day 17/21 (cum. PnL +$903.04, +0.903%), MMS gyűjtés ~day 17/21
-- **MMS aktiválás**: store ≥21 entry/ticker → config toggle (`mms_enabled: True`), ~márc 20
+- **Nyitott taskok**: nincs (mind DONE)
+- **Teszt szám**: 987 passing, 0 failure
+- **Utolsó commit**: `1b354e6` — feat(pt_monitor): Scenario B loss-making exit at 19:00 CET
+- **Paper Trading**: Day 25 lezárult (cum. PnL +$20.37, +0.020%)
+- **MMS aktiválás**: store ≥21 entry/ticker → config toggle (`mms_enabled: True`)
+- **PT scriptek**: submit(10), close(11), eod(12), nuke(13), monitor(15), avwap(16)
 - **Blokkolók**: nincs
