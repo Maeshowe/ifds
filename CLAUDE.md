@@ -234,7 +234,7 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-03-11-session-close.md
+- **Utolsó journal**: docs/journal/2026-03-21-session-close.md
 - **Aktív BC**: BC18 DONE, BC20 következő (~ápr első fele)
 - **BC20 scope**: Phase_20A SIM-L2 Mód 2 Re-Score → Phase_20B Freshness A/B → Phase_20C Trail Sim
 - **Nyitott taskok**: nincs (BC18 mind DONE)
