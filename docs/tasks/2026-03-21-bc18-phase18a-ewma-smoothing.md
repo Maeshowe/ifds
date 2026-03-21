@@ -1,7 +1,7 @@
 ---
-Status: OPEN
+Status: DONE
 Updated: 2026-03-21
-Note: BC18 Phase_18A/1 — EWMA smoothing. Független a crowdedness döntéstől.
+Note: Implemented — _ewma_score(), state persistence, Phase 6 integration, 9 tests
 ---
 
 # BC18 Phase_18A/1 — EWMA Smoothing a Scoring Pipeline-ban
