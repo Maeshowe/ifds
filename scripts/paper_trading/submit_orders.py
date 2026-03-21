@@ -172,6 +172,8 @@ def main():
     parser.add_argument('--file', help='Specific execution plan CSV path')
     parser.add_argument('--override-circuit-breaker', action='store_true',
                         help='Override circuit breaker and submit orders anyway (use with caution)')
+    parser.add_argument('--override-witching', action='store_true',
+                        help='Submit orders on Witching day (use with caution)')
     args = parser.parse_args()
 
     today_str = date.today().strftime('%Y-%m-%d')
@@ -207,6 +209,20 @@ def main():
     tickers = load_execution_plan(csv_path)
     if not tickers:
         logger.error("No valid tickers in CSV. Exiting.")
+        sys.exit(0)
+
+    # --- Witching day check ---
+    from ifds.utils.calendar import is_witching_day
+
+    if is_witching_day(date.today()) and not args.override_witching:
+        msg = (
+            f"WITCHING DAY — order submission SKIPPED.\n"
+            f"{date.today()} is a Triple/Quadruple Witching day.\n"
+            f"Pipeline ran normally. No orders submitted.\n"
+            f"Use --override-witching to proceed."
+        )
+        logger.warning(msg)
+        send_telegram(msg)
         sys.exit(0)
 
     # --- Circuit breaker check ---
