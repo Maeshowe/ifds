@@ -106,8 +106,35 @@ def load_execution_plan_metadata(today_str):
 # ---------------------------------------------------------------------------
 
 
+def classify_exit_by_ref(order_ref: str) -> str | None:
+    """Classify exit type from IBKR orderRef pattern.
+
+    Returns exit type string or None if orderRef doesn't match a known exit pattern.
+    Known patterns:
+        IFDS_{sym}_A_TP  -> TP1
+        IFDS_{sym}_B_TP  -> TP2
+        IFDS_{sym}_A_SL / _B_SL  -> SL
+        IFDS_{sym}_LOSS_EXIT  -> LOSS_EXIT
+        IFDS_{sym}_B_TRAIL  -> TRAIL
+        IFDS_{sym}_TRAIL  -> TRAIL
+    """
+    if not order_ref:
+        return None
+    if order_ref.endswith("_LOSS_EXIT"):
+        return "LOSS_EXIT"
+    if order_ref.endswith("_B_TRAIL") or order_ref.endswith("_TRAIL"):
+        return "TRAIL"
+    if order_ref.endswith("_A_TP"):
+        return "TP1"
+    if order_ref.endswith("_B_TP"):
+        return "TP2"
+    if order_ref.endswith("_SL"):
+        return "SL"
+    return None
+
+
 def classify_exit(exit_price, sl_price, tp1_price, tp2_price, tolerance=0.02):
-    """Determine exit type based on fill price vs planned targets."""
+    """Determine exit type based on fill price vs planned targets (fallback)."""
     if abs(exit_price - tp1_price) <= tolerance:
         return "TP1"
     if abs(exit_price - tp2_price) <= tolerance:
@@ -132,12 +159,14 @@ def build_trade_report(executions, meta, pnl_by_symbol=None):
         price = exe.execution.price
         qty = int(exe.execution.shares)
         commission = exe.commissionReport.commission if exe.commissionReport else 0.0
+        order_ref = getattr(exe.execution, 'orderRef', '') or ''
 
         record = {
             'price': price,
             'qty': qty,
             'commission': commission,
             'time': exe.execution.time,
+            'order_ref': order_ref,
         }
 
         if side == 'BOT':
@@ -199,7 +228,9 @@ def build_trade_report(executions, meta, pnl_by_symbol=None):
 
         # Process each sell fill as a separate trade leg
         for sell in fills['sells']:
-            exit_type = classify_exit(sell['price'], sl_price, tp1_price, tp2_price)
+            exit_type = classify_exit_by_ref(sell.get('order_ref', ''))
+            if exit_type is None:
+                exit_type = classify_exit(sell['price'], sl_price, tp1_price, tp2_price)
             pnl = (sell['price'] - avg_entry) * sell['qty']
             pnl_pct = ((sell['price'] / avg_entry) - 1) * 100 if avg_entry else 0
             # Proportional buy commission
@@ -290,6 +321,8 @@ def update_cumulative_pnl(trades, today_str):
     tp1_hits = len([t for t in trades if t['exit_type'] == 'TP1'])
     tp2_hits = len([t for t in trades if t['exit_type'] == 'TP2'])
     sl_hits = len([t for t in trades if t['exit_type'] == 'SL'])
+    loss_exit_hits = len([t for t in trades if t['exit_type'] == 'LOSS_EXIT'])
+    trail_hits = len([t for t in trades if t['exit_type'] == 'TRAIL'])
     moc_exits = len([t for t in trades if t['exit_type'] == 'MOC'])
 
     # Update cumulative
@@ -308,6 +341,8 @@ def update_cumulative_pnl(trades, today_str):
         'tp1_hits': tp1_hits,
         'tp2_hits': tp2_hits,
         'sl_hits': sl_hits,
+        'loss_exit_hits': loss_exit_hits,
+        'trail_hits': trail_hits,
         'moc_exits': moc_exits,
     })
 
@@ -416,15 +451,22 @@ def main():
         print(f"\nP&L today: ${daily_pnl:+,.2f}")
         print(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/21]")
 
+        loss_exit_hits = len([t for t in trades if t['exit_type'] == 'LOSS_EXIT'])
+        trail_hits_count = len([t for t in trades if t['exit_type'] == 'TRAIL'])
+
         tg_lines = [
             f"📊 PAPER TRADING EOD [DRY RUN] — {today_str}",
             "",
             f"Trades: {total_trades} | Filled: {filled}/{total_trades}",
             f"TP1: {tp1_hits} | TP2: {tp2_hits} | SL: {sl_hits} | MOC: {moc_exits}",
+        ]
+        if loss_exit_hits or trail_hits_count:
+            tg_lines.append(f"LOSS_EXIT: {loss_exit_hits} | TRAIL: {trail_hits_count}")
+        tg_lines.extend([
             "",
             f"P&L today: ${daily_pnl:+,.2f} ({daily_pnl / INITIAL_CAPITAL * 100:+.2f}%)",
             f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/21]",
-        ]
+        ])
         send_telegram("\n".join(tg_lines))
         print("Telegram sent.")
         return
@@ -525,10 +567,16 @@ def main():
         "",
         f"Trades: {total_trades} | Filled: {daily_stats.get('filled', 0)}/{total_trades}",
         f"TP1: {daily_stats.get('tp1_hits', 0)} | TP2: {daily_stats.get('tp2_hits', 0)} | SL: {daily_stats.get('sl_hits', 0)} | MOC: {daily_stats.get('moc_exits', 0)}",
+    ]
+    ds_loss = daily_stats.get('loss_exit_hits', 0)
+    ds_trail = daily_stats.get('trail_hits', 0)
+    if ds_loss or ds_trail:
+        tg_lines.append(f"LOSS_EXIT: {ds_loss} | TRAIL: {ds_trail}")
+    tg_lines.extend([
         "",
         f"P&L today: ${daily_pnl:+,.2f} ({daily_pnl / INITIAL_CAPITAL * 100:+.2f}%)",
         f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/21]",
-    ]
+    ])
 
     if cum_pnl <= CIRCUIT_BREAKER_USD:
         tg_lines.extend([
