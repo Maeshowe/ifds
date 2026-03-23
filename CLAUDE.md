@@ -5,13 +5,13 @@ Multi-faktoros kvantitatív kereskedési rendszer (swing trading, US equities).
 6-fázisú pipeline: BMI regime → Universe → Sectors → Stock Analysis → GEX/MMS → Position Sizing.
 Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek: docs/PARAMETERS.md
 
-## Státusz (2026-03-21)
+## Státusz (2026-03-23)
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
-- **1015 teszt**, 0 failure, 0 warning
+- **1034 teszt**, 0 failure, 0 warning
 - **BC1–BC19 kész** — Pipeline, SIM-L1/L2, async, MMS, factor vol, IBKR hardening
 - **BC18 kész** — MMS activation, factor vol, T5 oversold sizing, EWMA smoothing, crowdedness shadow
-- **Paper Trading infra kész** — Witching calendar, AVWAP limit→MKT, Scenario B loss exit, trailing stop A+B
-- **Paper Trading**: Day 25 lezárult (IBKR paper account DUH118657, cum. PnL +$20.37)
+- **Paper Trading infra kész** — Witching calendar, AVWAP limit→MKT, Scenario B loss exit, trailing stop A+B, EOD exit tracking, Gateway health check
+- **Paper Trading**: Day 26 (IBKR paper account DUH118657, cum. PnL +$332.54, +0.33%)
 - **Swing Hybrid Exit**: design APPROVED (`docs/planning/swing-hybrid-exit-design.md`)
 - **Következő**: BC20 (SIM-L2 Mód 2, Freshness A/B, Trail Sim) — ~ápr első fele
 
@@ -234,14 +234,14 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-03-21-session-close.md
+- **Utolsó journal**: docs/journal/2026-03-23-session-close.md
 - **Aktív BC**: BC18 DONE, BC20 következő (~ápr első fele)
 - **BC20 scope**: Phase_20A SIM-L2 Mód 2 Re-Score → Phase_20B Freshness A/B → Phase_20C Trail Sim
 - **Nyitott taskok**: nincs (BC18 mind DONE)
-- **Teszt szám**: 1015 passing, 0 failure
-- **Utolsó commit**: `b700c18` — feat(phase5): crowdedness shadow mode (BC18A)
-- **Paper Trading**: Day 25 lezárult (cum. PnL +$20.37, +0.020%)
-- **MMS**: `mms_enabled: True`, `factor_volatility_enabled: True` (25-day baseline)
-- **PT scriptek**: submit(10), close(11), eod(12), nuke(13), monitor(15), avwap(16)
+- **Teszt szám**: 1034 passing, 0 failure
+- **Utolsó commit**: `3cde97f` — feat(pt_eod): orderRef-based exit classification + gateway health check
+- **Paper Trading**: Day 26 (cum. PnL +$332.54, +0.33%)
+- **MMS**: `mms_enabled: True`, `factor_volatility_enabled: True` — MMS store max 12 entries/ticker, UND 100% (érettség: ~ápr eleje)
+- **PT scriptek**: submit(10), close(11), eod(12), nuke(13), monitor(14), monitor_trail(15), avwap(16), gateway(17)
 - **Config flags élesítés**: `crowdedness_shadow_enabled`, `ewma_enabled` — shadow mode, manuális toggle
 - **Blokkolók**: nincs
