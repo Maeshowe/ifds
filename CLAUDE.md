@@ -234,14 +234,15 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-03-23-session-close.md
+- **Utolsó journal**: docs/journal/2026-03-24-session-close.md
 - **Aktív BC**: BC18 DONE, BC20 következő (~ápr első fele)
 - **BC20 scope**: Phase_20A SIM-L2 Mód 2 Re-Score → Phase_20B Freshness A/B → Phase_20C Trail Sim
 - **Nyitott taskok**: nincs (BC18 mind DONE)
 - **Teszt szám**: 1034 passing, 0 failure
-- **Utolsó commit**: `3cde97f` — feat(pt_eod): orderRef-based exit classification + gateway health check
-- **Paper Trading**: Day 26 (cum. PnL +$332.54, +0.33%)
+- **Utolsó commit**: `4c7ab79` — docs: session close journal 2026-03-23
+- **Paper Trading**: Day 27 (cum. PnL +$779.78, +0.78%)
 - **MMS**: `mms_enabled: True`, `factor_volatility_enabled: True` — MMS store max 12 entries/ticker, UND 100% (érettség: ~ápr eleje)
 - **PT scriptek**: submit(10), close(11), eod(12), nuke(13), monitor(14), monitor_trail(15), avwap(16), gateway(17)
 - **Config flags élesítés**: `crowdedness_shadow_enabled`, `ewma_enabled` — shadow mode, manuális toggle
+- **CEST átállás**: márc 29 — pt_avwap (14-16→15-17), pt_monitor (14-20→15-21)
 - **Blokkolók**: nincs

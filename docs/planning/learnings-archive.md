@@ -34,3 +34,11 @@ BC25 Auto Execution bővítve long-running mode-dal.
 
 `cumulative_pnl.json` vs IBKR Realized PnL eltérés: nuke.py előző nap záróárral számol,
 nem tényleges fill árral. OBSIDIAN aktiválás NEM dátumfüggő: store entry count >= 21/ticker.
+
+## AVWAP fallback MKT opció (idea, 2026-03-24)
+
+NOG + EFXT unfill eset (Day 27): limit nem teljesült, AVWAP dip+cross sem triggerelt (ár végig AVWAP felett).
+2/4 ticker maradt WATCHING → 0 fill. **Potenciális javítás:** ha az AVWAP window végéig (11:30 ET)
+nem volt dip+cross, fallback MKT conversion. Kockázat: rosszabb entry-k, ha az ár az AVWAP felett
+van de nem igazán erős. Döntés: egyelőre hagyjuk, 30+ nap adat kell a fill rate statisztikához.
+Ha a fill rate tartósan <60%, érdemes bekapcsolni.
