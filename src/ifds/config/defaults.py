@@ -44,7 +44,7 @@ CORE = {
 
     # MMS — Market Microstructure Scorer (BC15)
     "mms_window": 63,                                    # Rolling baseline window (trading days)
-    "mms_min_periods": 21,                               # Min observations for z-score validity
+    "mms_min_periods": 10,                               # Min observations for z-score validity (21→10: universe rotation)
     "mms_feature_weights": {                             # 6-feature weights (sum = 1.0)
         "dark_share": 0.25,
         "gex": 0.25,
