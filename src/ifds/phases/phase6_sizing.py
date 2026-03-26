@@ -122,21 +122,32 @@ def run_phase6(config: Config, logger: EventLogger,
         # 4. Apply EWMA smoothing if enabled (BC18A)
         ewma_path = config.runtime.get("ewma_scores_file", "state/ewma_scores.json")
         ewma_applied = 0
+        ewma_deltas: list[float] = []
         if config.tuning.get("ewma_enabled", False):
             span = config.tuning.get("ewma_span", 10)
             prev_ewma = _load_ewma_scores(ewma_path)
             new_ewma: dict[str, float] = {}
             for stock, _gex in candidates:
                 prev = prev_ewma.get(stock.ticker)
-                smoothed = _ewma_score(stock.combined_score, prev, span)
+                raw = stock.combined_score
+                smoothed = _ewma_score(raw, prev, span)
                 new_ewma[stock.ticker] = smoothed
                 if prev is not None:
+                    delta = smoothed - raw
                     stock.combined_score = smoothed
                     ewma_applied += 1
+                    ewma_deltas.append(delta)
+                    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=6,
+                               message=f"[EWMA] {stock.ticker} raw={raw:.1f} ewma={smoothed:.1f} "
+                                       f"prev={prev:.1f} delta={delta:+.1f}")
             _save_ewma_scores(ewma_path, new_ewma)
             if ewma_applied:
-                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=6,
-                           message=f"[EWMA] Smoothed {ewma_applied} scores (span={span})")
+                avg_delta = sum(ewma_deltas) / len(ewma_deltas)
+                max_abs_delta = max(ewma_deltas, key=abs)
+                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
+                           message=f"[EWMA] {ewma_applied}/{len(candidates)} tickers smoothed "
+                                   f"(span={span}), avg delta={avg_delta:+.1f}, "
+                                   f"max delta={max_abs_delta:+.1f}")
 
         # 5. Sort by original (pre-freshness) score to preserve ranking
         # Freshness is a multiplier bonus, not a reranking mechanism
@@ -283,6 +294,8 @@ def run_phase6(config: Config, logger: EventLogger,
                        "total_risk_usd": round(total_risk, 2),
                        "total_exposure_usd": round(total_exposure, 2),
                        "freshness_applied": freshness_count,
+                       "ewma_applied": ewma_applied,
+                       "ewma_avg_delta": round(sum(ewma_deltas) / len(ewma_deltas), 2) if ewma_deltas else 0.0,
                    })
 
         return Phase6Result(
