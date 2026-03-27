@@ -1,7 +1,7 @@
 ---
 Status: DONE
 Updated: 2026-03-26
-Note: Per-ticker DEBUG + aggregated INFO log, PHASE_COMPLETE data bővítve, 4 teszt
+Note: Per-ticker DEBUG + aggregated INFO log, PHASE_COMPLETE data bővítve, 4 teszt.
 ---
 
 # EWMA Shadow Log — Score Simítás Láthatóvá Tétele
