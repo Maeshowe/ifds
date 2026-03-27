@@ -48,6 +48,7 @@ Csak fejlesztői módosítás. A matematikai képletek fix paraméterei.
 | `mms_return_abs` | -0.005 | P5 | Daily return küszöb ABS-hoz (≥ -0.5%) (BC15) | Nincs | V2 újdonság |
 | `mms_return_dist` | 0.005 | P5 | Daily return küszöb DIST-hoz (≤ +0.5%) (BC15) | Nincs | V2 újdonság |
 | `factor_volatility_window` | 20 | P5 | Rolling σ ablak faktor volatilitáshoz (BC16) | Nincs | V2 újdonság |
+| `yield_curve_shadow_enabled` | True | P0 | 2s10s spread (T10Y2Y) lekérése és logolása Phase 0-ban — shadow only, nincs hatás sizing-ra (BC18 follow-up) | Nincs | V2 újdonság |
 
 ---
 

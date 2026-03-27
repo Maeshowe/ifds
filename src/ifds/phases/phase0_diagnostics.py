@@ -255,6 +255,28 @@ def _assess_macro_regime(config: Config, polygon: PolygonClient,
                 tnx_sensitivity_pct = config.tuning["tnx_sensitivity_pct"]
                 tnx_rate_sensitive = tnx_value > tnx_sma20 * (1 + tnx_sensitivity_pct / 100)
 
+    # --- Yield Curve 2s10s (shadow log only) ---
+    yield_curve_2s10s: float | None = None
+    curve_status = "UNKNOWN"
+    if config.tuning.get("yield_curve_shadow_enabled", True):
+        try:
+            yield_curve_2s10s = fred.get_yield_curve_2s10s()
+        except Exception:
+            pass
+        if yield_curve_2s10s is not None:
+            if yield_curve_2s10s < 0:
+                curve_status = "INVERTED"
+            elif yield_curve_2s10s < 0.20:
+                curve_status = "FLATTENING"
+            else:
+                curve_status = "NORMAL"
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=0,
+                       message=f"Yield Curve 2s10s: {yield_curve_2s10s:+.2f}% ({curve_status})",
+                       data={
+                           "yield_curve_2s10s": yield_curve_2s10s,
+                           "curve_status": curve_status,
+                       })
+
     macro = MacroRegime(
         vix_value=vix_value,
         vix_regime=vix_regime,
@@ -262,6 +284,8 @@ def _assess_macro_regime(config: Config, polygon: PolygonClient,
         tnx_value=tnx_value,
         tnx_sma20=tnx_sma20,
         tnx_rate_sensitive=tnx_rate_sensitive,
+        yield_curve_2s10s=yield_curve_2s10s,
+        curve_status=curve_status,
         timestamp=datetime.now(timezone.utc),
     )
 

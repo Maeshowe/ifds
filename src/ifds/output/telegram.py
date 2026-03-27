@@ -151,11 +151,14 @@ def _format_phases_0_to_4(ctx: PipelineContext, duration: float,
     lines.append(f"Pipeline: \u2705 OK ({duration:.1f}s)")
     if ctx.macro:
         m = ctx.macro
-        lines.append(
+        macro_line = (
             f"Macro: VIX={m.vix_value:.2f} ({m.vix_regime.value})"
             f"  TNX={m.tnx_value:.2f}%"
             f"  Rate-sensitive={m.tnx_rate_sensitive}"
         )
+        if m.yield_curve_2s10s is not None:
+            macro_line += f"  2s10s={m.yield_curve_2s10s:+.2f}% ({m.curve_status})"
+        lines.append(macro_line)
 
     # Phase 1: BMI
     lines.append("")

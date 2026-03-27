@@ -149,6 +149,10 @@ class MacroRegime:
     tnx_sma20: float
     tnx_rate_sensitive: bool    # True if TNX > SMA20 * 1.05
 
+    # Yield Curve (shadow log, no effect on sizing)
+    yield_curve_2s10s: float | None = None   # T10Y2Y spread in pct points
+    curve_status: str = "UNKNOWN"            # NORMAL / FLATTENING / INVERTED
+
     timestamp: datetime | None = None
 
 

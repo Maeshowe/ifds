@@ -176,6 +176,9 @@ TUNING = {
     "tnx_sensitivity_pct": 5,                   # TNX > SMA20 * 1.05
     "tnx_sensitive_sectors": ["Technology", "Real Estate"],
 
+    # Yield Curve Shadow (BC18 follow-up)
+    "yield_curve_shadow_enabled": True,         # Log 2s10s spread (T10Y2Y) — shadow only, no sizing effect
+
     # Risk Management multipliers
     # M_flow threshold = 80: flow_score = BASE(50) + rvol_score.
     # rvol_score max realistic ~+30 (elevated+squat). Threshold 80 means only

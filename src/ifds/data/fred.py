@@ -32,6 +32,7 @@ class FREDClient(BaseAPIClient):
     # FRED series IDs
     VIX_SERIES = "VIXCLS"
     TNX_SERIES = "DGS10"
+    YIELD_CURVE_SERIES = "T10Y2Y"   # 10Y-2Y spread (percentage points)
 
     def __init__(self, api_key: str, timeout: int = 10,
                  max_retries: int = 3, cache: FileCache | None = None,
@@ -99,3 +100,22 @@ class FREDClient(BaseAPIClient):
     def get_tnx(self, limit: int = 30) -> list[dict] | None:
         """Get recent 10-Year Treasury Yield values."""
         return self.get_series(self.TNX_SERIES, limit=limit)
+
+    def get_yield_curve_2s10s(self) -> float | None:
+        """Get 2s10s yield curve spread (T10Y2Y) from FRED.
+
+        Returns spread in percentage points.
+        Positive = normal curve, Negative = inverted.
+        Returns None on API error or missing data.
+        """
+        observations = self.get_series(self.YIELD_CURVE_SERIES, limit=5)
+        if not observations:
+            return None
+        for obs in observations:
+            val = obs.get("value")
+            if val and val != ".":
+                try:
+                    return float(val)
+                except ValueError:
+                    continue
+        return None
