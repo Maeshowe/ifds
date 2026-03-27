@@ -1,7 +1,7 @@
 ---
 Status: DONE
 Updated: 2026-03-27
-Note: Phase 0 bővítés — 2s10s yield curve spread shadow log. TNX mellé, nem helyette.
+Note: Implementálva — fred.get_yield_curve_2s10s(), MacroRegime 2 mező, Phase 0 shadow log, Telegram bővítve. 10 teszt.
 ---
 
 # 2s10s Yield Curve Spread — Shadow Log a Phase 0 Diagnostics-ban
@@ -21,7 +21,7 @@ pozitívba) pedig azonnalibb figyelmeztetés.
 utána döntünk a Szint 2 (küszöbök) és Szint 3 (BC21 Cross-Asset Regime
 integráció) bevezetéséről.
 
-**Prioritás:** P2 — nem blokkoló, de hasznos makro kontextus
+**Prioritás:** P2 — nem blokkoló, de hasznos makró kontextus
 **Becsült idő:** 1 óra
 
 ---

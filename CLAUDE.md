@@ -234,15 +234,15 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 
 ## Aktuális Kontextus
 <!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-03-26-session-close.md
+- **Utolsó journal**: docs/journal/2026-03-27-session-close.md
 - **Aktív BC**: BC18 DONE, BC20 következő (~ápr első fele)
 - **BC20 scope**: Phase_20A SIM-L2 Mód 2 Re-Score → Phase_20B Freshness A/B → Phase_20C Trail Sim
 - **Nyitott taskok**: nincs
-- **Teszt szám**: 1038 passing, 0 failure
-- **Utolsó commit**: `83fc1b9` — feat(phase6): add EWMA shadow log for daily review visibility
-- **Paper Trading**: Day 28 (cum. PnL +$307.75, +0.31%)
-- **MMS**: `mms_enabled: True`, `factor_volatility_enabled: True`, `mms_min_periods: 10` (21→10 fix) — 51 ticker aktiválódik holnaptól
+- **Teszt szám**: 1048 passing, 0 failure
+- **Utolsó commit**: `45026df` — feat(phase0): add 2s10s yield curve spread shadow log
+- **Paper Trading**: Day 29 (cum. PnL −$151.28, −0.15%)
+- **MMS**: `mms_enabled: True`, `factor_volatility_enabled: True`, `mms_min_periods: 10` — 51 ticker aktív
 - **PT scriptek**: submit(10), close(11), eod(12), nuke(13), monitor(14), monitor_trail(15), avwap(16), gateway(17)
-- **Config flags élesítés**: `crowdedness_shadow_enabled`, `ewma_enabled` — shadow mode, manuális toggle
-- **CEST átállás**: márc 29 — pt_avwap (14-16→15-17), pt_monitor (14-20→15-21)
+- **Config flags élesítés**: `crowdedness_shadow_enabled`, `ewma_enabled`, `yield_curve_shadow_enabled` — shadow mode
+- **CEST átállás**: márc 29 (HOLNAP) — pt_avwap (14-16→15-17), pt_monitor (14-20→15-21)
 - **Blokkolók**: nincs
