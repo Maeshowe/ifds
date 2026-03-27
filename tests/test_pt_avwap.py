@@ -3,6 +3,7 @@
 Covers:
 - AVWAP calculation from Polygon 1-min bars
 - State machine transitions (IDLE → WATCHING → DIPPED → DONE)
+- VIX-adaptive SL cap (get_vix_adaptive_sl_distance)
 - Bracket rebuild math (SL/TP recalculation from fill price)
 - Time window enforcement (avwap_start → avwap_cutoff)
 - Edge cases: no bars, already filled, cutoff
@@ -375,3 +376,69 @@ def test_state_roundtrip(tmp_path):
     assert loaded["TEST"]["avwap_dipped"] is True
     assert loaded["TEST"]["avwap_last"] == 100.5432
     assert loaded["TEST"]["avwap_converted"] is False
+
+
+# ---------------------------------------------------------------------------
+# VIX-adaptive SL cap tests
+# ---------------------------------------------------------------------------
+
+
+def test_vix_below_20_no_cap(tmp_path):
+    """VIX < 20 → original SL distance unchanged."""
+    mod = _import_pt_avwap(tmp_path)
+    dist, label = mod.get_vix_adaptive_sl_distance(100.0, 3.0, vix=18.5)
+    assert dist == 3.0
+    assert label == "no_cap"
+
+
+def test_vix_none_no_cap(tmp_path):
+    """VIX=None (unavailable) → original SL distance unchanged."""
+    mod = _import_pt_avwap(tmp_path)
+    dist, label = mod.get_vix_adaptive_sl_distance(100.0, 3.0, vix=None)
+    assert dist == 3.0
+    assert label == "no_cap"
+
+
+def test_vix_22_applies_2pct_cap(tmp_path):
+    """VIX 20-25 → min(original, fill × 2.0%)."""
+    mod = _import_pt_avwap(tmp_path)
+    fill = 100.0
+    # pct_cap = 100 * 0.02 = 2.0, original = 3.0 → capped to 2.0
+    dist, label = mod.get_vix_adaptive_sl_distance(fill, 3.0, vix=22.0)
+    assert dist == pytest.approx(2.0)
+    assert "2.0%_cap" in label
+
+    # If original already tighter: ATR wins
+    dist2, _ = mod.get_vix_adaptive_sl_distance(fill, 1.5, vix=22.0)
+    assert dist2 == pytest.approx(1.5)
+
+
+def test_vix_27_applies_1_5pct_cap(tmp_path):
+    """VIX 25-30 → min(original, fill × 1.5%)."""
+    mod = _import_pt_avwap(tmp_path)
+    fill = 200.0
+    # pct_cap = 200 * 0.015 = 3.0, original = 5.0 → capped to 3.0
+    dist, label = mod.get_vix_adaptive_sl_distance(fill, 5.0, vix=27.0)
+    assert dist == pytest.approx(3.0)
+    assert "1.5%_cap" in label
+
+
+def test_vix_35_applies_1pct_cap_and_atr_reduction(tmp_path):
+    """VIX > 30 → min(1.0×ATR, fill × 1.0%)."""
+    mod = _import_pt_avwap(tmp_path)
+    fill = 100.0
+    atr = 2.0
+    # With atr: sl_distance = min(5.0, 1.0*2.0) = 2.0, pct_cap = 1.0 → capped to 1.0
+    dist, label = mod.get_vix_adaptive_sl_distance(fill, 5.0, vix=35.0, atr=atr)
+    assert dist == pytest.approx(1.0)
+    assert "1.0%_cap" in label
+
+
+def test_vix_35_no_atr_just_pct_cap(tmp_path):
+    """VIX > 30, no ATR → pct cap only."""
+    mod = _import_pt_avwap(tmp_path)
+    fill = 100.0
+    # No atr reduction: sl_distance stays 5.0, pct_cap = 1.0 → capped to 1.0
+    dist, label = mod.get_vix_adaptive_sl_distance(fill, 5.0, vix=35.0, atr=None)
+    assert dist == pytest.approx(1.0)
+    assert "1.0%_cap" in label

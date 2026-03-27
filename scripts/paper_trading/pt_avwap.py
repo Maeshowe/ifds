@@ -176,6 +176,59 @@ def wait_for_fill(ib, trade, timeout: int = 30) -> float | None:
     return None
 
 
+def get_vix_adaptive_sl_distance(fill_price: float, original_sl_distance: float,
+                                  vix: float | None, atr: float | None = None) -> tuple[float, str]:
+    """Calculate VIX-adaptive SL distance.
+
+    Args:
+        fill_price: Actual fill price of the MKT order.
+        original_sl_distance: Original SL distance (1.5 × ATR).
+        vix: Current VIX value, or None if unavailable.
+        atr: ATR value for VIX > 30 ATR reduction, optional.
+
+    Returns:
+        (capped_distance, cap_label) — the applied distance and a human-readable label.
+    """
+    if vix is None or vix < 20:
+        return original_sl_distance, "no_cap"
+
+    sl_distance = original_sl_distance
+
+    if vix < 25:
+        max_pct = 0.020   # 2.0%
+        cap_label = f"VIX={vix:.1f}→2.0%_cap"
+    elif vix < 30:
+        max_pct = 0.015   # 1.5%
+        cap_label = f"VIX={vix:.1f}→1.5%_cap"
+    else:
+        max_pct = 0.010   # 1.0%
+        cap_label = f"VIX={vix:.1f}→1.0%_cap"
+        if atr is not None:
+            sl_distance = min(sl_distance, 1.0 * atr)
+
+    pct_cap = fill_price * max_pct
+    capped = min(sl_distance, pct_cap)
+    return capped, cap_label
+
+
+def _fetch_vix_for_avwap() -> float | None:
+    """Fetch current VIX from FRED (VIXCLS). Returns None on error."""
+    try:
+        from ifds.data.fred import FREDClient
+        fred = FREDClient(api_key=os.getenv("IFDS_FRED_API_KEY", ""))
+        observations = fred.get_vix(limit=5)
+        fred.close()
+        if not observations:
+            return None
+        for obs in observations:
+            val = obs.get("value")
+            if val and val != ".":
+                return float(val)
+    except Exception as e:
+        logger.warning(f"VIX fetch failed: {e}")
+    return None
+
+
 def convert_to_market(ib, sym: str, s: dict) -> bool:
     """Cancel limit orders, place MKT, rebuild bracket with fill price.
 
@@ -206,12 +259,20 @@ def convert_to_market(ib, sym: str, s: dict) -> bool:
         logger.warning(f"{sym}: MKT fill timeout — skip bracket rebuild")
         return False
 
-    # Bracket rebuild with fill price, preserving original distances
-    sl_distance = s["sl_distance"]
+    # Fetch VIX for adaptive SL cap
+    vix = _fetch_vix_for_avwap()
+    atr = s.get("atr")
+
+    # Bracket rebuild with VIX-adaptive SL
+    original_sl_distance = s["sl_distance"]
     tp1_distance = s["tp1_price"] - s["entry_price"]
     tp2_distance = s["tp2_price"] - s["entry_price"]
 
-    new_sl = round(fill_price - sl_distance, 2)
+    capped_sl_distance, cap_label = get_vix_adaptive_sl_distance(
+        fill_price, original_sl_distance, vix, atr
+    )
+
+    new_sl = round(fill_price - capped_sl_distance, 2)
     new_tp1 = round(fill_price + tp1_distance, 2)
     new_tp2 = round(fill_price + tp2_distance, 2)
 
@@ -235,16 +296,21 @@ def convert_to_market(ib, sym: str, s: dict) -> bool:
     )
     submit_bracket(ib, contract_qual, bracket_b)
 
-    # Update monitor state
+    # Update monitor state — capped sl_distance for consistent trail behavior
     s["entry_price"] = fill_price
     s["tp1_price"] = new_tp1
     s["tp2_price"] = new_tp2
     s["stop_loss"] = new_sl
+    s["sl_distance"] = capped_sl_distance
+    s["vix_at_avwap"] = vix
 
+    vix_info = f"VIX: {vix:.1f} | SL cap: {cap_label}" if vix is not None else "VIX: N/A"
     msg = (
         f"AVWAP {sym}: Limit->MKT conversion\n"
         f"Fill @ ${fill_price:.2f}\n"
-        f"New SL: ${new_sl:.2f} | TP1: ${new_tp1:.2f} | TP2: ${new_tp2:.2f}\n"
+        f"{vix_info}\n"
+        f"New SL: ${new_sl:.2f} (distance: ${capped_sl_distance:.2f}) | "
+        f"TP1: ${new_tp1:.2f} | TP2: ${new_tp2:.2f}\n"
         f"AVWAP: ${s.get('avwap_last', 0):.2f}"
     )
     logger.info(msg)
