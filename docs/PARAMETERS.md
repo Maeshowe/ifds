@@ -23,7 +23,7 @@ Csak fejlesztői módosítás. A matematikai képletek fix paraméterei.
 | `gex_normalization_factor` | 0.01 | P5 | GEX képlet konstans | Implicit (0.01) | ✅ Azonos |
 | `gex_contract_size` | 100 | P5 | Opciós kontraktus szorzó | Implicit (100) | ✅ Azonos |
 | `stop_loss_atr_multiple` | 1.5 | P6 | Stop = Entry - 1.5×ATR | `risk.atr_multiplier_stop: 1.5` | ✅ Azonos |
-| `tp1_atr_multiple` | 2.0 | P6 | TP1 = Entry + 2×ATR | `risk.reward_ratio_scale_out: 2.0` | ✅ Azonos |
+| `tp1_atr_multiple` | 0.75 | P6 | TP1 = Entry + 0.75×ATR (BC20A D3: intraday-elérhető) | `risk.reward_ratio_scale_out: 2.0` | ⚠️ Módosítva |
 | `tp2_atr_multiple` | 3.0 | P6 | TP2 = Entry + 3×ATR | `risk.reward_ratio_runner: 4.0` | ⚠️ **V13=4R, V2=3R** |
 | `scale_out_atr_multiple` | 2.0 | P6 | Scale-out trigger = 2×ATR | `trailing_stop.scale_out.trigger_r: 2.0` | ✅ Azonos |
 | `scale_out_pct` | 0.33 | P6 | 33% zárás scale-out-nál | `trailing_stop.scale_out.portion: 0.5` | ⚠️ **V13=50%, V2=33%** |

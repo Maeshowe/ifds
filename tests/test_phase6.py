@@ -261,8 +261,8 @@ class TestPositionSizing:
         assert pos.quantity == 111
         # StopLoss = 150 - 4.5 = 145.5
         assert pos.stop_loss == 145.5
-        # TP1 (no call_wall) = 150 + 2.0*3 = 156
-        assert pos.take_profit_1 == 156.0
+        # TP1 (no call_wall) = 150 + 0.75*3 = 152.25
+        assert pos.take_profit_1 == 152.25
         # TP2 = 150 + 3.0*3 = 159
         assert pos.take_profit_2 == 159.0
 
@@ -274,8 +274,8 @@ class TestPositionSizing:
         assert pos.direction == "SELL_SHORT"
         # SL = 200 + 1.5*5 = 207.5
         assert pos.stop_loss == 207.5
-        # TP1 = 200 - 2.0*5 = 190
-        assert pos.take_profit_1 == 190.0
+        # TP1 = 200 - 0.75*5 = 196.25
+        assert pos.take_profit_1 == 196.25
         # TP2 = 200 - 3.0*5 = 185
         assert pos.take_profit_2 == 185.0
 
@@ -289,8 +289,8 @@ class TestPositionSizing:
         stock = _make_stock("AAPL", price=150.0, atr=3.0)
         gex = _make_gex("AAPL", call_wall=140.0)  # < entry
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
-        # Falls back to ATR: 150 + 2*3 = 156
-        assert pos.take_profit_1 == 156.0
+        # Falls back to ATR: 150 + 0.75*3 = 152.25
+        assert pos.take_profit_1 == 152.25
 
     def test_short_tp1_uses_put_wall(self, config, macro):
         stock = _make_stock("TSLA", price=200.0, atr=5.0)

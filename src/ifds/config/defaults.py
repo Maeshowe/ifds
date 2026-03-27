@@ -29,7 +29,7 @@ CORE = {
 
     # Position Sizing
     "stop_loss_atr_multiple": 1.5,      # k in StopLoss = Entry - k * ATR
-    "tp1_atr_multiple": 2.0,           # TP1 = Entry + 2 * ATR
+    "tp1_atr_multiple": 0.75,          # TP1 = Entry + 0.75 * ATR (BC20A D3: intraday-reachable)
     "tp2_atr_multiple": 3.0,           # TP2 = Entry + 3 * ATR
     "scale_out_atr_multiple": 2.0,     # Scale-out trigger at 2 * ATR
     "scale_out_pct": 0.33,             # Close 33% at scale-out

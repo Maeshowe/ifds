@@ -965,7 +965,7 @@ Phase 5 loop-ban (sync és async):
 ```
 
 - Konfig: `call_wall_max_atr_distance=5.0`
-- Hatás: Phase 6-ban `TP1 = entry + 2 × ATR` (ATR fallback) call_wall helyett
+- Hatás: Phase 6-ban `TP1 = entry + 0.75 × ATR` (ATR fallback) call_wall helyett
 
 ### GEX Regime Klasszifikáció
 
@@ -1421,7 +1421,7 @@ Fat finger checks:
 | Szint | Képlet | Konfig |
 |-------|--------|--------|
 | **Stop Loss** | `entry - 1.5 × ATR14` | `stop_loss_atr_multiple=1.5` |
-| **TP1** | `call_wall` (ha > entry), egyébként `entry + 2 × ATR14` | `tp1_atr_multiple=2.0` |
+| **TP1** | `call_wall` (ha > entry), egyébként `entry + 0.75 × ATR14` | `tp1_atr_multiple=0.75` |
 | **TP2** | `entry + 3 × ATR14` | `tp2_atr_multiple=3.0` |
 | **Scale-out** | `entry + 2 × ATR14` → 33% pozíció zárása | `scale_out_atr_multiple=2.0`, `scale_out_pct=0.33` |
 
@@ -1432,7 +1432,7 @@ Fat finger checks:
 | Szint | Képlet |
 |-------|--------|
 | **Stop Loss** | `entry + 1.5 × ATR14` |
-| **TP1** | `put_wall` (ha < entry), egyébként `entry - 2 × ATR14` |
+| **TP1** | `put_wall` (ha < entry), egyébként `entry - 0.75 × ATR14` |
 | **TP2** | `entry - 3 × ATR14` |
 | **Scale-out** | `entry - 2 × ATR14` → 33% zárás |
 
@@ -1802,7 +1802,7 @@ if config.runtime.get("phase4_snapshot_enabled", True) and ctx.stock_analyses:
 | `gex_normalization_factor` | 0.01 | GEX formula |
 | `gex_contract_size` | 100 | Options contract multiplier |
 | `stop_loss_atr_multiple` | 1.5 | SL = entry ± 1.5×ATR |
-| `tp1_atr_multiple` | 2.0 | TP1 = entry ± 2×ATR |
+| `tp1_atr_multiple` | 0.75 | TP1 = entry ± 0.75×ATR (BC20A D3) |
 | `tp2_atr_multiple` | 3.0 | TP2 = entry ± 3×ATR |
 | `scale_out_atr_multiple` | 2.0 | Scale-out trigger |
 | `scale_out_pct` | 0.33 | 33% pozíció zárás |

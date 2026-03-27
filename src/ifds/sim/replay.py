@@ -40,7 +40,7 @@ def recalculate_bracket(trade: Trade, overrides: dict,
         return trade
 
     new_sl = overrides.get("stop_loss_atr_multiple", original_sl_atr_mult)
-    new_tp1 = overrides.get("tp1_atr_multiple", 2.0)
+    new_tp1 = overrides.get("tp1_atr_multiple", 0.75)
     new_tp2 = overrides.get("tp2_atr_multiple", 3.0)
 
     trade.stop_loss = round(trade.entry_price - new_sl * atr, 2)
