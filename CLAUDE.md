@@ -233,18 +233,13 @@ Q4 (okt-dec):   BC27-30 — Dashboard, Alpha Decay, Retail Packaging
 Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köthető.
 
 ## Aktuális Kontextus
-<!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/2026-03-27-session-close-2.md
-- **Aktív BC**: BC18 DONE, BC20 következő (~ápr első fele)
-- **BC20 scope**: Phase_20A SIM-L2 Mód 2 Re-Score → Phase_20B Freshness A/B → Phase_20C Trail Sim
-- **Nyitott taskok**: nincs — 8/8 DONE (TP1, MMS fix, VIX SL, EWMA log, 2s10s, contradiction penalty, BMI guard, crowdedness shadow)
-- **Teszt szám**: 1054+ passing, 0 failure
-- **Paper Trading**: Day 30 (cum. PnL −$572.41, −0.57%)
-- **MMS**: `mms_enabled: True`, `factor_volatility_enabled: True`, `mms_min_periods: 10` — 51 ticker aktív
-- **PT scriptek**: submit(10), close(11), eod(12), nuke(13), monitor(14), monitor_trail(15), avwap(16), gateway(17)
-- **Config flags élesítés**: `crowdedness_shadow_enabled`, `ewma_enabled`, `yield_curve_shadow_enabled` — shadow mode
-- **TP1**: `tp1_atr_multiple: 0.75` (volt 2.0 — BC20A D3)
-- **AVWAP**: VIX-adaptív SL cap aktív (pt_avwap.py)
-- **Contradiction penalty**: M_target ×0.85 (>20% analyst target) / ×0.60 (>50%)
-- **BMI momentum guard**: 3+ nap csökkenés + delta ≤-1.0 → max_positions 8→5
-- **Blokkolók**: nincs
+→ **Élő státusz:** `docs/STATUS.md` (automatikusan betöltődik session-start hook-kal)
+→ **Backlog:** `docs/planning/backlog.md`
+
+Stabil referencia (ritkán változik):
+- Teszt baseline: 1054 passing (2026-03-28) — csak nőhet
+- PT account: IBKR DUH118657, $100K initial, 63 napos paper trading periódus
+- PT clientId-k: submit=10, close=11, eod=12, nuke=13, monitor=14, trail=15, avwap=16, gateway=17
+- MMS: `mms_enabled=True`, `factor_volatility_enabled=True`, `mms_min_periods=10`
+- TP1: `tp1_atr_multiple=0.75`
+- BC20A design: `docs/planning/swing-hybrid-exit-design.md`

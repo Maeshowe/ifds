@@ -79,36 +79,50 @@ Ha aznap már volt → `session-close-2.md`, `-3.md` stb.
 - [vagy: Nincs]
 ```
 
-## 7. CLAUDE.md Aktuális Kontextus frissítése
+## 7. docs/STATUS.md frissítése
 
 ```bash
 python -m pytest tests/ -q 2>/dev/null | tail -1
 git log --oneline -1
+cat scripts/paper_trading/logs/cumulative_pnl.json 2>/dev/null | python3 -c \
+  "import json,sys; d=json.load(sys.stdin); print(f'Day {d[\"trading_days\"]}/63 | {d[\"cumulative_pnl\"]:+,.2f} ({d[\"cumulative_pnl_pct\"]:+.2f}%)')" 2>/dev/null
 ```
 
-Frissítsd a `CLAUDE.md` alján az `## Aktuális Kontextus` szekciót:
+Frissítsd a `docs/STATUS.md` fájlt **in-place** (nem új fájl, nincs dátum a névben):
+- `<!-- Utolsó frissítés: YYYY-MM-DD, CC -->` sor
+- Paper Trading: Day X/63, cum. PnL
+- Aktív BC + nyitott taskok
+- Shadow features státusz (ha változott)
+- Utolsó commit hash + üzenet
+- Blokkolók
 
-```markdown
-## Aktuális Kontextus
-<!-- CC frissíti a /wrap-up során -->
-- **Utolsó journal**: docs/journal/YYYY-MM-DD-session-close.md
-- **Aktív BC**: [szám + fázis]
-- **Nyitott taskok**: [task fájlnév lista]
-- **Teszt szám**: [N passing]
-- **Utolsó commit**: [hash — üzenet]
-- **Paper Trading**: Day X/21 (cum. PnL $XXX, +X.XX%)
-- **Blokkolók**: [vagy: nincs]
-```
+**CLAUDE.md Aktuális Kontextus szekciót NEM frissítjük** — az stabil referencia marad.
 
-## 8. Megerősítés
+## 8. Docs szinkron ellenőrzés
+
+**BC milestone check:** Ha a session-ben BC státusz változott (pl. BC lezárult):
+- `docs/planning/roadmap-2026-consolidated.md` — BC sor ✅ KÉSZ jelölés + dátum
+- `CHANGELOG.md` — új szekció a BC deliverable-jeivel
+
+**CHANGELOG check:** Ha volt commit a session-ben, de a CHANGELOG nem frissült:
+- ⚠️ Jelezd: "CHANGELOG frissítés hiányzik — most pótolod vagy kihagyod?"
+- Quick win / bugfix commitoknál a CHANGELOG update opcionális
+- BC deliverable commitoknál KÖTELEZŐ
+
+**Testing baseline check:** Olvasd el a `.claude/rules/testing.md` baseline számot.
+Ha a jelenlegi teszt szám >50-nel meghaladja a baseline-t:
+- Frissítsd a baseline-t a `testing.md`-ben
+
+## 9. Megerősítés
 
 ```
 Session lezárva ✓
 ─────────────────────────────
-Journal:  docs/journal/YYYY-MM-DD-session-close.md
-Tesztek:  N passing
-Commit:   hash — üzenet
-CLAUDE.md: szinkronban
+Journal:    docs/journal/YYYY-MM-DD-session-close.md
+Tesztek:    N passing
+Commit:     hash — üzenet
+CLAUDE.md:  szinkronban
+Docs sync:  [OK | CHANGELOG hiányzik | roadmap frissítve]
 ─────────────────────────────
 Következő: [mit érdemes folytatni]
 ```
