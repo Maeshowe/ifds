@@ -163,6 +163,25 @@ class AsyncFMPClient(AsyncBaseAPIClient):
             self._cache.put("fmp", "insider-trading", yesterday, ticker, result)
         return result
 
+    async def get_price_target_consensus(self, ticker: str) -> dict | None:
+        """Get analyst consensus price target.
+
+        Returns dict with: targetConsensus, targetHigh, targetLow, etc.
+        """
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        if self._cache:
+            cached = self._cache.get("fmp", "price-target-consensus", yesterday, ticker)
+            if cached is not None:
+                return cached
+
+        params = {"apikey": self._api_key, "symbol": ticker}
+        result = await self._get("/stable/price-target-consensus", params=params)
+        if result and isinstance(result, list) and len(result) > 0:
+            if self._cache:
+                self._cache.put("fmp", "price-target-consensus", yesterday, ticker, result[0])
+            return result[0]
+        return None
+
     async def get_institutional_ownership(self, ticker: str) -> list[dict] | None:
         """Get institutional ownership data (most recent 2 quarters)."""
         yesterday = (date.today() - timedelta(days=1)).isoformat()

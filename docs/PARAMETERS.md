@@ -64,6 +64,10 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | `bmi_red_threshold` | 80 | P1 | BMI ≥ 80% → RED (SHORT) | `market_regime.bmi.overbought_threshold: 80` | ✅ Azonos |
 | `bmi_divergence_spy_change_pct` | 1.0 | P1 | SPY emelkedés küszöb divergenciához | `market_regime.divergence.spy_change_threshold: 0.01` | ✅ Azonos |
 | `bmi_divergence_bmi_change_pts` | -2.0 | P1 | BMI csökkenés küszöb divergenciához | `market_regime.divergence.bmi_change_threshold: -2.0` | ✅ Azonos |
+| `bmi_momentum_guard_enabled` | True | P6 | BMI trend guard engedélyezése | — | ✅ Új |
+| `bmi_momentum_days` | 3 | P6 | Min konzekutív csökkenő nap a guard aktiválásához | — | ✅ Új |
+| `bmi_momentum_min_delta` | -1.0 | P6 | Min kumulált BMI csökkentés a guard aktiválásához | — | ✅ Új |
+| `bmi_momentum_max_positions` | 5 | P6 | max_positions érték guard aktív állapotban (default 8→5) | — | ✅ Új |
 
 ### Universe Building — LONG
 
@@ -296,6 +300,11 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | `multiplier_funda_value` | 0.50 | P6 | M_funda penalty értéke | `risk.multipliers.funda_penalty_multiplier: 0.5` | ✅ Azonos |
 | `multiplier_utility_threshold` | 85 | P6 | Score > 85 → M_utility boost | `risk.utility.threshold: 85.0` | ✅ Azonos |
 | `multiplier_utility_max` | 1.3 | P6 | Max M_utility | `risk.utility.max_multiplier: 1.3` | ✅ Azonos |
+| `target_overshoot_enabled` | True | P6 | M_target penalty engedélyezése | — | ✅ Új |
+| `target_overshoot_threshold` | 0.20 | P6 | Ár > 20% analyst target felett → ×0.85 | — | ✅ Új |
+| `target_overshoot_penalty` | 0.85 | P6 | M_target penalty értéke (20-50% tartomány) | — | ✅ Új |
+| `target_severe_threshold` | 0.50 | P6 | Ár > 50% analyst target felett → severe penalty | — | ✅ Új |
+| `target_severe_penalty` | 0.60 | P6 | M_target severe penalty értéke (>50% tartomány) | — | ✅ Új |
 
 ### Sector BMI Thresholds
 

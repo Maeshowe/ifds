@@ -967,7 +967,7 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                     excluded=True, exclusion_reason="tech_filter",
                 )
 
-            # Stage 3: Parallel FMP + DP + Options + Inst fetch (5-6 calls at once)
+            # Stage 3: Parallel FMP + DP + Options + Inst + Target fetch (6-7 calls at once)
             results = await asyncio.gather(
                 fmp.get_financial_growth(symbol),
                 fmp.get_key_metrics(symbol),
@@ -975,11 +975,12 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                 dp_provider.get_dark_pool(symbol) if dp_provider else _noop(),
                 polygon.get_options_snapshot(symbol),
                 fmp.get_institutional_ownership(symbol) if inst_ownership_available else _noop(),
+                fmp.get_price_target_consensus(symbol),
                 return_exceptions=True,
             )
 
             # Unpack — treat exceptions as None, log failures
-            _labels = ("fmp_growth", "fmp_metrics", "fmp_insider", "dark_pool", "options", "inst_ownership")
+            _labels = ("fmp_growth", "fmp_metrics", "fmp_insider", "dark_pool", "options", "inst_ownership", "price_target")
             for idx, label in enumerate(_labels):
                 if isinstance(results[idx], BaseException):
                     logger.log(EventType.API_ERROR, Severity.WARNING, phase=4,
@@ -991,6 +992,13 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             dp_data = results[3] if not isinstance(results[3], BaseException) else None
             options_data = results[4] if not isinstance(results[4], BaseException) else None
             inst_data = results[5] if not isinstance(results[5], BaseException) else None
+            target_data = results[6] if not isinstance(results[6], BaseException) else None
+            analyst_target: float | None = None
+            if target_data and isinstance(target_data, dict) and target_data.get("targetConsensus"):
+                try:
+                    analyst_target = float(target_data["targetConsensus"])
+                except (ValueError, TypeError):
+                    analyst_target = None
 
             # Stage 4: Score with pre-fetched data (pure computation)
             flow = _analyze_flow_from_data(symbol, bars, dp_data, config,
@@ -1018,6 +1026,7 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                 technical=technical, flow=flow, fundamental=fundamental,
                 combined_score=combined, sector_adjustment=sector_adj,
                 shark_detected=fundamental.shark_detected,
+                analyst_target=analyst_target,
             )
 
     try:

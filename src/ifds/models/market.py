@@ -359,6 +359,7 @@ class StockAnalysis:
     excluded: bool = False
     exclusion_reason: str | None = None  # "tech_filter", "min_score", "clipping"
     shark_detected: bool = False
+    analyst_target: float | None = None  # FMP consensus price target (from Phase 4)
 
 
 @dataclass
@@ -459,6 +460,7 @@ class PositionSizing:
     m_gex: float = 1.0
     m_vix: float = 1.0
     m_utility: float = 1.0
+    m_target: float = 1.0               # Analyst price target contradiction penalty (Phase 6)
     scale_out_price: float = 0.0
     scale_out_pct: float = 0.33
     is_fresh: bool = False

@@ -220,6 +220,26 @@ class FMPClient(BaseAPIClient):
         # Return earliest upcoming date
         return min(upcoming, key=lambda e: e["date"])["date"]
 
+    def get_price_target_consensus(self, ticker: str) -> dict | None:
+        """Get analyst consensus price target.
+
+        Returns dict with: targetConsensus, targetHigh, targetLow, etc.
+        """
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        if self._cache:
+            cached = self._cache.get("fmp", "price-target-consensus", yesterday, ticker)
+            if cached is not None:
+                return cached
+
+        params = {"apikey": self._api_key, "symbol": ticker}
+        result = self._get("/stable/price-target-consensus", params=params,
+                           headers=self._auth_headers())
+        if result and isinstance(result, list) and len(result) > 0:
+            if self._cache:
+                self._cache.put("fmp", "price-target-consensus", yesterday, ticker, result[0])
+            return result[0]
+        return None
+
     def get_financial_growth(self, ticker: str) -> dict | None:
         """Get most recent financial growth rates.
 
