@@ -42,3 +42,14 @@ NOG + EFXT unfill eset (Day 27): limit nem teljesült, AVWAP dip+cross sem trigg
 nem volt dip+cross, fallback MKT conversion. Kockázat: rosszabb entry-k, ha az ár az AVWAP felett
 van de nem igazán erős. Döntés: egyelőre hagyjuk, 30+ nap adat kell a fill rate statisztikához.
 Ha a fill rate tartósan <60%, érdemes bekapcsolni.
+
+## STATUS.md — egyetlen igazságforrás Chat/CC/Cowork szinkronhoz (decision, 2026-03-28)
+
+Chat, CC, és Cowork (claude.ai Projects) egyetlen fájlból olvassa a projekt
+aktuális állapotát: `docs/STATUS.md`. Chat frissíti session végén (in-place),
+CC frissíti `/wrap-up`-kor, Cowork csatolja egyszer.
+Motivation: `development-backlog-YYYY-MM-DD.md` pattern stale snapshot-okat
+halmozott fel; `CLAUDE.md` Aktuális Kontextus CC írta de Chat döntések nem
+jelentek meg benne azonnal.
+`CLAUDE.md` ettől stabil referencia marad (ritkán változik) — nem frissítjük
+minden session végén.

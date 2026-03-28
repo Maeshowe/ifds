@@ -52,3 +52,15 @@ az összes viselkedés-módosító env var-t:
 2. Async fixture-ökben: `monkeypatch.delenv("IFDS_UW_API_KEY", raising=False)` ha a teszt nem számít UW client-re
 
 ÚJ fixture írásakor mindig ellenőrizd: milyen env var-ok változtatják meg a kódútat?
+
+---
+
+## CC session kontextus: journal + STATUS.md (rule, 2026-03-28)
+
+`session-start.sh` (UserPromptSubmit hook) minden CC promptnál betölti:
+1. `docs/journal/` utolsó 2 entry — narratív kontextus (mi történt)
+2. `docs/STATUS.md` — aktuális projekt állapot (élő, mindig friss)
+
+`CLAUDE.md` Aktuális Kontextus szekció stabil referencia (ritkán változik) —
+NEM frissítjük `/wrap-up`-kor. `docs/STATUS.md` az egyetlen dinamikus állapotfájl.
+`/wrap-up` → `docs/STATUS.md` in-place frissítés (nem új fájl, nem CLAUDE.md).
