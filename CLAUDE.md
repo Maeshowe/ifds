@@ -237,14 +237,14 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 - **Utolsó journal**: docs/journal/2026-03-27-session-close-2.md
 - **Aktív BC**: BC18 DONE, BC20 következő (~ápr első fele)
 - **BC20 scope**: Phase_20A SIM-L2 Mód 2 Re-Score → Phase_20B Freshness A/B → Phase_20C Trail Sim
-- **Nyitott taskok**: nincs
-- **Teszt szám**: 1054 passing, 0 failure
-- **Utolsó commit**: `9f534cd` — chore(docs): fix task status headers
-- **Paper Trading**: Day 29 (cum. PnL −$151.28, −0.15%)
+- **Nyitott taskok**: nincs — 8/8 DONE (TP1, MMS fix, VIX SL, EWMA log, 2s10s, contradiction penalty, BMI guard, crowdedness shadow)
+- **Teszt szám**: 1054+ passing, 0 failure
+- **Paper Trading**: Day 30 (cum. PnL −$572.41, −0.57%)
 - **MMS**: `mms_enabled: True`, `factor_volatility_enabled: True`, `mms_min_periods: 10` — 51 ticker aktív
 - **PT scriptek**: submit(10), close(11), eod(12), nuke(13), monitor(14), monitor_trail(15), avwap(16), gateway(17)
 - **Config flags élesítés**: `crowdedness_shadow_enabled`, `ewma_enabled`, `yield_curve_shadow_enabled` — shadow mode
 - **TP1**: `tp1_atr_multiple: 0.75` (volt 2.0 — BC20A D3)
 - **AVWAP**: VIX-adaptív SL cap aktív (pt_avwap.py)
-- **CEST átállás**: márc 29 (HOLNAP) — pt_avwap (14-16→15-17), pt_monitor (14-20→15-21)
+- **Contradiction penalty**: M_target ×0.85 (>20% analyst target) / ×0.60 (>50%)
+- **BMI momentum guard**: 3+ nap csökkenés + delta ≤-1.0 → max_positions 8→5
 - **Blokkolók**: nincs

@@ -449,7 +449,7 @@ def main():
             trading_days = cum_data.get('trading_days', 0)
 
         print(f"\nP&L today: ${daily_pnl:+,.2f}")
-        print(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/21]")
+        print(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]")
 
         loss_exit_hits = len([t for t in trades if t['exit_type'] == 'LOSS_EXIT'])
         trail_hits_count = len([t for t in trades if t['exit_type'] == 'TRAIL'])
@@ -465,7 +465,7 @@ def main():
         tg_lines.extend([
             "",
             f"P&L today: ${daily_pnl:+,.2f} ({daily_pnl / INITIAL_CAPITAL * 100:+.2f}%)",
-            f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/21]",
+            f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]",
         ])
         send_telegram("\n".join(tg_lines))
         print("Telegram sent.")
