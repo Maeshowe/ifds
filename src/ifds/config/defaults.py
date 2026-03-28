@@ -87,6 +87,12 @@ TUNING = {
     "bmi_divergence_spy_change_pct": 1.0,   # SPY must rise > 1%
     "bmi_divergence_bmi_change_pts": -2.0,  # BMI must drop > 2 points
 
+    # BMI Momentum Guard (Phase 6)
+    "bmi_momentum_guard_enabled": True,     # Reduce max_positions on declining BMI trend
+    "bmi_momentum_days": 3,                 # Min consecutive declining days to trigger
+    "bmi_momentum_min_delta": -1.0,         # Min cumulative BMI drop over period
+    "bmi_momentum_max_positions": 5,        # Reduced max positions (default 8 → 5)
+
     # Universe Building — LONG
     "universe_min_market_cap": 2_000_000_000,   # $2B
     "universe_min_price": 5.0,                   # $5
@@ -190,6 +196,13 @@ TUNING = {
     "multiplier_funda_value": 0.50,
     "multiplier_utility_threshold": 85,
     "multiplier_utility_max": 1.3,
+
+    # Analyst Price Target Contradiction Penalty (Phase 6 M_target)
+    "target_overshoot_enabled": True,       # Penalize if price >> analyst consensus
+    "target_overshoot_threshold": 0.20,     # 20-50% above target → ×0.85
+    "target_overshoot_penalty": 0.85,
+    "target_severe_threshold": 0.50,        # >50% above target → ×0.60
+    "target_severe_penalty": 0.60,
 
     # Sector Diversification
     "max_positions_per_sector": 3,

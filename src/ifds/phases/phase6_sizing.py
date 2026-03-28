@@ -74,6 +74,45 @@ def _save_ewma_scores(path: str, scores: dict[str, float]) -> None:
         pass
 
 
+def get_bmi_momentum_guard(
+    bmi_history: list[dict],
+    config: Config,
+) -> tuple[bool, int, float]:
+    """Check BMI momentum and return guard state.
+
+    Returns (active, reduced_max_positions, total_delta).
+    Guard activates when BMI declines for N consecutive days with
+    cumulative delta <= threshold.
+    """
+    if not config.tuning.get("bmi_momentum_guard_enabled", True):
+        return False, 0, 0.0
+
+    min_days = config.tuning.get("bmi_momentum_days", 3)
+    min_delta = config.tuning.get("bmi_momentum_min_delta", -1.0)
+    reduced_positions = config.tuning.get("bmi_momentum_max_positions", 5)
+
+    if len(bmi_history) < min_days + 1:
+        return False, 0, 0.0
+
+    recent = bmi_history[-(min_days + 1):]
+
+    consecutive_decline = 0
+    total_delta = 0.0
+    for i in range(1, len(recent)):
+        delta = recent[i]["bmi"] - recent[i - 1]["bmi"]
+        if delta < 0:
+            consecutive_decline += 1
+            total_delta += delta
+        else:
+            consecutive_decline = 0
+            total_delta = 0.0
+
+    if consecutive_decline >= min_days and total_delta <= min_delta:
+        return True, reduced_positions, total_delta
+
+    return False, 0, 0.0
+
+
 def run_phase6(config: Config, logger: EventLogger,
                stock_analyses: list[StockAnalysis],
                gex_analyses: list[GEXAnalysis],
@@ -407,6 +446,36 @@ def _apply_freshness_alpha(
     return fresh_count, fresh_tickers
 
 
+def _calculate_target_multiplier(
+    current_price: float,
+    analyst_target: float | None,
+    config: Config,
+) -> float:
+    """Analyst price target proximity multiplier (M_target).
+
+    Penalizes positions where price significantly exceeds analyst consensus.
+    Returns M_target ∈ [0.60, 1.0].
+    """
+    if not config.tuning.get("target_overshoot_enabled", True):
+        return 1.0
+    if analyst_target is None or not isinstance(analyst_target, (int, float)) or analyst_target <= 0:
+        return 1.0
+
+    overshoot_pct = (current_price - analyst_target) / analyst_target
+
+    threshold = config.tuning.get("target_overshoot_threshold", 0.20)
+    penalty = config.tuning.get("target_overshoot_penalty", 0.85)
+    severe_threshold = config.tuning.get("target_severe_threshold", 0.50)
+    severe_penalty = config.tuning.get("target_severe_penalty", 0.60)
+
+    if overshoot_pct > severe_threshold:
+        return severe_penalty
+    elif overshoot_pct > threshold:
+        return penalty
+    else:
+        return 1.0
+
+
 def _calculate_multiplier_total(
     stock: StockAnalysis,
     gex: GEXAnalysis,
@@ -449,8 +518,13 @@ def _calculate_multiplier_total(
     else:
         m_utility = 1.0
 
+    # M_target: analyst price target contradiction penalty
+    m_target = _calculate_target_multiplier(
+        stock.technical.price, stock.analyst_target, config
+    )
+
     # Total product, clamped to [0.25, 2.0]
-    m_total = m_flow * m_insider * m_funda * m_gex * m_vix * m_utility
+    m_total = m_flow * m_insider * m_funda * m_gex * m_vix * m_utility * m_target
     m_total = max(0.25, min(2.0, m_total))
 
     multipliers = {
@@ -460,6 +534,7 @@ def _calculate_multiplier_total(
         "m_gex": m_gex,
         "m_vix": m_vix,
         "m_utility": m_utility,
+        "m_target": m_target,
     }
     return m_total, multipliers
 
@@ -495,6 +570,16 @@ def _calculate_position(
     base_risk = account_equity * risk_pct / 100  # e.g., $500
 
     m_total, multipliers = _calculate_multiplier_total(stock, gex, macro, config)
+
+    # Log analyst target penalty if active
+    if multipliers["m_target"] < 1.0 and isinstance(stock.analyst_target, (int, float)) and stock.analyst_target:
+        overshoot_pct = (stock.technical.price - stock.analyst_target) / stock.analyst_target
+        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
+                   message=f"[TARGET] {stock.ticker} price=${stock.technical.price:.2f} "
+                           f"target=${stock.analyst_target:.2f} "
+                           f"overshoot={overshoot_pct:.1%} → M_target={multipliers['m_target']}",
+                   data={"ticker": stock.ticker, "m_target": multipliers["m_target"],
+                         "overshoot_pct": overshoot_pct})
 
     # T5: BMI extreme oversold → aggressive sizing (BC18B)
     if bmi_value is not None:
@@ -606,6 +691,7 @@ def _calculate_position(
         m_gex=multipliers["m_gex"],
         m_vix=multipliers["m_vix"],
         m_utility=multipliers["m_utility"],
+        m_target=multipliers["m_target"],
         scale_out_price=round(scale_out_price, 2),
         scale_out_pct=config.core["scale_out_pct"],
         is_fresh=is_fresh,

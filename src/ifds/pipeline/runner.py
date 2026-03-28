@@ -404,8 +404,39 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 logger.log(EventType.PHASE_SKIP, Severity.WARNING, phase=6,
                            message="No candidates from Phase 4/5 — skipping Phase 6")
             else:
-                from ifds.phases.phase6_sizing import run_phase6
+                from ifds.phases.phase6_sizing import get_bmi_momentum_guard, run_phase6
                 from ifds.output.execution_plan import write_execution_plan
+
+                # BMI Momentum Guard — reduce max_positions on declining BMI trend
+                bmi_guard_active = False
+                original_max_positions = config.runtime["max_positions"]
+                if config.tuning.get("bmi_momentum_guard_enabled", True):
+                    entries = bmi_history.load()
+                    guard_active, reduced, total_delta = get_bmi_momentum_guard(entries, config)
+                    if guard_active:
+                        min_days = config.tuning.get("bmi_momentum_days", 3)
+                        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
+                                   message=f"[BMI GUARD] BMI declining {min_days}+ days "
+                                           f"(delta={total_delta:+.1f}) → max_positions: "
+                                           f"{original_max_positions} → {reduced}",
+                                   data={"total_delta": total_delta, "reduced": reduced})
+                        config.runtime["max_positions"] = reduced
+                        bmi_guard_active = True
+                        # Telegram alert
+                        try:
+                            from ifds.output.telegram import _send_message
+                            _token = config.runtime.get("telegram_bot_token")
+                            _chat = config.runtime.get("telegram_chat_id")
+                            if _token and _chat:
+                                _send_message(
+                                    _token, _chat,
+                                    f"⚠️ <b>BMI MOMENTUM GUARD aktív</b>\n"
+                                    f"BMI {min_days}+ napja csökken (delta={total_delta:+.1f})\n"
+                                    f"Max pozíciók: {original_max_positions} → {reduced}",
+                                    timeout=10,
+                                )
+                        except Exception:
+                            pass
 
                 strategy = ctx.strategy_mode or StrategyMode.LONG
                 phase6 = run_phase6(
@@ -439,6 +470,10 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                         phase6.positions, ctx.stock_analyses,
                         config.runtime["output_dir"], run_id, logger,
                     )
+
+                # Restore original max_positions after guard override
+                if bmi_guard_active:
+                    config.runtime["max_positions"] = original_max_positions
 
                 print_final_summary(phase6, ctx)
                 logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
