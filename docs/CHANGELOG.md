@@ -1,6 +1,124 @@
 # IFDS v2.0 Changelog
 
-> Build Cycle BC1 → BC19 | 2026-02-06 – 2026-02-18
+> Build Cycle BC1 → BC18 | 2026-02-06 – 2026-03-28
+
+---
+
+## Quick Wins — TP1 Calibration + VIX SL + Yield Curve + Contradiction Penalty + BMI Guard (1054 tests)
+
+> 2026-03-27 | Post-BC18, pre-BC20
+
+### TP1 ATR Calibration 2.0× → 0.75× ATR
+- `phase6_sizing.py`: `tp1_atr_multiple` 2.0→0.75 — intraday elérhető TP1 target
+- `sim/replay.py`: fallback ha nincs `tp1_atr_multiple` a config-ban
+- 3 teszt assertion frissítve
+- Commit: `5c2ae4f`
+
+### VIX-Adaptive SL Cap (pt_avwap.py)
+- Pure function `get_vix_adaptive_sl_distance()`: VIX <20 (nincs cap), 20-25 (2%), 25-30 (1.5%), >30 (1% + ATR csökkentés)
+- FRED VIXCLS fetch, `monitor_state` `sl_distance` frissítés trail konzisztenciához
+- 6 teszt
+- Commit: `7b44532`
+
+### 2s10s Yield Curve Shadow Log
+- `FREDClient.get_yield_curve_2s10s()` (T10Y2Y sorozat)
+- `MacroRegime`: +`yield_curve_2s10s`, +`yield_curve_regime` (NORMAL/FLATTENING/INVERTED)
+- Phase 0 INFO log, Telegram Macro sor bővítés
+- Shadow mode: `yield_curve_shadow_enabled` config flag
+- 10 teszt
+- Commit: `45026df`
+
+### Analyst Price Target Contradiction Penalty
+- `phase6_sizing.py`: `_compute_contradiction_penalty()` — M_target ×0.85 (>20% eltérés) / ×0.60 (>50%)
+- FMP analyst price target fetch integráció Phase 6-ba
+- `contradiction_penalty_enabled` config flag
+- Commit: `ca47a6c`
+
+### BMI Momentum Guard
+- `phase6_sizing.py`: 3+ nap csökkenő BMI + delta ≤-1.0 → max_positions 8→5
+- `bmi_momentum_guard_enabled`, `bmi_guard_declining_days`, `bmi_guard_delta_threshold` config kulcsok
+- Commit: `3620630`
+
+---
+
+## BC18 — EWMA + Crowdedness Shadow + MMS Activation (1034 tests)
+
+> 2026-03-21–26 | BC18 DONE
+
+### Phase_18A — EWMA Smoothing
+- `phase6_sizing.py`: `_ewma_score()` — span=10, combined_score simítás
+- `ewma_enabled` config flag (shadow → active)
+- Per-ticker DEBUG log (raw, ewma, prev, delta) + aggregált INFO log
+- 4 teszt
+- Commit: `83fc1b9`
+
+### Phase_18A — Crowdedness Shadow
+- `phase5_gex.py`: `compute_crowding_score()` — dark_share, options activity, block ratio composite
+- Decision B+C+C: dark_share > 0.55, gradual bad crowding, no good boost
+- `crowdedness_shadow_enabled` config flag (shadow mode, logolás only)
+- Commit: `257c953`
+
+### Phase_18B — MMS Activation + Factor Volatility
+- `mms_enabled: True`, `factor_volatility_enabled: True`
+- `mms_min_periods`: 21→10 (universe rotáció fix, 51 ticker aktiválódott)
+- T5: BMI extreme oversold (<25%) → ×1.25 aggressive sizing (`bmi_oversold_threshold=25`)
+- Commit: `58ed5a1`
+
+### MMS Telegram + Crowdedness Summary
+- Telegram: MMS regime column + crowdedness summary
+- Commit: `323a8e1`
+
+---
+
+## BC17 — Preflight Hardening + Trail Stop A+B + Monitoring (1015 tests)
+
+> 2026-02-27 – 2026-03-21
+
+### Phase_17A — BC17 Preflight Hardening
+- `deploy_daily.sh`: pytest pre-flight + flock + Telegram alert + state backup
+- `phase6_sizing.py`: `dataclasses.replace()` (MMS field drop megelőzés)
+- `validator.py`: OBSIDIAN regime multiplier keys validálás
+- Phase 2/4/6 atomic file write-ok
+- `strategy.dark_pool.min_block_size` + `min_notional` config
+- API retry tesztek
+
+### Phase_17B — monitor_positions.py
+- Új script: IBKR pozíciók vs execution plan — leftover → Telegram WARNING
+- clientId=14, crontab 10:10 CET
+- Commit: `2d35b1e`
+
+### Phase_17C — Trailing Stop Szcenárió A
+- `pt_monitor.py`: 5 percenként TP1 fill detektálás → trail aktiválás
+- Breakeven protection: `trail_sl >= entry_price`
+- `monitor_state_YYYY-MM-DD.json` inicializálás pt_submit-ben
+- clientId=15
+- Commit: `7df6a76`
+
+### Phase_17D — Trailing Stop Szcenárió B
+- 19:00 CET időalapú trail: `current_price > entry_price * 1.005`
+- Cancel ALL SL orders, TP1/TP2 limit marad
+- `scenario_b_activated` + `scenario_b_eligible` state mezők
+- CEST váltás automatikus (zoneinfo)
+
+### Witching Day Calendar Exclusion
+- `src/ifds/utils/calendar.py`: `is_witching_day()`, `next_witching_day()`
+- Pipeline: witching day → skip execution
+- Commit: `323a8e1`
+
+### AVWAP Limit→MKT Conversion
+- `pt_avwap.py`: AVWAP bracket rebuild — limit→MKT ha nincs fill a time window-ban
+- VIX-adaptív SL cap integrálva
+- clientId=16
+
+### Scenario B Loss Exit
+- `close_positions.py`: loss-making pozíciók → forced MOC exit Scenario B előtt
+- `LOSS_EXIT` orderRef pattern
+
+### EOD Exit Tracking + Gateway Health
+- `eod_report.py`: `classify_exit_by_ref()` orderRef pattern match
+- `check_gateway.py` (clientId=17): pre-flight script submit előtt
+- 19 teszt
+- Commit: `3cde97f`
 
 ---
 

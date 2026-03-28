@@ -1,6 +1,6 @@
 # IFDS — Master Roadmap & BC Registry
 
-**Utolsó frissítés:** 2026-03-07
+**Utolsó frissítés:** 2026-03-28
 **Státusz:** AKTÍV
 
 **Referencia fájlok:**
@@ -379,7 +379,7 @@ Note: <opcionális>
 | T2 | Outlier 50 benchmark | ✅ AKTÍV — SIM-L1 méri | — |
 | T3 | Bottom 10 negatív szűrő | ✅ KÉSZ | — |
 | T4 | Rotation vs Liquidation OBSIDIAN | 📋 | Phase_21A |
-| T5 | BMI extreme oversold sizing | 📋 | Phase_17D |
+| T5 | BMI extreme oversold sizing | ✅ KÉSZ | BC18B |
 | T6 | WOW Signals validálás | 📋 | Phase_20B |
 | T7 | New Kid + Repeat Freshness Alpha | 📋 | Phase_20B |
 | T8 | Félvezető szub-szektor faktor | ❌ ELENGEDVE | — |
@@ -447,8 +447,8 @@ Snapshot │ BC20-ra ~30+ nap  │ BC20 használja     │                 │
 ## Éves nézet
 
 ```
-Q1 (jan-márc):  BC1-17  — Pipeline + Validation + Crowdedness shadow + Trail Stop A
-Q2 (ápr-jún):   BC18-23 — Trail B, SIM-L2 Mód 2, Swing Exit, Risk Layer, HRP, ETF BMI
+Q1 (jan-márc):  BC1-18  — Pipeline + Validation + Trail Stop A+B + MMS + EWMA + Crowdedness
+Q2 (ápr-jún):   BC20-23 — SIM-L2 Mód 2, Swing Exit, Risk Layer, HRP, ETF BMI
 Q3 (júl-szept):  BC24-26 — Black-Litterman, Auto Exec, Multi-Strategy
 Q4 (okt-dec):   BC27-30 — Dashboard, Alpha Decay, Retail Packaging
 ```
