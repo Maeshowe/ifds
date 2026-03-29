@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-03-28 16:30 CET, CC -->
+<!-- Utolsó frissítés: 2026-03-29 ~16:00 CET, CC -->
 
 ## Paper Trading
 Day 30/63 | cum. PnL: −$572.41 (−0.57%) | IBKR DUH118657
@@ -46,10 +46,10 @@ Scope: SIM-L2 Mód 2 Re-Score (20A) → Freshness A/B (20B) → Trail Sim (20C)
 - PT clientId-k: submit=10, close=11, eod=12, nuke=13, monitor=14, trail=15, avwap=16, gateway=17
 
 ## Tesztek
-1054 passing, 0 failure
+1075 passing, 0 failure
 
 ## Utolsó commit
-09dfe78 — docs: sync CHANGELOG, testing baseline, roadmap Q1/Q2 view
+e2b299d — chore: remove unused asdict import from phase4_snapshot
 
 ## Blokkolók
 nincs
