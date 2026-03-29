@@ -402,44 +402,36 @@ Note: <opcionális>
 ## Idővonal
 
 ```
-         Márc                  Ápr                   Máj              Jún+
-    ─────┬───────────────────┬────────────────────┬─────────────────┬──────
-         │                   │                    │                 │
-Phase    │ 00+01              │                    │                 │
-_00/_01  │ Status docs + CRGY│                    │                 │
-         │                   │                    │                 │
-Paper    │ ████ márc 17 KÉSZ │                    │                 │
-Trading  │ Day 14→21         │ Éles döntés        │                 │
-         │                   │                    │                 │
-BC17     │ ████████████████  │                    │                 │
-17A+B+C  │ Preflight+Monitor │                    │                 │
-+D       │ Trail A + EWMA    │                    │                 │
-         │                   │                    │                 │
-BC18     │        ███████████│                    │                 │
-18A+B    │        Crowd+Trail│                    │                 │
-         │        B ~ápr 1   │                    │                 │
-         │                   │                    │                 │
-BC20     │                   │ ████████           │                 │
-20A+B+C  │                   │ SIM Mód 2+T10+Trail│                 │
-         │                   │                    │                 │
-BC20A    │                   │ ████████████       │                 │
-Swing    │                   │ VWAP+PosTrk+Split  │                 │
-Exit     │                   │ +close+SimEng      │                 │
-         │                   │                    │                 │
-BC21     │                   │        ████████    │                 │
-Risk     │                   │        VaR+Cross-  │                 │
-Layer    │                   │        Asset       │                 │
-         │                   │                    │                 │
-BC22     │                   │                    │ ████████        │
-HRP      │                   │                    │ Riskfolio-Lib   │
-         │                   │                    │                 │
-BC23     │                   │                    │      ███████████│
-ETF BMI  │                   │                    │ +MCP server     │
-         │                   │                    │                 │
+Márc              Ápr                      Máj               Jún+
+    ─────┬────────────────┬──────────────────────┬──────────────────┬──────
+         │                │                      │                  │
+BC1-18   │ ████ KÉSZ      │                      │                  │
++QW      │ +Quick Wins    │                      │                  │
+         │                │                      │                  │
+Paper    │ ████████████████████████████████████████                  │
+Trading  │ Day 30─────────────────────Day 63 ─────┤ Kiértékelés     │
+         │                │              (~máj 14)│                  │
+         │                │                      │                  │
+BC20     │                │ ████████              │                  │
+SIM      │                │ ápr 7-18              │                  │
+         │                │                      │                  │
+BC20A    │                │      ██████████████████                  │
+Swing    │                │      ápr 21 — máj 9   │                  │
+Exit     │                │                      │                  │
+         │                │                      │                  │
+BC21     │                │              █████████│                  │
+Risk     │                │              máj 11-22│                  │
+         │                │                      │                  │
+BC22     │                │                      │ █████████        │
+HRP      │                │                      │ máj 25-jún 6    │
+         │                │                      │                  │
+BC23     │                │                      │      ████████████│
+ETF      │                │                      │      jún 8-27   │
+         │                │                      │                  │
 SIM-L1   │ ████████████████████████████████████████████████████████
          │ Folyamatos napi futás                                    │
 Phase 4  │ ████████████████████████████████████████████████████████
-Snapshot │ BC20-ra ~30+ nap  │ BC20 használja     │                 │
+Snapshot │ ~40 nap adat   │ BC20 használja       │                  │
 ```
 
 ---

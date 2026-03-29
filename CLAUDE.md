@@ -5,15 +5,16 @@ Multi-faktoros kvantitatív kereskedési rendszer (swing trading, US equities).
 6-fázisú pipeline: BMI regime → Universe → Sectors → Stock Analysis → GEX/MMS → Position Sizing.
 Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek: docs/PARAMETERS.md
 
-## Státusz (2026-03-23)
+## Státusz (2026-03-28)
 - **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
-- **1034 teszt**, 0 failure, 0 warning
+- **1054 teszt**, 0 failure, 0 warning
 - **BC1–BC19 kész** — Pipeline, SIM-L1/L2, async, MMS, factor vol, IBKR hardening
 - **BC18 kész** — MMS activation, factor vol, T5 oversold sizing, EWMA smoothing, crowdedness shadow
+- **Quick wins kész** — TP1 0.75×ATR, VIX-adaptív SL cap, 2s10s shadow, M_target penalty, BMI momentum guard
 - **Paper Trading infra kész** — Witching calendar, AVWAP limit→MKT, Scenario B loss exit, trailing stop A+B, EOD exit tracking, Gateway health check
-- **Paper Trading**: Day 26 (IBKR paper account DUH118657, cum. PnL +$332.54, +0.33%)
+- **Paper Trading**: Day 30/63 (IBKR paper account DUH118657, cum. PnL −$572.41, −0.57%)
 - **Swing Hybrid Exit**: design APPROVED (`docs/planning/swing-hybrid-exit-design.md`)
-- **Következő**: BC20 (SIM-L2 Mód 2, Freshness A/B, Trail Sim) — ~ápr első fele
+- **Következő**: BC20 (SIM-L2 Mód 2, Freshness A/B, Trail Sim) — ~ápr 7-18
 
 ## Alapszabályok
 - Ez PÉNZÜGYI rendszer — Human-in-the-loop minden döntésnél
@@ -223,8 +224,8 @@ docs/qa/                        # QA audit kimenetek (READ ONLY for CC)
 Részletes (Phase-alapú struktúra): `docs/planning/roadmap-2026-consolidated.md`
 
 ```
-Q1 (jan-márc):  BC1-18  — Pipeline + Validation + Trail Stop + MMS + EWMA + Crowdedness shadow
-Q2 (ápr-jún):   BC20-23 — SIM-L2 Mód 2, Swing Exit, Risk Layer, HRP, ETF BMI
+Q1 (jan-márc):  BC1-18 + quick wins — Pipeline, Validation, MMS, EWMA, Crowdedness shadow, TP1/VIX SL/M_target/BMI guard
+Q2 (ápr-jún):   BC20-23 — SIM-L2 Mód 2 (~ápr 7-18), Swing Exit (~ápr 21-máj 9), Risk Layer (~máj 11-22), HRP (~máj 25-jún 6), ETF Flow (~jún 8-27)
 Q3 (júl-szept):  BC24-26 — Black-Litterman, Auto Exec, Multi-Strategy
 Q4 (okt-dec):   BC27-30 — Dashboard, Alpha Decay, Retail Packaging
 ```

@@ -64,3 +64,9 @@ az összes viselkedés-módosító env var-t:
 `CLAUDE.md` Aktuális Kontextus szekció stabil referencia (ritkán változik) —
 NEM frissítjük `/wrap-up`-kor. `docs/STATUS.md` az egyetlen dinamikus állapotfájl.
 `/wrap-up` → `docs/STATUS.md` in-place frissítés (nem új fájl, nem CLAUDE.md).
+
+---
+
+## Git push policy (rule, 2026-02-26)
+
+CC commitol, Tamás pusholja. Push csak explicit jóváhagyással.

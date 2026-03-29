@@ -16,7 +16,7 @@ gamma exposure, and fundamental quality. Outputs 5-8 sized positions with bracke
 | 5 | GEX + MMS | Gamma exposure regimes, Market Microstructure Scorer (async) |
 | 6 | Sizing | Risk-adjusted position sizing, 6 multipliers, sector diversification |
 
-Output: `execution_plan.csv` (28 columns) + Telegram alert.
+Output: `execution_plan.csv` + `full_scan_matrix.csv` + `trade_plan.csv` + Telegram alert.
 
 ## Setup
 
@@ -31,16 +31,28 @@ pip install -e ".[test,freshness]"
 Create `.env` in the project root:
 
 ```bash
-# Required
+# Required API keys
 IFDS_POLYGON_API_KEY=your_key
 IFDS_FMP_API_KEY=your_key
 IFDS_FRED_API_KEY=your_key
 
-# Optional
+# Optional API keys
 IFDS_UW_API_KEY=your_key              # Unusual Whales (has Polygon fallback)
 IFDS_TELEGRAM_BOT_TOKEN=your_token    # Daily alerts
 IFDS_TELEGRAM_CHAT_ID=your_chat_id
-IFDS_ASYNC_ENABLED=true               # Async phases (default: true)
+
+# Runtime
+IFDS_ASYNC_ENABLED=true               # Async phases 1/4/5 (default: false)
+IFDS_CACHE_ENABLED=true               # File-based API cache (default: false)
+IFDS_CACHE_DIR=data/cache             # Cache directory
+
+# Tuning overrides (optional)
+IFDS_ACCOUNT_EQUITY=100000            # Account equity ($)
+IFDS_RISK_PER_TRADE_PCT=1.0           # Risk per trade (%)
+IFDS_MAX_POSITIONS=8                  # Max simultaneous positions
+IFDS_CIRCUIT_BREAKER_LIMIT=5.0        # Drawdown circuit breaker (%)
+IFDS_OUTPUT_DIR=output                # CSV output directory
+IFDS_LOG_DIR=logs                     # Log directory
 ```
 
 ## Usage
@@ -77,7 +89,7 @@ and sends Telegram alerts on success or failure.
 python -m pytest tests/ -q
 ```
 
-903 tests, 0 failures (2026-02-27). Tests are mandatory before every commit.
+1054+ tests, 0 failures (2026-03-28). Tests are mandatory before every commit.
 
 ## Project Structure
 
@@ -94,9 +106,9 @@ src/ifds/
 
 scripts/
   deploy_daily.sh           Cron entrypoint (pytest pre-flight + pipeline)
-  paper_trading/            IBKR paper trading (submit, close, eod, nuke)
+  paper_trading/            IBKR paper trading (submit, close, eod, nuke, monitor, avwap, gateway)
 
-tests/                      49 test modules
+tests/                      55+ test modules
 docs/
   IDEA.md                   Business specification
   PIPELINE_LOGIC.md         All formulas and thresholds
@@ -125,6 +137,6 @@ output/                     Daily CSV outputs
 
 - **Version**: 2.0.0a1
 - **Python**: 3.11+
-- **Tests**: 903 passing
+- **Tests**: 1054+ passing
 - **Production**: Mac Mini daily cron (22:00 CET)
-- **Paper trading**: IBKR paper account, Day 8/21
+- **Paper trading**: IBKR paper account (DUH118657), Day 30/63

@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-03-28, CC -->
+<!-- Utolsó frissítés: 2026-03-28 16:30 CET, CC -->
 
 ## Paper Trading
 Day 30/63 | cum. PnL: −$572.41 (−0.57%) | IBKR DUH118657
@@ -49,7 +49,7 @@ Scope: SIM-L2 Mód 2 Re-Score (20A) → Freshness A/B (20B) → Trail Sim (20C)
 1054 passing, 0 failure
 
 ## Utolsó commit
-755e622 — docs: session close journal 2026-03-26
+09dfe78 — docs: sync CHANGELOG, testing baseline, roadmap Q1/Q2 view
 
 ## Blokkolók
 nincs
