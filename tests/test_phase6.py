@@ -813,3 +813,26 @@ class TestDataclassesReplace:
         assert accepted[0].mm_regime == "dark_dominant"
         assert accepted[0].unusualness_score == 0.62
         assert accepted[0].quantity < 200  # reduced
+
+
+class TestMTargetLoggerFix:
+    """Regression test: _calculate_position must not crash when M_target logs."""
+
+    def test_m_target_penalty_logs_with_logger(self, config, logger, macro):
+        """When M_target < 1.0 and logger is passed, logger.log is called."""
+        stock = _make_stock("OVER", price=155.0, atr=3.0, combined_score=75.0)
+        stock.analyst_target = 100.0  # 55% overshoot → severe penalty
+        gex = _make_gex("OVER")
+        pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG,
+                                  logger=logger)
+        assert pos is not None
+        assert pos.m_target == pytest.approx(0.60)
+
+    def test_m_target_penalty_no_crash_without_logger(self, config, macro):
+        """_calculate_position works without logger (default None)."""
+        stock = _make_stock("OVER", price=155.0, atr=3.0, combined_score=75.0)
+        stock.analyst_target = 100.0
+        gex = _make_gex("OVER")
+        pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
+        assert pos is not None
+        assert pos.m_target == pytest.approx(0.60)

@@ -246,7 +246,7 @@ def run_phase6(config: Config, logger: EventLogger,
 
             pos = _calculate_position(stock, gex, macro, config, strategy_mode,
                                       original_scores, fresh_tickers, _sector_map,
-                                      _mms_map, bmi_value)
+                                      _mms_map, bmi_value, logger)
             if pos is None:
                 sizing_failed_count += 1
                 if sizing_failed_count <= 5:
@@ -550,6 +550,7 @@ def _calculate_position(
     sector_map: dict[str, SectorScore] | None = None,
     mms_map: dict[str, MMSAnalysis] | None = None,
     bmi_value: float | None = None,
+    logger: EventLogger | None = None,
 ) -> PositionSizing | None:
     """Calculate position sizing for a single candidate.
 
@@ -574,12 +575,13 @@ def _calculate_position(
     # Log analyst target penalty if active
     if multipliers["m_target"] < 1.0 and isinstance(stock.analyst_target, (int, float)) and stock.analyst_target:
         overshoot_pct = (stock.technical.price - stock.analyst_target) / stock.analyst_target
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
-                   message=f"[TARGET] {stock.ticker} price=${stock.technical.price:.2f} "
-                           f"target=${stock.analyst_target:.2f} "
-                           f"overshoot={overshoot_pct:.1%} → M_target={multipliers['m_target']}",
-                   data={"ticker": stock.ticker, "m_target": multipliers["m_target"],
-                         "overshoot_pct": overshoot_pct})
+        if logger is not None:
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
+                       message=f"[TARGET] {stock.ticker} price=${stock.technical.price:.2f} "
+                               f"target=${stock.analyst_target:.2f} "
+                               f"overshoot={overshoot_pct:.1%} → M_target={multipliers['m_target']}",
+                       data={"ticker": stock.ticker, "m_target": multipliers["m_target"],
+                             "overshoot_pct": overshoot_pct})
 
     # T5: BMI extreme oversold → aggressive sizing (BC18B)
     if bmi_value is not None:
