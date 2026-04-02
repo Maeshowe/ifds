@@ -424,12 +424,13 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                         bmi_guard_active = True
                         # Telegram alert
                         try:
-                            from ifds.output.telegram import _send_message
+                            from ifds.output.telegram import _send_message, _pipeline_timestamp
                             _token = config.runtime.get("telegram_bot_token")
                             _chat = config.runtime.get("telegram_chat_id")
                             if _token and _chat:
                                 _send_message(
                                     _token, _chat,
+                                    f"{_pipeline_timestamp()}\n"
                                     f"⚠️ <b>BMI MOMENTUM GUARD aktív</b>\n"
                                     f"BMI {min_days}+ napja csökken (delta={total_delta:+.1f})\n"
                                     f"Max pozíciók: {original_max_positions} → {reduced}",
@@ -451,12 +452,13 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                                        f">= {skip_details['bmi_min_days']}",
                                data=skip_details)
                     try:
-                        from ifds.output.telegram import _send_message
+                        from ifds.output.telegram import _send_message, _pipeline_timestamp
                         _token = config.runtime.get("telegram_bot_token")
                         _chat = config.runtime.get("telegram_chat_id")
                         if _token and _chat:
                             _send_message(
                                 _token, _chat,
+                                f"{_pipeline_timestamp()}\n"
                                 f"\U0001f47b <b>SKIP DAY SHADOW</b> — ha éles lenne, ma 0 pozíció\n"
                                 f"VIX={skip_details['vix_value']:.1f} (küszöb: {skip_details['vix_threshold']})\n"
                                 f"BMI {skip_details['bmi_consecutive_decline']} napja csökken "

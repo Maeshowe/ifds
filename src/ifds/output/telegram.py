@@ -8,9 +8,16 @@ Non-blocking: failures are logged but never halt the pipeline.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo  # type: ignore[no-redef]
 
 import requests
+
+_CET = ZoneInfo("Europe/Budapest")
 
 from ifds.config.loader import Config
 from ifds.events.logger import EventLogger
@@ -19,6 +26,15 @@ from ifds.models.market import BaselineState, PipelineContext
 
 # Telegram message size limit
 _MAX_MSG_LEN = 4096
+
+
+def _pipeline_timestamp() -> str:
+    """Return CET timestamp header for pipeline Telegram messages.
+
+    Format: [YYYY-MM-DD HH:MM CET] PIPELINE
+    """
+    now = datetime.now(_CET)
+    return f"[{now.strftime('%Y-%m-%d %H:%M')} CET] PIPELINE"
 
 # Breadth regime abbreviations (same as console.py)
 _BREADTH_SHORT = {
@@ -92,6 +108,7 @@ def send_failure_report(error: str, config: Config,
 
     try:
         text = (
+            f"{_pipeline_timestamp()}\n"
             f"\U0001f6a8 <b>IFDS FAILED</b> \u2014 {date.today().isoformat()}\n"
             f"Error: {_esc(str(error))}\n"
             f"Duration: {duration:.1f}s"
@@ -142,6 +159,7 @@ def _format_phases_0_to_4(ctx: PipelineContext, duration: float,
 
     # Header
     lines.append(
+        f"{_pipeline_timestamp()}\n"
         f"\U0001f4ca <b>IFDS Daily Report</b> \u2014 {date.today().isoformat()}"
     )
 

@@ -38,21 +38,10 @@ MAX_ORDER_SIZE = 500  # IBKR precautionary size limit (Global Configuration/Pres
 
 
 def send_telegram(message):
-    """Send message via Telegram Bot API."""
-    import requests
-
-    token = os.getenv('IFDS_TELEGRAM_BOT_TOKEN')
-    chat_id = os.getenv('IFDS_TELEGRAM_CHAT_ID')
-    if not token or not chat_id:
-        return
-    try:
-        requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={'chat_id': chat_id, 'text': message, 'parse_mode': 'HTML'},
-            timeout=10,
-        )
-    except Exception as e:
-        logger.warning(f"Telegram send failed: {e}")
+    """Send message via Telegram Bot API with CET timestamp header."""
+    from lib.telegram_helper import telegram_header
+    from lib.telegram_helper import send_telegram as _send
+    _send(f"{telegram_header('CLOSE')}\n{message}")
 
 
 # ---------------------------------------------------------------------------
