@@ -60,37 +60,40 @@ def send_telegram(message):
 # ---------------------------------------------------------------------------
 
 
-BRACKET_B_SUFFIXES = ('_B_SL', '_B_TRAIL', '_TRAIL')
-
-
 def get_net_open_qty(symbol: str, con_id: int, gross_qty: int, todays_fills) -> int:
-    """Return safe MOC qty after accounting for intraday Bracket B fills.
+    """Return safe MOC qty using net BOT-SLD fill calculation.
 
-    Only subtracts Bracket B SLD fills (_B_SL, _B_TRAIL, _TRAIL) from
-    gross_qty.  Bracket A TP1 fills (_A_TP) are NOT subtracted because
-    IBKR already removes A qty from pos.position when the TP fills —
-    subtracting them again would cause undersized MOC orders and leftovers.
+    Computes today's net position from all executions for this contract:
+    net = total_bought - total_sold.  This is suffix-independent and handles
+    all exit types (bracket TP/SL, TRAIL, LOSS_EXIT, AVWAP conversions).
 
-    If positions() is already synced, this conservatively undersells
-    (leaving shares open until next day) but never creates an inadvertent short.
-    Primary protection: reqPositions() + 5s sleep before reading positions().
+    Falls back to gross_qty if no fills found (conservative: close everything).
+    Returns 0 if fully closed intraday.
     """
-    bracket_sold = sum(
-        int(fill.execution.shares)
-        for fill in todays_fills
-        if fill.contract.conId == con_id
-        and fill.execution.side == 'SLD'
-        and any(
-            (getattr(fill.execution, 'orderRef', '') or '').endswith(suffix)
-            for suffix in BRACKET_B_SUFFIXES
-        )
-    )
-    if bracket_sold > 0:
+    total_bought = 0
+    total_sold = 0
+    for fill in todays_fills:
+        if fill.contract.conId != con_id:
+            continue
+        shares = int(fill.execution.shares)
+        if fill.execution.side == 'BOT':
+            total_bought += shares
+        elif fill.execution.side == 'SLD':
+            total_sold += shares
+
+    if total_bought == 0 and total_sold == 0:
+        # No fills today for this contract — use gross_qty from positions()
+        return gross_qty
+
+    net_position = total_bought - total_sold
+    moc_qty = max(0, net_position)
+
+    if moc_qty != gross_qty:
         logger.info(
-            f"{symbol}: {bracket_sold} shares closed intraday via bracket TP/SL — "
-            f"adjusting MOC qty {gross_qty} → {max(0, gross_qty - bracket_sold)}"
+            f"{symbol}: fills today BOT={total_bought} SLD={total_sold} net={net_position} — "
+            f"MOC qty {gross_qty} → {moc_qty}"
         )
-    return max(0, gross_qty - bracket_sold)
+    return moc_qty
 
 
 # ---------------------------------------------------------------------------
