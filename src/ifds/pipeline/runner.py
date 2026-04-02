@@ -438,6 +438,48 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                         except Exception:
                             pass
 
+                # Skip Day Shadow Guard — log only, does NOT block pipeline
+                from ifds.phases.phase6_sizing import check_skip_day_shadow
+                if not config.tuning.get("bmi_momentum_guard_enabled", True):
+                    entries = bmi_history.load()
+                would_skip, skip_details = check_skip_day_shadow(ctx.macro, entries, config)
+                if would_skip:
+                    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
+                               message=f"[SKIP DAY SHADOW] Would skip today — "
+                                       f"VIX={skip_details['vix_value']:.1f} >= {skip_details['vix_threshold']}, "
+                                       f"BMI declining {skip_details['bmi_consecutive_decline']} days "
+                                       f">= {skip_details['bmi_min_days']}",
+                               data=skip_details)
+                    try:
+                        from ifds.output.telegram import _send_message
+                        _token = config.runtime.get("telegram_bot_token")
+                        _chat = config.runtime.get("telegram_chat_id")
+                        if _token and _chat:
+                            _send_message(
+                                _token, _chat,
+                                f"\U0001f47b <b>SKIP DAY SHADOW</b> — ha éles lenne, ma 0 pozíció\n"
+                                f"VIX={skip_details['vix_value']:.1f} (küszöb: {skip_details['vix_threshold']})\n"
+                                f"BMI {skip_details['bmi_consecutive_decline']} napja csökken "
+                                f"(küszöb: {skip_details['bmi_min_days']})",
+                                timeout=10,
+                            )
+                    except Exception:
+                        pass
+                # Save shadow state for later evaluation
+                try:
+                    import json as _json
+                    from datetime import date as _date
+                    _shadow_file = config.runtime.get("skip_day_shadow_file",
+                                                       "state/skip_day_shadow.jsonl")
+                    with open(_shadow_file, "a") as _f:
+                        _f.write(_json.dumps({
+                            "date": _date.today().isoformat(),
+                            "would_skip": would_skip,
+                            **skip_details,
+                        }) + "\n")
+                except OSError:
+                    pass
+
                 strategy = ctx.strategy_mode or StrategyMode.LONG
                 phase6 = run_phase6(
                     config, logger,

@@ -113,6 +113,48 @@ def get_bmi_momentum_guard(
     return False, 0, 0.0
 
 
+def check_skip_day_shadow(
+    macro: MacroRegime,
+    bmi_history: list[dict],
+    config: Config,
+) -> tuple[bool, dict]:
+    """Check if skip-day conditions are met (shadow mode only).
+
+    Returns (would_skip, details_dict).
+    Does NOT block the pipeline — only logs.
+    """
+    if not config.tuning.get("skip_day_shadow_enabled", True):
+        return False, {}
+
+    vix_threshold = config.tuning.get("skip_day_vix_threshold", 28.0)
+    min_days = config.tuning.get("skip_day_bmi_decline_days", 5)
+
+    vix_triggered = macro.vix_value >= vix_threshold
+
+    # Count consecutive BMI decline days (walking backwards)
+    consecutive_decline = 0
+    if len(bmi_history) >= 2:
+        for i in range(len(bmi_history) - 1, 0, -1):
+            if bmi_history[i]["bmi"] < bmi_history[i - 1]["bmi"]:
+                consecutive_decline += 1
+            else:
+                break
+
+    bmi_triggered = consecutive_decline >= min_days
+    would_skip = vix_triggered and bmi_triggered
+
+    details = {
+        "vix_value": macro.vix_value,
+        "vix_threshold": vix_threshold,
+        "vix_triggered": vix_triggered,
+        "bmi_consecutive_decline": consecutive_decline,
+        "bmi_min_days": min_days,
+        "bmi_triggered": bmi_triggered,
+        "would_skip": would_skip,
+    }
+    return would_skip, details
+
+
 def run_phase6(config: Config, logger: EventLogger,
                stock_analyses: list[StockAnalysis],
                gex_analyses: list[GEXAnalysis],
