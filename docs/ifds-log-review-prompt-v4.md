@@ -36,6 +36,7 @@ A checklist sablont a "Review Checklist Sablon" szekció tartalmazza. Minden `[ 
 │   ├── pt_eod_YYYY-MM-DD.log               ← EOD report + P&L
 │   ├── pt_gateway_YYYY-MM-DD.log           ← Gateway health check
 │   ├── pt_nuke_YYYY-MM-DD.log              ← Emergency nuke
+│   ├── pt_events_YYYY-MM-DD.jsonl          ← Unified business events (SINGLE SOURCE)
 │   └── paper_trading.log                    ← Régi PT log (legacy)
 ├── output/
 │   ├── execution_plan_run_YYYYMMDD_*.csv
@@ -48,7 +49,8 @@ A checklist sablont a "Review Checklist Sablon" szekció tartalmazza. Minden `[ 
 └── state/
     ├── mms/                              ← MMS feature store (per-ticker JSON)
     ├── phase4_snapshots/                 ← EWMA persistence
-    └── skip_day_shadow.jsonl             ← Skip day shadow log
+    ├── skip_day_shadow.jsonl             ← Skip day shadow log
+    └── pt_events.db                      ← SQLite event database (query tool)
 ```
 
 ---
