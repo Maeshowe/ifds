@@ -1,0 +1,28 @@
+mode: 1
+
+variants:
+  - name: "1day_baseline"
+    description: "Current 1-day MOC system (bracket sim)"
+    overrides:
+      max_hold_days: 1
+      tp1_atr_multiple: 0.75
+      tp2_atr_multiple: 3.0
+
+  - name: "swing_5day"
+    description: "5-day swing with trail stop"
+    overrides:
+      max_hold_days: 5
+      tp1_atr_mult: 0.75
+      trail_atr_mult: 1.0
+      breakeven_atr_mult: 0.3
+      tp1_exit_pct: 0.50
+      sim_mode: "swing"
+
+  - name: "swing_3day_tight"
+    description: "3-day swing, tighter trail"
+    overrides:
+      max_hold_days: 3
+      tp1_atr_mult: 0.5
+      trail_atr_mult: 0.75
+      tp1_exit_pct: 0.50
+      sim_mode: "swing"

@@ -184,3 +184,205 @@ def _parse_date(date_str: str | date) -> date:
     if isinstance(date_str, date):
         return date_str
     return date.fromisoformat(date_str)
+
+
+# ============================================================================
+# Swing Trade Simulation (BC20C)
+# ============================================================================
+
+def simulate_swing_trade(
+    trade: Trade,
+    daily_bars: list[dict],
+    tp1_atr_mult: float = 0.75,
+    trail_atr_mult: float = 1.0,
+    breakeven_atr_mult: float = 0.3,
+    max_hold_days: int = 5,
+    tp1_exit_pct: float = 0.50,
+    fill_window_days: int = 1,
+) -> Trade:
+    """Simulate swing trade lifecycle with trailing stop.
+
+    Day-by-day iteration after fill:
+    1. Check SL: if low <= current_sl → full exit remaining qty
+    2. Check TP1: if high >= tp1_price and not yet triggered → partial exit
+    3. Breakeven: if close > entry + breakeven_atr×ATR → raise SL to entry
+    4. Trail: if TP1 triggered, trail_stop = max(prev_trail, high - trail×ATR)
+    5. Max hold: if day count >= max_hold_days → exit at close
+
+    Same-day ambiguity (TP1+SL on same bar): conservative → SL exit.
+
+    Args:
+        trade: Trade with entry_price, stop_loss, quantity set.
+        daily_bars: OHLCV bars AFTER the plan date.
+        tp1_atr_mult: TP1 target in ATR multiples from entry.
+        trail_atr_mult: Trail stop distance in ATR multiples.
+        breakeven_atr_mult: Profit threshold (ATR) to raise SL to entry.
+        max_hold_days: Maximum holding period.
+        tp1_exit_pct: Fraction of position to exit at TP1.
+        fill_window_days: Days to attempt fill.
+
+    Returns:
+        Trade with swing execution results filled in.
+    """
+    if not daily_bars:
+        return trade
+
+    is_long = trade.direction == "BUY"
+
+    # Infer ATR from stop distance: SL = entry ± sl_atr×ATR
+    if trade.stop_loss > 0 and trade.entry_price > 0:
+        atr = abs(trade.entry_price - trade.stop_loss) / 1.5  # default sl_atr_mult
+    else:
+        return trade
+
+    if not (atr > 0):
+        return trade
+
+    # 1. FILL CHECK (same logic as bracket sim)
+    fill_bar_idx = None
+    for i in range(min(fill_window_days, len(daily_bars))):
+        bar = daily_bars[i]
+        if is_long and bar["l"] <= trade.entry_price:
+            fill_bar_idx = i
+            trade.filled = True
+            trade.fill_price = trade.entry_price
+            trade.fill_date = _parse_date(bar["date"])
+            break
+        elif not is_long and bar["h"] >= trade.entry_price:
+            fill_bar_idx = i
+            trade.filled = True
+            trade.fill_price = trade.entry_price
+            trade.fill_date = _parse_date(bar["date"])
+            break
+
+    if not trade.filled:
+        return trade
+
+    # Set up swing state
+    entry = trade.fill_price
+    tp1_price = round(entry + tp1_atr_mult * atr, 2) if is_long else round(entry - tp1_atr_mult * atr, 2)
+    trail_distance = trail_atr_mult * atr
+    breakeven_threshold = breakeven_atr_mult * atr
+    current_sl = trade.stop_loss
+    remaining_qty = trade.quantity
+    tp1_triggered = False
+    breakeven_done = False
+    total_pnl = 0.0
+
+    # Also populate legacy bracket fields for compatibility
+    trade.tp1 = tp1_price
+
+    # 2. DAY-BY-DAY SIMULATION
+    sim_bars = daily_bars[fill_bar_idx + 1:]
+    hold_bars = sim_bars[:max_hold_days]
+
+    for day_idx, bar in enumerate(hold_bars):
+        bar_high = bar["h"]
+        bar_low = bar["l"]
+        bar_close = bar["c"]
+        bar_date = _parse_date(bar["date"])
+        holding_day = day_idx + 1
+
+        # --- Check SL hit ---
+        sl_hit = (bar_low <= current_sl) if is_long else (bar_high >= current_sl)
+
+        # --- Check TP1 hit ---
+        tp1_hit = False
+        if not tp1_triggered:
+            tp1_hit = (bar_high >= tp1_price) if is_long else (bar_low <= tp1_price)
+
+        # Same-day ambiguity: TP1 + SL → conservative SL
+        if tp1_hit and sl_hit:
+            tp1_hit = False
+
+        if sl_hit:
+            # Full exit at SL
+            pnl = remaining_qty * (current_sl - entry) if is_long else remaining_qty * (entry - current_sl)
+            total_pnl += pnl
+            trade.trail_exit_price = current_sl
+            trade.holding_days = holding_day
+            trade.total_pnl = round(total_pnl, 2)
+            if trade.quantity > 0 and entry > 0:
+                trade.total_pnl_pct = round(total_pnl / (trade.quantity * entry) * 100, 2)
+
+            if tp1_triggered:
+                trade.exit_type = "tp1_partial+trail"
+            elif breakeven_done:
+                trade.exit_type = "breakeven_stop"
+            else:
+                trade.exit_type = "stop"
+
+            # Set legacy leg fields for compatibility
+            trade.leg1_exit_price = current_sl
+            trade.leg1_exit_date = bar_date
+            trade.leg1_exit_reason = trade.exit_type
+            return trade
+
+        if tp1_hit:
+            # Partial exit at TP1
+            partial_qty = round(trade.quantity * tp1_exit_pct)
+            partial_pnl = partial_qty * (tp1_price - entry) if is_long else partial_qty * (entry - tp1_price)
+            total_pnl += partial_pnl
+            remaining_qty -= partial_qty
+
+            tp1_triggered = True
+            trade.tp1_triggered = True
+            trade.tp1_exit_day = holding_day
+            trade.partial_exit_qty = partial_qty
+            trade.partial_exit_pnl = round(partial_pnl, 2)
+
+            # Activate trail — initial trail SL
+            if is_long:
+                current_sl = max(current_sl, round(bar_high - trail_distance, 2))
+            else:
+                current_sl = min(current_sl, round(bar_low + trail_distance, 2))
+
+            if remaining_qty <= 0:
+                # Full exit at TP1 (tp1_exit_pct == 1.0)
+                trade.exit_type = "tp1_full"
+                trade.holding_days = holding_day
+                trade.total_pnl = round(total_pnl, 2)
+                if trade.quantity > 0 and entry > 0:
+                    trade.total_pnl_pct = round(total_pnl / (trade.quantity * entry) * 100, 2)
+                trade.leg1_exit_price = tp1_price
+                trade.leg1_exit_date = bar_date
+                trade.leg1_exit_reason = "tp1_full"
+                return trade
+
+        # --- Breakeven check ---
+        if not breakeven_done and not tp1_triggered:
+            profit = (bar_close - entry) if is_long else (entry - bar_close)
+            if profit >= breakeven_threshold:
+                current_sl = entry
+                breakeven_done = True
+                trade.breakeven_triggered = True
+
+        # --- Trail update (after TP1 triggered) ---
+        if tp1_triggered:
+            if is_long:
+                new_trail = round(bar_high - trail_distance, 2)
+                current_sl = max(current_sl, new_trail)
+            else:
+                new_trail = round(bar_low + trail_distance, 2)
+                current_sl = min(current_sl, new_trail)
+
+    # --- Max hold exit: close at last bar's close ---
+    if hold_bars:
+        last_bar = hold_bars[-1]
+        exit_price = last_bar["c"]
+        exit_date = _parse_date(last_bar["date"])
+        pnl = remaining_qty * (exit_price - entry) if is_long else remaining_qty * (entry - exit_price)
+        total_pnl += pnl
+        trade.trail_exit_price = exit_price
+        trade.exit_type = "max_hold"
+        trade.holding_days = len(hold_bars)
+        trade.total_pnl = round(total_pnl, 2)
+        if trade.quantity > 0 and entry > 0:
+            trade.total_pnl_pct = round(total_pnl / (trade.quantity * entry) * 100, 2)
+        trade.leg1_exit_price = exit_price
+        trade.leg1_exit_date = exit_date
+        trade.leg1_exit_reason = "max_hold"
+    else:
+        trade.leg1_exit_reason = "open"
+
+    return trade

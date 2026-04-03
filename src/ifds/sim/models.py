@@ -59,6 +59,15 @@ class Trade:
     # Sector (for reporting)
     sector: str = ""
 
+    # Swing extension fields (BC20C — simulate_swing_trade)
+    tp1_triggered: bool = False
+    tp1_exit_day: int = 0               # Holding day when TP1 triggered
+    partial_exit_qty: int = 0           # Qty exited at TP1
+    partial_exit_pnl: float = 0.0       # P&L from partial TP1 exit
+    trail_exit_price: float = 0.0       # Trail stop exit price (remaining qty)
+    breakeven_triggered: bool = False    # SL raised to entry price
+    exit_type: str = ""                 # "tp1_full", "tp1_partial+trail", "stop", "breakeven_stop", "max_hold"
+
 
 @dataclass
 class ValidationSummary:
@@ -95,6 +104,12 @@ class ValidationSummary:
     # Breakdowns
     pnl_by_gex_regime: dict = field(default_factory=dict)
     win_rate_by_score_bucket: dict = field(default_factory=dict)  # 70-80, 80-90, 90+
+
+    # Swing metrics (BC20C)
+    tp1_partial_exits: int = 0       # Partial exits at TP1 (swing mode)
+    trail_exits: int = 0             # Trail stop exits (after TP1)
+    breakeven_exits: int = 0         # Exits at breakeven SL
+    max_hold_exits: int = 0          # MOC at max hold day
 
     # Metadata
     plan_count: int = 0              # Number of execution plan CSVs processed

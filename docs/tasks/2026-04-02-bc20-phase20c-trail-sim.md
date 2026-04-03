@@ -1,5 +1,5 @@
-Status: OPEN
-Updated: 2026-04-02
+Status: DONE
+Updated: 2026-04-03
 Note: BC20 Phase_20C — Trail SIM support (broker_sim multi-day)
 Depends: Phase_20A (rescore engine) kész
 

@@ -10,7 +10,7 @@ import re
 from datetime import date, timedelta
 from pathlib import Path
 
-from ifds.sim.broker_sim import compute_qty_split, simulate_bracket_order
+from ifds.sim.broker_sim import compute_qty_split, simulate_bracket_order, simulate_swing_trade
 from ifds.sim.models import Trade, ValidationSummary
 
 
@@ -250,7 +250,10 @@ def validate_execution_plans(output_dir: str = "output",
 def validate_trades_with_bars(trades: list[Trade],
                               bars_by_ticker: dict[str, list[dict]],
                               max_hold_days: int = 10,
-                              fill_window_days: int = 1) -> tuple[list[Trade], ValidationSummary]:
+                              fill_window_days: int = 1,
+                              sim_mode: str = "bracket",
+                              swing_params: dict | None = None,
+                              ) -> tuple[list[Trade], ValidationSummary]:
     """Validate trades with pre-provided bars (for testing without Polygon).
 
     Args:
@@ -258,13 +261,24 @@ def validate_trades_with_bars(trades: list[Trade],
         bars_by_ticker: {ticker: [bar_dicts]} — bars starting from plan_date + 1.
         max_hold_days: Maximum holding period.
         fill_window_days: Days to attempt fill.
+        sim_mode: ``"bracket"`` (default) or ``"swing"`` for trail simulation.
+        swing_params: Extra kwargs for ``simulate_swing_trade`` (tp1_atr_mult, etc.).
 
     Returns:
         (list of Trade objects with results, ValidationSummary)
     """
     for trade in trades:
         bars = bars_by_ticker.get(trade.ticker, [])
-        simulate_bracket_order(trade, bars, max_hold_days, fill_window_days)
+        if sim_mode == "swing":
+            params = swing_params or {}
+            simulate_swing_trade(
+                trade, bars,
+                max_hold_days=max_hold_days,
+                fill_window_days=fill_window_days,
+                **params,
+            )
+        else:
+            simulate_bracket_order(trade, bars, max_hold_days, fill_window_days)
 
     summary = aggregate_summary(trades)
     return trades, summary

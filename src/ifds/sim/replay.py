@@ -137,13 +137,20 @@ def run_comparison(
             for trade in trades_copy:
                 recalculate_bracket(trade, variant.overrides, original_sl_atr_mult)
 
-        # Get variant-specific max_hold_days
+        # Get variant-specific params
         hold = variant.overrides.get("max_hold_days", max_hold_days)
         fill_window = variant.overrides.get("fill_window_days", 1)
+        sim_mode = variant.overrides.get("sim_mode", "bracket")
+        swing_params = {
+            k: variant.overrides[k]
+            for k in ("tp1_atr_mult", "trail_atr_mult", "breakeven_atr_mult", "tp1_exit_pct")
+            if k in variant.overrides
+        }
 
         # Simulate
         variant.trades, variant.summary = validate_trades_with_bars(
             trades_copy, bars_by_ticker, hold, fill_window,
+            sim_mode=sim_mode, swing_params=swing_params or None,
         )
 
     # 4. Compare
@@ -170,9 +177,16 @@ def run_comparison_with_bars(
 
         hold = variant.overrides.get("max_hold_days", max_hold_days)
         fill_window = variant.overrides.get("fill_window_days", 1)
+        sim_mode = variant.overrides.get("sim_mode", "bracket")
+        swing_params = {
+            k: variant.overrides[k]
+            for k in ("tp1_atr_mult", "trail_atr_mult", "breakeven_atr_mult", "tp1_exit_pct")
+            if k in variant.overrides
+        }
 
         variant.trades, variant.summary = validate_trades_with_bars(
             trades_copy, bars_by_ticker, hold, fill_window,
+            sim_mode=sim_mode, swing_params=swing_params or None,
         )
 
     return compare_variants(variants)
@@ -283,7 +297,7 @@ def run_mode2_comparison(
         all_variant_trades, polygon_api_key, max_hold_days, cache_dir,
     )
 
-    # 4. Simulate brackets for each variant
+    # 4. Simulate for each variant
     for variant in variants:
         if not variant.trades:
             variant.summary = aggregate_summary([])
@@ -291,9 +305,16 @@ def run_mode2_comparison(
 
         hold = variant.overrides.get("max_hold_days", max_hold_days)
         fill_window = variant.overrides.get("fill_window_days", 1)
+        sim_mode = variant.overrides.get("sim_mode", "bracket")
+        swing_params = {
+            k: variant.overrides[k]
+            for k in ("tp1_atr_mult", "trail_atr_mult", "breakeven_atr_mult", "tp1_exit_pct")
+            if k in variant.overrides
+        }
 
         variant.trades, variant.summary = validate_trades_with_bars(
             variant.trades, bars_by_ticker, hold, fill_window,
+            sim_mode=sim_mode, swing_params=swing_params or None,
         )
 
     # 5. Compare
