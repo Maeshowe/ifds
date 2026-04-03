@@ -5,16 +5,16 @@ Multi-faktoros kvantitatív kereskedési rendszer (swing trading, US equities).
 6-fázisú pipeline: BMI regime → Universe → Sectors → Stock Analysis → GEX/MMS → Position Sizing.
 Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek: docs/PARAMETERS.md
 
-## Státusz (2026-03-28)
-- **Production** — Mac Mini cron 22:00 CET (Mon-Fri), `scripts/deploy_daily.sh`
-- **1054 teszt**, 0 failure, 0 warning
-- **BC1–BC19 kész** — Pipeline, SIM-L1/L2, async, MMS, factor vol, IBKR hardening
-- **BC18 kész** — MMS activation, factor vol, T5 oversold sizing, EWMA smoothing, crowdedness shadow
-- **Quick wins kész** — TP1 0.75×ATR, VIX-adaptív SL cap, 2s10s shadow, M_target penalty, BMI momentum guard
-- **Paper Trading infra kész** — Witching calendar, AVWAP limit→MKT, Scenario B loss exit, trailing stop A+B, EOD exit tracking, Gateway health check
-- **Paper Trading**: Day 30/63 (IBKR paper account DUH118657, cum. PnL −$572.41, −0.57%)
-- **Swing Hybrid Exit**: design APPROVED (`docs/planning/swing-hybrid-exit-design.md`)
-- **Következő**: BC20 (SIM-L2 Mód 2, Freshness A/B, Trail Sim) — ~ápr 7-18
+## Státusz (2026-04-03)
+- **Production** — Mac Mini, split pipeline: Phase 1-3 (22:00) + Phase 4-6 (15:45 Budapest)
+- **1291 teszt**, 0 failure, 0 warning
+- **BC1–BC21 kész** — Pipeline, SIM, async, MMS, IBKR, Cross-Asset Regime, Corr Guard, VaR
+- **BC20A kész** — Swing Hybrid Exit (5 fázis: VWAP, PositionTracker, Pipeline Split, Swing Close, SimEngine)
+- **Log Infra kész** — Daily rotation, JSONL events, SQLite query
+- **NYSE Calendar kész** — Trading day guard, early close handling
+- **Telegram kész** — Split: MACRO SNAPSHOT (22:00) + TRADING PLAN (15:45)
+- **Paper Trading**: Day 33/63 (IBKR paper account DUH118657, cum. PnL −$1,113.16, −1.11%)
+- **Következő**: BC22 (~máj, HRP Allokáció), Day 63 kiértékelés (~máj 14)
 
 ## Alapszabályok
 - Ez PÉNZÜGYI rendszer — Human-in-the-loop minden döntésnél
@@ -191,32 +191,46 @@ src/ifds/
 │   ├── phase4_stocks.py        # Multi-factor scoring
 │   ├── phase5_gex.py           # GEX regime + MMS dispatch
 │   ├── phase5_mms.py           # MMS (Market Microstructure Scorer) — factor vol BC16
-│   └── phase6_sizing.py        # Position sizing + risk management
+│   ├── phase6_sizing.py        # Position sizing + risk management + VWAP guard + corr guard
+│   └── vwap.py                 # VWAP module (5-min bars, entry quality filter)
+├── risk/
+│   ├── cross_asset.py          # Cross-Asset Regime (HYG/IEF, RSP/SPY, IWM/SPY + 2s10s)
+│   └── portfolio_var.py        # Parametric VaR, position trimming
 ├── sim/
-│   ├── models.py               # Trade, ValidationSummary, SimVariant, ComparisonReport
-│   ├── broker_sim.py           # IBKR bracket simulation
-│   ├── validator.py            # L1 forward validation engine
-│   ├── replay.py               # L2 parameter sweep orchestrator
+│   ├── models.py               # Trade (+ swing fields), SimVariant, ComparisonReport
+│   ├── broker_sim.py           # Bracket + swing simulation (TP1 partial, trail, breakeven)
+│   ├── rescore.py              # Mode 2 re-score engine (Phase 4 snapshot → config variants)
+│   ├── wow_freshness.py        # U-shaped freshness (New Kid, WOW, Stale, Persistent)
+│   ├── validator.py            # L1 forward validation + sim_mode dispatch
+│   ├── replay.py               # L2 parameter sweep + Mode 2 re-score comparison
 │   ├── comparison.py           # L2 paired t-test comparison
 │   └── report.py               # Validation + comparison reports
-├── output/telegram.py          # Daily Telegram report
-├── models/market.py            # All dataclasses and enums
+├── state/
+│   ├── position_tracker.py     # OpenPosition + PositionTracker (JSON CRUD)
+│   ├── swing_manager.py        # Swing lifecycle (breakeven, trail, max hold, earnings)
+│   └── history.py              # BMI history persistence
+├── pipeline/
+│   ├── runner.py               # Pipeline orchestrator (--phases split, trading day guard)
+│   └── context_persistence.py  # Phase 1-3 context save/load (gzipped JSON)
+├── output/telegram.py          # Telegram (macro snapshot + trading plan + daily report)
+├── models/market.py            # All dataclasses and enums (40+ types)
 ├── utils/
-│   ├── trading_calendar.py    # NYSE calendar (exchange_calendars)
-│   ├── calendar.py            # Special market days (witching)
-│   └── io.py                  # Atomic JSON/Parquet write helpers
+│   ├── trading_calendar.py     # NYSE calendar (exchange_calendars, trading days)
+│   ├── calendar.py             # NYSE holidays, early close, witching days
+│   └── io.py                   # Atomic JSON/Parquet write helpers
 └── data/                       # API clients, cache, adapters
-    └── phase4_snapshot.py      # Daily Phase 4 data persistence
+    └── phase4_snapshot.py      # Daily Phase 4 snapshot + snapshot_to_stock_analysis()
 
-scripts/paper_trading/          # IBKR paper trading (submit, close, eod, monitor, avwap)
+scripts/paper_trading/          # IBKR paper trading (submit, close, eod, monitor)
+scripts/paper_trading/lib/      # Shared: log_setup, event_logger, trading_day_guard, telegram_helper
+scripts/tools/                  # events_to_sqlite.py
+scripts/deploy_daily.sh         # Phase 1-3 (22:00) or full pipeline
+scripts/deploy_intraday.sh      # Phase 4-6 + submit (15:45)
+sim/configs/                    # YAML variant configs (1d vs swing, freshness A/B, etc.)
 docs/tasks/                     # CC task fájlok (Chat írja, CC implementálja)
 docs/planning/                  # Design docs, roadmap, backlog
 docs/journal/                   # Chat session állapotmentések (READ ONLY for CC)
-docs/qa/                        # QA audit kimenetek (READ ONLY for CC)
-
-.claude/rules/                  # CC rules (permanent, per-session loaded)
-.claude/agents/                 # CC agent definitions
-.claude/scripts/                # Session hooks (start/end)
+docs/CODEMAPS/                  # Architecture docs (architecture, backend, data, dependencies)
 ```
 
 ## Roadmap 2026
@@ -238,9 +252,13 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 → **Backlog:** `docs/planning/backlog.md`
 
 Stabil referencia (ritkán változik):
-- Teszt baseline: 1054 passing (2026-03-28) — csak nőhet
+- Teszt baseline: 1291 passing (2026-04-03) — csak nőhet
 - PT account: IBKR DUH118657, $100K initial, 63 napos paper trading periódus
 - PT clientId-k: submit=10, close=11, eod=12, nuke=13, monitor=14, trail=15, avwap=16, gateway=17
 - MMS: `mms_enabled=True`, `factor_volatility_enabled=True`, `mms_min_periods=10`
 - TP1: `tp1_atr_multiple=0.75`
-- BC20A design: `docs/planning/swing-hybrid-exit-design.md`
+- Pipeline split: Phase 1-3 (22:00 Budapest) + Phase 4-6 (15:45 Budapest)
+- Swing: 5-day hold, MKT entry, VWAP guard, PositionTracker, breakeven + trail
+- Risk: Cross-Asset Regime, Correlation Guard, Portfolio VaR 3%
+- Deployment: `docs/tasks/2026-04-03-monday-deployment-checklist.md`
+- Crontab: `scripts/crontab.md`
