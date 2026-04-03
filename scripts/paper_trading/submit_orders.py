@@ -10,7 +10,6 @@ import argparse
 import csv
 import glob
 import json
-import logging
 import os
 import sys
 from datetime import date
@@ -37,12 +36,13 @@ CUMULATIVE_PNL_FILE = 'scripts/paper_trading/logs/cumulative_pnl.json'
 # Logging
 # ---------------------------------------------------------------------------
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%H:%M:%S',
-)
-logger = logging.getLogger('submit_orders')
+try:
+    from lib.log_setup import setup_pt_logger
+    logger = setup_pt_logger("submit")
+except ModuleNotFoundError:
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
+    logger = logging.getLogger('submit')
 
 # ---------------------------------------------------------------------------
 # Telegram

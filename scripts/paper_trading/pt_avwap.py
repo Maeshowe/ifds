@@ -23,7 +23,6 @@ Usage:
 
 import argparse
 import json
-import logging
 import os
 import sys
 from datetime import date, datetime, timedelta
@@ -33,12 +32,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S",
-)
-logger = logging.getLogger("pt_avwap")
+try:
+    from lib.log_setup import setup_pt_logger
+    logger = setup_pt_logger("avwap")
+except ModuleNotFoundError:
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
+    logger = logging.getLogger('avwap')
 
 STATE_DIR = "scripts/paper_trading/logs"
 ET = ZoneInfo("America/New_York")

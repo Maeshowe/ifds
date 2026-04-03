@@ -10,7 +10,6 @@ Usage:
 
 import argparse
 import asyncio
-import logging
 import os
 import sys
 import time
@@ -29,18 +28,13 @@ CLIENT_ID = 13  # Dedicated for nuke script
 MAX_ORDER_SIZE = 500  # IBKR precautionary size limit
 LOG_DIR = 'scripts/paper_trading/logs'
 
-os.makedirs(LOG_DIR, exist_ok=True)
-_log_path = f"{LOG_DIR}/nuke_{date.today().strftime('%Y%m%d_%H%M%S')}.log"
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%H:%M:%S',
-    handlers=[
-        logging.FileHandler(_log_path),
-        logging.StreamHandler(),
-    ],
-)
-logger = logging.getLogger('nuke')
+try:
+    from lib.log_setup import setup_pt_logger
+    logger = setup_pt_logger("nuke")
+except ModuleNotFoundError:
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
+    logger = logging.getLogger('nuke')
 
 
 def main():

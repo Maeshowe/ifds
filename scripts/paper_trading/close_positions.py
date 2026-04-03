@@ -7,7 +7,6 @@ Submits Market-on-Close SELL orders for any open positions.
 Usage:
     python scripts/paper_trading/close_positions.py
 """
-import logging
 import os
 from datetime import date
 
@@ -19,12 +18,13 @@ load_dotenv()
 # Logging
 # ---------------------------------------------------------------------------
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%H:%M:%S',
-)
-logger = logging.getLogger('close_positions')
+try:
+    from lib.log_setup import setup_pt_logger
+    logger = setup_pt_logger("close")
+except ModuleNotFoundError:
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
+    logger = logging.getLogger('close')
 
 # ---------------------------------------------------------------------------
 # Constants

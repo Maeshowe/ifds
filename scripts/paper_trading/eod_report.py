@@ -12,7 +12,6 @@ import argparse
 import csv
 import glob
 import json
-import logging
 import os
 from collections import defaultdict
 from datetime import date, datetime
@@ -39,12 +38,13 @@ IGNORED_POSITIONS = {"AVDL.CVR"}
 # Logging
 # ---------------------------------------------------------------------------
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    datefmt='%H:%M:%S',
-)
-logger = logging.getLogger('eod_report')
+try:
+    from lib.log_setup import setup_pt_logger
+    logger = setup_pt_logger("eod")
+except ModuleNotFoundError:
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
+    logger = logging.getLogger('eod')
 
 # ---------------------------------------------------------------------------
 # Telegram

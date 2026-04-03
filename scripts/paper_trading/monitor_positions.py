@@ -10,7 +10,6 @@ Usage:
 """
 import csv
 import glob
-import logging
 import os
 from datetime import date
 
@@ -18,12 +17,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S",
-)
-logger = logging.getLogger("monitor_positions")
+try:
+    from lib.log_setup import setup_pt_logger
+    logger = setup_pt_logger("monitor_positions")
+except ModuleNotFoundError:
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
+    logger = logging.getLogger('monitor_positions')
 
 EXECUTION_PLAN_DIR = "output"
 

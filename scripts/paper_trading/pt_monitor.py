@@ -24,7 +24,6 @@ Usage:
     python scripts/paper_trading/pt_monitor.py
 """
 import json
-import logging
 import os
 from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
@@ -33,12 +32,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S",
-)
-logger = logging.getLogger("pt_monitor")
+try:
+    from lib.log_setup import setup_pt_logger
+    logger = setup_pt_logger("monitor")
+except ModuleNotFoundError:
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
+    logger = logging.getLogger('monitor')
 
 STATE_DIR = "scripts/paper_trading/logs"
 
