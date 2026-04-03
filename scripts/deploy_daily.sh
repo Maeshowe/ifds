@@ -34,7 +34,7 @@ fi
 echo "[pre-flight] OK" >> "$LOG"
 # --- end pre-flight ---
 
-python -m ifds run >> "$LOG" 2>&1
+python -m ifds run "$@" >> "$LOG" 2>&1
 EXIT_CODE=$?
 echo "=== Exit: $EXIT_CODE ===" >> "$LOG"
 
