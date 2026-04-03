@@ -155,7 +155,7 @@ def main() -> None:
     state = load_state(today_str)
 
     if not state:
-        logger.info("No monitor state file found — nothing to monitor.")
+        logger.debug("No monitor state file found — nothing to monitor.")
         return
 
     # Tickers that need monitoring:
@@ -174,7 +174,7 @@ def main() -> None:
         )
     ]
     if not candidate_tickers:
-        logger.info("All positions resolved — monitor idle.")
+        logger.debug("All positions resolved — monitor idle.")
         return
 
     ib = connect(client_id=15)
@@ -189,7 +189,7 @@ def main() -> None:
             f"Phantom tickers filtered out (no IBKR position): {sorted(phantom)}"
         )
     if not active_tickers:
-        logger.info("All candidate tickers are phantom — nothing to monitor.")
+        logger.debug("All candidate tickers are phantom — nothing to monitor.")
         disconnect(ib)
         return
 
@@ -306,7 +306,7 @@ def main() -> None:
                     logger.warning(msg)
                     send_telegram(msg)
                 else:
-                    logger.info(
+                    logger.debug(
                         f"{sym}: Scenario B — not activated "
                         f"(price ${current_price:.2f}, "
                         f"profit threshold ${threshold:.2f}, "

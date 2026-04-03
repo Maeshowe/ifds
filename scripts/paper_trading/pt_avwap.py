@@ -321,7 +321,7 @@ def main() -> None:
     avwap_cutoff = market_open + timedelta(hours=AVWAP_CUTOFF_HOURS)
 
     if not (avwap_start <= now_et <= avwap_cutoff):
-        logger.info(
+        logger.debug(
             f"Outside AVWAP window ({avwap_start.strftime('%H:%M')}-"
             f"{avwap_cutoff.strftime('%H:%M')} ET). Exiting."
         )
@@ -330,7 +330,7 @@ def main() -> None:
     today_str = date.today().strftime("%Y-%m-%d")
     state = load_state(today_str)
     if not state:
-        logger.info("No monitor state — nothing to watch.")
+        logger.debug("No monitor state — nothing to watch.")
         return
 
     # Filter: only tickers not yet AVWAP-converted, not already filled
@@ -342,7 +342,7 @@ def main() -> None:
     ]
 
     if not watching:
-        logger.info("No tickers need AVWAP monitoring.")
+        logger.debug("No tickers need AVWAP monitoring.")
         return
 
     logger.info(f"AVWAP candidates: {watching}")
@@ -397,7 +397,7 @@ def main() -> None:
             logger.warning(f"{sym}: Cannot get price")
             continue
 
-        logger.info(
+        logger.debug(
             f"{sym}: price=${current_price:.2f} AVWAP=${avwap:.4f} "
             f"state={s['avwap_state']}"
         )
