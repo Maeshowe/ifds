@@ -182,8 +182,25 @@ TUNING = {
     "tnx_sensitivity_pct": 5,                   # TNX > SMA20 * 1.05
     "tnx_sensitive_sectors": ["Technology", "Real Estate"],
 
-    # Yield Curve Shadow (BC18 follow-up)
+    # Yield Curve (BC18 shadow → BC21 active)
     "yield_curve_shadow_enabled": True,         # Log 2s10s spread (T10Y2Y) — shadow only, no sizing effect
+    "yield_curve_enabled": True,                # 2s10s as 4th voter in cross-asset regime (BC21)
+    "yield_curve_inversion_threshold": 0.0,     # Inverted = negative spread
+    "yield_curve_severe_threshold": -0.50,      # Deep inversion
+    "yield_curve_vote_weight": 0.5,             # Half vote (slow-moving indicator)
+    "yield_curve_severe_vote_weight": 1.0,      # Full vote on deep inversion
+
+    # Cross-Asset Regime (BC21)
+    "cross_asset_enabled": True,
+    "cross_asset_sma_period": 20,
+    "cross_asset_vix_crisis_threshold": 30,     # CRISIS only if VIX > this
+    "cross_asset_cautious_vix_delta": -1,
+    "cross_asset_risk_off_vix_delta": -3,
+    "cross_asset_crisis_vix_delta": -5,
+    "cross_asset_risk_off_max_positions": 6,
+    "cross_asset_crisis_max_positions": 4,
+    "cross_asset_risk_off_min_score": 75,
+    "cross_asset_crisis_min_score": 80,
 
     # Risk Management multipliers
     # M_flow threshold = 80: flow_score = BASE(50) + rvol_score.
@@ -418,4 +435,8 @@ RUNTIME = {
 
     # Signal History (Freshness Alpha)
     "signal_history_file": "state/signal_history.parquet",
+
+    # Cross-Asset ETFs (BC21)
+    "cross_asset_etfs": ["HYG", "IEF", "RSP", "SPY", "IWM"],
+    "cross_asset_lookback_days": 30,            # 25 trading days + buffer
 }

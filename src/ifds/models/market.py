@@ -149,9 +149,14 @@ class MacroRegime:
     tnx_sma20: float
     tnx_rate_sensitive: bool    # True if TNX > SMA20 * 1.05
 
-    # Yield Curve (shadow log, no effect on sizing)
+    # Yield Curve
     yield_curve_2s10s: float | None = None   # T10Y2Y spread in pct points
     curve_status: str = "UNKNOWN"            # NORMAL / FLATTENING / INVERTED
+
+    # Cross-Asset Regime (BC21)
+    cross_asset_regime: str = "NORMAL"       # NORMAL / CAUTIOUS / RISK_OFF / CRISIS
+    cross_asset_votes: float = 0.0           # 0–4 (ETF votes + yield curve)
+    vix_threshold_adjusted: float = 20.0     # VIX penalty start after cross-asset shift
 
     timestamp: datetime | None = None
 

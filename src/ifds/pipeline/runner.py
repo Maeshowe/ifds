@@ -439,6 +439,50 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                         except Exception:
                             pass
 
+                # Cross-Asset Regime — position/score overrides (BC21)
+                original_min_score = config.tuning.get("combined_score_minimum", 70)
+                if ctx.macro and ctx.macro.cross_asset_regime != "NORMAL":
+                    ca_regime = ctx.macro.cross_asset_regime
+                    if ca_regime == "CRISIS":
+                        ca_max = config.tuning.get("cross_asset_crisis_max_positions", 4)
+                        ca_min_score = config.tuning.get("cross_asset_crisis_min_score", 80)
+                    elif ca_regime == "RISK_OFF":
+                        ca_max = config.tuning.get("cross_asset_risk_off_max_positions", 6)
+                        ca_min_score = config.tuning.get("cross_asset_risk_off_min_score", 75)
+                    else:
+                        ca_max = None
+                        ca_min_score = None
+
+                    if ca_max is not None:
+                        config.runtime["max_positions"] = min(config.runtime["max_positions"], ca_max)
+                    if ca_min_score is not None:
+                        config.tuning["combined_score_minimum"] = ca_min_score
+
+                    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
+                               message=f"[CROSS-ASSET] {ca_regime}: "
+                                       f"max_positions={config.runtime['max_positions']}, "
+                                       f"min_score={config.tuning.get('combined_score_minimum', 70)}, "
+                                       f"VIX threshold={ctx.macro.vix_threshold_adjusted:.0f}")
+
+                    try:
+                        from ifds.output.telegram import _send_message, _pipeline_timestamp
+                        _token = config.runtime.get("telegram_bot_token")
+                        _chat = config.runtime.get("telegram_chat_id")
+                        _emojis = {"CAUTIOUS": "\u26a0\ufe0f", "RISK_OFF": "\U0001f534", "CRISIS": "\U0001f6a8"}
+                        if _token and _chat:
+                            _send_message(
+                                _token, _chat,
+                                f"{_pipeline_timestamp()}\n"
+                                f"{_emojis.get(ca_regime, '')} <b>CROSS-ASSET: {ca_regime}</b>\n"
+                                f"Votes: {ctx.macro.cross_asset_votes:.1f}\n"
+                                f"Max pozíciók: {config.runtime['max_positions']} | "
+                                f"Min score: {config.tuning.get('combined_score_minimum', 70)}\n"
+                                f"VIX threshold: {ctx.macro.vix_threshold_adjusted:.0f}",
+                                timeout=10,
+                            )
+                    except Exception:
+                        pass
+
                 # Skip Day Shadow Guard — log only, does NOT block pipeline
                 from ifds.phases.phase6_sizing import check_skip_day_shadow
                 if not config.tuning.get("bmi_momentum_guard_enabled", True):
@@ -515,9 +559,9 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                         config.runtime["output_dir"], run_id, logger,
                     )
 
-                # Restore original max_positions after guard override
-                if bmi_guard_active:
-                    config.runtime["max_positions"] = original_max_positions
+                # Restore original max_positions and min_score after guard overrides
+                config.runtime["max_positions"] = original_max_positions
+                config.tuning["combined_score_minimum"] = original_min_score
 
                 print_final_summary(phase6, ctx)
                 logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,

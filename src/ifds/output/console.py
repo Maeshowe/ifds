@@ -102,6 +102,11 @@ def print_diagnostics(diag: DiagnosticsResult) -> None:
         print(f"\n  Macro: VIX={vix_color}{m.vix_value:.2f}{Style.RESET_ALL}"
               f" ({m.vix_regime.value})  TNX={m.tnx_value:.2f}%"
               f"  Rate-sensitive={m.tnx_rate_sensitive}")
+        if hasattr(m, "cross_asset_regime") and m.cross_asset_regime != "NORMAL":
+            ca_color = Fore.RED if m.cross_asset_regime == "CRISIS" else Fore.YELLOW
+            print(f"  {ca_color}Cross-Asset: {m.cross_asset_regime}{Style.RESET_ALL}"
+                  f" (votes={m.cross_asset_votes:.1f},"
+                  f" VIX threshold→{m.vix_threshold_adjusted:.0f})")
 
     if diag.pipeline_can_proceed:
         print(Fore.GREEN + "  => Pipeline CAN proceed")

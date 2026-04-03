@@ -277,6 +277,48 @@ def _assess_macro_regime(config: Config, polygon: PolygonClient,
                            "curve_status": curve_status,
                        })
 
+    # --- Cross-Asset Regime (BC21) ---
+    cross_asset_regime_str = "NORMAL"
+    cross_asset_votes = 0.0
+    vix_threshold_adjusted = config.tuning["vix_penalty_start"]
+
+    if config.tuning.get("cross_asset_enabled", True):
+        try:
+            from ifds.risk.cross_asset import calculate_cross_asset_regime
+
+            etfs = config.runtime.get("cross_asset_etfs", ["HYG", "IEF", "RSP", "SPY", "IWM"])
+            lookback = config.runtime.get("cross_asset_lookback_days", 30)
+            ratios = _fetch_cross_asset_ratios(polygon, etfs, lookback, logger)
+
+            yield_for_voting = yield_curve_2s10s if config.tuning.get("yield_curve_enabled", True) else None
+
+            ca_result = calculate_cross_asset_regime(
+                ratios, vix_value, yield_for_voting, config.tuning,
+            )
+            cross_asset_regime_str = ca_result.regime.value
+            cross_asset_votes = ca_result.votes
+            vix_threshold_adjusted = config.tuning["vix_penalty_start"] + ca_result.vix_threshold_delta
+
+            if ca_result.regime.value != "NORMAL":
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=0,
+                    message=(
+                        f"Cross-Asset Regime: {ca_result.regime.value} "
+                        f"(votes={ca_result.votes:.1f}, "
+                        f"HYG/IEF={'below' if ca_result.hyg_ief_below_sma else 'above'}, "
+                        f"RSP/SPY={'below' if ca_result.rsp_spy_below_sma else 'above'}, "
+                        f"VIX threshold {config.tuning['vix_penalty_start']}→{vix_threshold_adjusted})"
+                    ),
+                    data=ca_result.details,
+                )
+        except Exception as e:
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=0,
+                       message=f"Cross-asset regime failed, defaulting NORMAL: {e}")
+
+    # Recalculate VIX multiplier with cross-asset adjusted threshold
+    if vix_threshold_adjusted != config.tuning["vix_penalty_start"]:
+        vix_multiplier = _calculate_vix_multiplier(vix_value, config, vix_threshold_adjusted)
+
     macro = MacroRegime(
         vix_value=vix_value,
         vix_regime=vix_regime,
@@ -286,6 +328,9 @@ def _assess_macro_regime(config: Config, polygon: PolygonClient,
         tnx_rate_sensitive=tnx_rate_sensitive,
         yield_curve_2s10s=yield_curve_2s10s,
         curve_status=curve_status,
+        cross_asset_regime=cross_asset_regime_str,
+        cross_asset_votes=cross_asset_votes,
+        vix_threshold_adjusted=vix_threshold_adjusted,
         timestamp=datetime.now(timezone.utc),
     )
 
@@ -388,21 +433,68 @@ def _classify_vix(vix: float, config: Config) -> MarketVolatilityRegime:
         return MarketVolatilityRegime.LOW
 
 
-def _calculate_vix_multiplier(vix: float, config: Config) -> float:
+def _calculate_vix_multiplier(vix: float, config: Config,
+                              threshold_override: float | None = None) -> float:
     """Calculate VIX risk multiplier.
 
     Formula: max(floor, 1.0 - (VIX - threshold) * rate)
     EXTREME override: VIX > extreme_threshold → fixed extreme_multiplier.
+
+    Args:
+        threshold_override: If set, replaces ``vix_penalty_start`` from config.
+            Used by cross-asset regime to shift the VIX sensitivity.
     """
     extreme_threshold = config.tuning.get("vix_extreme_threshold", 50)
     if vix > extreme_threshold:
         return config.tuning.get("vix_extreme_multiplier", 0.10)
-    threshold = config.tuning["vix_penalty_start"]
+    threshold = threshold_override if threshold_override is not None else config.tuning["vix_penalty_start"]
     if vix <= threshold:
         return 1.0
     rate = config.tuning["vix_penalty_rate"]
     floor = config.tuning["vix_multiplier_floor"]
     return max(floor, 1.0 - (vix - threshold) * rate)
+
+
+def _fetch_cross_asset_ratios(
+    polygon: PolygonClient,
+    etfs: list[str],
+    lookback_days: int,
+    logger: EventLogger,
+) -> dict[str, list[float]]:
+    """Fetch ETF bars and compute cross-asset ratios.
+
+    Returns ``{"hyg_ief": [...], "rsp_spy": [...], "iwm_spy": [...]}``
+    with daily ratio values (most recent last).
+    """
+    bars_by_etf: dict[str, list[dict]] = {}
+    for etf in etfs:
+        try:
+            bars = polygon.get_daily_bars(etf, lookback_days)
+            bars_by_etf[etf] = bars if bars else []
+        except Exception as e:
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=0,
+                       message=f"Cross-asset: failed to fetch {etf}: {e}")
+            bars_by_etf[etf] = []
+
+    def _ratio(numerator: str, denominator: str) -> list[float]:
+        num_bars = bars_by_etf.get(numerator, [])
+        den_bars = bars_by_etf.get(denominator, [])
+        if not num_bars or not den_bars:
+            return []
+        # Align by date
+        den_by_date = {b["date"] if isinstance(b["date"], str) else b["date"].isoformat(): b["c"] for b in den_bars}
+        ratios = []
+        for b in num_bars:
+            d = b["date"] if isinstance(b["date"], str) else b["date"].isoformat()
+            if d in den_by_date and den_by_date[d] > 0:
+                ratios.append(b["c"] / den_by_date[d])
+        return ratios
+
+    return {
+        "hyg_ief": _ratio("HYG", "IEF"),
+        "rsp_spy": _ratio("RSP", "SPY"),
+        "iwm_spy": _ratio("IWM", "SPY"),
+    }
 
 
 def _log_phase_complete(logger: EventLogger, start_time: float) -> None:

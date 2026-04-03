@@ -177,6 +177,14 @@ def _format_phases_0_to_4(ctx: PipelineContext, duration: float,
         if m.yield_curve_2s10s is not None:
             macro_line += f"  2s10s={m.yield_curve_2s10s:+.2f}% ({m.curve_status})"
         lines.append(macro_line)
+        if hasattr(m, "cross_asset_regime") and m.cross_asset_regime != "NORMAL":
+            _ca_emojis = {"CAUTIOUS": "\u26a0\ufe0f", "RISK_OFF": "\U0001f534", "CRISIS": "\U0001f6a8"}
+            lines.append(
+                f"{_ca_emojis.get(m.cross_asset_regime, '')} "
+                f"<b>Cross-Asset: {m.cross_asset_regime}</b> "
+                f"(votes={m.cross_asset_votes:.1f}, "
+                f"VIX threshold→{m.vix_threshold_adjusted:.0f})"
+            )
 
     # Phase 1: BMI
     lines.append("")
