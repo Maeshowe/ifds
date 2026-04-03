@@ -1,15 +1,15 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-02 ~10:00 CET, Chat -->
+<!-- Utolsó frissítés: 2026-04-03 ~15:30 CET, CC -->
 
 ## Paper Trading
 Day 33/63 | cum. PnL: −$1,113.16 (−1.11%) | IBKR DUH118657
 Kiterjesztve 63 napra (~máj 14 kiértékelés)
 
 ## Aktív BC
-BC18 DONE → BC20 következő (~ápr első fele)
-Scope: SIM-L2 Mód 2 Re-Score (20A) → Freshness A/B (20B) → Trail Sim (20C)
-**SORREND: BC20 ELŐBB mint BC20A** — baseline megőrzés az összehasonlításhoz
+BC20 indítás — Phase_20A (Re-Score Engine) következő
+**SORREND: BC20 → BC21 (előrehozva!) → BC20A**
+BC21 előrehozva a bearish piac miatt (CRISIS mód kell)
 
 ## Élesben futó feature-ök
 - EWMA simítás (span=10), MMS multiplierek (day 15/10, aktiválódott)
@@ -17,21 +17,36 @@ Scope: SIM-L2 Mód 2 Re-Score (20A) → Freshness A/B (20B) → Trail Sim (20C)
 - M_target penalty: ×0.85 (>20% analyst target) / ×0.60 (>50%)
 - BMI momentum guard: 3+ nap csökkenés + delta ≤−1.0 → max_positions 8→5
 - close_positions.py: net BOT-SLD kalkuláció (fix: suffix matching → net qty)
+- Log infra: daily rotation + unified JSONL events + SQLite query
 
 ## Shadow mode (adatgyűjtés, hatás nélkül)
 
 | Feature | Shadow óta | Élesítés |
 |---|---|---|
 | Crowdedness composite | 2026-03-23 | ~ápr 7 (2 hét adat), BC20 ELŐTT is jöhet |
-| 2s10s Yield Curve | 2026-03-27 | ~ápr 10 (2 hét), élesítés BC21-ben (~máj) |
+| 2s10s Yield Curve | 2026-03-27 | ~ápr 10 (2 hét), élesítés BC21-ben |
 | EWMA score delta log | 2026-03-27 | Már aktív (monitoring) |
-| **Skip Day Shadow Guard** | **2026-04-02** | **Kiértékelés 30 nap múlva (~máj 2)** |
+| Skip Day Shadow Guard | 2026-04-02 | Kiértékelés 30 nap múlva (~máj 2) |
 
-## Nyitott taskok
-(nincs — mind DONE)
+## Kész taskok (nem BC)
+| Task | Commit | Dátum |
+|---|---|---|
+| Log Infra Modernizáció (F1-F4) | `364e53e`..`42e78e3` | 2026-04-03 |
 
-## Backlog (parkolt)
-- GEX call_wall TP1 override felülvizsgálat — `min(call_wall, entry + 0.75×ATR)` vs jelenlegi override. Mikor: ha VIX ~15 körül lesz.
+## BC20-22 Taskok (10 task, kidolgozva)
+
+| BC | Phase | Task fájl | Státusz |
+|---|---|---|---|
+| BC20 | 20A Re-Score | `2026-04-02-bc20-phase20a-rescore-engine.md` | **NEXT** |
+| BC20 | 20C Trail SIM | `2026-04-02-bc20-phase20c-trail-sim.md` | OPEN |
+| BC20 | 20B Freshness A/B | `2026-04-02-bc20-phase20b-freshness-ab-test.md` | OPEN |
+| BC21 | 21B Cross-Asset | `2026-04-02-bc21-phase21b-cross-asset-regime.md` | OPEN |
+| BC21 | 21A Corr Guard | `2026-04-02-bc21-phase21a-correlation-guard-var.md` | OPEN |
+| BC20A | 20A_1 VWAP | `2026-04-02-bc20a-phase20a1-vwap-module.md` | OPEN |
+| BC20A | 20A_2 PosTrk | `2026-04-02-bc20a-phase20a2-position-tracker.md` | OPEN |
+| BC20A | 20A_3 Split | `2026-04-02-bc20a-phase20a3-pipeline-split-mkt.md` | OPEN |
+| BC20A | 20A_4 Swing | `2026-04-02-bc20a-phase20a4-swing-close.md` | OPEN |
+| BC20A | 20A_5 SimEng | `2026-04-02-bc20a-phase20a5-simengine-swing.md` | OPEN |
 
 ## Nyitott design döntések
 
@@ -60,7 +75,7 @@ Scope: SIM-L2 Mód 2 Re-Score (20A) → Freshness A/B (20B) → Trail Sim (20C)
 - PT clientId-k: submit=10, close=11, eod=12, nuke=13, monitor=14, trail=15, avwap=16, gateway=17
 
 ## Tesztek
-1077+ passing, 0 failure
+1109 passing, 0 failure
 
 ## Blokkolók
 nincs
