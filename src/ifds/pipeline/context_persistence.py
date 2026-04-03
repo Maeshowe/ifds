@@ -23,7 +23,6 @@ from ifds.models.market import (
     SectorScore,
     StrategyMode,
     MomentumClassification,
-    BreadthRegime,
     Ticker,
 )
 
