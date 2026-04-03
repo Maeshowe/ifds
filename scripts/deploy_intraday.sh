@@ -1,0 +1,28 @@
+#!/bin/bash
+# deploy_intraday.sh — Phase 4-6 with intraday data + order submission
+#
+# Runs at 15:45 CET (Mon-Fri) via cron.
+# Requires Phase 1-3 context from the 22:00 pipeline run.
+#
+# Usage: ./scripts/deploy_intraday.sh
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+echo "=== IFDS Intraday Pipeline (Phase 4-6) ==="
+echo "$(date '+%Y-%m-%d %H:%M:%S') Starting..."
+
+# Source environment
+source .env 2>/dev/null || true
+source .venv/bin/activate 2>/dev/null || true
+
+# Phase 4-6 (uses saved Phase 1-3 context)
+echo "--- Phase 4-6 ---"
+python -m ifds run --phases 4-6
+
+# Submit orders
+echo "--- Submit Orders ---"
+python scripts/paper_trading/submit_orders.py
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') Done."

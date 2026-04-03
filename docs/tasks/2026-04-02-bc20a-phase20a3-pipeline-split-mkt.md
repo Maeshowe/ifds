@@ -1,5 +1,5 @@
-Status: OPEN
-Updated: 2026-04-02
+Status: DONE
+Updated: 2026-04-03
 Note: BC20A Phase_20A_3 — Pipeline Split + MKT Entry (~3h CC)
 Depends: Phase_20A_1 (VWAP) + Phase_20A_2 (PositionTracker)
 

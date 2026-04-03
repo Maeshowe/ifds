@@ -260,6 +260,22 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
             logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
                        message=f"Phase 3 completed in {time.monotonic() - _t:.1f}s")
 
+        # --- Context persistence: save after Phase 3, load before Phase 4 ---
+        if isinstance(phase, tuple) and phase[1] <= 3:
+            from ifds.pipeline.context_persistence import save_phase13_context
+            save_phase13_context(ctx)
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                       message="Phase 1-3 context saved to state/phase13_ctx.json.gz")
+
+        if isinstance(phase, tuple) and phase[0] >= 4 and ctx.macro is None:
+            from ifds.pipeline.context_persistence import load_phase13_context
+            if load_phase13_context(ctx):
+                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                           message="Phase 1-3 context loaded from state/phase13_ctx.json.gz")
+            else:
+                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING,
+                           message="Phase 1-3 context not found — Phase 4-6 may fail")
+
         # === Phase 4: Individual Stock Analysis ===
         _t = time.monotonic()
         if _should_run(phase, 4):
@@ -618,11 +634,37 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
         logger.close()
 
 
-def _should_run(requested_phase: int | None, current_phase: int) -> bool:
-    """Check if a phase should run given the --phase flag."""
+def _should_run(requested_phase: int | tuple[int, int] | None, current_phase: int) -> bool:
+    """Check if a phase should run given the --phase or --phases flag.
+
+    Args:
+        requested_phase: Single phase (int), range tuple (start, end), or None (all).
+        current_phase: Phase number being checked.
+    """
     if requested_phase is None:
         return True  # Run all phases
+    if isinstance(requested_phase, tuple):
+        return requested_phase[0] <= current_phase <= requested_phase[1]
     return requested_phase == current_phase
+
+
+def parse_phase_range(phases_str: str) -> tuple[int, int]:
+    """Parse phase range string like ``"1-3"`` or ``"4-6"``.
+
+    Returns:
+        (start, end) tuple of phase numbers.
+
+    Raises:
+        ValueError: If format is invalid.
+    """
+    if "-" not in phases_str:
+        n = int(phases_str)
+        return (n, n)
+    parts = phases_str.split("-", 1)
+    start, end = int(parts[0]), int(parts[1])
+    if not (0 <= start <= 6) or not (0 <= end <= 6) or start > end:
+        raise ValueError(f"Invalid phase range: {phases_str} (must be 0-6)")
+    return (start, end)
 
 
 def check_system(config_path: str | None = None) -> PipelineResult:

@@ -624,6 +624,7 @@ def _calculate_position(
     mms_map: dict[str, MMSAnalysis] | None = None,
     bmi_value: float | None = None,
     logger: EventLogger | None = None,
+    vwap_data: dict[str, float] | None = None,
 ) -> PositionSizing | None:
     """Calculate position sizing for a single candidate.
 
@@ -637,6 +638,22 @@ def _calculate_position(
     # Use "not (x > 0)" to catch NaN (NaN comparisons always return False)
     if not (atr > 0) or not (entry > 0):
         return None
+
+    # VWAP guard (BC20A): reject or reduce based on entry vs VWAP distance
+    vwap_reduction = 1.0
+    if vwap_data and stock.ticker in vwap_data:
+        from ifds.phases.vwap import vwap_distance_pct, vwap_entry_check
+        vwap = vwap_data[stock.ticker]
+        dist = vwap_distance_pct(entry, vwap)
+        check = vwap_entry_check(entry, vwap)
+        if logger:
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=6,
+                       message=f"[VWAP] {stock.ticker} price={entry:.2f} vwap={vwap:.2f} "
+                               f"dist={dist:+.1f}% → {check}")
+        if check == "REJECT":
+            return None
+        elif check == "REDUCE":
+            vwap_reduction = 0.50
 
     # Risk calculation
     account_equity = config.runtime["account_equity"]
@@ -668,6 +685,10 @@ def _calculate_position(
     # Stop distance and quantity
     stop_distance = sl_mult * atr
     quantity = math.floor(adjusted_risk / stop_distance)
+
+    # VWAP REDUCE: halve quantity
+    if vwap_reduction < 1.0:
+        quantity = math.floor(quantity * vwap_reduction)
 
     # Fat finger protection: NaN/Inf/negative guards + quantity caps
     if math.isnan(quantity) or math.isinf(quantity) or quantity < 0:

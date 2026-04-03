@@ -45,6 +45,11 @@ def main():
         help="Run only a specific phase (default: all phases)",
     )
     run_parser.add_argument(
+        "--phases",
+        type=str,
+        help='Phase range to run (e.g., "1-3" or "4-6")',
+    )
+    run_parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Validate configuration and API health without running the pipeline",
@@ -113,8 +118,14 @@ def _cmd_run(args):
     """Execute the pipeline."""
     from ifds.pipeline.runner import run_pipeline
 
+    # --phases range overrides --phase single
+    phase_arg = args.phase
+    if hasattr(args, "phases") and args.phases:
+        from ifds.pipeline.runner import parse_phase_range
+        phase_arg = parse_phase_range(args.phases)
+
     result = run_pipeline(
-        phase=args.phase,
+        phase=phase_arg,
         dry_run=args.dry_run,
         config_path=args.config,
     )
