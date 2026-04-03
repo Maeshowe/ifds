@@ -139,7 +139,7 @@ def _cmd_compare(args):
 
     # Build variants from YAML or CLI args
     if args.config:
-        variants = load_variants_from_yaml(args.config)
+        variants, _meta = load_variants_from_yaml(args.config)
     else:
         # Build from CLI args
         variants = [SimVariant(name=args.baseline, description="Current production config")]

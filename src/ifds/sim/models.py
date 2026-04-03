@@ -115,12 +115,18 @@ class ValidationSummary:
 
 @dataclass
 class SimVariant:
-    """A single configuration variant for A/B testing."""
+    """A single configuration variant for A/B testing.
+
+    ``mode`` controls the data source:
+    - ``"mode1"``: bracket parameter sweep on existing execution plan CSVs
+    - ``"mode2"``: re-score Phase 4 snapshots with config overrides
+    """
     name: str
     description: str = ""
     overrides: dict = field(default_factory=dict)
     trades: list[Trade] = field(default_factory=list)
     summary: ValidationSummary = field(default_factory=ValidationSummary)
+    mode: str = "mode1"
 
 
 @dataclass

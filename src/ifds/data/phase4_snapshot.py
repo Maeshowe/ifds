@@ -79,6 +79,74 @@ def load_phase4_snapshot(date_str: str,
     return []
 
 
+def snapshot_to_stock_analysis(record: dict) -> "StockAnalysis":
+    """Reconstruct StockAnalysis from a Phase 4 snapshot dict.
+
+    Inverse of ``_stock_to_dict``.  Fields not persisted in snapshots
+    (e.g. ``excluded``, ``volume_today``) get their dataclass defaults.
+    """
+    from ifds.models.market import (
+        FlowAnalysis,
+        FundamentalScoring,
+        StockAnalysis,
+        TechnicalAnalysis,
+    )
+
+    technical = TechnicalAnalysis(
+        price=record["price"],
+        sma_200=record["sma_200"],
+        sma_20=record["sma_20"],
+        rsi_14=record["rsi_14"],
+        atr_14=record["atr_14"],
+        trend_pass=record["trend_pass"],
+        rsi_score=record.get("rsi_score", 0),
+        sma_50=record.get("sma_50", 0.0),
+        sma50_bonus=record.get("sma50_bonus", 0),
+        rs_vs_spy=record.get("rs_vs_spy"),
+        rs_spy_score=record.get("rs_spy_score", 0),
+    )
+
+    flow = FlowAnalysis(
+        rvol=record.get("rvol", 1.0),
+        rvol_score=record.get("rvol_score", 0),
+        dark_pool_pct=record.get("dark_pool_pct", 0.0),
+        dp_pct_score=record.get("dp_pct_score", 0),
+        pcr=record.get("pcr"),
+        pcr_score=record.get("pcr_score", 0),
+        otm_call_ratio=record.get("otm_call_ratio"),
+        otm_score=record.get("otm_score", 0),
+        block_trade_count=record.get("block_trade_count", 0),
+        block_trade_score=record.get("block_trade_score", 0),
+        buy_pressure_score=record.get("buy_pressure_score", 0),
+        squat_bar=record.get("squat_bar", False),
+    )
+
+    fundamental = FundamentalScoring(
+        revenue_growth_yoy=record.get("revenue_growth_yoy"),
+        eps_growth_yoy=record.get("eps_growth_yoy"),
+        net_margin=record.get("net_margin"),
+        roe=record.get("roe"),
+        debt_equity=record.get("debt_equity"),
+        insider_score=record.get("insider_score", 0),
+        insider_multiplier=record.get("insider_multiplier", 1.0),
+        funda_score=record.get("funda_score", 0),
+        shark_detected=record.get("shark_detected_funda", False),
+        inst_ownership_trend=record.get("inst_ownership_trend", "unknown"),
+        inst_ownership_score=record.get("inst_ownership_score", 0),
+    )
+
+    return StockAnalysis(
+        ticker=record["ticker"],
+        sector=record["sector"],
+        technical=technical,
+        flow=flow,
+        fundamental=fundamental,
+        combined_score=record.get("combined_score", 0.0),
+        sector_adjustment=record.get("sector_adjustment", 0),
+        shark_detected=record.get("shark_detected", False),
+    )
+
+
 def _stock_to_dict(stock) -> dict:
     """Convert StockAnalysis to a flat dict for persistence."""
     t = stock.technical

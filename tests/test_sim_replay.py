@@ -137,11 +137,12 @@ variants:
         yaml_file = tmp_path / "variants.yaml"
         yaml_file.write_text(yaml_content)
 
-        variants = load_variants_from_yaml(str(yaml_file))
+        variants, meta = load_variants_from_yaml(str(yaml_file))
         assert len(variants) == 2
         assert variants[0].name == "baseline"
         assert variants[1].name == "wide_stops"
         assert variants[1].overrides["stop_loss_atr_multiple"] == 2.0
+        assert meta["mode"] == "mode1"
 
     def test_load_missing_file(self):
         """Missing YAML file raises FileNotFoundError."""

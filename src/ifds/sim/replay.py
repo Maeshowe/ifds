@@ -53,8 +53,12 @@ def recalculate_bracket(trade: Trade, overrides: dict,
 # YAML Config Loading
 # ============================================================================
 
-def load_variants_from_yaml(yaml_path: str) -> list[SimVariant]:
-    """Load variant definitions from YAML config file."""
+def load_variants_from_yaml(yaml_path: str) -> tuple[list[SimVariant], dict]:
+    """Load variant definitions from YAML config file.
+
+    Returns (variants, metadata) where metadata may contain ``mode``
+    and ``snapshot_dir`` for Mode 2 configs.
+    """
     path = Path(yaml_path)
     if not path.exists():
         raise FileNotFoundError(f"Variant config not found: {yaml_path}")
@@ -65,14 +69,21 @@ def load_variants_from_yaml(yaml_path: str) -> list[SimVariant]:
     if not data or "variants" not in data:
         raise ValueError(f"Invalid variant config: missing 'variants' key")
 
+    mode = str(data.get("mode", 1))
+    metadata = {
+        "mode": f"mode{mode}" if not mode.startswith("mode") else mode,
+        "snapshot_dir": data.get("snapshot_dir", "state/phase4_snapshots"),
+    }
+
     variants = []
     for v in data["variants"]:
         variants.append(SimVariant(
             name=v.get("name", "unnamed"),
             description=v.get("description", ""),
-            overrides=v.get("overrides", {}),
+            overrides=v.get("overrides") or {},
+            mode=metadata["mode"],
         ))
-    return variants
+    return variants, metadata
 
 
 # ============================================================================
@@ -164,6 +175,128 @@ def run_comparison_with_bars(
             trades_copy, bars_by_ticker, hold, fill_window,
         )
 
+    return compare_variants(variants)
+
+
+# ============================================================================
+# Mode 2: Re-Score Comparison
+# ============================================================================
+
+def run_mode2_comparison(
+    variants: list[SimVariant],
+    snapshot_dir: str = "state/phase4_snapshots",
+    polygon_api_key: str | None = None,
+    max_hold_days: int = 10,
+    cache_dir: str | None = None,
+    gex_multiplier: float = 1.0,
+    vix: float | None = None,
+) -> ComparisonReport:
+    """Run Mode 2: re-score Phase 4 snapshots with different configs.
+
+    For each variant:
+      1. Load all snapshots from ``snapshot_dir``
+      2. For each day: ``rescore_snapshot`` → sized positions → Trade objects
+      3. Fetch Polygon bars (shared, once)
+      4. Simulate brackets (reuse ``validate_trades_with_bars``)
+      5. Compare variants statistically
+
+    Args:
+        variants: SimVariant list with config overrides.
+        snapshot_dir: Path to Phase 4 snapshot files.
+        polygon_api_key: For fetching post-plan bars.
+        max_hold_days: Bracket simulation window.
+        cache_dir: Polygon bar cache.
+        gex_multiplier: Mock GEX multiplier (1.0 = neutral).
+        vix: VIX level for M_vix (None = no penalty).
+    """
+    from datetime import date as date_cls
+
+    from ifds.data.phase4_snapshot import load_phase4_snapshot
+    from ifds.sim.rescore import rescore_snapshot
+
+    if not variants:
+        return ComparisonReport()
+
+    # 1. Discover snapshot dates
+    snap_dir = Path(snapshot_dir)
+    if not snap_dir.exists():
+        return ComparisonReport(baseline=variants[0])
+
+    snapshot_files = sorted(snap_dir.glob("*.json.gz")) + sorted(snap_dir.glob("*.json"))
+    # Deduplicate dates (prefer .json.gz)
+    seen_dates: dict[str, Path] = {}
+    for f in snapshot_files:
+        date_str = f.stem.replace(".json", "")
+        if date_str not in seen_dates:
+            seen_dates[date_str] = f
+    snapshot_dates = sorted(seen_dates.keys())
+
+    if not snapshot_dates:
+        return ComparisonReport(baseline=variants[0])
+
+    # 2. For each variant: rescore all days → Trade objects
+    for variant in variants:
+        all_trades: list[Trade] = []
+        ewma_state: dict[str, float] = {}
+
+        for date_str in snapshot_dates:
+            records = load_phase4_snapshot(date_str, snapshot_dir)
+            if not records:
+                continue
+
+            positions = rescore_snapshot(
+                records,
+                config_overrides=variant.overrides,
+                gex_multiplier=gex_multiplier,
+                vix=vix,
+                ewma_state=ewma_state if variant.overrides.get("ewma_enabled") else None,
+            )
+
+            run_date = date_cls.fromisoformat(date_str)
+
+            for pos in positions:
+                trade = Trade(
+                    run_id=f"rescore_{date_str}",
+                    run_date=run_date,
+                    ticker=pos.ticker,
+                    score=pos.combined_score,
+                    gex_regime="neutral",
+                    multiplier=pos.m_total,
+                    entry_price=pos.entry_price,
+                    quantity=pos.quantity,
+                    direction=pos.direction,
+                    stop_loss=pos.stop_loss,
+                    tp1=pos.tp1,
+                    tp2=pos.tp2,
+                    sector=pos.sector,
+                )
+                all_trades.append(trade)
+
+        variant.trades = all_trades
+
+    # 3. Fetch bars (once, shared across variants)
+    # Collect all unique (ticker, run_date) across all variants
+    all_variant_trades: list[Trade] = []
+    for v in variants:
+        all_variant_trades.extend(v.trades)
+    bars_by_ticker = _fetch_bars_once(
+        all_variant_trades, polygon_api_key, max_hold_days, cache_dir,
+    )
+
+    # 4. Simulate brackets for each variant
+    for variant in variants:
+        if not variant.trades:
+            variant.summary = aggregate_summary([])
+            continue
+
+        hold = variant.overrides.get("max_hold_days", max_hold_days)
+        fill_window = variant.overrides.get("fill_window_days", 1)
+
+        variant.trades, variant.summary = validate_trades_with_bars(
+            variant.trades, bars_by_ticker, hold, fill_window,
+        )
+
+    # 5. Compare
     return compare_variants(variants)
 
 

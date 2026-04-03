@@ -1,0 +1,22 @@
+mode: 2
+snapshot_dir: "state/phase4_snapshots"
+
+variants:
+  - name: "baseline_no_ewma"
+    description: "Pre-BC18: no EWMA, no MMS, no M_target, no BMI guard"
+    overrides:
+      ewma_enabled: false
+      target_overshoot_enabled: false
+
+  - name: "current_config"
+    description: "Current production config (EWMA + M_target active)"
+    overrides:
+      ewma_enabled: true
+
+  - name: "aggressive_weights"
+    description: "Higher flow weight, lower tech weight"
+    overrides:
+      weight_flow: 0.50
+      weight_fundamental: 0.25
+      weight_technical: 0.25
+      ewma_enabled: true
