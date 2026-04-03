@@ -202,6 +202,18 @@ TUNING = {
     "cross_asset_risk_off_min_score": 75,
     "cross_asset_crisis_min_score": 80,
 
+    # Correlation Guard — sector group limits (BC21)
+    "correlation_guard_enabled": True,
+    "sector_group_max_cyclical": 5,
+    "sector_group_max_defensive": 4,
+    "sector_group_max_financial": 3,
+    "sector_group_max_commodity": 3,
+
+    # Portfolio VaR (BC21)
+    "portfolio_var_enabled": True,
+    "portfolio_var_confidence": 0.95,
+    "portfolio_var_max_pct": 3.0,        # Max 3% account VaR
+
     # Risk Management multipliers
     # M_flow threshold = 80: flow_score = BASE(50) + rvol_score.
     # rvol_score max realistic ~+30 (elevated+squat). Threshold 80 means only

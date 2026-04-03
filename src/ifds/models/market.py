@@ -490,7 +490,11 @@ class Phase6Result:
     excluded_dedup: int = 0
     excluded_daily_trade_limit: int = 0
     excluded_notional_limit: int = 0
+    excluded_correlation_limit: int = 0   # Sector group correlation guard (BC21)
     freshness_applied_count: int = 0
+    portfolio_var_pct: float = 0.0        # Portfolio VaR as % of account (BC21)
+    portfolio_var_usd: float = 0.0
+    var_positions_removed: int = 0
     total_risk_usd: float = 0.0
     total_exposure_usd: float = 0.0
 

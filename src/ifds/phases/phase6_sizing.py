@@ -379,6 +379,33 @@ def run_phase6(config: Config, logger: EventLogger,
                        "ewma_avg_delta": round(sum(ewma_deltas) / len(ewma_deltas), 2) if ewma_deltas else 0.0,
                    })
 
+        # Portfolio VaR check (BC21)
+        portfolio_var_pct = 0.0
+        portfolio_var_usd = 0.0
+        var_removed = 0
+        if config.tuning.get("portfolio_var_enabled", True) and final_positions:
+            from ifds.risk.portfolio_var import calculate_portfolio_var, trim_positions_by_var
+            confidence = config.tuning.get("portfolio_var_confidence", 0.95)
+            max_var = config.tuning.get("portfolio_var_max_pct", 3.0)
+            account_equity = config.runtime["account_equity"]
+
+            portfolio_var_usd, _ = calculate_portfolio_var(final_positions, confidence)
+            account_var_pct = (portfolio_var_usd / account_equity * 100) if account_equity > 0 else 0.0
+
+            if account_var_pct > max_var:
+                final_positions, var_removed, portfolio_var_pct = trim_positions_by_var(
+                    final_positions, account_equity, max_var, confidence,
+                )
+                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
+                           message=f"[VAR] Portfolio VaR {account_var_pct:.2f}% > {max_var}% "
+                                   f"→ removed {var_removed} positions",
+                           data={"var_before": account_var_pct, "var_after": portfolio_var_pct,
+                                 "removed": var_removed})
+                # Recalculate totals
+                portfolio_var_usd, _ = calculate_portfolio_var(final_positions, confidence)
+            else:
+                portfolio_var_pct = round(account_var_pct, 4)
+
         return Phase6Result(
             positions=final_positions,
             excluded_sector_limit=limit_counts["sector"],
@@ -388,9 +415,13 @@ def run_phase6(config: Config, logger: EventLogger,
             excluded_dedup=dedup_count,
             excluded_daily_trade_limit=daily_trade_excluded,
             excluded_notional_limit=notional_excluded,
+            excluded_correlation_limit=limit_counts.get("correlation", 0),
             freshness_applied_count=freshness_count,
             total_risk_usd=total_risk,
             total_exposure_usd=total_exposure,
+            portfolio_var_pct=portfolio_var_pct,
+            portfolio_var_usd=portfolio_var_usd,
+            var_positions_removed=var_removed,
         )
 
     except Exception as e:
@@ -777,10 +808,26 @@ def _apply_position_limits(
 
     max_risk_usd = account_equity * max_risk_pct / 100
 
+    # Sector group limits (Correlation Guard BC21)
+    correlation_enabled = config.tuning.get("correlation_guard_enabled", True)
+    sector_groups = {
+        "cyclical": {"Technology", "Consumer Cyclical", "Industrials", "Basic Materials"},
+        "defensive": {"Utilities", "Consumer Defensive", "Healthcare"},
+        "financial": {"Financial Services", "Real Estate"},
+        "commodity": {"Energy", "Basic Materials"},
+    }
+    max_per_group = {
+        "cyclical": config.tuning.get("sector_group_max_cyclical", 5),
+        "defensive": config.tuning.get("sector_group_max_defensive", 4),
+        "financial": config.tuning.get("sector_group_max_financial", 3),
+        "commodity": config.tuning.get("sector_group_max_commodity", 3),
+    }
+
     accepted: list[PositionSizing] = []
     sector_counts: dict[str, int] = {}
+    group_counts: dict[str, int] = {}
     running_exposure = 0.0
-    counts = {"sector": 0, "position": 0, "risk": 0, "exposure": 0}
+    counts = {"sector": 0, "position": 0, "risk": 0, "exposure": 0, "correlation": 0}
 
     for pos in positions:
         # 1. Max positions
@@ -815,7 +862,23 @@ def _apply_position_limits(
                        data={"ticker": pos.ticker, "reason": "exposure_limit"})
             continue
 
-        # 5. Single ticker exposure — reduce quantity if needed
+        # 5. Sector group correlation guard (BC21)
+        if correlation_enabled:
+            blocked = False
+            for group_name, group_sectors in sector_groups.items():
+                if pos.sector in group_sectors:
+                    if group_counts.get(group_name, 0) >= max_per_group.get(group_name, 99):
+                        counts["correlation"] += 1
+                        logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=6,
+                                   message=f"{pos.ticker} excluded: {group_name} group limit ({pos.sector})",
+                                   data={"ticker": pos.ticker, "reason": "correlation_limit",
+                                         "group": group_name})
+                        blocked = True
+                        break
+            if blocked:
+                continue
+
+        # 6. Single ticker exposure — reduce quantity if needed
         if ticker_exposure > max_ticker:
             reduced_qty = math.floor(max_ticker / pos.entry_price)
             if reduced_qty <= 0:
@@ -831,6 +894,11 @@ def _apply_position_limits(
         accepted.append(pos)
         sector_counts[pos.sector] = sector_count + 1
         running_exposure += ticker_exposure
+
+        # Update group counts
+        for group_name, group_sectors in sector_groups.items():
+            if pos.sector in group_sectors:
+                group_counts[group_name] = group_counts.get(group_name, 0) + 1
 
     return accepted, counts
 
