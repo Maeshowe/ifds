@@ -32,6 +32,12 @@ except ModuleNotFoundError:
 
 MAX_ORDER_SIZE = 500  # IBKR precautionary size limit (Global Configuration/Presets)
 
+try:
+    from lib.event_logger import PTEventLogger
+    evt = PTEventLogger()
+except ModuleNotFoundError:
+    evt = None
+
 # ---------------------------------------------------------------------------
 # Telegram
 # ---------------------------------------------------------------------------
@@ -149,10 +155,14 @@ def main():
         if net_qty == 0:
             logger.info(f"{sym}: position fully closed intraday (TP/SL), skipping MOC")
             print(f"  {sym}: SKIP — already closed (intraday TP/SL)")
+            if evt:
+                evt.log("close", "position_skipped", ticker=sym, reason="fully_closed_intraday")
             continue
 
         if net_qty != gross_qty:
             print(f"  {sym}: qty adjusted {gross_qty} → {net_qty} (intraday partial fill)")
+            if evt:
+                evt.log("close", "qty_adjusted", ticker=sym, gross_qty=gross_qty, net_qty=net_qty)
 
         # Create fresh contract with SMART routing (avoids Error 10311)
         contract = Stock(conId=con_id, exchange='SMART')
@@ -166,6 +176,8 @@ def main():
             ib.placeOrder(contract, order)
             moc_submitted.append((sym, qty, action))
             print(f"  {sym}: MOC {action} {qty} shares")
+            if evt:
+                evt.log("close", "moc_submitted", ticker=sym, qty=qty, action=action)
         else:
             # Split into multiple legs to stay under IBKR size limit
             remaining = qty
@@ -177,6 +189,8 @@ def main():
                 ib.placeOrder(contract, order)
                 moc_submitted.append((sym, leg_qty, action))
                 print(f"  {sym}: MOC {action} {leg_qty} shares (leg {leg}/{total_legs})")
+                if evt:
+                    evt.log("close", "moc_submitted", ticker=sym, qty=leg_qty, action=action, leg=leg, total_legs=total_legs)
                 remaining -= leg_qty
                 leg += 1
 

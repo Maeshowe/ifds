@@ -44,6 +44,12 @@ except ModuleNotFoundError:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
     logger = logging.getLogger('submit')
 
+try:
+    from lib.event_logger import PTEventLogger
+    evt = PTEventLogger()
+except ModuleNotFoundError:
+    evt = None
+
 # ---------------------------------------------------------------------------
 # Telegram
 # ---------------------------------------------------------------------------
@@ -212,6 +218,8 @@ def main():
         )
         logger.warning(msg)
         send_telegram(msg)
+        if evt:
+            evt.log("submit", "witching_skip", date=date.today().isoformat())
         sys.exit(0)
 
     # --- Circuit breaker check ---
@@ -225,6 +233,8 @@ def main():
             msg = f"🛑 CIRCUIT BREAKER TRIGGERED — order submission HALTED.\nCumulative P&L: ${cum_pnl:,.0f} (threshold: ${CIRCUIT_BREAKER_USD:,.0f})\nUse --override-circuit-breaker to proceed."
             logger.error(msg)
             send_telegram(msg)
+            if evt:
+                evt.log("submit", "circuit_breaker", cum_pnl=cum_pnl, threshold=CIRCUIT_BREAKER_USD)
             sys.exit(1)
 
     # --- Dry run mode ---
@@ -287,6 +297,8 @@ def main():
         # Skip if already has position/orders
         if sym in existing:
             logger.info(f"  Skipping {sym}: already has active position/orders")
+            if evt:
+                evt.log("submit", "existing_skip", ticker=sym)
             continue
 
         # Exposure check
@@ -317,6 +329,14 @@ def main():
             account, tag_suffix=f"{sym}_B",
         )
         submit_bracket(ib, contract, bracket_b)
+
+        if evt:
+            evt.log(
+                "submit", "order_submitted", ticker=sym,
+                qty=t['total_qty'], limit=t['limit_price'],
+                sl=t['stop_loss'], tp1=t['take_profit_1'], tp2=t['take_profit_2'],
+                bracket_a_qty=t['qty_tp1'], bracket_b_qty=t['qty_tp2'],
+            )
 
         exposure += ticker_exposure
         submitted += 1

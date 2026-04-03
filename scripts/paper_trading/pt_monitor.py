@@ -40,6 +40,12 @@ except ModuleNotFoundError:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
     logger = logging.getLogger('monitor')
 
+try:
+    from lib.event_logger import PTEventLogger
+    evt = PTEventLogger()
+except ModuleNotFoundError:
+    evt = None
+
 STATE_DIR = "scripts/paper_trading/logs"
 
 
@@ -206,6 +212,8 @@ def main() -> None:
                 s["tp1_filled"] = True
                 state_changed = True
                 logger.info(f"{sym}: TP1 fill detected")
+                if evt:
+                    evt.log("monitor", "tp1_detected", ticker=sym, tp1_price=s.get("tp1_price"))
 
                 current_price = get_last_price(ib, sym)
                 if current_price is None:
@@ -232,6 +240,12 @@ def main() -> None:
                 )
                 logger.info(msg)
                 send_telegram(msg)
+                if evt:
+                    evt.log(
+                        "monitor", "trail_activated_a", ticker=sym,
+                        trail_sl=initial_sl, price=current_price,
+                        entry_price=s["entry_price"], qty=s.get("qty_b"),
+                    )
 
                 # Scenario A active -> Scenario B no longer needed
                 s["scenario_b_eligible"] = False
@@ -275,6 +289,12 @@ def main() -> None:
                     )
                     logger.info(msg)
                     send_telegram(msg)
+                    if evt:
+                        evt.log(
+                            "monitor", "trail_activated_b", ticker=sym,
+                            trail_sl=trail_sl, price=current_price,
+                            entry_price=s["entry_price"], qty=s["total_qty"],
+                        )
                 elif current_price < s["entry_price"] * SCENARIO_B_LOSS_THRESHOLD:
                     # Loss-making exit: close position immediately
                     cancel_all_orders(ib, sym)
@@ -305,6 +325,13 @@ def main() -> None:
                     )
                     logger.warning(msg)
                     send_telegram(msg)
+                    if evt:
+                        evt.log(
+                            "monitor", "loss_exit", ticker=sym, qty=qty,
+                            exit_price=current_price, entry_price=s["entry_price"],
+                            pnl=round((current_price - s["entry_price"]) * qty, 2),
+                            loss_pct=round(loss_pct, 2),
+                        )
                 else:
                     logger.debug(
                         f"{sym}: Scenario B — not activated "
@@ -329,6 +356,11 @@ def main() -> None:
                 logger.info(
                     f"{sym}: Trail SL updated -> ${new_sl:.2f} (price: ${current_price:.2f})"
                 )
+                if evt:
+                    evt.log(
+                        "monitor", "trail_sl_update", ticker=sym,
+                        new_sl=new_sl, price=current_price,
+                    )
 
             # Trail SL hit
             if current_price <= s["trail_sl_current"]:
@@ -366,6 +398,12 @@ def main() -> None:
                 )
                 logger.warning(msg)
                 send_telegram(msg)
+                if evt:
+                    evt.log(
+                        "monitor", "trail_hit", ticker=sym,
+                        exit_price=current_price, trail_sl=s["trail_sl_current"],
+                        qty=qty, scope=s["trail_scope"],
+                    )
 
     if state_changed:
         save_state(today_str, state)

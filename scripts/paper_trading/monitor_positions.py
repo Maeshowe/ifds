@@ -25,6 +25,12 @@ except ModuleNotFoundError:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
     logger = logging.getLogger('monitor_positions')
 
+try:
+    from lib.event_logger import PTEventLogger
+    evt = PTEventLogger()
+except ModuleNotFoundError:
+    evt = None
+
 EXECUTION_PLAN_DIR = "output"
 
 
@@ -85,8 +91,16 @@ def main() -> None:
         msg = "\n".join(lines)
         logger.warning(msg)
         send_telegram(msg)
+        if evt:
+            evt.log(
+                "monitor_positions", "leftover_found",
+                tickers=[p.contract.symbol for p in leftover],
+                count=len(leftover),
+            )
     else:
         logger.info("No leftover positions — all clear.")
+        if evt:
+            evt.log("monitor_positions", "no_leftover")
 
     disconnect(ib)
 

@@ -36,6 +36,12 @@ except ModuleNotFoundError:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
     logger = logging.getLogger('nuke')
 
+try:
+    from lib.event_logger import PTEventLogger
+    evt = PTEventLogger()
+except ModuleNotFoundError:
+    evt = None
+
 
 def main():
     parser = argparse.ArgumentParser(description="Cancel all orders & close all positions")
@@ -85,6 +91,14 @@ def main():
     # Close positions
     if do_positions and positions:
         logger.info(f"Closing {len(positions)} positions at MARKET...")
+        if evt:
+            symbols = [p.contract.symbol for p in positions if p.contract.secType == 'STK']
+            evt.log(
+                "nuke", "nuke_executed",
+                orders_cancelled=len(open_orders) if do_orders else 0,
+                positions_closed=len(symbols), tickers=symbols,
+                dry_run=args.dry_run,
+            )
         for pos in positions:
             symbol = pos.contract.symbol
             con_id = pos.contract.conId

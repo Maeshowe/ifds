@@ -40,6 +40,12 @@ except ModuleNotFoundError:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
     logger = logging.getLogger('avwap')
 
+try:
+    from lib.event_logger import PTEventLogger
+    evt = PTEventLogger()
+except ModuleNotFoundError:
+    evt = None
+
 STATE_DIR = "scripts/paper_trading/logs"
 ET = ZoneInfo("America/New_York")
 
@@ -249,6 +255,14 @@ def convert_to_market(ib, sym: str, s: dict) -> bool:
         logger.warning(f"{sym}: MKT fill timeout — skip bracket rebuild")
         return False
 
+    slippage_pct = round((fill_price / s["entry_price"] - 1) * 100, 2) if s["entry_price"] else 0
+    if evt:
+        evt.log(
+            "avwap", "avwap_fill", ticker=sym, qty=s["total_qty"],
+            fill_price=fill_price, plan_price=s["entry_price"],
+            slippage_pct=slippage_pct,
+        )
+
     # Fetch VIX for adaptive SL cap
     vix = _fetch_vix_for_avwap()
     atr = s.get("atr")
@@ -305,6 +319,15 @@ def convert_to_market(ib, sym: str, s: dict) -> bool:
     )
     logger.info(msg)
     send_telegram(msg)
+
+    if evt:
+        evt.log(
+            "avwap", "avwap_bracket_rebuild", ticker=sym,
+            fill_price=fill_price, new_sl=new_sl, new_tp1=new_tp1, new_tp2=new_tp2,
+            sl_cap=cap_label, vix=vix,
+            bracket_a_qty=qty_tp1, bracket_b_qty=qty_tp2,
+        )
+
     return True
 
 

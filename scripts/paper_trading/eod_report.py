@@ -46,6 +46,12 @@ except ModuleNotFoundError:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
     logger = logging.getLogger('eod')
 
+try:
+    from lib.event_logger import PTEventLogger
+    evt = PTEventLogger()
+except ModuleNotFoundError:
+    evt = None
+
 # ---------------------------------------------------------------------------
 # Telegram
 # ---------------------------------------------------------------------------
@@ -225,7 +231,7 @@ def build_trade_report(executions, meta, pnl_by_symbol=None):
             # Proportional buy commission
             prop_commission = (buy_commission * sell['qty'] / total_buy_qty) if total_buy_qty else 0
 
-            trades.append({
+            trade_record = {
                 'date': date.today().isoformat(),
                 'ticker': sym,
                 'direction': 'LONG',
@@ -242,7 +248,17 @@ def build_trade_report(executions, meta, pnl_by_symbol=None):
                 'sl_price': sl_price,
                 'tp1_price': tp1_price,
                 'tp2_price': tp2_price,
-            })
+            }
+            trades.append(trade_record)
+            if evt:
+                evt.log(
+                    "eod", "trade_closed", ticker=sym,
+                    entry_price=trade_record['entry_price'],
+                    exit_price=trade_record['exit_price'],
+                    qty=trade_record['exit_qty'],
+                    exit_type=exit_type, pnl=trade_record['pnl'],
+                    pnl_pct=trade_record['pnl_pct'],
+                )
 
     return trades
 
@@ -337,6 +353,16 @@ def update_cumulative_pnl(trades, today_str):
 
     with open(CUMULATIVE_PNL_FILE, 'w') as f:
         json.dump(data, f, indent=2)
+
+    if evt:
+        evt.log(
+            "eod", "daily_pnl", pnl=round(daily_pnl, 2),
+            cumulative=data['cumulative_pnl'],
+            cum_pct=data['cumulative_pnl_pct'],
+            day=data['trading_days'],
+            trades=total_trades, tp1=tp1_hits, tp2=tp2_hits,
+            sl=sl_hits, loss_exit=loss_exit_hits, trail=trail_hits, moc=moc_exits,
+        )
 
     return data, daily_pnl
 
@@ -544,8 +570,12 @@ def main():
         )
     if positions:
         logger.warning(f"Still {len(positions)} open positions!")
+        leftover_list = []
         for p in positions:
             logger.warning(f"  {p.contract.symbol}: {p.position} shares")
+            leftover_list.append(f"{p.contract.symbol}:{int(p.position)}")
+        if evt:
+            evt.log("eod", "leftover_warning", leftover=leftover_list, count=len(positions))
 
     # --- Telegram EOD report ---
     total_trades = len(trades)
