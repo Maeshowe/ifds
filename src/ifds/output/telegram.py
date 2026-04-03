@@ -28,13 +28,13 @@ from ifds.models.market import BaselineState, PipelineContext
 _MAX_MSG_LEN = 4096
 
 
-def _pipeline_timestamp() -> str:
+def _pipeline_timestamp(label: str = "PIPELINE") -> str:
     """Return CET timestamp header for pipeline Telegram messages.
 
-    Format: [YYYY-MM-DD HH:MM CET] PIPELINE
+    Format: [YYYY-MM-DD HH:MM Budapest] LABEL
     """
     now = datetime.now(_CET)
-    return f"[{now.strftime('%Y-%m-%d %H:%M')} CET] PIPELINE"
+    return f"[{now.strftime('%Y-%m-%d %H:%M')} Budapest] {label}"
 
 # Breadth regime abbreviations (same as console.py)
 _BREADTH_SHORT = {
@@ -83,6 +83,90 @@ def send_daily_report(ctx: PipelineContext, config: Config,
     except Exception as e:
         logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
                    message=f"Telegram daily report failed: {e}")
+        return False
+
+
+def send_macro_snapshot(ctx: PipelineContext, config: Config,
+                        logger: EventLogger, duration: float) -> bool:
+    """Send Phase 1-3 macro snapshot to Telegram.
+
+    Contains: VIX, TNX, 2s10s, BMI, sectors, cross-asset regime.
+    Called after ``--phases 1-3`` completes.
+    """
+    token = config.runtime.get("telegram_bot_token")
+    chat_id = config.runtime.get("telegram_chat_id")
+    timeout = config.runtime.get("telegram_timeout", 5)
+
+    if not token or not chat_id:
+        return False
+
+    try:
+        text = _format_phases_0_to_4(ctx, duration, config)
+        # Replace header with MACRO SNAPSHOT label
+        text = text.replace(
+            f"{_pipeline_timestamp()}\n\U0001f4ca <b>IFDS Daily Report</b>",
+            f"{_pipeline_timestamp('MACRO SNAPSHOT')}\n\U0001f4ca <b>IFDS Macro Snapshot</b>",
+            1,
+        )
+        text += "\n\nHolnap 15:45: Phase 4-6 + MKT entry"
+
+        ok = _send_message(token, chat_id, text, timeout)
+        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                   message="Telegram macro snapshot sent")
+        return ok
+    except Exception as e:
+        logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
+                   message=f"Telegram macro snapshot failed: {e}")
+        return False
+
+
+def send_trading_plan(ctx: PipelineContext, config: Config,
+                      logger: EventLogger, duration: float,
+                      fmp=None) -> bool:
+    """Send Phase 4-6 trading plan to Telegram.
+
+    Contains: positions table, VWAP summary, sizing details.
+    Called after ``--phases 4-6`` completes.
+    """
+    token = config.runtime.get("telegram_bot_token")
+    chat_id = config.runtime.get("telegram_chat_id")
+    timeout = config.runtime.get("telegram_timeout", 5)
+
+    if not token or not chat_id:
+        return False
+
+    try:
+        # Phase 4 summary
+        lines: list[str] = []
+        lines.append(
+            f"{_pipeline_timestamp('TRADING PLAN')}\n"
+            f"\U0001f4c8 <b>IFDS Trading Plan</b> \u2014 {date.today().isoformat()}"
+        )
+
+        if ctx.phase4:
+            p4 = ctx.phase4
+            lines.append(
+                f"\nAnalyzed: {len(p4.analyzed)}"
+                f"  |  Passed: {len(p4.passed)}"
+                f"  |  Excluded: {p4.excluded_count}"
+            )
+
+        # Phase 5-6 (positions, GEX, sizing)
+        lines_56 = _format_phases_5_to_6(ctx, config, fmp=fmp)
+        text = "\n".join(lines) + "\n" + lines_56
+
+        if len(text) > _MAX_MSG_LEN:
+            _send_message(token, chat_id, "\n".join(lines), timeout)
+            ok = _send_message(token, chat_id, lines_56, timeout)
+        else:
+            ok = _send_message(token, chat_id, text, timeout)
+
+        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                   message="Telegram trading plan sent")
+        return ok
+    except Exception as e:
+        logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
+                   message=f"Telegram trading plan failed: {e}")
         return False
 
 

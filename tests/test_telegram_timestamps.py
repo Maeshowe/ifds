@@ -18,8 +18,8 @@ class TestPipelineTimestamp:
     def test_format(self):
         from ifds.output.telegram import _pipeline_timestamp
         result = _pipeline_timestamp()
-        # Should match [YYYY-MM-DD HH:MM CET] PIPELINE
-        assert re.match(r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} CET\] PIPELINE", result)
+        # Should match [YYYY-MM-DD HH:MM Budapest] PIPELINE
+        assert re.match(r"\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} Budapest\] PIPELINE", result)
 
     def test_contains_pipeline_label(self):
         from ifds.output.telegram import _pipeline_timestamp

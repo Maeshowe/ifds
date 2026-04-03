@@ -623,22 +623,45 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
         log_file = str(logger.log_file)
         print_pipeline_result(ctx, log_file, config=config)
 
-        # Telegram — only on full pipeline runs (not --phase N or dry_run)
-        if phase is None and not dry_run:
+        # Telegram — send appropriate report based on phase range
+        if not dry_run:
             try:
-                from ifds.output.telegram import send_daily_report
-                from ifds.data.fmp import FMPClient as FMPTelegram
-                fmp_tg = FMPTelegram(
-                    api_key=config.get_api_key("fmp"),
-                    timeout=config.runtime["api_timeout_fmp"],
-                    max_retries=config.runtime["api_max_retries"],
-                    cache=cache,
-                    circuit_breaker=cb_fmp,
-                )
-                try:
-                    send_daily_report(ctx, config, logger, duration, fmp=fmp_tg)
-                finally:
-                    fmp_tg.close()
+                duration = time.monotonic() - pipeline_t0
+
+                if isinstance(phase, tuple) and phase == (1, 3):
+                    from ifds.output.telegram import send_macro_snapshot
+                    send_macro_snapshot(ctx, config, logger, duration)
+
+                elif isinstance(phase, tuple) and phase[0] >= 4:
+                    from ifds.output.telegram import send_trading_plan
+                    from ifds.data.fmp import FMPClient as FMPTelegram
+                    fmp_tg = FMPTelegram(
+                        api_key=config.get_api_key("fmp"),
+                        timeout=config.runtime["api_timeout_fmp"],
+                        max_retries=config.runtime["api_max_retries"],
+                        cache=cache,
+                        circuit_breaker=cb_fmp,
+                    )
+                    try:
+                        send_trading_plan(ctx, config, logger, duration, fmp=fmp_tg)
+                    finally:
+                        fmp_tg.close()
+
+                elif phase is None:
+                    from ifds.output.telegram import send_daily_report
+                    from ifds.data.fmp import FMPClient as FMPTelegram
+                    fmp_tg = FMPTelegram(
+                        api_key=config.get_api_key("fmp"),
+                        timeout=config.runtime["api_timeout_fmp"],
+                        max_retries=config.runtime["api_max_retries"],
+                        cache=cache,
+                        circuit_breaker=cb_fmp,
+                    )
+                    try:
+                        send_daily_report(ctx, config, logger, duration, fmp=fmp_tg)
+                    finally:
+                        fmp_tg.close()
+
             except Exception as e:
                 logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
                            message=f"Telegram error: {e}")
