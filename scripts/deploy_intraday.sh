@@ -1,8 +1,9 @@
 #!/bin/bash
 # deploy_intraday.sh — Phase 4-6 with intraday data + order submission
 #
-# Runs at 15:45 CET (Mon-Fri) via cron.
-# Requires Phase 1-3 context from the 22:00 pipeline run.
+# Runs at 15:45 Budapest time (Mon-Fri) via cron.
+# = 09:45 EDT (15 min after NYSE open, CEST season)
+# Requires Phase 1-3 context from the 22:00 pipeline run (state/phase13_ctx.json.gz).
 #
 # Usage: ./scripts/deploy_intraday.sh
 

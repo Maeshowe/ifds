@@ -1,153 +1,181 @@
 Status: OPEN
 Updated: 2026-04-03
-Note: Hétfő reggeli deployment — BC20A Swing Hybrid Exit élesítés
+Note: Hétfő reggeli deployment — IFDS Swing Hybrid Exit
 
-# Deployment Checklist — 2026-04-06 (hétfő)
+# IFDS — Deployment Checklist (2026-04-06 hétfő)
 
-## Előfeltételek
-- [x] BC20 + BC21 + BC20A + Log Infra + NYSE Calendar mind DONE (15 fázis, 18 commit)
-- [x] 1291 teszt passing, 0 failure
-- [ ] Mac Mini online, IB Gateway fut
+## Végleges napi folyamat (2026-04-06-tól)
 
-## 1. Git pull (Mac Mini terminal)
+Időzóna: Europe/Budapest (CEST, UTC+2 ápr–okt). NYSE: 15:30–22:00 Budapest = 09:30–16:00 EDT.
+
+### Esti pipeline (NYSE zárás után)
+
+| Budapest | EDT | Mi fut | Log |
+|---|---|---|---|
+| 22:00 | 16:00 | Phase 1-3 (BMI, szektorok, cross-asset) | `cron_YYYYMMDD_220000.log` |
+| 22:05 | 16:05 | EOD report (P&L, Telegram) | `pt_eod.log` |
+| 22:45 | 16:45 | Events → SQLite | — |
+
+### Másnap reggel
+
+| Budapest | EDT | Mi fut | Log |
+|---|---|---|---|
+| 10:10 | 04:10 | monitor_positions.py (leftover check) | `pt_monitor_positions.log` |
+
+### Piacnyitás + kereskedés
+
+| Budapest | EDT | Mi fut | Log |
+|---|---|---|---|
+| 15:30 | 09:30 | Gateway health check | — |
+| 15:45 | 09:45 | **Phase 4-6 + MKT entry** | `cron_YYYYMMDD_154500.log` |
+| 16:00–21:55 | 10:00–15:55 | pt_monitor.py (*/5 perc, trail + TP1) | `pt_monitor.log` |
+| 21:40 | 15:40 | **Swing close management** | `pt_close_YYYY-MM-DD.log` |
+
+### Speciális napok
+
+| Típus | Mi történik |
+|---|---|
+| NYSE ünnepnap | Minden script kilép (is_trading_day guard) |
+| Early close | Extra close_positions.py 18:40 Budapest (= 12:40 EDT) |
+| DST átmenet (márc 8-29, okt 25 – nov 1) | Kézi crontab módosítás: minden időpont -1 óra |
+
+### Telegram üzenetek
+
+| Mikor | Típus | Tartalom |
+|---|---|---|
+| ~22:03 | MACRO SNAPSHOT | BMI, szektorok, cross-asset regime, skip day shadow |
+| ~15:48 | TRADING PLAN | Pozíciók, VWAP guard, MKT fill-ek, risk layer hatás |
+| Intraday | TP1 FILL / TRAIL | Ha TP1 triggered vagy trail aktiválódik |
+| ~22:05 | EOD REPORT | Napi P&L, kumulatív, TP1 hit rate |
+
+---
+
+## Deployment lépések
+
+### 1. Git pull (Mac Mini terminal)
 
 ```bash
 cd ~/SSH-Services/ifds
 git pull origin master
 ```
 
-Ellenőrizd: a 19 commit mind lejött (`git log --oneline -20`).
+Ellenőrizd: `git log --oneline -20` — 19 commit a mai napról.
 
-## 2. Crontab módosítás
+### 2. Tesztek
+
+```bash
+source .venv/bin/activate
+python -m pytest --tb=short -q
+```
+
+Elvárt: 1291+ passing, 0 failure.
+
+### 3. Crontab beállítás
 
 ```bash
 crontab -e
 ```
 
-A teljes crontab a `scripts/crontab.md`-ben van. Töröld a meglévő crontab-ot és másold be:
-
-```bash
-crontab -l > ~/crontab_backup_$(date +%Y%m%d).txt   # backup
-crontab scripts/crontab.md
-crontab -l                                            # ellenőrzés
-```
-
-**Főbb változások:**
-- `deploy_daily.sh` → `deploy_daily.sh --phases 1-3` (22:00)
-- **ÚJ:** `deploy_intraday.sh` (15:45) — Phase 4-6 + submit
-- `submit_orders.py` standalone → **TÖRÖLVE** (deploy_intraday.sh átveszi)
-- `pt_avwap.py` → **TÖRÖLVE** (MKT entry, nincs AVWAP fallback)
-- **ÚJ:** early close day extra `close_positions.py` run (18:40)
+Tartalom: `scripts/crontab.md`-ből másolás. A fő változások a régihez képest:
+- Régi `deploy_daily.sh` (teljes pipeline) → `deploy_daily.sh --phases 1-3`
+- **ÚJ:** `deploy_intraday.sh` 15:45 (Phase 4-6 + submit)
+- **ÚJ:** pt_monitor.py időablak: `*/5 16-21` (volt `*/5 15-21`)
+- **TÖRÖLT:** standalone `submit_orders.py`, `pt_avwap.py`
+- **ÚJ:** early close extra close (18:40)
 - **ÚJ:** `events_to_sqlite.py` (22:45)
 
-## 3. deploy_daily.sh ellenőrzés
+### 4. deploy_intraday.sh futtathatóság
 
 ```bash
-cat scripts/deploy_daily.sh
-```
-
-A `python -m ifds run "$@"` sor van benne → a `--phases 1-3` átadódik a CLI-nek. ✅
-
-## 4. deploy_intraday.sh ellenőrzés
-
-```bash
-cat scripts/deploy_intraday.sh
 chmod +x scripts/deploy_intraday.sh
 ```
 
-Tartalma kb:
+### 5. State fájlok
+
 ```bash
-#!/bin/bash
+# PositionTracker — üres state ha nincs
+cat state/open_positions.json 2>/dev/null || echo '{"positions":[], "last_updated":""}' > state/open_positions.json
+```
+
+### 6. Hétfő reggeli manuális Phase 1-3
+
+A vasárnapi cron NEM fut (trading day guard — NYSE zárva).
+Hétfő reggel piacnyitás előtt manuálisan:
+
+```bash
 cd ~/SSH-Services/ifds
 source .venv/bin/activate
-python -m ifds run --phases 4-6
-python scripts/paper_trading/submit_orders.py
-```
-
-## 5. State fájlok inicializálása
-
-```bash
-# PositionTracker — üres state ha még nincs
-cat state/open_positions.json 2>/dev/null || echo '{"positions":[], "last_updated":""}' > state/open_positions.json
-
-# Phase 1-3 context — ez vasárnap este 22:00-kor jön létre
-# (ha nem létezik hétfőn 15:45-kor, a Phase 4-6 fallback-el full pipeline-ra)
-ls -la state/phase13_ctx.json.gz
-```
-
-## 6. Vasárnap este — NINCS futás (trading day guard)
-
-Vasárnap (ápr 5) nem trading day → a pipeline trading day guard skip-el.
-Az első Phase 1-3 futás **hétfő 22:00-kor** lesz.
-
-**Ez azt jelenti:** hétfő 15:45-kor a Phase 4-6 NEM talál Phase 1-3 contextet!
-**Megoldás:** hétfő 15:45 előtt manuálisan futtatni:
-
-```bash
-cd ~/SSH-Services/ifds
 ./scripts/deploy_daily.sh --phases 1-3
 ```
 
-**Vagy:** hétfő reggelre a deploy_daily.sh-t manuálisan futtatni (teljes pipeline):
-```bash
-./scripts/deploy_daily.sh
-```
-Ez létrehozza a Phase 1-3 contextet is.
+Ellenőrizd:
+- [ ] Log: cross-asset regime, BMI, ctx.json.gz létrejött
+- [ ] Telegram: MACRO SNAPSHOT üzenet megérkezett
 
-## 7. Hétfő 15:45 — első Swing entry
+### 7. Hétfő 15:45 — első automatikus entry
 
 ```bash
-# Figyelj a logra real-time:
 tail -f logs/cron_20260406_154500.log
 ```
 
 Ellenőrizendő:
 - [ ] Phase 4-6 lefut (Phase 1-3 context loaded)
-- [ ] VWAP guard logok (REJECT/REDUCE/NORMAL)
-- [ ] Cross-Asset Regime megjelenik (NORMAL/CAUTIOUS/RISK_OFF/CRISIS)
-- [ ] MKT orderek beküldve (nem LMT!)
-- [ ] PositionTracker frissült (`cat state/open_positions.json`)
+- [ ] VWAP guard logok
+- [ ] Cross-Asset regime override (ha nem NORMAL)
+- [ ] MKT orderek elküldve
+- [ ] open_positions.json frissült
+- [ ] Telegram: TRADING PLAN üzenet megérkezett
 
-## 8. Hétfő 21:45 — első Swing close
+### 8. Hétfő 21:40 — első swing close
 
 ```bash
-tail -50 logs/pt_close_2026-04-06.log
+tail -30 logs/pt_close_2026-04-06.log
 ```
 
 Ellenőrizendő:
-- [ ] hold_days increment működik
-- [ ] Breakeven check fut (logban látszik)
-- [ ] NINCS MOC exit D+0-n (csak ha max_hold == 0, ami nem fordulhat elő)
-- [ ] PositionTracker-ben a pozíciók nyitva maradnak (hold_days=1)
+- [ ] hold_days increment (0→1 NEM — D+0, hold_days marad 0)
+- [ ] Breakeven check fut
+- [ ] Pozíciók NYITVA maradnak (NINCS MOC exit D+0-n)
+- [ ] open_positions.json: pozíciók benne vannak
 
-## 9. Kedd reggel — ellenőrzés
+### 9. Kedd reggel — kritikus ellenőrzés
 
 ```bash
-# Pozíciók nyitva maradtak?
+# Pozíciók nyitva?
 cat state/open_positions.json | python -m json.tool
 
-# IBKR-ben is nyitva?
+# IBKR-ben is?
 python scripts/paper_trading/monitor_positions.py
 
-# Ha leftover/phantom: nuke.py
+# Ha eltérés → nuke.py ELŐTT ellenőrizd a PositionTracker-t
 ```
+
+---
 
 ## Rollback terv
 
 Ha bármi rosszul megy:
 
 ```bash
-# 1. Crontab visszaállítás az eredeti egyetlen 22:00 futásra
+# Crontab visszaállítás
 crontab -e
-# → töröld a deploy_intraday.sh sort, vedd ki a --phases 1-3 flag-et
+# → töröld a deploy_intraday.sh sort
+# → deploy_daily.sh --phases 1-3 → deploy_daily.sh (flag nélkül, teljes pipeline)
+# → pt_monitor.py: */5 16-21 → */5 9-19 (régi)
+# → régi submit_orders.py + pt_avwap.py sorok visszarakása
 
-# 2. A pipeline magától fut a régi módon (full Phase 0-6, MOC exit)
+# A pipeline magától fut a régi módon (full Phase 0-6, LMT entry, MOC exit)
 ```
 
-## Fontos: az első hét figyelése
+---
 
-A swing rendszer első hetében napi ellenőrzés:
-1. Reggel: `open_positions.json` — hány pozíció, hányadik napja nyitva
-2. 16:00 CET: TP1 fill-ek a `pt_monitor.log`-ban
-3. 21:50 CET: `pt_close.log` — breakeven, trail update, earnings check
-4. Kedd-péntek: pozíciók tényleg nyitva maradnak-e (nem MOC-olta mind)
+## Napi fájl checklist
+
+| Fájl | Mit ellenőrizz |
+|---|---|
+| `state/open_positions.json` | Nyitott pozíciók (hold_days, tp1_triggered, breakeven) |
+| `state/phase13_ctx.json.gz` | Phase 1-3 context (létezik-e, friss-e) |
+| `logs/cron_YYYYMMDD_220000.log` | Esti Phase 1-3 (cross-asset, BMI) |
+| `logs/cron_YYYYMMDD_154500.log` | Phase 4-6 + entry (VWAP, MKT fill) |
+| `logs/pt_close_YYYY-MM-DD.log` | Swing close (hold_days, breakeven, trail) |
+| `logs/pt_monitor.log` | Intraday trail + TP1 fill detektálás |
