@@ -1,73 +1,96 @@
-<!-- Generated: 2026-03-29 | Files scanned: 55 | Token estimate: ~950 -->
+<!-- Generated: 2026-04-03 | Files scanned: 64 | Token estimate: ~950 -->
 
 # Backend — Pipeline & Phases
 
 ## Pipeline Orchestrator
 
-`src/ifds/pipeline/runner.py` (542 lines)
+`src/ifds/pipeline/runner.py` (~700 lines)
 ```
 run_pipeline(phase?, dry_run?, config_path?)
-  → Config(config_path) → validate
-  → Phase 0: run_phase0(config, logger) → DiagnosticsResult
-  → Phase 1: run_phase1(config, logger, vix, tnx) → Phase1Result
-  → Phase 2: run_phase2(config, logger, bmi_regime) → Phase2Result
-  → Phase 3: run_phase3(config, logger, tickers, vix, tnx) → Phase3Result
-  → Phase 4: run_phase4(config, logger, tickers, sectors) → Phase4Result
-  → Phase 5: run_phase5(config, logger, stocks, macro) → Phase5Result
-  → Phase 6: run_phase6(config, logger, stocks, gex, macro, sectors) → Phase6Result
-  → Output: CSVs + Telegram + Console
+  → Trading day guard (NYSE holiday → skip)
+  → Phase 0: run_phase0() → DiagnosticsResult + MacroRegime + CrossAssetRegime
+  → Phase 1: run_phase1() → Phase1Result (BMI, regime)
+  → Phase 2: run_phase2() → Phase2Result (Ticker[])
+  → Phase 3: run_phase3() → Phase3Result (SectorScore[], breadth)
+  ── if --phases 1-3: save context + send_macro_snapshot() ──
+  ── if --phases 4-6: load context ──
+  → Phase 4: run_phase4() → Phase4Result (StockAnalysis[])
+  → Phase 5: run_phase5() → Phase5Result (GEXAnalysis[], MMSAnalysis[])
+  → Phase 6: run_phase6() → Phase6Result (PositionSizing[])
+    guards: BMI momentum, cross-asset override, skip day shadow
+    limits: corr guard, VaR trim
+  ── send_trading_plan() or send_daily_report() ──
 ```
 
 ## Phase Details
 
-| Phase | File (lines) | Input | Output | Async |
-|-------|-------------|-------|--------|-------|
-| 0 | phase0_diagnostics.py (411) | config | DiagnosticsResult (VIX, TNX, macro) | no |
-| 1 | phase1_regime.py (561) | config, VIX, TNX | Phase1Result (BMI, regime) | yes |
-| 2 | phase2_universe.py (398) | config, BMI regime | Phase2Result (Ticker[]) | no |
-| 3 | phase3_sectors.py (652) | config, tickers | Phase3Result (SectorScore[], breadth) | no |
-| 4 | phase4_stocks.py (1147) | config, tickers, sectors | Phase4Result (StockAnalysis[]) | yes |
-| 5-GEX | phase5_gex.py (638) | config, stocks, macro | Phase5Result (GEXAnalysis[]) | yes |
-| 5-MMS | phase5_mms.py (718) | store history, bars, options | MMSAnalysis (regime, unusualness) | no |
-| 6 | phase6_sizing.py (822) | config, stocks, GEX, macro | Phase6Result (PositionSizing[]) | no |
+| Phase | File | Lines | Async | Key Output |
+|-------|------|-------|-------|------------|
+| 0 | phase0_diagnostics.py | ~500 | no | MacroRegime (VIX, TNX, cross-asset) |
+| 1 | phase1_regime.py | ~560 | yes | BMI, strategy mode |
+| 2 | phase2_universe.py | ~400 | no | Ticker[] (screened, filtered) |
+| 3 | phase3_sectors.py | ~650 | no | SectorScore[], breadth |
+| 4 | phase4_stocks.py | ~1150 | yes | StockAnalysis[] (combined_score) |
+| 5-GEX | phase5_gex.py | ~640 | yes | GEXAnalysis[] |
+| 5-MMS | phase5_mms.py | ~720 | no | MMSAnalysis[] (8 regimes, U score) |
+| 6 | phase6_sizing.py | ~900 | no | PositionSizing[] |
+| VWAP | vwap.py | ~150 | yes | {ticker: vwap} entry quality |
 
-## Key Phase Functions
+## Phase 6 Sizing Pipeline
 
-**Phase 4** (largest — 1147 lines):
-- `run_phase4()` → per-ticker: flow + funda + tech scoring
-- `_calculate_combined_score()`: 0.40×flow + 0.30×funda + 0.30×tech + sector_adj + insider_mult
-- `_calculate_rsi()`, `_calculate_atr()`, `_calculate_sma()`
-- `_calculate_insider_score()` — insider transaction analysis
-
-**Phase 5 MMS** (Market Microstructure Scorer):
-- 8 regimes: VOLATILE, Γ⁺, Γ⁻, DD, ABS, DIST, NEU, UND
-- `_compute_z_scores()` → 63-day rolling, min 21 obs
-- `_compute_factor_volatility()` → σ_20 weighting
-- `_compute_unusualness()` → U ∈ [0,100]
-
-**Phase 6** (Position Sizing):
-- `_calculate_multiplier_total()`: M_flow × M_insider × M_funda × M_gex × M_vix × M_utility [0.25, 2.0]
-- `_apply_freshness_alpha()` → uncapped freshness bonus
-- `_calculate_position()` → qty, bracket (entry/stop/TP1/TP2)
-- `_apply_position_limits()` → max exposure, BMI momentum guard
+```
+candidates (Phase 4 passed + GEX joined)
+  → freshness alpha (×1.5 new signals)
+  → EWMA smoothing (span=10)
+  → VWAP guard (REJECT >2%, REDUCE >1%)
+  → _calculate_position() per ticker:
+      M_total = M_flow × M_insider × M_funda × M_gex × M_vix × M_utility × M_target
+      clamped [0.25, 2.0]
+      qty = floor(risk / stop_distance × M_total)
+  → _apply_position_limits():
+      1. max_positions (8, or BMI guard → 5, or CRISIS → 4)
+      2. sector diversification (max 3/sector)
+      3. sector group correlation guard (cyclical ≤5, commodity ≤3, etc.)
+      4. risk cap, exposure cap
+  → portfolio VaR trim (>3% → remove weakest)
+```
 
 ## Simulation Engine
 
-`src/ifds/sim/` (6 files, ~1300 lines total):
+`src/ifds/sim/` (9 files):
 ```
-validator.py:   validate_execution_plans() → load CSVs → fetch bars → simulate
-broker_sim.py:  bracket simulation (33/66% TP1/TP2 split)
-replay.py:      L2 parameter sweep over historical snapshots
-comparison.py:  paired t-test between baseline vs challenger
-models.py:      Trade, ValidationSummary, SimVariant, ComparisonReport
-report.py:      console + CSV + JSON output
+broker_sim.py:  simulate_bracket_order() + simulate_swing_trade()
+                swing: TP1 50% partial, trail, breakeven, max hold D+5
+                VWAP filter, MMS VOLATILE tighter trail (0.75×ATR)
+rescore.py:     Mode 2 re-score from Phase 4 snapshots (config overrides)
+                _rescore_combined_score(), _calculate_sizing()
+                freshness_mode: "linear" | "wow" | "none"
+wow_freshness:  U-shaped: New Kid ×1.15, WOW ×1.10, Stale ×0.80
+replay.py:      Mode 1 (bracket params) + Mode 2 (re-score snapshots)
+comparison.py:  paired t-test between variants
+validator.py:   CSV loading, Polygon bar fetch, sim_mode dispatch
+models.py:      Trade (+ swing fields), SimVariant (+ mode), ComparisonReport
+report.py:      console + CSV output
 ```
 
-## CLI Commands
+## Risk Layer
 
-`src/ifds/cli.py` (181 lines):
+`src/ifds/risk/` (3 files):
 ```
-python -m ifds run [--phase N] [--dry-run]
-python -m ifds validate [--days N]
-python -m ifds compare --config sim_variants_test.yaml
+cross_asset.py:  HYG/IEF + RSP/SPY + IWM/SPY(conditional) + 2s10s yield curve
+                 → NORMAL / CAUTIOUS / RISK_OFF / CRISIS
+                 VIX threshold shift (-1/-3/-5), max_pos override, min_score override
+portfolio_var.py: parametric VaR = sqrt(sum(VaR_i²))
+                  trim_positions_by_var() — remove weakest if >3%
+```
+
+## State Management
+
+`src/ifds/state/` (4 files):
+```
+position_tracker.py:  OpenPosition + PositionTracker (JSON CRUD, atomic write)
+                      add, remove, update, get_expired, get_earnings_risk
+swing_manager.py:     run_swing_management() → list[SwingDecision]
+                      breakeven (0.3×ATR), trail activation, max hold D+5 MOC
+history.py:           BMI history persistence
 ```

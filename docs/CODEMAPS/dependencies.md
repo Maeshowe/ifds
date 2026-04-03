@@ -1,58 +1,66 @@
-<!-- Generated: 2026-03-29 | Files scanned: 55 | Token estimate: ~500 -->
+<!-- Generated: 2026-04-03 | Files scanned: 64 src + 20 scripts | Token estimate: ~700 -->
 
 # Dependencies & Integrations
 
 ## External APIs
 
-| Service | Purpose | Auth | Rate Limits |
-|---------|---------|------|-------------|
-| Polygon.io | Bars, options, aggregates | API key (.env) | Semaphore=10 |
-| Financial Modeling Prep | Screener, fundamentals, insider | API key (.env) | Semaphore=8 |
-| Unusual Whales | Dark pool, GEX, flow, options | API key (.env) | Semaphore=5 |
-| FRED (St. Louis Fed) | VIX, TNX, T10Y2Y | API key (.env) | Low volume |
-| IBKR TWS/Gateway | Paper trading orders | Port 4002 | clientId-based |
-| Telegram Bot API | Daily report delivery | Bot token (.env) | — |
+| Service | Purpose | Auth | Rate Limit |
+|---------|---------|------|------------|
+| Polygon.io | Bars, options, aggregates, ETF data | API key (.env) | Sem=10 |
+| FMP | Screener, fundamentals, insider, earnings | API key (.env) | Sem=8 |
+| Unusual Whales | Dark pool, GEX, flow, options | API key (.env) | Sem=5 |
+| FRED | VIX, TNX, T10Y2Y yield curve | API key (.env) | Low |
+| IBKR TWS/Gateway | Paper trading orders | Port 4002 | clientId |
+| Telegram Bot API | Macro snapshot + trading plan | Bot token (.env) | — |
 
-## Python Dependencies (core)
+## Python Dependencies
 
 | Package | Purpose |
 |---------|---------|
 | aiohttp | Async HTTP client |
 | requests | Sync HTTP client |
 | colorama | CLI dashboard colors |
-| exchange_calendars | NYSE trading calendar |
-| scipy | Paired t-test (SIM-L2) |
-| pandas (optional) | Freshness alpha, EWMA |
-
-## Internal Integrations
-
-| Component | Communicates With | How |
-|-----------|------------------|-----|
-| Pipeline runner | All phases | Direct function calls |
-| Phase 5 GEX | Phase 5 MMS | MMS overrides gex_multiplier |
-| Phase 6 | Phase 4 snapshot | Reads daily snapshots for SIM |
-| Paper trading | Pipeline output | Reads execution_plan.csv |
-| EOD report | Telegram | Sends daily P&L summary |
-| deploy_daily.sh | pytest + pipeline + telegram | Shell orchestration |
+| exchange_calendars | NYSE trading calendar (holidays, early close) |
+| scipy | Paired t-test (SIM-L2 comparison) |
+| pyyaml | SIM variant config loading |
+| ib_insync | IBKR TWS/Gateway connection (PT scripts only) |
+| pandas (optional) | Freshness alpha, EWMA, parquet I/O |
 
 ## Paper Trading Scripts
 
-| Script | ClientId | Cron (CET) | Purpose |
-|--------|----------|------------|---------|
-| check_gateway.py | 17 | pre-submit | IBKR health check |
-| submit_orders.py | 10 | 15:35 | Place bracket orders |
-| pt_monitor.py | 14 | 15:00-21:00 | Position monitoring |
-| monitor_trail.py | 15 | 15:00-21:00 | Trailing stop |
-| pt_avwap.py | 16 | 15:00-17:00 | AVWAP entry conversion |
-| close_positions.py | 11 | 21:40 | MOC close |
-| eod_report.py | 12 | 22:05 | EOD P&L + Telegram |
+| Script | ClientId | Cron (Budapest) | Purpose |
+|--------|----------|-----------------|---------|
+| check_gateway.py | 17 | 15:30 | IBKR health check |
+| deploy_intraday.sh | — | 15:45 | Phase 4-6 + submit_orders |
+| pt_monitor.py | 15 | */5 16-21 | Trail SL + TP1 detection |
+| close_positions.py | 11 | 21:40 (+ 18:40 early) | Swing management |
+| eod_report.py | 12 | 22:05 | P&L + Telegram |
+| monitor_positions.py | 14 | 10:10 | Leftover check |
 | nuke.py | 13 | manual | Emergency close all |
 
-## Config
+**Removed from cron (2026-04-06):**
+- submit_orders.py (standalone) → merged into deploy_intraday.sh
+- pt_avwap.py → MKT entry, VWAP guard in Phase 6
 
-All config in `src/ifds/config/defaults.py` (421 lines):
-- CORE: API keys, endpoints
-- TUNING: thresholds, weights, multipliers
-- RUNTIME: async_enabled, mms_enabled, etc.
+## Config Structure
 
-Env vars: `IFDS_POLYGON_API_KEY`, `IFDS_FMP_API_KEY`, `IFDS_UW_API_KEY`, `IFDS_ASYNC_ENABLED`, etc.
+`src/ifds/config/defaults.py` (~450 lines):
+- **CORE**: Weights, ATR multiples, freshness params (algorithm constants)
+- **TUNING**: Thresholds, multipliers, guards, cross-asset, correlation, VaR (operator-adjustable)
+- **RUNTIME**: API keys, account equity, async flags, file paths (environment-specific)
+
+Key env vars: `IFDS_POLYGON_API_KEY`, `IFDS_FMP_API_KEY`, `IFDS_UW_API_KEY`, `IFDS_ASYNC_ENABLED`
+
+## Key Metrics
+
+| Metric | Value |
+|--------|-------|
+| Source files | 64 (src/ifds/) |
+| Source lines | ~16K |
+| Test files | 81 |
+| Tests passing | 1291 |
+| API providers | 4 + IBKR + Telegram |
+| Pipeline phases | 7 (0-6, split) |
+| Async phases | 1, 4, 5 |
+| SIM modes | bracket + swing |
+| Risk layers | cross-asset + corr guard + VaR |

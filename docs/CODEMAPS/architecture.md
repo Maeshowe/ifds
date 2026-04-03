@@ -1,73 +1,75 @@
-<!-- Generated: 2026-03-29 | Files scanned: 55 src + 14 scripts | Token estimate: ~900 -->
+<!-- Generated: 2026-04-03 | Files scanned: 64 src + 20 scripts | Token estimate: ~950 -->
 
 # IFDS Architecture
 
 ## System Overview
 
-Single-app Python 3.12 quantitative trading pipeline (swing trading, US equities).
-6-phase sequential pipeline + simulation engine + paper trading scripts.
+6-phase quant trading pipeline (US equities, swing trading, 5-day hold).
+Split execution: Phase 1-3 at close (22:00), Phase 4-6 at open (15:45 Budapest).
 
 ```
-                    ┌──────────────────────────────┐
-                    │     Mac Mini (Production)     │
-                    │  cron 22:00 CET → pipeline    │
-                    │  IBKR Gateway → paper trading │
-                    └──────────────┬───────────────┘
-                                   │
-  ┌────────────────────────────────┼────────────────────────────────┐
-  │                          Pipeline                               │
-  │  Phase0 → Phase1 → Phase2 → Phase3 → Phase4 → Phase5 → Phase6 │
-  │  diag     regime   universe sectors  stocks   GEX/MMS  sizing  │
-  └────────────────────────────────┼────────────────────────────────┘
-                                   │
-                    ┌──────────────┴───────────────┐
-                    │          Output               │
-                    │  3 CSVs + Telegram + Console  │
-                    └──────────────────────────────┘
+MacBook (dev)                    Mac Mini (prod)
+├── VSCode + Claude Code         ├── Cron scheduler (scripts/crontab.md)
+├── git push ──────────────────→ ├── Pipeline (Phase 0-6, split)
+└── tests (1291 passing)         ├── IBKR Gateway (paper: DUH118657)
+                                 ├── PT scripts (submit, monitor, close, eod)
+                                 └── Telegram (macro snapshot + trading plan)
 ```
+
+## Pipeline Flow
+
+```
+22:00 Budapest (market close):
+  Phase 0: Diagnostics → VIX, TNX, 2s10s, Cross-Asset Regime, API health
+  Phase 1: BMI Regime   → Big Money Index, strategy mode
+  Phase 2: Universe     → FMP screener, earnings exclusion
+  Phase 3: Sectors      → ETF momentum, breadth, VETO
+  ── save context → state/phase13_ctx.json.gz ──
+  ── Telegram: MACRO SNAPSHOT ──
+
+15:45 Budapest (market open + 15min):
+  ── load context ──
+  Phase 4: Stock Analysis → Multi-factor scoring (flow/funda/tech)
+  Phase 5: GEX + MMS      → Gamma, microstructure (8 regimes)
+  Phase 6: Sizing          → 7 multipliers, VWAP guard, corr guard, VaR
+  ── Telegram: TRADING PLAN → MKT order submission ──
+
+21:40 Budapest:
+  Swing close → hold_days++, breakeven, trail, max hold D+5 MOC
+```
+
+## Key Modules (src/ifds/, 64 files)
+
+| Module | Purpose | Files |
+|--------|---------|-------|
+| config/ | CORE/TUNING/RUNTIME defaults, validation | 4 |
+| data/ | API clients (Polygon, FMP, UW, FRED), cache | 15 |
+| phases/ | Phase 0-6 + VWAP module | 10 |
+| risk/ | Cross-asset regime, corr guard, portfolio VaR | 3 |
+| sim/ | Bracket + swing sim, rescore, replay, comparison | 9 |
+| state/ | PositionTracker, swing manager, history | 4 |
+| output/ | Telegram (macro+trading), console, CSV | 4 |
+| pipeline/ | Runner, context persistence | 3 |
+| models/ | All dataclasses (market.py: 40+ types) | 2 |
 
 ## Entry Points
 
-| Entry | Path | Purpose |
-|-------|------|---------|
-| CLI | `src/ifds/cli.py` → `__main__.py` | `python -m ifds run/validate/compare` |
-| Pipeline | `src/ifds/pipeline/runner.py` | `run_pipeline()` orchestrator |
-| Deploy | `scripts/deploy_daily.sh` | Cron: pytest → pipeline → telegram |
-| Paper Trading | `scripts/paper_trading/*.py` | IBKR order lifecycle (8 scripts) |
+| Entry | Command | What |
+|-------|---------|------|
+| Full | `python -m ifds run` | Phase 0-6 + full Telegram |
+| Split AM | `deploy_daily.sh --phases 1-3` | BMI + sectors + save context |
+| Split PM | `deploy_intraday.sh` | Phase 4-6 + submit |
+| SIM-L2 | `python -m ifds compare --config X.yaml` | A/B sweep |
+| SIM-L1 | `python -m ifds validate --days N` | Forward validation |
 
-## Data Flow
+## State Files
 
-```
-APIs (Polygon, FMP, UW, FRED)
-  ↓ BaseAPIClient / AsyncBaseAPIClient
-  ↓ FileCache (TTL-based)
-Phase 0: VIX + TNX → MacroRegime
-Phase 1: 235 ETFs → BMI ratios → BMIRegime (async)
-Phase 2: FMP screener → Ticker universe (danger zone filter)
-Phase 3: Sector ETFs → SectorScore + BreadthRegime
-Phase 4: Per-ticker scoring (flow+funda+tech) → StockAnalysis (async)
-Phase 5: GEX regime + MMS classifier → multipliers (async)
-Phase 6: Position sizing → PositionSizing[] → 3 CSVs
-  ↓
-Output: execution_plan.csv, full_scan_matrix.csv, trade_plan.csv
-Telegram: HTML daily report
-```
-
-## Key Dimensions
-
-| Metric | Value |
-|--------|-------|
-| Source lines | ~13K (src/ifds/) |
-| Script lines | ~2.5K (scripts/paper_trading/) |
-| Test files | 55+ |
-| Tests passing | 1054+ |
-| API providers | 4 (Polygon, FMP, Unusual Whales, FRED) |
-| Phases | 7 (0-6) |
-| Async phases | 1, 4, 5 |
-
-## Deployment
-
-- **MacBook**: Development (VSCode + Claude Code)
-- **Mac Mini**: Production (cron 22:00 CET, IBKR Gateway)
-- `scripts/deploy_daily.sh`: source .env → pytest pre-flight → pipeline → telegram
-- Git push policy: CC commits, user pushes manually
+| File | Writer | Reader |
+|------|--------|--------|
+| `state/phase13_ctx.json.gz` | Phase 1-3 | Phase 4-6 |
+| `state/open_positions.json` | submit, close | swing_manager |
+| `state/ewma_scores.json` | Phase 6 | Phase 6 (next day) |
+| `state/mms/*.json` | Phase 5 MMS | Phase 5 MMS |
+| `state/phase4_snapshots/*.json.gz` | Phase 4 | SIM-L2 rescore |
+| `logs/pt_events_*.jsonl` | All PT scripts | events_to_sqlite |
+| `state/pt_events.db` | events_to_sqlite | Query tool |

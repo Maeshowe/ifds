@@ -1,67 +1,62 @@
-<!-- Generated: 2026-03-29 | Files scanned: 14 | Token estimate: ~800 -->
+<!-- Generated: 2026-04-03 | Files scanned: 15 data + 4 state | Token estimate: ~800 -->
 
 # Data Layer
 
 ## API Clients
 
 ```
-BaseAPIClient (base.py, 157 lines)         AsyncBaseAPIClient (async_base.py, 160 lines)
-  ├─ PolygonClient (polygon.py, 170)         ├─ AsyncPolygonClient
-  ├─ FMPClient (fmp.py, 261)                 ├─ AsyncFMPClient
-  ├─ UnusualWhalesClient (uw.py, 163)        ├─ AsyncUWClient
-  └─ FREDClient (fred.py, 120)               └─ AsyncFREDClient
-                                              (all in async_clients.py, 382 lines)
+BaseAPIClient (base.py)              AsyncBaseAPIClient (async_base.py)
+  ├─ PolygonClient (polygon.py)       ├─ AsyncPolygonClient
+  ├─ FMPClient (fmp.py)               ├─ AsyncFMPClient
+  ├─ UnusualWhalesClient (uw.py)      ├─ AsyncUWClient
+  └─ FREDClient (fred.py)             └─ AsyncFREDClient
+                                       (async_clients.py)
 ```
 
 ## API Provider Map
 
-| Provider | Data | Used In |
-|----------|------|---------|
-| Polygon | Bars, options snapshot, aggregates | Phase 0/1/3/4/5, SIM |
-| FMP | Screener, fundamentals, insider | Phase 2/4 |
-| Unusual Whales | Dark pool, GEX, flow, options | Phase 4/5 |
-| FRED | VIX (VIXCLS), TNX, T10Y2Y yield curve | Phase 0/1/6 |
-
-## Async Semaphores
-
-```
-polygon=10, fmp=8, uw=5, max_tickers=10
-```
-
-## Adapters
-
-`src/ifds/data/adapters.py` (491 lines) — transforms raw API responses to domain types
-`src/ifds/data/async_adapters.py` (336 lines) — async versions (GEX, DarkPool batch)
+| Provider | Data | Used In | Semaphore |
+|----------|------|---------|-----------|
+| Polygon | Bars, options, aggregates, VIX, ETF bars | Phase 0/1/3/4/5, SIM, VWAP | 10 |
+| FMP | Screener, fundamentals, insider, earnings | Phase 2/4 | 8 |
+| Unusual Whales | Dark pool, GEX, flow, options | Phase 4/5 | 5 |
+| FRED | VIX (VIXCLS), TNX, T10Y2Y yield curve | Phase 0 | low |
 
 ## Persistence
 
 | Store | Path | Format | Purpose |
 |-------|------|--------|---------|
-| FileCache | `cache/` | JSON | API response cache (TTL-based) |
-| MMS Store | `state/mms/{ticker}.json` | JSON | Per-ticker MMS feature history |
-| Phase4 Snapshot | `state/snapshots/{date}.json` | JSON | Daily Phase 4 data for SIM-L2 replay |
-| Signal Dedup | `state/signals.json` | JSON | Signal deduplication (BC11) |
+| FileCache | `data/cache/` | JSON | API response TTL cache |
+| MMS Store | `state/mms/{ticker}.json` | JSON | Per-ticker MMS features (rolling 63d) |
+| Phase4 Snapshot | `state/phase4_snapshots/{date}.json.gz` | gzipped JSON | SIM-L2 Mode 2 rescore input |
+| Phase 1-3 Context | `state/phase13_ctx.json.gz` | gzipped JSON | Pipeline split bridge |
 | EWMA State | `state/ewma_scores.json` | JSON | Score smoothing persistence |
-| Cumulative PnL | `state/cumulative_pnl.json` | JSON | Paper trading running totals |
+| Signal Dedup | `state/signal_hashes.json` | JSON | Daily dedup (BC11) |
+| Signal History | `state/signal_history.parquet` | Parquet | Freshness alpha lookback |
+| PositionTracker | `state/open_positions.json` | JSON | Swing position state |
+| BMI History | `state/bmi_history.json` | JSON | BMI momentum guard |
+| Skip Day Shadow | `state/skip_day_shadow.jsonl` | JSONL | Shadow guard log |
+| Cumulative PnL | `scripts/paper_trading/logs/cumulative_pnl.json` | JSON | PT running totals |
 
-## Circuit Breaker
+## Logging
 
-`src/ifds/data/circuit_breaker.py` — ProviderCircuitBreaker
-- Per-provider failure tracking
-- Trip threshold → skip provider for cooldown period
+| Type | Path | Format |
+|------|------|--------|
+| Pipeline events | `logs/ifds_run_*.jsonl` | Structured JSONL |
+| PT script logs | `logs/pt_{name}_{YYYY-MM-DD}.log` | Daily rotated text |
+| PT business events | `logs/pt_events_{YYYY-MM-DD}.jsonl` | Unified JSONL |
+| Event database | `state/pt_events.db` | SQLite (daily import) |
+| Cron logs | `logs/cron_*.log` | Text |
 
-## Key Files
+## Key Data Transforms
 
-| File | Lines | Purpose |
-|------|-------|---------|
-| adapters.py | 491 | Raw API → domain type transforms |
-| async_clients.py | 382 | 4 async API clients |
-| async_adapters.py | 336 | Async GEX/DarkPool adapters |
-| fmp.py | 261 | FMP REST client |
-| polygon.py | 170 | Polygon REST client |
-| unusual_whales.py | 163 | UW REST client |
-| async_base.py | 160 | aiohttp + semaphore base |
-| base.py | 157 | requests base client |
-| mms_store.py | ~120 | MMS feature JSON store |
-| cache.py | ~130 | File-based cache with TTL |
-| phase4_snapshot.py | ~100 | Daily snapshot persistence |
+```
+Phase 4 snapshot: StockAnalysis → _stock_to_dict() → 38-field flat dict → JSON
+                  reverse: snapshot_to_stock_analysis() → StockAnalysis
+
+Phase 1-3 context: PipelineContext → save_phase13_context() → gzipped JSON
+                   reverse: load_phase13_context() → PipelineContext fields
+
+Cross-asset ratios: Polygon ETF bars → {hyg_ief: [ratios], rsp_spy: [...]}
+                    → calculate_cross_asset_regime() → CrossAssetResult
+```
