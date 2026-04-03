@@ -97,6 +97,28 @@ def get_net_open_qty(symbol: str, con_id: int, gross_qty: int, todays_fills) -> 
 
 
 def main():
+    try:
+        from lib.trading_day_guard import check_trading_day
+        check_trading_day(logger)
+    except ModuleNotFoundError:
+        pass
+
+    # Early close detection
+    try:
+        from ifds.utils.calendar import is_early_close, get_market_close_time_cet
+        if is_early_close():
+            from datetime import datetime as _dt
+            from zoneinfo import ZoneInfo
+            close_cet = get_market_close_time_cet()
+            now_cet = _dt.now(ZoneInfo("Europe/Budapest")).time()
+            if close_cet and now_cet > close_cet:
+                logger.error(f"EARLY CLOSE DAY — market closed at {close_cet} CET!")
+                send_telegram(f"EARLY CLOSE — piac {close_cet}-kor zárt, MOC túl késő!")
+                sys.exit(1)
+            logger.info(f"Early close day — market closes at {close_cet} CET")
+    except ImportError:
+        pass
+
     from lib.connection import connect, get_account, disconnect
     from lib.orders import create_moc_order
 

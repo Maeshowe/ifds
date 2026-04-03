@@ -422,6 +422,11 @@ def make_dummy_trades():
 
 
 def main():
+    try:
+        from lib.trading_day_guard import check_trading_day
+        check_trading_day(logger)
+    except ModuleNotFoundError:
+        pass
     parser = argparse.ArgumentParser(description='IBKR Paper Trading — EOD Report')
     parser.add_argument('--dry-run', action='store_true',
                         help='Send test Telegram report without IBKR connection')

@@ -332,6 +332,11 @@ def convert_to_market(ib, sym: str, s: dict) -> bool:
 
 
 def main() -> None:
+    try:
+        from lib.trading_day_guard import check_trading_day
+        check_trading_day(logger)
+    except ModuleNotFoundError:
+        pass
     parser = argparse.ArgumentParser(description="AVWAP Limit->MKT monitor")
     parser.add_argument("--dry-run", action="store_true",
                         help="No IBKR connection, log state transitions only")

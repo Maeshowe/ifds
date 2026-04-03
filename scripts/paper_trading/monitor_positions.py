@@ -58,6 +58,11 @@ def get_todays_plan_symbols() -> set:
 
 
 def main() -> None:
+    try:
+        from lib.trading_day_guard import check_trading_day
+        check_trading_day(logger)
+    except ModuleNotFoundError:
+        pass
     from lib.connection import connect, disconnect
 
     today_str = date.today().strftime("%Y-%m-%d")

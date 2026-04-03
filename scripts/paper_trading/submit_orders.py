@@ -159,6 +159,11 @@ def get_existing_symbols(ib):
 
 
 def main():
+    try:
+        from lib.trading_day_guard import check_trading_day
+        check_trading_day(logger)
+    except ModuleNotFoundError:
+        pass
     parser = argparse.ArgumentParser(description='IBKR Paper Trading — Submit Orders')
     parser.add_argument('--dry-run', action='store_true',
                         help='Parse CSV and show orders without connecting to IBKR')

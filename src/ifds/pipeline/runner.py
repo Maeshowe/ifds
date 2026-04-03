@@ -1,5 +1,6 @@
 """Pipeline runner — orchestrates phase execution."""
 
+import os
 import sys
 import time
 import uuid
@@ -84,6 +85,25 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
     )
 
     try:
+        # --- Trading day guard ---
+        from ifds.utils.calendar import is_nyse_trading_day, get_holiday_name
+        from datetime import date as _date_cls
+        _today = _date_cls.today()
+        if not is_nyse_trading_day(_today) and not dry_run and not os.environ.get("IFDS_SKIP_TRADING_DAY_GUARD"):
+            holiday = get_holiday_name(_today)
+            msg = f"NYSE closed today{f' ({holiday})' if holiday else ''}. Pipeline skipped."
+            logger.log(EventType.PIPELINE_COMPLETE, Severity.INFO, message=msg)
+            print(f"\n[SKIP] {msg}")
+            try:
+                from ifds.output.telegram import _send_message, _pipeline_timestamp
+                _token = config.runtime.get("telegram_bot_token")
+                _chat = config.runtime.get("telegram_chat_id")
+                if _token and _chat:
+                    _send_message(_token, _chat, f"{_pipeline_timestamp()}\n{msg}", timeout=10)
+            except Exception:
+                pass
+            return PipelineResult(success=True, message=msg)
+
         # === Phase 0: System Diagnostics (always runs — mandatory safety check) ===
         from ifds.phases.phase0_diagnostics import run_phase0
 

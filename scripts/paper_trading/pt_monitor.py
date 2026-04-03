@@ -155,6 +155,11 @@ def get_scenario_b_hour_utc() -> int:
 
 
 def main() -> None:
+    try:
+        from lib.trading_day_guard import check_trading_day
+        check_trading_day(logger)
+    except ModuleNotFoundError:
+        pass
     from lib.connection import connect, disconnect
 
     today_str = date.today().strftime("%Y-%m-%d")
@@ -257,7 +262,15 @@ def main() -> None:
             and s.get("scenario_b_eligible", True)
         ):
             now_utc = datetime.now(timezone.utc)
-            scenario_b_hour = get_scenario_b_hour_utc()
+            # Early close: Scenario B 1h before close (12:00 ET = 16:00 UTC)
+            try:
+                from ifds.utils.calendar import is_early_close
+                if is_early_close():
+                    scenario_b_hour = 16  # 12:00 ET = 16:00 UTC
+                else:
+                    scenario_b_hour = get_scenario_b_hour_utc()
+            except ImportError:
+                scenario_b_hour = get_scenario_b_hour_utc()
 
             if now_utc.hour >= scenario_b_hour:
                 current_price = get_last_price(ib, sym)
