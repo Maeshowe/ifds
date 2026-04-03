@@ -61,6 +61,10 @@ _DEFAULT_CONFIG: dict[str, Any] = {
     "tp2_atr_multiple": 2.0,
     "max_positions": 8,
     "combined_score_minimum": 70,
+    # Freshness
+    "freshness_mode": "linear",      # "linear" | "wow" | "none"
+    "freshness_bonus": 1.5,
+    "freshness_lookback_days": 90,
 }
 
 
@@ -285,6 +289,8 @@ def rescore_snapshot(
     gex_multiplier: float = 1.0,
     vix: float | None = None,
     ewma_state: dict[str, float] | None = None,
+    signal_history: list[dict] | None = None,
+    snapshot_date: str | None = None,
 ) -> list[RescoredPosition]:
     """Re-score a single day's Phase 4 snapshot with config overrides.
 
@@ -301,6 +307,11 @@ def rescore_snapshot(
     ewma_state:
         Previous day's EWMA scores ``{ticker: ewma_value}``.
         Updated in-place with new EWMA values if ``ewma_enabled``.
+    signal_history:
+        List of ``{"date": "YYYY-MM-DD", "ticker": "SYM"}`` records for
+        freshness calculation (both linear and WOW modes).
+    snapshot_date:
+        ISO date string of this snapshot (for WOW reference date).
 
     Returns
     -------
@@ -314,13 +325,21 @@ def rescore_snapshot(
     ewma_enabled = cfg.get("ewma_enabled", False)
     ewma_span = cfg.get("ewma_span", 10)
     ewma = ewma_state if ewma_state is not None else {}
+    freshness_mode = cfg.get("freshness_mode", "linear")
 
     stocks = [snapshot_to_stock_analysis(r) for r in snapshot_records]
+
+    # Build freshness lookup
+    history = signal_history or []
+    ref_date = _parse_freshness_date(snapshot_date)
 
     # Re-score
     scored: list[tuple[StockAnalysis, float]] = []
     for stock in stocks:
         score = _rescore_combined_score(stock, cfg)
+
+        # Apply freshness
+        score = _apply_freshness(stock.ticker, score, freshness_mode, cfg, history, ref_date)
 
         if ewma_enabled:
             prev = ewma.get(stock.ticker)
@@ -343,3 +362,65 @@ def rescore_snapshot(
             positions.append(pos)
 
     return positions
+
+
+# ------------------------------------------------------------------
+# Freshness helpers
+# ------------------------------------------------------------------
+
+def _parse_freshness_date(date_str: str | None) -> "date | None":
+    from datetime import date as date_cls
+    if date_str is None:
+        return None
+    return date_cls.fromisoformat(date_str)
+
+
+def _apply_freshness(
+    ticker: str,
+    score: float,
+    mode: str,
+    cfg: dict[str, Any],
+    history: list[dict],
+    ref_date: "date | None",
+) -> float:
+    """Apply freshness multiplier based on mode.
+
+    Modes:
+    - ``"none"``: no freshness adjustment
+    - ``"linear"``: current production logic (×bonus if not in history)
+    - ``"wow"``: U-shaped WOW Signals multiplier
+    """
+    if mode == "none" or not history:
+        if mode == "linear" and not history:
+            # No history → all signals are fresh → apply bonus
+            bonus = cfg.get("freshness_bonus", 1.5)
+            return round(score * bonus, 2)
+        if mode == "none":
+            return score
+        return score
+
+    if mode == "wow":
+        from ifds.sim.wow_freshness import wow_multiplier
+        mult = wow_multiplier(
+            ticker, history,
+            lookback_days=cfg.get("freshness_lookback_days", 90),
+            reference_date=ref_date,
+        )
+        return round(score * mult, 2)
+
+    # Default: linear
+    lookback = cfg.get("freshness_lookback_days", 90)
+    bonus = cfg.get("freshness_bonus", 1.5)
+    from datetime import date as date_cls, timedelta
+    ref = ref_date or date_cls.today()
+    cutoff = ref - timedelta(days=lookback)
+
+    recent_tickers = {
+        r["ticker"] for r in history
+        if _parse_freshness_date(r["date"]) is not None
+        and _parse_freshness_date(r["date"]) >= cutoff  # type: ignore[operator]
+    }
+
+    if ticker not in recent_tickers:
+        return round(score * bonus, 2)
+    return score

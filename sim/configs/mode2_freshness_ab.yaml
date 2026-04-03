@@ -1,0 +1,21 @@
+mode: 2
+snapshot_dir: "state/phase4_snapshots"
+
+variants:
+  - name: "linear_freshness"
+    description: "Current: x1.5 for signals not seen in 90 days"
+    overrides:
+      freshness_mode: "linear"
+      freshness_bonus: 1.5
+      freshness_lookback_days: 90
+
+  - name: "wow_signals"
+    description: "U-shaped: New Kid +15%, WOW +10%, Stale -20%, Persistent +5%"
+    overrides:
+      freshness_mode: "wow"
+      freshness_lookback_days: 90
+
+  - name: "no_freshness"
+    description: "Control: no freshness adjustment"
+    overrides:
+      freshness_mode: "none"

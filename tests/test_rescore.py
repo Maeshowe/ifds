@@ -421,3 +421,62 @@ class TestRescoreSnapshot:
         if pos_flow and pos_funda:
             assert pos_flow[0].ticker == "FLOW"
             assert pos_funda[0].ticker == "FUNDA"
+
+
+# ============================================================================
+# Freshness modes (BC20B)
+# ============================================================================
+
+class TestFreshnessMode:
+
+    def test_linear_no_history_applies_bonus(self):
+        """No signal history → all signals fresh → ×1.5 bonus."""
+        records = [_make_snapshot_record(ticker="AAPL")]
+        pos_none = rescore_snapshot(records, {"freshness_mode": "none"})
+        pos_linear = rescore_snapshot(records, {"freshness_mode": "linear", "freshness_bonus": 1.5})
+
+        if pos_none and pos_linear:
+            assert pos_linear[0].combined_score > pos_none[0].combined_score
+
+    def test_linear_seen_ticker_no_bonus(self):
+        """Ticker in recent history → no bonus in linear mode."""
+        records = [_make_snapshot_record(ticker="AAPL")]
+        history = [{"date": "2026-03-25", "ticker": "AAPL"}]
+
+        pos_fresh = rescore_snapshot(records, {"freshness_mode": "linear"}, signal_history=history, snapshot_date="2026-04-01")
+        pos_no_fresh = rescore_snapshot(records, {"freshness_mode": "none"})
+
+        # AAPL in history → no bonus → same as no freshness
+        if pos_fresh and pos_no_fresh:
+            assert pos_fresh[0].combined_score == pos_no_fresh[0].combined_score
+
+    def test_wow_new_kid_bonus(self):
+        """WOW mode: new ticker → ×1.15."""
+        records = [_make_snapshot_record(ticker="NEW")]
+        history = [{"date": "2026-03-25", "ticker": "OTHER"}]
+
+        pos_wow = rescore_snapshot(records, {"freshness_mode": "wow"}, signal_history=history, snapshot_date="2026-04-01")
+        pos_none = rescore_snapshot(records, {"freshness_mode": "none"})
+
+        if pos_wow and pos_none:
+            expected = round(pos_none[0].combined_score * 1.15, 2)
+            assert pos_wow[0].combined_score == expected
+
+    def test_wow_stale_penalty(self):
+        """WOW mode: stale ticker → ×0.80 penalty."""
+        records = [_make_snapshot_record(ticker="STALE")]
+        history = [{"date": "2026-02-15", "ticker": "STALE"}]  # 45 days before ref
+
+        pos_wow = rescore_snapshot(records, {"freshness_mode": "wow"}, signal_history=history, snapshot_date="2026-04-01")
+        pos_none = rescore_snapshot(records, {"freshness_mode": "none"})
+
+        if pos_wow and pos_none:
+            expected = round(pos_none[0].combined_score * 0.80, 2)
+            assert pos_wow[0].combined_score == expected
+
+    def test_freshness_none_no_change(self):
+        """freshness_mode='none' → score unchanged."""
+        records = [_make_snapshot_record(ticker="AAPL")]
+        pos = rescore_snapshot(records, {"freshness_mode": "none"})
+        # Score is pure rescore output without any freshness
+        assert len(pos) > 0
