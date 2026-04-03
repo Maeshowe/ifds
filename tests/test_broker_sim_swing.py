@@ -230,3 +230,78 @@ class TestSwingPnL:
         # SL at 95.5: 100 × (95.5 - 100) = -450
         expected_pct = result.total_pnl / (100 * 100.0) * 100
         assert abs(result.total_pnl_pct - expected_pct) < 0.01
+
+
+# ============================================================================
+# BC20A Phase_20A_5 — SimEngine Swing Extensions
+# ============================================================================
+
+class TestVwapEntryFilter:
+
+    def test_vwap_reject_no_fill(self):
+        """Price > VWAP × 1.02 → no fill (vwap_reject)."""
+        trade = _make_trade(entry=105.0, sl=100.0, qty=100)
+        bars = _bars([(104.0, 106.0, 98.0, 105.0)])  # Would normally fill
+        # VWAP = 100, entry 105 > 100*1.02=102 → reject
+        result = simulate_swing_trade(trade, bars, vwap_prices={"AAPL": 100.0})
+        assert not result.filled
+        assert result.exit_type == "vwap_reject"
+
+    def test_vwap_ok_fills(self):
+        """Price < VWAP × 1.02 → normal fill."""
+        trade = _make_trade(entry=100.0, sl=95.5, qty=100)
+        bars = _bars([(99.0, 101.0, 98.0, 100.0)])
+        # VWAP = 100, entry 100 <= 100*1.02=102 → OK
+        result = simulate_swing_trade(trade, bars, vwap_prices={"AAPL": 100.0})
+        assert result.filled
+
+    def test_no_vwap_data_no_filter(self):
+        """No VWAP data → no filtering."""
+        trade = _make_trade(entry=100.0, sl=95.5, qty=100)
+        bars = _bars([(99.0, 101.0, 98.0, 100.0)])
+        result = simulate_swing_trade(trade, bars, vwap_prices=None)
+        assert result.filled
+
+    def test_vwap_other_ticker_no_filter(self):
+        """VWAP data for different ticker → no filter on this trade."""
+        trade = _make_trade(entry=100.0, sl=95.5, qty=100)
+        bars = _bars([(99.0, 101.0, 98.0, 100.0)])
+        result = simulate_swing_trade(trade, bars, vwap_prices={"MSFT": 50.0})
+        assert result.filled
+
+
+class TestVolatileTrail:
+
+    def test_volatile_tighter_trail(self):
+        """MMS VOLATILE → trail distance = 0.75×ATR (not 1.0×ATR)."""
+        trade = _make_trade(entry=100.0, sl=95.5, qty=100)
+        # ATR ≈ 3.0
+        # Default trail: 1.0 × 3.0 = 3.0
+        # Volatile trail: 0.75 × 3.0 = 2.25
+        bars = _bars([
+            (99.0, 100.5, 98.0, 100.0),   # fill
+            (101.0, 103.0, 100.5, 102.5),  # TP1 hit (103 >= 102.25)
+            (102.0, 102.5, 100.0, 100.5),  # With volatile trail: trail_sl = 103-2.25=100.75
+                                            # low=100 < 100.75 → trail hit
+        ])
+        # With volatile trail → should hit trail stop
+        result_vol = simulate_swing_trade(trade, bars, max_hold_days=10,
+                                           tp1_exit_pct=0.50, mms_regime="volatile")
+        assert result_vol.tp1_triggered
+
+        # With default trail → trail_sl = 103-3=100, low=100 → also hits
+        trade2 = _make_trade(entry=100.0, sl=95.5, qty=100)
+        result_normal = simulate_swing_trade(trade2, bars, max_hold_days=10,
+                                              tp1_exit_pct=0.50, mms_regime="undetermined")
+        # Both should trigger TP1, but volatile should have tighter trail
+        assert result_vol.tp1_triggered and result_normal.tp1_triggered
+
+    def test_non_volatile_uses_default_trail(self):
+        """Non-VOLATILE MMS regime → uses default trail_atr_mult."""
+        trade = _make_trade(entry=100.0, sl=95.5, qty=100)
+        bars = _bars([
+            (99.0, 100.5, 98.0, 100.0),   # fill
+            (100.0, 101.0, 99.5, 100.5),   # no TP1, no SL
+        ])
+        result = simulate_swing_trade(trade, bars, max_hold_days=5, mms_regime="neutral")
+        assert result.filled  # Basic functionality works

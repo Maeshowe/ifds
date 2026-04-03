@@ -1,0 +1,28 @@
+mode: 1
+
+variants:
+  - name: "1day_moc"
+    description: "Current: 1-day, MOC exit, 33%/66% bracket"
+    overrides:
+      max_hold_days: 1
+      sim_mode: "bracket"
+
+  - name: "swing_5day_50pct"
+    description: "Swing: 5-day, 50% TP1, trail 1.0xATR, breakeven 0.3xATR"
+    overrides:
+      max_hold_days: 5
+      tp1_exit_pct: 0.50
+      trail_atr_mult: 1.0
+      breakeven_atr_mult: 0.3
+      sim_mode: "swing"
+
+  - name: "swing_5day_volatile"
+    description: "Swing: 5-day, VOLATILE trail (0.75xATR)"
+    overrides:
+      max_hold_days: 5
+      tp1_exit_pct: 0.50
+      trail_atr_mult: 1.0
+      trail_atr_volatile: 0.75
+      breakeven_atr_mult: 0.3
+      mms_regime: "volatile"
+      sim_mode: "swing"

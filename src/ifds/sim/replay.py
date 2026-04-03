@@ -143,7 +143,7 @@ def run_comparison(
         sim_mode = variant.overrides.get("sim_mode", "bracket")
         swing_params = {
             k: variant.overrides[k]
-            for k in ("tp1_atr_mult", "trail_atr_mult", "breakeven_atr_mult", "tp1_exit_pct")
+            for k in ("tp1_atr_mult", "trail_atr_mult", "trail_atr_volatile", "breakeven_atr_mult", "tp1_exit_pct", "mms_regime")
             if k in variant.overrides
         }
 
@@ -180,7 +180,7 @@ def run_comparison_with_bars(
         sim_mode = variant.overrides.get("sim_mode", "bracket")
         swing_params = {
             k: variant.overrides[k]
-            for k in ("tp1_atr_mult", "trail_atr_mult", "breakeven_atr_mult", "tp1_exit_pct")
+            for k in ("tp1_atr_mult", "trail_atr_mult", "trail_atr_volatile", "breakeven_atr_mult", "tp1_exit_pct", "mms_regime")
             if k in variant.overrides
         }
 
@@ -308,7 +308,7 @@ def run_mode2_comparison(
         sim_mode = variant.overrides.get("sim_mode", "bracket")
         swing_params = {
             k: variant.overrides[k]
-            for k in ("tp1_atr_mult", "trail_atr_mult", "breakeven_atr_mult", "tp1_exit_pct")
+            for k in ("tp1_atr_mult", "trail_atr_mult", "trail_atr_volatile", "breakeven_atr_mult", "tp1_exit_pct", "mms_regime")
             if k in variant.overrides
         }
 

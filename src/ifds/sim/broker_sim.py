@@ -195,10 +195,13 @@ def simulate_swing_trade(
     daily_bars: list[dict],
     tp1_atr_mult: float = 0.75,
     trail_atr_mult: float = 1.0,
+    trail_atr_volatile: float = 0.75,
     breakeven_atr_mult: float = 0.3,
     max_hold_days: int = 5,
     tp1_exit_pct: float = 0.50,
     fill_window_days: int = 1,
+    vwap_prices: dict | None = None,
+    mms_regime: str = "undetermined",
 ) -> Trade:
     """Simulate swing trade lifecycle with trailing stop.
 
@@ -216,10 +219,13 @@ def simulate_swing_trade(
         daily_bars: OHLCV bars AFTER the plan date.
         tp1_atr_mult: TP1 target in ATR multiples from entry.
         trail_atr_mult: Trail stop distance in ATR multiples.
+        trail_atr_volatile: Trail distance for MMS VOLATILE regime.
         breakeven_atr_mult: Profit threshold (ATR) to raise SL to entry.
         max_hold_days: Maximum holding period.
         tp1_exit_pct: Fraction of position to exit at TP1.
         fill_window_days: Days to attempt fill.
+        vwap_prices: ``{ticker: vwap}`` — if price > vwap×1.02, no fill.
+        mms_regime: MMS regime (``"volatile"`` → tighter trail).
 
     Returns:
         Trade with swing execution results filled in.
@@ -237,6 +243,16 @@ def simulate_swing_trade(
 
     if not (atr > 0):
         return trade
+
+    # VWAP entry filter: reject if price > VWAP × 1.02
+    if vwap_prices and trade.ticker in vwap_prices:
+        vwap = vwap_prices[trade.ticker]
+        if vwap > 0 and trade.entry_price > vwap * 1.02:
+            trade.exit_type = "vwap_reject"
+            return trade
+
+    # MMS VOLATILE → tighter trail
+    effective_trail_atr = trail_atr_volatile if mms_regime == "volatile" else trail_atr_mult
 
     # 1. FILL CHECK (same logic as bracket sim)
     fill_bar_idx = None
@@ -261,7 +277,7 @@ def simulate_swing_trade(
     # Set up swing state
     entry = trade.fill_price
     tp1_price = round(entry + tp1_atr_mult * atr, 2) if is_long else round(entry - tp1_atr_mult * atr, 2)
-    trail_distance = trail_atr_mult * atr
+    trail_distance = effective_trail_atr * atr
     breakeven_threshold = breakeven_atr_mult * atr
     current_sl = trade.stop_loss
     remaining_qty = trade.quantity
