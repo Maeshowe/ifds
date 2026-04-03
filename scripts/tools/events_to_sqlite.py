@@ -116,7 +116,10 @@ def import_all(reindex: bool = False) -> None:
 
 
 def run_query(sql: str) -> None:
-    """Execute a SQL query and print results."""
+    """Execute a read-only SQL query and print results."""
+    if not sql.strip().upper().startswith("SELECT"):
+        print("Error: only SELECT queries are permitted.", file=sys.stderr)
+        sys.exit(1)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:

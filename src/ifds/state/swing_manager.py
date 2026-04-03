@@ -14,7 +14,7 @@ handled by ``close_positions.py`` using the returned action list.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
 from typing import Any
@@ -40,11 +40,7 @@ class SwingDecision:
     qty: int = 0
     price: float = 0.0                  # New SL or trail stop price
     trail_amount: float = 0.0           # For TRAIL orders: trailing amount $
-    details: dict = None  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        if self.details is None:
-            object.__setattr__(self, "details", {})
+    details: dict = field(default_factory=dict)
 
 
 # ------------------------------------------------------------------

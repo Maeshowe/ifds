@@ -446,8 +446,8 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 # BMI Momentum Guard — reduce max_positions on declining BMI trend
                 bmi_guard_active = False
                 original_max_positions = config.runtime["max_positions"]
+                entries = bmi_history.load()  # always load — used by BMI guard + skip day shadow
                 if config.tuning.get("bmi_momentum_guard_enabled", True):
-                    entries = bmi_history.load()
                     guard_active, reduced, total_delta = get_bmi_momentum_guard(entries, config)
                     if guard_active:
                         min_days = config.tuning.get("bmi_momentum_days", 3)
@@ -521,8 +521,6 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
 
                 # Skip Day Shadow Guard — log only, does NOT block pipeline
                 from ifds.phases.phase6_sizing import check_skip_day_shadow
-                if not config.tuning.get("bmi_momentum_guard_enabled", True):
-                    entries = bmi_history.load()
                 would_skip, skip_details = check_skip_day_shadow(ctx.macro, entries, config)
                 if would_skip:
                     logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
