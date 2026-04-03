@@ -214,6 +214,12 @@ TUNING = {
     "portfolio_var_confidence": 0.95,
     "portfolio_var_max_pct": 3.0,        # Max 3% account VaR
 
+    # Swing Management (BC20A)
+    "breakeven_threshold_atr": 0.3,     # 0.3×ATR profit → SL breakeven
+    "trailing_stop_atr": 1.0,           # Trail distance = 1×ATR
+    "max_hold_trading_days": 5,
+    "earnings_exit_days": 1,            # Exit if earnings within 1 trading day
+
     # Risk Management multipliers
     # M_flow threshold = 80: flow_score = BASE(50) + rvol_score.
     # rvol_score max realistic ~+30 (elevated+squat). Threshold 80 means only
