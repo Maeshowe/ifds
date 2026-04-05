@@ -1,11 +1,12 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-04 ~00:00 Budapest, Chat -->
+<!-- Utolsó frissítés: 2026-04-05 ~20:00 Budapest, CC -->
 
 ## Paper Trading
 Day 33/63 | cum. PnL: −$1,113.16 (−1.11%) | IBKR DUH118657
 **Hétfőtől (ápr 6): Swing Hybrid Exit éles — 5 napos holding**
 Deployment checklist: `docs/tasks/2026-04-03-monday-deployment-checklist.md`
+**Mac Mini kész**: git pull + crontab beállítva (egyszeri Phase 1-3 hétfő 14:00)
 
 ## Lezárt BC-k + fixek (2026-04-03)
 
