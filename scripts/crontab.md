@@ -22,6 +22,10 @@
 # Minden script tartalmaz trading day guard-ot (NYSE holidays → exit 0)
 # =============================================================================
 
+# ─── EGYSZERI: hétfő ápr 6 Phase 1-3 (ctx.json.gz a 15:45-ös entry-hez) ────
+# TÖRÖLD hétfő 14:30-kor! Csak az első héthez kell, utána 22:00 cron csinálja.
+0 14 6 4 * /Users/safrtam/SSH-Services/ifds/scripts/deploy_daily.sh --phases 1-3
+
 # ─── ESTI PIPELINE (NYSE zárás után) ────────────────────────────────────────
 
 # Phase 1-3: BMI, Universe, Szektorok, Cross-Asset Regime

@@ -1,6 +1,6 @@
 # IFDS — Fejlesztési Backlog
 <!-- Frissíti: Chat/CC, in-place — nincs dátum a névben -->
-<!-- Utolsó frissítés: 2026-03-28 -->
+<!-- Utolsó frissítés: 2026-04-02 -->
 
 ## Ami KÉSZ van (BC1-19 + quick wins)
 
@@ -10,7 +10,69 @@
 | BC17 | Preflight, monitor_positions, Trail Stop A+B | ✅ |
 | BC18 | EWMA, MMS activation (min_periods 10), Crowdedness shadow, T5, Factor Vol | ✅ |
 | BC19 | SIM-L2 Mód 1 parameter sweep + Phase 4 snapshot | ✅ |
-| Quick wins | TP1 0.75×ATR, VIX SL cap, 2s10s shadow, EWMA log, contradiction penalty, BMI guard | ✅ |
+| Quick wins | TP1 0.75×ATR, VIX SL cap, 2s10s shadow, EWMA log, contradiction penalty, BMI guard, skip day shadow | ✅ |
+
+---
+
+## Parkolt / Backlog (nem ütemezett)
+
+### GEX Call Wall TP1 Override + AVWAP TP1 Újraszámítás
+**Mikor:** Ha VIX ~15 körül lesz (normál piac)
+**Prioritás:** P2 parkolt
+
+**Két összefüggő probléma:**
+
+**1. Phase 6 — call_wall felülírja a 0.75×ATR TP1-et**
+
+Jelenlegi logika (`phase6_sizing.py` ~540. sor):
+```python
+if gex.call_wall > 0 and gex.call_wall > entry:
+    tp1 = gex.call_wall           # ← felülírja a 0.75×ATR-t
+else:
+    tp1 = entry + tp1_atr         # ← 0.75×ATR
+```
+
+Példák ahol ez ártott:
+- CNX (03-31): entry $40.12, call_wall $45.00 → TP1 $45.00 (+12.2%). Ha 0.75×ATR lett volna (~$41.75), talán TP1 hit. Ehelyett SL+LOSS_EXIT+MOC, -$311.
+- CF (04-02): entry $127.98, call_wall $145.00 → TP1 $145.00 (+13.3%).
+
+Példa ahol segített:
+- CENX (04-01): entry $61.01, call_wall $60.00 → TP1 $60.00 (közelebb mint 0.75×ATR ~$63.80). TP1 hit + trail +$61.30.
+
+**Javasolt megoldás:** `tp1 = min(call_wall, entry + 0.75×ATR)` — a kettő közül a közelebbit választja. Így a call_wall felső korlátként működik (ha közelebb van, használja), de nem húzza el a TP1-et irreálisan messzire.
+
+**2. pt_avwap.py — TP1 távolság relatív újraszámítás call_wall esetén hibás**
+
+Jelenlegi logika (`pt_avwap.py` ~268. sor):
+```python
+tp1_distance = s["tp1_price"] - s["entry_price"]  # eredeti távolság
+new_tp1 = round(fill_price + tp1_distance, 2)      # új fill + régi távolság
+```
+
+Ez **relatív távolságot** őriz meg, ami ATR-alapú TP1 esetén helyes: ha a TP1 0.75×ATR volt, az új fill-hez is 0.75×ATR-t ad.
+
+DE ha a TP1 call_wall-ból jött, a call_wall **abszolút árszint** (opciós piaci szint), nem relatív. Az AVWAP-nak ilyenkor nem kellene eltolnia.
+
+Konkrét példa (2026-04-02 CF):
+- Pipeline: entry $127.98, TP1 $145.00 (call_wall) → tp1_distance = $17.02
+- AVWAP fill: $134.46 (magasabb entry, MKT)
+- new_tp1 = $134.46 + $17.02 = **$151.48** ← ez már messze a call_wall $145.00 fölött!
+- A valós TP1 maradhatna $145.00 (call_wall) vagy lehetne $134.46 + 0.75×ATR
+
+**Javasolt megoldás:** A monitor state-ben jelölni, hogy a TP1 call_wall-ból jött-e (`tp1_source: "call_wall" | "atr"`). Az AVWAP TP1 újraszámítás:
+```python
+if s.get("tp1_source") == "call_wall":
+    new_tp1 = s["tp1_price"]  # abszolút szint, nem toljuk el
+else:
+    new_tp1 = fill_price + tp1_distance  # relatív, ATR-alapú
+```
+
+**Érintett fájlok:**
+- `src/ifds/phases/phase6_sizing.py` — TP1 call_wall logika
+- `scripts/paper_trading/pt_avwap.py` — AVWAP TP1 újraszámítás
+- `scripts/paper_trading/submit_orders.py` — monitor state `tp1_source` mező
+
+**Miért parkolt:** A jelenlegi bearish piac (VIX 24-30) nem a legjobb tesztkörnyezet ehhez. Ha a VIX ~15-re csökken és a piac normalizálódik, a TP1 hit rate-en jobban mérhető a call_wall hatás.
 
 ---
 
@@ -169,5 +231,6 @@ Az április végi review megmutatja:
 - A BMI guard működött-e csökkenő BMI trend esetén?
 - Az MMS multiplierek (51 ticker aktív) javult-e a méretezés?
 - A piac recovery fázisában hogyan teljesít a rendszer?
+- A Skip Day Shadow Guard hány napot mentett volna?
 
 Ezeket a BC20 SIM-L2 Mód 2 fogja tudományosan mérni a baseline-nal összehasonlítva.

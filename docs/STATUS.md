@@ -1,15 +1,15 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-03 ~23:30 Budapest, Chat -->
+<!-- Utolsó frissítés: 2026-04-04 ~00:00 Budapest, Chat -->
 
 ## Paper Trading
 Day 33/63 | cum. PnL: −$1,113.16 (−1.11%) | IBKR DUH118657
 **Hétfőtől (ápr 6): Swing Hybrid Exit éles — 5 napos holding**
 Deployment checklist: `docs/tasks/2026-04-03-monday-deployment-checklist.md`
 
-## Lezárt BC-k (2026-04-03 — egy nap alatt)
+## Lezárt BC-k + fixek (2026-04-03)
 
-| BC | Commitok | Tesztek |
+| Scope | Commitok | Tesztek |
 |---|---|---|
 | BC20 SIM-L2 Mód 2 (20A+20C+20B) | `9cb823d` `5b96270` `037fe4c` | +75 |
 | BC21 Risk Layer (21B+21A) | `69bec6a` `c63ee67` | +34 |
@@ -18,7 +18,8 @@ Deployment checklist: `docs/tasks/2026-04-03-monday-deployment-checklist.md`
 | NYSE Calendar | `6c10be5` | +5 |
 | Telegram Split | `8c0bd30` | — |
 | Leftover fix + Skip day | 2 commit | — |
-| **Összesen: 20 commit** | | **+199 teszt** |
+| Code Review Fixes | `fd92eda` | — |
+| **Összesen: 21 commit** | | **+199 teszt** |
 
 Teszt baseline: **1092 → 1291**
 
@@ -32,6 +33,10 @@ Teszt baseline: **1092 → 1291**
 - NYSE trading calendar: holiday skip + early close handling
 - Telegram: MACRO SNAPSHOT (22:00) + TRADING PLAN (15:45)
 - EWMA simítás, MMS multiplierek, M_target penalty, BMI momentum guard
+
+## Ismert DEFERRED itemek (code review)
+- H1: StockAnalysis mutation — ifds-rules.md-ben dokumentálva, architektúrális refactor kellene
+- H3: PositionTracker setattr mutation — swing_manager loop sorrendje biztonságos
 
 ## Shadow mode
 
