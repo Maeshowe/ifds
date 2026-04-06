@@ -60,6 +60,11 @@ def load_state(today_str: str) -> dict:
     path = f"{STATE_DIR}/monitor_state_{today_str}.json"
     if not os.path.exists(path):
         return {}
+    # Extra guard: reject stale file (mtime != today)
+    file_mtime = date.fromtimestamp(os.path.getmtime(path))
+    if file_mtime != date.today():
+        logger.warning(f"Monitor state file is stale (mtime: {file_mtime}). Skipping.")
+        return {}
     with open(path) as f:
         return json.load(f)
 
@@ -199,6 +204,8 @@ def main() -> None:
         logger.warning(
             f"Phantom tickers filtered out (no IBKR position): {sorted(phantom)}"
         )
+        if evt:
+            evt.log("monitor", "phantom_filtered", tickers=sorted(phantom))
     if not active_tickers:
         logger.debug("All candidate tickers are phantom — nothing to monitor.")
         disconnect(ib)

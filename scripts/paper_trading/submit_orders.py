@@ -62,6 +62,31 @@ def send_telegram(message):
     _send(f"{telegram_header('SUBMIT')}\n{message}")
 
 
+def _build_ticker_table(tickers: list, submitted_tickers: list, existing: set | None = None) -> str:
+    """Build a monospace ticker table for Telegram."""
+    lines = []
+    header = f"{'SYM':<6}{'QTY':>4} {'ENTRY':>7} {'SL':>7} {'TP1':>7} {'RISK':>6}"
+    lines.append(header)
+    total_risk = 0.0
+    for t in tickers:
+        sym = t['symbol']
+        risk = round((t['limit_price'] - t['stop_loss']) * t['total_qty'], 2)
+        total_risk += risk
+        status = ""
+        if existing and sym in existing:
+            status = " skip"
+        elif sym not in submitted_tickers:
+            status = " skip"
+        lines.append(
+            f"{sym:<6}{t['total_qty']:>4} "
+            f"{t['limit_price']:>7.2f} "
+            f"{t['stop_loss']:>7.2f} "
+            f"{t['take_profit_1']:>7.2f} "
+            f"{'$'}{risk:>5.0f}{status}"
+        )
+    return "\n".join(lines), total_risk
+
+
 # ---------------------------------------------------------------------------
 # CSV loading
 # ---------------------------------------------------------------------------
@@ -269,11 +294,12 @@ def main():
             logger.warning(f"Skipped (exposure limit): {', '.join(skipped)}")
 
         if submitted > 0:
+            table, total_risk = _build_ticker_table(tickers, submitted_tickers)
             tg_msg = (
-                f"📊 PAPER TRADING [DRY RUN] — {today_str}\n"
-                f"Would submit: {submitted} tickers ({submitted * 2} brackets)\n"
-                f"Exposure: ${exposure:,.0f} / ${MAX_DAILY_EXPOSURE:,} limit\n"
-                f"Tickers: {', '.join(submitted_tickers)}"
+                f"📈 IFDS Trading Plan [DRY RUN] — {today_str}\n"
+                f"{submitted} pozíció | Risk: ${total_risk:,.0f} | Exp: ${exposure:,.0f}\n\n"
+                f"<pre>{table}</pre>\n\n"
+                f"Submitted: {submitted} tickers ({submitted * 2} brackets)"
             )
             send_telegram(tg_msg)
             logger.info("Telegram sent.")
@@ -358,13 +384,23 @@ def main():
 
     # Telegram notification
     if submitted > 0:
-        tg_msg = (
-            f"📊 PAPER TRADING — {today_str}\n"
-            f"Submitted: {submitted} tickers ({submitted * 2} brackets)\n"
-            f"Exposure: ${exposure:,.0f} / ${MAX_DAILY_EXPOSURE:,} limit\n"
-            f"Tickers: {', '.join(submitted_tickers)}"
+        skipped_existing = [s for s in existing if s not in submitted_tickers] if existing else []
+        table, total_risk = _build_ticker_table(
+            [t for t in tickers if t['symbol'] in submitted_tickers],
+            submitted_tickers,
         )
-        send_telegram(tg_msg)
+        tg_lines = [
+            f"📈 IFDS Trading Plan — {today_str}",
+            f"{submitted} pozíció | Risk: ${total_risk:,.0f} | Exp: ${exposure:,.0f}",
+            "",
+            f"<pre>{table}</pre>",
+        ]
+        if skipped_existing:
+            tg_lines.append(f"\nSkip (existing): {', '.join(sorted(skipped_existing))}")
+        if skipped:
+            tg_lines.append(f"Skip (exposure): {', '.join(skipped)}")
+        tg_lines.append(f"\nSubmitted: {submitted} tickers ({submitted * 2} brackets)")
+        send_telegram("\n".join(tg_lines))
 
     # --- Monitor state initialization ---
     if submitted > 0:

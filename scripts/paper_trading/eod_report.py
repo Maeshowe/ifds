@@ -477,16 +477,24 @@ def main():
         tg_lines = [
             f"📊 PAPER TRADING EOD [DRY RUN] — {today_str}",
             "",
-            f"Trades: {total_trades} | Filled: {filled}/{total_trades}",
-            f"TP1: {tp1_hits} | TP2: {tp2_hits} | SL: {sl_hits} | MOC: {moc_exits}",
+            f"P&L: ${daily_pnl:+,.2f} ({daily_pnl / INITIAL_CAPITAL * 100:+.2f}%) | Cum: ${cum_pnl:+,.0f} ({cum_pct:+.2f}%) [Day {trading_days}/63]",
+            f"TP1: {tp1_hits} | SL: {sl_hits} | MOC: {moc_exits}",
         ]
         if loss_exit_hits or trail_hits_count:
-            tg_lines.append(f"LOSS_EXIT: {loss_exit_hits} | TRAIL: {trail_hits_count}")
-        tg_lines.extend([
-            "",
-            f"P&L today: ${daily_pnl:+,.2f} ({daily_pnl / INITIAL_CAPITAL * 100:+.2f}%)",
-            f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]",
-        ])
+            tg_lines.append(f"LOSS: {loss_exit_hits} | TRAIL: {trail_hits_count}")
+        if trades:
+            sorted_trades = sorted(trades, key=lambda t: t['pnl'], reverse=True)
+            ticker_lines = []
+            for t in sorted_trades:
+                icon = ""
+                if t == sorted_trades[0] and t['pnl'] > 0:
+                    icon = " ✅"
+                elif t == sorted_trades[-1] and t['pnl'] < 0:
+                    icon = " ❌"
+                ticker_lines.append(
+                    f"{t['ticker']:<6} ${t['pnl']:>+8.2f}  {t['exit_type']}{icon}"
+                )
+            tg_lines.append(f"\n<pre>{chr(10).join(ticker_lines)}</pre>")
         send_telegram("\n".join(tg_lines))
         logger.info("Telegram sent.")
         return
@@ -589,31 +597,36 @@ def main():
     tg_lines = [
         f"📊 PAPER TRADING EOD — {today_str}",
         "",
-        f"Trades: {total_trades} | Filled: {daily_stats.get('filled', 0)}/{total_trades}",
-        f"TP1: {daily_stats.get('tp1_hits', 0)} | TP2: {daily_stats.get('tp2_hits', 0)} | SL: {daily_stats.get('sl_hits', 0)} | MOC: {daily_stats.get('moc_exits', 0)}",
+        f"P&L: ${daily_pnl:+,.2f} ({daily_pnl / INITIAL_CAPITAL * 100:+.2f}%) | Cum: ${cum_pnl:+,.0f} ({cum_pct:+.2f}%) [Day {trading_days}/63]",
+        f"TP1: {daily_stats.get('tp1_hits', 0)} | SL: {daily_stats.get('sl_hits', 0)} | MOC: {daily_stats.get('moc_exits', 0)}",
     ]
     ds_loss = daily_stats.get('loss_exit_hits', 0)
     ds_trail = daily_stats.get('trail_hits', 0)
     if ds_loss or ds_trail:
-        tg_lines.append(f"LOSS_EXIT: {ds_loss} | TRAIL: {ds_trail}")
-    tg_lines.extend([
-        "",
-        f"P&L today: ${daily_pnl:+,.2f} ({daily_pnl / INITIAL_CAPITAL * 100:+.2f}%)",
-        f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/21]",
-    ])
+        tg_lines.append(f"LOSS: {ds_loss} | TRAIL: {ds_trail}")
+
+    # Per-ticker P&L breakdown
+    if trades:
+        sorted_trades = sorted(trades, key=lambda t: t['pnl'], reverse=True)
+        ticker_lines = []
+        for t in sorted_trades:
+            icon = ""
+            if t == sorted_trades[0] and t['pnl'] > 0:
+                icon = " ✅"
+            elif t == sorted_trades[-1] and t['pnl'] < 0:
+                icon = " ❌"
+            ticker_lines.append(
+                f"{t['ticker']:<6} ${t['pnl']:>+8.2f}  {t['exit_type']}{icon}"
+            )
+        tg_lines.append(f"\n<pre>{chr(10).join(ticker_lines)}</pre>")
+
+    leftover_msg = "nincs ✅" if not positions else f"{len(positions)} ⚠️"
+    tg_lines.append(f"\nLeftover: {leftover_msg}")
 
     if cum_pnl <= CIRCUIT_BREAKER_USD:
-        tg_lines.extend([
-            "",
-            f"⚠️ CIRCUIT BREAKER ALERT",
-            f"Cumulative P&L: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%)",
-            f"Threshold reached. Test continues — review recommended.",
-        ])
+        tg_lines.append(f"⚠️ CB ALERT: ${cum_pnl:+,.0f} / ${CIRCUIT_BREAKER_USD:,}")
     else:
-        tg_lines.extend([
-            "",
-            f"Circuit breaker: ${cum_pnl:+,.0f} / ${CIRCUIT_BREAKER_USD:,} threshold",
-        ])
+        tg_lines.append(f"CB: ${cum_pnl:+,.0f} / ${CIRCUIT_BREAKER_USD:,}")
 
     send_telegram("\n".join(tg_lines))
 
