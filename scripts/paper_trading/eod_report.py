@@ -433,21 +433,21 @@ def main():
     args = parser.parse_args()
 
     today_str = date.today().isoformat()
-    print(f"\nEOD Report — {today_str}")
+    logger.info(f"EOD Report — {today_str}")
 
     # --- Dry-run mode: send Telegram from CSV or dummy data ---
     if args.dry_run:
-        print("[DRY RUN] — No IBKR connection\n")
+        logger.info("[DRY RUN] — No IBKR connection")
         trades, csv_path = load_latest_trades_csv()
         if trades:
-            print(f"Loaded {len(trades)} trades from {csv_path}")
+            logger.info(f"Loaded {len(trades)} trades from {csv_path}")
         else:
             trades = make_dummy_trades()
-            print("No trades CSV found — using dummy data")
+            logger.info("No trades CSV found — using dummy data")
 
         for t in trades:
             pnl_sign = '+' if t['pnl'] >= 0 else ''
-            print(f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}")
+            logger.info(f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}")
 
         daily_pnl = sum(t['pnl'] for t in trades)
         total_trades = len(trades)
@@ -468,8 +468,8 @@ def main():
             cum_pct = cum_data.get('cumulative_pnl_pct', 0.0)
             trading_days = cum_data.get('trading_days', 0)
 
-        print(f"\nP&L today: ${daily_pnl:+,.2f}")
-        print(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]")
+        logger.info(f"P&L today: ${daily_pnl:+,.2f}")
+        logger.info(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]")
 
         loss_exit_hits = len([t for t in trades if t['exit_type'] == 'LOSS_EXIT'])
         trail_hits_count = len([t for t in trades if t['exit_type'] == 'TRAIL'])
@@ -488,7 +488,7 @@ def main():
             f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]",
         ])
         send_telegram("\n".join(tg_lines))
-        print("Telegram sent.")
+        logger.info("Telegram sent.")
         return
 
     from lib.connection import connect, get_account, disconnect
@@ -515,7 +515,7 @@ def main():
     }
 
     if not todays_fills:
-        print("No fills today")
+        logger.info("No fills today")
         # Still cancel orders and update P&L with empty trades
         trades = []
     else:
@@ -526,10 +526,10 @@ def main():
         trades = build_trade_report(todays_fills, meta, pnl_by_symbol=pnl_by_symbol)
 
         # Print trade summary
-        print(f"\nTrades: {len(trades)}")
+        logger.info(f"Trades: {len(trades)}")
         for t in trades:
             pnl_sign = '+' if t['pnl'] >= 0 else ''
-            print(f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}")
+            logger.info(f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}")
 
     # --- Save daily CSV ---
     if trades:
@@ -542,8 +542,8 @@ def main():
     cum_pct = cum_data['cumulative_pnl_pct']
     trading_days = cum_data['trading_days']
 
-    print(f"\nP&L today: ${daily_pnl:+,.2f}")
-    print(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/21]")
+    logger.info(f"P&L today: ${daily_pnl:+,.2f}")
+    logger.info(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]")
 
     # --- Cancel all remaining orders ---
     open_orders = ib.openOrders()
@@ -555,9 +555,9 @@ def main():
         if remaining:
             logger.warning(f"Still {len(remaining)} orders after cancel!")
         else:
-            print(f"Cancelled {len(open_orders)} remaining orders")
+            logger.info(f"Cancelled {len(open_orders)} remaining orders")
     else:
-        print("No open orders to cancel")
+        logger.info("No open orders to cancel")
 
     # --- Verify clean state ---
     positions = [
@@ -618,7 +618,7 @@ def main():
     send_telegram("\n".join(tg_lines))
 
     disconnect(ib)
-    print("\nDone.")
+    logger.info("Done.")
 
 
 if __name__ == '__main__':

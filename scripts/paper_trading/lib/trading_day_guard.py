@@ -4,6 +4,7 @@ Call ``check_trading_day()`` at the start of every PT script's ``main()``.
 Exits cleanly if NYSE is closed today (holiday or weekend).
 """
 
+import logging
 import os
 import sys
 
@@ -31,5 +32,5 @@ def check_trading_day(logger=None) -> None:
         if logger:
             logger.info(msg)
         else:
-            print(msg)
+            logging.getLogger("trading_day_guard").info(msg)
         sys.exit(0)

@@ -130,7 +130,7 @@ def main():
     ib.reqPositions()
     ib.sleep(5)  # Wait for IBKR to push updated positions (total: 8s)
 
-    print(f"\nMOC Close — {today_str}")
+    logger.info(f"MOC Close — {today_str}")
     account = get_account(ib)
 
     from ib_insync import Stock, ExecutionFilter
@@ -144,9 +144,9 @@ def main():
         for order in open_orders:
             ib.cancelOrder(order)
         ib.sleep(2)
-        print(f"  Cancelled {len(open_orders)} open orders before MOC")
+        logger.info(f"Cancelled {len(open_orders)} open orders before MOC")
     else:
-        print("  No open orders to cancel")
+        logger.info("No open orders to cancel")
 
     # Fetch today's executions once for bracket fill detection (used by get_net_open_qty)
     todays_fills = ib.reqExecutions(
@@ -160,7 +160,7 @@ def main():
                  and p.contract.secType == 'STK']
 
     if not positions:
-        print("No positions to close")
+        logger.info("No positions to close")
         disconnect(ib)
         return
 
@@ -175,14 +175,13 @@ def main():
         net_qty = get_net_open_qty(sym, con_id, gross_qty, todays_fills)
 
         if net_qty == 0:
-            logger.info(f"{sym}: position fully closed intraday (TP/SL), skipping MOC")
-            print(f"  {sym}: SKIP — already closed (intraday TP/SL)")
+            logger.info(f"{sym}: SKIP — already closed (intraday TP/SL)")
             if evt:
                 evt.log("close", "position_skipped", ticker=sym, reason="fully_closed_intraday")
             continue
 
         if net_qty != gross_qty:
-            print(f"  {sym}: qty adjusted {gross_qty} → {net_qty} (intraday partial fill)")
+            logger.info(f"{sym}: qty adjusted {gross_qty} → {net_qty} (intraday partial fill)")
             if evt:
                 evt.log("close", "qty_adjusted", ticker=sym, gross_qty=gross_qty, net_qty=net_qty)
 
@@ -197,7 +196,7 @@ def main():
             order = create_moc_order(qty, account, action=action)
             ib.placeOrder(contract, order)
             moc_submitted.append((sym, qty, action))
-            print(f"  {sym}: MOC {action} {qty} shares")
+            logger.info(f"{sym}: MOC {action} {qty} shares")
             if evt:
                 evt.log("close", "moc_submitted", ticker=sym, qty=qty, action=action)
         else:
@@ -210,7 +209,7 @@ def main():
                 order = create_moc_order(leg_qty, account, action=action)
                 ib.placeOrder(contract, order)
                 moc_submitted.append((sym, leg_qty, action))
-                print(f"  {sym}: MOC {action} {leg_qty} shares (leg {leg}/{total_legs})")
+                logger.info(f"{sym}: MOC {action} {leg_qty} shares (leg {leg}/{total_legs})")
                 if evt:
                     evt.log("close", "moc_submitted", ticker=sym, qty=leg_qty, action=action, leg=leg, total_legs=total_legs)
                 remaining -= leg_qty
@@ -218,7 +217,7 @@ def main():
 
     ib.sleep(1)  # Let orders propagate
 
-    print(f"MOC submitted: {len(moc_submitted)} positions")
+    logger.info(f"MOC submitted: {len(moc_submitted)} positions")
 
     # Telegram notification — aggregate split legs per ticker
     if moc_submitted:

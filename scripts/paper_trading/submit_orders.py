@@ -177,7 +177,7 @@ def main():
     args = parser.parse_args()
 
     today_str = date.today().strftime('%Y-%m-%d')
-    print(f"\nIFDS Paper Trading — {today_str}")
+    logger.info(f"IFDS Paper Trading — {today_str}")
 
     # --- Test connection mode ---
     if args.test_connection:
@@ -187,7 +187,7 @@ def main():
         summary = ib.accountSummary(account)
         for item in summary:
             if item.tag in ('NetLiquidation', 'TotalCashValue', 'BuyingPower'):
-                print(f"  {item.tag}: ${float(item.value):,.2f}")
+                logger.info(f"  {item.tag}: ${float(item.value):,.2f}")
         disconnect(ib)
         return
 
@@ -203,7 +203,7 @@ def main():
         logger.error("No execution plan CSV found. Exiting.")
         sys.exit(0)
 
-    print(f"Reading: {csv_path.name}")
+    logger.info(f"Reading: {csv_path.name}")
 
     # --- Load tickers ---
     tickers = load_execution_plan(csv_path)
@@ -244,7 +244,7 @@ def main():
 
     # --- Dry run mode ---
     if args.dry_run:
-        print(f"\n[DRY RUN] — No IBKR connection\n")
+        logger.info("[DRY RUN] — No IBKR connection")
         exposure = 0.0
         submitted = 0
         submitted_tickers = []
@@ -254,19 +254,19 @@ def main():
             ticker_exposure = t['limit_price'] * t['total_qty']
             if exposure + ticker_exposure > MAX_DAILY_EXPOSURE:
                 skipped.append(t['symbol'])
-                print(f"  [EXPOSURE LIMIT] Skipping {t['symbol']} — would exceed ${MAX_DAILY_EXPOSURE:,} daily limit")
+                logger.warning(f"[EXPOSURE LIMIT] Skipping {t['symbol']} — would exceed ${MAX_DAILY_EXPOSURE:,} daily limit")
                 continue
 
             exposure += ticker_exposure
             submitted += 1
             submitted_tickers.append(t['symbol'])
-            print(f"  {t['symbol']}: {t['direction']} {t['total_qty']} @ ${t['limit_price']} | SL ${t['stop_loss']}")
-            print(f"    Bracket A: {t['qty_tp1']} shares → TP1 ${t['take_profit_1']}")
-            print(f"    Bracket B: {t['qty_tp2']} shares → TP2 ${t['take_profit_2']}")
+            logger.info(f"  {t['symbol']}: {t['direction']} {t['total_qty']} @ ${t['limit_price']} | SL ${t['stop_loss']}")
+            logger.info(f"    Bracket A: {t['qty_tp1']} shares → TP1 ${t['take_profit_1']}")
+            logger.info(f"    Bracket B: {t['qty_tp2']} shares → TP2 ${t['take_profit_2']}")
 
-        print(f"\nWould submit: {submitted} tickers ({submitted * 2} brackets) | Exposure: ${exposure:,.0f}")
+        logger.info(f"Would submit: {submitted} tickers ({submitted * 2} brackets) | Exposure: ${exposure:,.0f}")
         if skipped:
-            print(f"Skipped (exposure limit): {', '.join(skipped)}")
+            logger.warning(f"Skipped (exposure limit): {', '.join(skipped)}")
 
         if submitted > 0:
             tg_msg = (
@@ -276,7 +276,7 @@ def main():
                 f"Tickers: {', '.join(submitted_tickers)}"
             )
             send_telegram(tg_msg)
-            print("Telegram sent.")
+            logger.info("Telegram sent.")
         return
 
     # --- Live mode ---
@@ -295,7 +295,6 @@ def main():
     submitted_tickers = []
     skipped = []
 
-    print()
     for t in tickers:
         sym = t['symbol']
 
@@ -310,7 +309,7 @@ def main():
         ticker_exposure = t['limit_price'] * t['total_qty']
         if exposure + ticker_exposure > MAX_DAILY_EXPOSURE:
             skipped.append(sym)
-            print(f"  [EXPOSURE LIMIT] Skipping {sym} — would exceed ${MAX_DAILY_EXPOSURE:,} daily limit")
+            logger.warning(f"[EXPOSURE LIMIT] Skipping {sym} — would exceed ${MAX_DAILY_EXPOSURE:,} daily limit")
             continue
 
         # Validate contract
@@ -347,15 +346,15 @@ def main():
         submitted += 1
         submitted_tickers.append(sym)
 
-        print(f"  {sym}: {t['direction']} {t['total_qty']} @ ${t['limit_price']} | SL ${t['stop_loss']}")
-        print(f"    Bracket A: {t['qty_tp1']} shares → TP1 ${t['take_profit_1']}")
-        print(f"    Bracket B: {t['qty_tp2']} shares → TP2 ${t['take_profit_2']}")
+        logger.info(f"  {sym}: {t['direction']} {t['total_qty']} @ ${t['limit_price']} | SL ${t['stop_loss']}")
+        logger.info(f"    Bracket A: {t['qty_tp1']} shares → TP1 ${t['take_profit_1']}")
+        logger.info(f"    Bracket B: {t['qty_tp2']} shares → TP2 ${t['take_profit_2']}")
 
     ib.sleep(1)  # Let orders propagate
 
-    print(f"\nSubmitted: {submitted} tickers ({submitted * 2} brackets) | Exposure: ${exposure:,.0f}")
+    logger.info(f"Submitted: {submitted} tickers ({submitted * 2} brackets) | Exposure: ${exposure:,.0f}")
     if skipped:
-        print(f"Skipped (exposure limit): {', '.join(skipped)}")
+        logger.warning(f"Skipped (exposure limit): {', '.join(skipped)}")
 
     # Telegram notification
     if submitted > 0:
