@@ -1,12 +1,12 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-05 ~20:00 Budapest, CC -->
+<!-- Utolsó frissítés: 2026-04-06 ~23:30 Budapest, CC -->
 
 ## Paper Trading
 Day 33/63 | cum. PnL: −$1,113.16 (−1.11%) | IBKR DUH118657
 **Hétfőtől (ápr 6): Swing Hybrid Exit éles — 5 napos holding**
 Deployment checklist: `docs/tasks/2026-04-03-monday-deployment-checklist.md`
-**Mac Mini kész**: git pull + crontab beállítva (egyszeri Phase 1-3 hétfő 14:00)
+**Mac Mini**: crontab kész, git pull szükséges (print→logger + Telegram redesign)
 
 ## Lezárt BC-k + fixek (2026-04-03)
 
@@ -20,7 +20,8 @@ Deployment checklist: `docs/tasks/2026-04-03-monday-deployment-checklist.md`
 | Telegram Split | `8c0bd30` | — |
 | Leftover fix + Skip day | 2 commit | — |
 | Code Review Fixes | `fd92eda` | — |
-| **Összesen: 21 commit** | | **+199 teszt** |
+| PT print→logger + Telegram redesign | `cceb2d1` `e17b3f2` | — |
+| **Összesen: 23 commit** | | **+199 teszt** |
 
 Teszt baseline: **1092 → 1291**
 
