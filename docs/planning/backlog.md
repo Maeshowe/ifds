@@ -1,6 +1,6 @@
 # IFDS — Fejlesztési Backlog
 <!-- Frissíti: Chat/CC, in-place — nincs dátum a névben -->
-<!-- Utolsó frissítés: 2026-04-02 -->
+<!-- Utolsó frissítés: 2026-04-07 -->
 
 ## Ami KÉSZ van (BC1-19 + quick wins)
 
@@ -15,6 +15,34 @@
 ---
 
 ## Parkolt / Backlog (nem ütemezett)
+
+### Company Intel áthelyezés a 15:45-ös intraday futáshoz (BC20A follow-up)
+**Mikor:** Backlog, P2 — nem sürgős
+**Prioritás:** P2
+
+**Probléma:** A `company_intel.py` jelenleg a 22:00-ás esti pipeline részeként fut (piaczárás után). Ekkor már nincs akciózási lehetőség — a pozíciók 15:45-kor nyíltak, az intel post-mortem-mé válik.
+
+**Javasolt megoldás:** A Company Intel-t a `deploy_intraday.sh` végére tenni, közvetlenül a submit után:
+
+```bash
+# scripts/deploy_intraday.sh
+python -m ifds run --phases 4-6
+python scripts/paper_trading/submit_orders.py
+python scripts/company_intel.py --telegram   # ÚJ: a frissen submitolt tickerekre
+```
+
+**Előny:** Az intel ~15:50-kor érkezik Telegram-on, pont amikor a pozíciók nyílnak. Még van idő reagálni:
+- CONTRADICTION súlyos → `nuke.py` egyetlen tickerre
+- Earnings/news risk → kézi monitoring
+
+**Érintett:**
+- `scripts/deploy_intraday.sh` — sor hozzáadása
+- `scripts/deploy_daily.sh` — Company Intel ELTÁVOLÍTÁSA a 22:00-ás futásból
+- `scripts/company_intel.py` — ellenőrizni hogy a frissen submitolt tickereket olvassa-e (execution_plan_*.csv vagy state/open_positions.json alapján)
+
+**Miért nem most:** A pipeline split (BC20A) most került élesbe. Először stabilizáljuk a 15:45-ös flow-t (Phase 4-6 ctx load + submit), utána bővítjük az intel-lel.
+
+---
 
 ### GEX Call Wall TP1 Override + AVWAP TP1 Újraszámítás
 **Mikor:** Ha VIX ~15 körül lesz (normál piac)
