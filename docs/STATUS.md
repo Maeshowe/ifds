@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-06 ~23:30 Budapest, CC -->
+<!-- Utolsó frissítés: 2026-04-07 Budapest, CC -->
 
 ## Paper Trading
 Day 33/63 | cum. PnL: −$1,113.16 (−1.11%) | IBKR DUH118657
@@ -21,7 +21,8 @@ Deployment checklist: `docs/tasks/2026-04-03-monday-deployment-checklist.md`
 | Leftover fix + Skip day | 2 commit | — |
 | Code Review Fixes | `fd92eda` | — |
 | PT print→logger + Telegram redesign | `cceb2d1` `e17b3f2` | — |
-| **Összesen: 23 commit** | | **+199 teszt** |
+| Pipeline Split ctx load fix (P0) | `fa00a0e` | +3 |
+| **Összesen: 24 commit** | | **+202 teszt** |
 
 Teszt baseline: **1092 → 1291**
 
@@ -52,7 +53,7 @@ Teszt baseline: **1092 → 1291**
 - Day 63 kiértékelés (~máj 14): Paper→éles döntés
 
 ## Tesztek
-1291 passing, 0 failure
+1294 passing, 0 failure
 
 ## Blokkolók
 nincs
