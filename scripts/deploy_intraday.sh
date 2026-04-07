@@ -11,6 +11,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Redirect all output to a daily intraday cron log
+mkdir -p logs
+LOG_FILE="logs/cron_intraday_$(date +%Y%m%d_%H%M%S).log"
+exec >> "$LOG_FILE" 2>&1
+
 echo "=== IFDS Intraday Pipeline (Phase 4-6) ==="
 echo "$(date '+%Y-%m-%d %H:%M:%S') Starting..."
 

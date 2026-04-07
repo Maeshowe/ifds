@@ -12,7 +12,7 @@ import glob
 import json
 import os
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -227,6 +227,25 @@ def main():
     if not csv_path or not csv_path.exists():
         logger.error("No execution plan CSV found. Exiting.")
         sys.exit(0)
+
+    # --- Stale CSV guard: refuse to submit with execution plans older than today ---
+    csv_stem = csv_path.stem  # e.g. "execution_plan_run_20260407_153012"
+    csv_date_str = None
+    for part in csv_stem.split('_'):
+        if len(part) == 8 and part.isdigit():
+            csv_date_str = part
+            break
+    if csv_date_str:
+        csv_date = datetime.strptime(csv_date_str, "%Y%m%d").date()
+        if csv_date != date.today():
+            msg = (
+                f"STALE CSV — refusing to submit. "
+                f"Latest execution plan is from {csv_date} (today: {date.today()}). "
+                f"Phase 4-6 may have failed to generate today's plan."
+            )
+            logger.error(msg)
+            send_telegram(f"⚠️ {msg}")
+            sys.exit(1)
 
     logger.info(f"Reading: {csv_path.name}")
 

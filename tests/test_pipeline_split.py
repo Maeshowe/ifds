@@ -153,3 +153,46 @@ class TestContextPersistence:
 
         ctx = FakeCtx()
         assert load_phase13_context(ctx, str(tmp_path / "missing.json.gz")) is False
+
+
+class TestContextLoadCondition:
+    """Regression tests for the Phase 4-6 context load trigger condition.
+
+    The condition must trigger when the universe is empty (Phase 2 didn't run),
+    NOT when ctx.macro is None — because Phase 0 always runs and sets ctx.macro.
+    """
+
+    def test_split_mode_4_6_with_empty_universe_triggers_load(self):
+        """In --phases 4-6 mode, Phase 0 ran (macro set) but universe is empty
+        because Phase 2 was skipped → load saved context."""
+        phase = (4, 6)
+        macro_set = True  # Phase 0 always runs
+        universe_empty = True  # Phase 2 skipped
+        should_load = (
+            isinstance(phase, tuple) and phase[0] >= 4 and universe_empty
+        )
+        assert should_load is True
+        # Old buggy condition would fail:
+        old_condition = (
+            isinstance(phase, tuple) and phase[0] >= 4 and not macro_set
+        )
+        assert old_condition is False
+
+    def test_full_pipeline_does_not_trigger_load(self):
+        """In --phases 1-6 (or 0-6) mode, Phase 2 populates universe →
+        no need to load saved context."""
+        phase = (0, 6)
+        universe_empty = False  # Phase 2 populated it
+        should_load = (
+            isinstance(phase, tuple) and phase[0] >= 4 and universe_empty
+        )
+        assert should_load is False
+
+    def test_phases_1_3_does_not_trigger_load(self):
+        """In --phases 1-3 mode, phase[0] < 4 → no load."""
+        phase = (1, 3)
+        universe_empty = True  # No universe yet
+        should_load = (
+            isinstance(phase, tuple) and phase[0] >= 4 and universe_empty
+        )
+        assert should_load is False

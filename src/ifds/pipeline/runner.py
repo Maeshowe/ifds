@@ -287,7 +287,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
             logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
                        message="Phase 1-3 context saved to state/phase13_ctx.json.gz")
 
-        if isinstance(phase, tuple) and phase[0] >= 4 and ctx.macro is None:
+        if isinstance(phase, tuple) and phase[0] >= 4 and not ctx.universe:
             from ifds.pipeline.context_persistence import load_phase13_context
             if load_phase13_context(ctx):
                 logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
