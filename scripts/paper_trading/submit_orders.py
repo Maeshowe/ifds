@@ -395,7 +395,38 @@ def main():
         logger.info(f"    Bracket A: {t['qty_tp1']} shares → TP1 ${t['take_profit_1']}")
         logger.info(f"    Bracket B: {t['qty_tp2']} shares → TP2 ${t['take_profit_2']}")
 
-    ib.sleep(1)  # Let orders propagate
+    ib.sleep(3)  # Let orders propagate fully before final status check
+
+    # --- Post-submission verification ---
+    # Count orders actually visible in IBKR openOrders / openTrades.
+    # If submit_bracket reported success but IBKR has no orders → hard fail.
+    try:
+        ib_open_refs = {
+            getattr(t.order, "orderRef", "")
+            for t in ib.openTrades()
+            if getattr(t.order, "orderRef", "").startswith("IFDS_")
+        }
+        expected_refs = {f"IFDS_{sym}_A" for sym in submitted_tickers} | {
+            f"IFDS_{sym}_B" for sym in submitted_tickers
+        }
+        missing = expected_refs - ib_open_refs
+        if missing:
+            logger.warning(
+                f"POST-SUBMIT VERIFICATION: {len(missing)} expected entry orders "
+                f"NOT visible in IBKR openTrades: {sorted(missing)}"
+            )
+            if evt:
+                evt.log(
+                    "submit", "post_submit_missing_orders",
+                    missing=sorted(missing), expected=len(expected_refs),
+                )
+        else:
+            logger.info(
+                f"POST-SUBMIT VERIFICATION: all {len(expected_refs)} entry "
+                f"orders visible in IBKR openTrades"
+            )
+    except Exception as e:
+        logger.warning(f"POST-SUBMIT VERIFICATION failed: {e}")
 
     logger.info(f"Submitted: {submitted} tickers ({submitted * 2} brackets) | Exposure: ${exposure:,.0f}")
     if skipped:
