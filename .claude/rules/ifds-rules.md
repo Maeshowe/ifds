@@ -5,6 +5,33 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## IBKR Paper Account — Adaptive algo silent reject (rule, 2026-04-08)
+
+Az IBKR paper account (DUH118657) csendben elutasítja az `algoStrategy='Adaptive'`
+(vagy bármilyen algo) ordereket. **Nincs error, nincs log entry, nincs bejegyzés
+az Orders tab-ban, és `ib.placeOrder()` normálisan tér vissza.** Ezért a submit
+script tud "Submitted: 8 tickers"-t logolni, miközben 0 order van az IBKR-ben.
+
+**Szabályok:**
+
+1. Paper account entry order → `MarketOrder` (vagy `LimitOrder`) **algoStrategy NÉLKÜL**.
+   SOHA ne használj `algoStrategy='Adaptive'`-t paper accounton.
+
+2. Minden `ib.placeOrder()` után KÖTELEZŐ `ib.sleep(~1-2s)` + `trade.orderStatus.status`
+   ellenőrzés. Valid státuszok:
+   `{PreSubmitted, Submitted, Filled, PendingSubmit, PendingCancel}`.
+   Bármi más (`Cancelled`, `Inactive`, `ApiCancelled` stb.) silent rejection
+   → WARNING log az `orderRef` + teljes `trade.log` entries-szel.
+
+3. Bracket submit után post-submit verification: `ib.openTrades()` cross-check
+   a várt `orderRef` halmaz ellen. Hiányzó entry = silent reject.
+
+**Referencia:** `72d5655` (status check), `788cf6d` (MarketOrder switch),
+`tests/test_submit_bracket_status_check.py` (10 regression teszt),
+`scripts/paper_trading/lib/orders.py::create_day_bracket` + `submit_bracket`.
+
+---
+
 ## IBKR Paper Trading — ClientId collision (rule, 2026-02-21)
 
 Minden script KÖTELEZŐEN egyedi clientId-t használ:
