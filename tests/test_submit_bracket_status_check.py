@@ -146,3 +146,122 @@ class TestSubmitBracketStatusCheck:
         assert trades == []
         fake_ib.placeOrder.assert_not_called()
         fake_ib.sleep.assert_not_called()
+
+
+class TestCreateDayBracketEntryType:
+    """Regression tests for BC20A_3 MKT entry requirement.
+
+    The previous implementation used LimitOrder with Adaptive algo, which
+    IBKR paper accounts silently rejected. Entry must now be MarketOrder
+    with no algoStrategy / algoParams.
+    """
+
+    def _make_ib(self):
+        ib = MagicMock()
+        # getReqId returns monotonically increasing IDs
+        counter = {"n": 1000}
+
+        def next_id():
+            counter["n"] += 1
+            return counter["n"]
+
+        ib.client.getReqId.side_effect = next_id
+        return ib
+
+    def test_entry_is_market_order(self):
+        from ib_insync import MarketOrder
+
+        from scripts.paper_trading.lib.orders import create_day_bracket
+
+        ib = self._make_ib()
+        contract = MagicMock(symbol="AAPL")
+        entry, tp, sl = create_day_bracket(
+            ib, contract, action="BUY", qty=100,
+            limit_price=150.25, tp_price=155.00, sl_price=145.00,
+            account="DUH118657", tag_suffix="AAPL_A",
+        )
+        assert isinstance(entry, MarketOrder)
+        assert entry.action == "BUY"
+        assert entry.totalQuantity == 100
+        assert entry.tif == "DAY"
+        assert entry.orderRef == "IFDS_AAPL_A"
+        assert entry.transmit is False
+
+    def test_entry_has_no_adaptive_algo(self):
+        """BC20A_3 requires no algoStrategy — paper account rejects Adaptive."""
+        from scripts.paper_trading.lib.orders import create_day_bracket
+
+        ib = self._make_ib()
+        contract = MagicMock(symbol="AAPL")
+        entry, _, _ = create_day_bracket(
+            ib, contract, action="BUY", qty=100,
+            limit_price=150.25, tp_price=155.00, sl_price=145.00,
+            account="DUH118657", tag_suffix="AAPL_A",
+        )
+        # ib_insync Order defaults algoStrategy to empty string, not None
+        assert not getattr(entry, "algoStrategy", ""), (
+            "Entry order must not use an IBKR algoStrategy "
+            "(paper accounts silently reject Adaptive)"
+        )
+        assert not getattr(entry, "algoParams", None), (
+            "Entry order must not carry algoParams"
+        )
+
+    def test_entry_has_no_lmt_price(self):
+        """MarketOrder must leave lmtPrice at IBKR's UNSET sentinel."""
+        import sys
+
+        from scripts.paper_trading.lib.orders import create_day_bracket
+
+        ib = self._make_ib()
+        contract = MagicMock(symbol="AAPL")
+        entry, _, _ = create_day_bracket(
+            ib, contract, action="BUY", qty=100,
+            limit_price=150.25, tp_price=155.00, sl_price=145.00,
+            account="DUH118657", tag_suffix="AAPL_A",
+        )
+        # ib_insync uses sys.float_info.max as the "unset" sentinel
+        # for numeric Order fields. A real lmtPrice would be much smaller.
+        lmt = getattr(entry, "lmtPrice", 0)
+        assert lmt == sys.float_info.max or lmt == 0, (
+            f"MarketOrder should leave lmtPrice unset, got {lmt}"
+        )
+
+    def test_bracket_children_unchanged(self):
+        """TP must be LimitOrder, SL must be StopOrder, both DAY TIF."""
+        from ib_insync import LimitOrder, StopOrder
+
+        from scripts.paper_trading.lib.orders import create_day_bracket
+
+        ib = self._make_ib()
+        contract = MagicMock(symbol="AAPL")
+        entry, tp, sl = create_day_bracket(
+            ib, contract, action="BUY", qty=100,
+            limit_price=150.25, tp_price=155.00, sl_price=145.00,
+            account="DUH118657", tag_suffix="AAPL_A",
+        )
+        assert isinstance(tp, LimitOrder)
+        assert tp.action == "SELL"
+        assert tp.lmtPrice == 155.00
+        assert tp.parentId == entry.orderId
+        assert tp.transmit is False
+
+        assert isinstance(sl, StopOrder)
+        assert sl.action == "SELL"
+        assert sl.auxPrice == 145.00
+        assert sl.parentId == entry.orderId
+        assert sl.transmit is True  # Last child transmits all
+
+    def test_sell_action_flips_exits_to_buy(self):
+        from scripts.paper_trading.lib.orders import create_day_bracket
+
+        ib = self._make_ib()
+        contract = MagicMock(symbol="AAPL")
+        entry, tp, sl = create_day_bracket(
+            ib, contract, action="SELL", qty=50,
+            limit_price=150.00, tp_price=145.00, sl_price=155.00,
+            account="DUH118657", tag_suffix="AAPL_A",
+        )
+        assert entry.action == "SELL"
+        assert tp.action == "BUY"
+        assert sl.action == "BUY"

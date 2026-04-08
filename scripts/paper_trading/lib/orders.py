@@ -1,7 +1,7 @@
 """IBKR Paper Trading — Order Creation"""
 import logging
 
-from ib_insync import Stock, LimitOrder, StopOrder, MarketOrder, TagValue
+from ib_insync import LimitOrder, MarketOrder, Stock, StopOrder
 
 logger = logging.getLogger("submit")
 
@@ -28,7 +28,16 @@ def validate_contract(ib, symbol):
 
 def create_day_bracket(ib, contract, action, qty, limit_price, tp_price,
                        sl_price, account, tag_suffix=""):
-    """Create a single bracket order: Entry + TP + SL, all DAY TIF.
+    """Create a single bracket order: MKT entry + LMT TP + STP SL, all DAY TIF.
+
+    Per BC20A_3 scope: entry is a MarketOrder (immediate fill at open),
+    not a LimitOrder. The ``limit_price`` argument is kept for backwards
+    compatibility with callers and is used only as a reference price for
+    bracket construction — it is NOT applied to the MKT entry order.
+
+    The previous implementation used ``LimitOrder`` with ``algoStrategy='Adaptive'``,
+    which IBKR paper accounts silently rejected, resulting in submit_orders.py
+    logging "Submitted: N tickers" while the IBKR Orders tab remained empty.
 
     Returns (entry, tp, sl) order tuple.
     """
@@ -38,18 +47,15 @@ def create_day_bracket(ib, contract, action, qty, limit_price, tp_price,
 
     exit_action = 'SELL' if action == 'BUY' else 'BUY'
 
-    entry = LimitOrder(
+    entry = MarketOrder(
         action=action,
         totalQuantity=qty,
-        lmtPrice=round(limit_price, 2),
         orderId=entry_id,
         account=account,
         tif='DAY',
         outsideRth=False,
         orderRef=f"IFDS_{tag_suffix}",
         transmit=False,
-        algoStrategy='Adaptive',
-        algoParams=[TagValue('adaptivePriority', 'Normal')],
     )
 
     tp = LimitOrder(
