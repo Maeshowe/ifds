@@ -201,11 +201,40 @@ def main() -> None:
     active_tickers = [sym for sym in candidate_tickers if sym in ib_positions]
     phantom = set(candidate_tickers) - set(active_tickers)
     if phantom:
-        logger.warning(
-            f"Phantom tickers filtered out (no IBKR position): {sorted(phantom)}"
-        )
-        if evt:
-            evt.log("monitor", "phantom_filtered", tickers=sorted(phantom))
+        # Dedup: WARNING only for first occurrence per ticker per day.
+        # Subsequent cycles log at DEBUG to avoid swamping the log.
+        phantom_log_path = f"{STATE_DIR}/phantom_logged_{today_str}.json"
+        already_logged: set[str] = set()
+        if os.path.exists(phantom_log_path):
+            try:
+                with open(phantom_log_path) as f:
+                    already_logged = set(json.load(f))
+            except (json.JSONDecodeError, OSError):
+                already_logged = set()
+
+        new_phantoms = phantom - already_logged
+        repeat_phantoms = phantom & already_logged
+
+        if new_phantoms:
+            logger.warning(
+                f"Phantom tickers filtered out (no IBKR position): "
+                f"{sorted(new_phantoms)}"
+            )
+            if evt:
+                evt.log(
+                    "monitor", "phantom_filtered", tickers=sorted(new_phantoms)
+                )
+            try:
+                with open(phantom_log_path, "w") as f:
+                    json.dump(sorted(already_logged | new_phantoms), f)
+            except OSError as e:
+                logger.warning(f"Could not persist phantom_logged file: {e}")
+
+        if repeat_phantoms:
+            logger.debug(
+                f"Phantom tickers (already warned today): "
+                f"{sorted(repeat_phantoms)}"
+            )
     if not active_tickers:
         logger.debug("All candidate tickers are phantom — nothing to monitor.")
         disconnect(ib)

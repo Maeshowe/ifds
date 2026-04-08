@@ -398,32 +398,48 @@ def main():
     ib.sleep(3)  # Let orders propagate fully before final status check
 
     # --- Post-submission verification ---
-    # Count orders actually visible in IBKR openOrders / openTrades.
-    # If submit_bracket reported success but IBKR has no orders → hard fail.
+    # MKT entry orders may fill instantly and disappear from openTrades(). A
+    # ticker is considered successfully submitted if EITHER:
+    #   - its entry orderRef (IFDS_{sym}_A or _B) is visible in openTrades(), OR
+    #   - a position exists for the ticker in ib.positions() (instant fill)
+    # A WARNING fires only when a ticker is missing from BOTH sources.
     try:
         ib_open_refs = {
             getattr(t.order, "orderRef", "")
             for t in ib.openTrades()
             if getattr(t.order, "orderRef", "").startswith("IFDS_")
         }
-        expected_refs = {f"IFDS_{sym}_A" for sym in submitted_tickers} | {
-            f"IFDS_{sym}_B" for sym in submitted_tickers
+        ib_position_syms = {
+            p.contract.symbol
+            for p in ib.positions()
+            if p.position != 0
         }
-        missing = expected_refs - ib_open_refs
-        if missing:
+
+        missing_tickers = []
+        for sym in submitted_tickers:
+            has_open_order = (
+                f"IFDS_{sym}_A" in ib_open_refs or f"IFDS_{sym}_B" in ib_open_refs
+            )
+            has_position = sym in ib_position_syms
+            if not has_open_order and not has_position:
+                missing_tickers.append(sym)
+
+        if missing_tickers:
             logger.warning(
-                f"POST-SUBMIT VERIFICATION: {len(missing)} expected entry orders "
-                f"NOT visible in IBKR openTrades: {sorted(missing)}"
+                f"POST-SUBMIT VERIFICATION: {len(missing_tickers)} tickers "
+                f"NOT visible in IBKR (no open order, no position): "
+                f"{sorted(missing_tickers)}"
             )
             if evt:
                 evt.log(
                     "submit", "post_submit_missing_orders",
-                    missing=sorted(missing), expected=len(expected_refs),
+                    missing=sorted(missing_tickers),
+                    expected=len(submitted_tickers),
                 )
         else:
             logger.info(
-                f"POST-SUBMIT VERIFICATION: all {len(expected_refs)} entry "
-                f"orders visible in IBKR openTrades"
+                f"POST-SUBMIT VERIFICATION: all {len(submitted_tickers)} tickers "
+                f"accounted for (open orders or filled positions)"
             )
     except Exception as e:
         logger.warning(f"POST-SUBMIT VERIFICATION failed: {e}")
@@ -454,9 +470,37 @@ def main():
 
     # --- Monitor state initialization ---
     if submitted > 0:
+        # Instant TP1 fill detection: with MKT entry, the entry may fill
+        # above TP1 (e.g. NSA 2026-04-08: entry $40.45, TP1 $40.00). IBKR
+        # triggers the child TP immediately, and the position enters the
+        # monitor cycle with tp1_filled already true. Query today's fills
+        # once and mark tickers whose IFDS_{sym}_A_TP or _B_TP is filled.
+        instant_tp1_filled: set[str] = set()
+        try:
+            from ib_insync import ExecutionFilter
+            todays_fills = ib.reqExecutions(
+                ExecutionFilter(time=date.today().strftime('%Y%m%d') + ' 00:00:00')
+            )
+            for f in todays_fills:
+                order_ref = getattr(f.execution, 'orderRef', '') or ''
+                if order_ref.startswith('IFDS_') and (
+                    order_ref.endswith('_A_TP') or order_ref.endswith('_B_TP')
+                ):
+                    # IFDS_{sym}_A_TP → sym
+                    sym = order_ref[len('IFDS_'):].rsplit('_', 2)[0]
+                    instant_tp1_filled.add(sym)
+            if instant_tp1_filled:
+                logger.info(
+                    f"Instant TP1 fill detected on submit: "
+                    f"{sorted(instant_tp1_filled)}"
+                )
+        except Exception as e:
+            logger.warning(f"Instant TP fill detection failed: {e}")
+
         monitor_state = {}
         for t in [tk for tk in tickers if tk['symbol'] in submitted_tickers]:
-            monitor_state[t['symbol']] = {
+            sym = t['symbol']
+            monitor_state[sym] = {
                 'entry_price': t['limit_price'],
                 'sl_distance': round(t['limit_price'] - t['stop_loss'], 4),
                 'tp1_price': t['take_profit_1'],
@@ -464,7 +508,7 @@ def main():
                 'stop_loss': t['stop_loss'],
                 'total_qty': t['total_qty'],
                 'qty_b': t['qty_tp2'],
-                'tp1_filled': False,
+                'tp1_filled': sym in instant_tp1_filled,
                 'trail_active': False,
                 'trail_scope': None,
                 'trail_sl_current': None,
