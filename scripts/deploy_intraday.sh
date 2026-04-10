@@ -31,4 +31,8 @@ python -m ifds run --phases 4-6
 echo "--- Submit Orders ---"
 python scripts/paper_trading/submit_orders.py
 
+# Company Intel (on freshly submitted tickers — actionable before market moves)
+echo "--- Company Intel ---"
+python scripts/company_intel.py --telegram 2>&1 || echo "Company Intel failed (non-blocking)"
+
 echo "$(date '+%Y-%m-%d %H:%M:%S') Done."
