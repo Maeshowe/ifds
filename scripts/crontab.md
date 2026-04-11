@@ -33,6 +33,10 @@
 # 22:05 Budapest = 16:05 EDT (fill-ek lezárultak)
 5 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/eod_report.py
 
+# Daily metrics — structured JSON for walk-forward measurement (BC23)
+# 22:10 Budapest = 16:10 EDT (EOD report után 5 perccel)
+10 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/daily_metrics.py
+
 # Events → SQLite import (log elemzéshez)
 # 22:45 Budapest = 16:45 EDT
 45 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/tools/events_to_sqlite.py
