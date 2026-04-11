@@ -29,10 +29,10 @@ CORE = {
 
     # Position Sizing
     "stop_loss_atr_multiple": 1.5,      # k in StopLoss = Entry - k * ATR
-    "tp1_atr_multiple": 0.75,          # TP1 = Entry + 0.75 * ATR (BC20A D3: intraday-reachable)
-    "tp2_atr_multiple": 3.0,           # TP2 = Entry + 3 * ATR
+    "tp1_atr_multiple": 1.5,           # BC23: 1:1 R:R (was 0.75 → 0.5:1)
+    "tp2_atr_multiple": 2.0,           # BC23: reachable swing target (was 3.0 → 0.4% hit rate)
     "scale_out_atr_multiple": 2.0,     # Scale-out trigger at 2 * ATR
-    "scale_out_pct": 0.33,             # Close 33% at scale-out
+    "scale_out_pct": 0.50,             # BC23: equal bracket split (was 0.33)
 
     # Sector BMI
     "sector_bmi_min_signals": 5,       # Min buy+sell signals per sector per day
@@ -63,14 +63,14 @@ CORE = {
 
     # Freshness Alpha
     "freshness_lookback_days": 90,     # Days before signal is "fresh"
-    "freshness_bonus": 1.5,            # Score multiplier for fresh signals
+    "freshness_bonus": 1.0,            # BC23: disabled (was 1.5 — inverse quintile pattern)
 
     # Clipping Logic
     "clipping_threshold": 95,          # Score above this = crowded trade → SKIP
 
     # Scoring Weights
-    "weight_flow": 0.40,               # Flow Analysis weight
-    "weight_fundamental": 0.30,        # Fundamental weight
+    "weight_flow": 0.60,               # BC23: flow-first (was 0.40 — only component with weak alpha)
+    "weight_fundamental": 0.10,        # BC23: reduced (was 0.30 — no P&L correlation)
     "weight_technical": 0.30,          # Technical weight
 }
 
@@ -204,10 +204,10 @@ TUNING = {
 
     # Correlation Guard — sector group limits (BC21)
     "correlation_guard_enabled": True,
-    "sector_group_max_cyclical": 5,
-    "sector_group_max_defensive": 4,
-    "sector_group_max_financial": 3,
-    "sector_group_max_commodity": 3,
+    "sector_group_max_cyclical": 3,    # BC23: rescaled for 5 positions (was 5)
+    "sector_group_max_defensive": 2,    # BC23: was 4
+    "sector_group_max_financial": 2,    # BC23: was 3
+    "sector_group_max_commodity": 2,    # BC23: was 3
 
     # Portfolio VaR (BC21)
     "portfolio_var_enabled": True,
@@ -240,7 +240,10 @@ TUNING = {
     "target_severe_penalty": 0.60,
 
     # Sector Diversification
-    "max_positions_per_sector": 3,
+    "max_positions_per_sector": 2,     # BC23: was 3
+
+    # Dynamic Position Threshold (BC23)
+    "dynamic_position_score_threshold": 85,  # Only tickers above this score get capital
 
     # Options Flow Scoring (BC9)
     "pcr_bullish_threshold": 0.7,              # PCR < 0.7 → bullish bonus
@@ -281,7 +284,7 @@ TUNING = {
 
     # SMA50 & RS vs SPY (BC9)
     "sma50_bonus": 30,                         # price > SMA50 → +30
-    "rs_spy_bonus": 40,                        # 3-month outperformance vs SPY → +40
+    "rs_spy_bonus": 15,                        # BC23: reduced (was 40 — momentum chasing)
 
     # Call Wall ATR Filter (BC12)
     "call_wall_max_atr_distance": 5.0,         # Max ATR multiples from price to call wall
@@ -322,7 +325,7 @@ TUNING = {
     },
 
     # MMS (BC15)
-    "mms_enabled": True,                               # BC18B: activated (25-day baseline)
+    "mms_enabled": False,                              # BC23: disabled (93/100 undetermined, flat 0.75×)
     "mms_store_always_collect": True,                  # Accumulate feature store even when disabled
     "mms_regime_multipliers": {                        # Phase 6 sizing multipliers per regime
         "gamma_positive": 1.5,
@@ -367,12 +370,12 @@ TUNING = {
 RUNTIME = {
     # Account
     "account_equity": 100_000,          # USD
-    "risk_per_trade_pct": 0.5,          # 0.5% per trade
+    "risk_per_trade_pct": 0.7,          # BC23: fewer but larger (was 0.5, 5×0.7%=3.5%)
 
     # Position Limits
-    "max_positions": 8,
+    "max_positions": 5,                 # BC23: quality over quantity (was 8)
     "max_single_position_risk_pct": 1.5,
-    "max_gross_exposure": 100_000,
+    "max_gross_exposure": 80_000,       # BC23: 5 positions (was 100k for 8)
     "max_single_ticker_exposure": 20_000,
 
     # API Keys (MUST be loaded from env vars, never hardcoded)

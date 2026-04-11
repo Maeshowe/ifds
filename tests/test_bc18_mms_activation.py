@@ -101,10 +101,10 @@ def _make_macro(vix_mult=1.0):
 # ---------------------------------------------------------------------------
 
 
-def test_mms_enabled_default_true():
-    """MMS enabled by default in BC18B config."""
+def test_mms_enabled_default_false():
+    """BC23: MMS disabled by default (was True in BC18B)."""
     from ifds.config.defaults import TUNING
-    assert TUNING["mms_enabled"] is True
+    assert TUNING["mms_enabled"] is False
 
 
 def test_factor_volatility_enabled_default_true():

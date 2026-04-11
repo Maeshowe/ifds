@@ -567,37 +567,23 @@ def _calculate_multiplier_total(
     utility_threshold = config.tuning["multiplier_utility_threshold"]
     utility_max = config.tuning["multiplier_utility_max"]
 
-    # M_flow: base + rvol_score > threshold
-    flow_score = _BASE_SCORE + stock.flow.rvol_score
-    m_flow = flow_value if flow_score > flow_threshold else 1.0
+    # BC23: Simplified multiplier chain — only 3 active multipliers.
+    # M_flow, M_insider, M_funda, M_utility fixed at 1.0 (scoring validation:
+    # these did not correlate with P&L and added noise to position sizing).
+    m_flow = 1.0
+    m_insider = 1.0
+    m_funda = 1.0
+    m_utility = 1.0
 
-    # M_insider: directly from fundamental analysis
-    m_insider = stock.fundamental.insider_multiplier
-
-    # M_funda: base + funda_score < threshold → penalize
-    funda_score = _BASE_SCORE + stock.fundamental.funda_score
-    m_funda = funda_value if funda_score < funda_threshold else 1.0
-
-    # M_gex: from GEX analysis
+    # Active multipliers — protect against adverse conditions
     m_gex = gex.gex_multiplier
-
-    # M_vix: from macro regime
     m_vix = macro.vix_multiplier
-
-    # M_utility: scaled bonus for high combined scores
-    if stock.combined_score > utility_threshold:
-        m_utility = min(utility_max,
-                        1.0 + (stock.combined_score - utility_threshold) / 100)
-    else:
-        m_utility = 1.0
-
-    # M_target: analyst price target contradiction penalty
     m_target = _calculate_target_multiplier(
         stock.technical.price, stock.analyst_target, config
     )
 
     # Total product, clamped to [0.25, 2.0]
-    m_total = m_flow * m_insider * m_funda * m_gex * m_vix * m_utility * m_target
+    m_total = m_gex * m_vix * m_target
     m_total = max(0.25, min(2.0, m_total))
 
     multipliers = {
@@ -673,12 +659,7 @@ def _calculate_position(
                        data={"ticker": stock.ticker, "m_target": multipliers["m_target"],
                              "overshoot_pct": overshoot_pct})
 
-    # T5: BMI extreme oversold → aggressive sizing (BC18B)
-    if bmi_value is not None:
-        bmi_threshold = config.tuning.get("bmi_oversold_threshold", 25)
-        if bmi_value < bmi_threshold:
-            bmi_mult = config.tuning.get("bmi_oversold_multiplier", 1.25)
-            m_total = min(2.0, m_total * bmi_mult)
+    # T5: BMI oversold aggressive sizing REMOVED (BC23) — redundant with BMI guard
 
     adjusted_risk = base_risk * m_total
 
@@ -711,18 +692,13 @@ def _calculate_position(
     else:
         stop_loss = entry + stop_distance
 
-    # Take Profit 1: use call_wall if valid, else ATR-based
+    # Take Profit 1: always ATR-based (BC23: call_wall override removed —
+    # stale overnight GEX data + MKT entry caused instant negative TP fills)
     tp1_atr = config.core["tp1_atr_multiple"] * atr
     if strategy_mode == StrategyMode.LONG:
-        if gex.call_wall > 0 and gex.call_wall > entry:
-            tp1 = gex.call_wall
-        else:
-            tp1 = entry + tp1_atr
+        tp1 = entry + tp1_atr
     else:
-        if gex.put_wall > 0 and gex.put_wall < entry:
-            tp1 = gex.put_wall
-        else:
-            tp1 = entry - tp1_atr
+        tp1 = entry - tp1_atr
 
     # Take Profit 2: always ATR-based
     tp2_atr = config.core["tp2_atr_multiple"] * atr
@@ -820,7 +796,25 @@ def _apply_position_limits(
     Returns:
         (accepted positions, counts of exclusions by reason)
     """
-    max_positions = config.runtime["max_positions"]
+    # BC23: Dynamic position count — only tickers above score threshold get capital
+    score_threshold = config.tuning.get("dynamic_position_score_threshold", 0)
+    if score_threshold > 0:
+        qualified = [p for p in positions if p.combined_score >= score_threshold]
+        filtered_out = len(positions) - len(qualified)
+        if filtered_out > 0:
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
+                       message=f"[DYNAMIC] {len(qualified)}/{len(positions)} tickers "
+                               f"above threshold {score_threshold} — "
+                               f"{filtered_out} filtered out")
+        if not qualified:
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
+                       message=f"[DYNAMIC] No tickers above score threshold "
+                               f"{score_threshold} — no positions today")
+            return [], {"sector": 0, "position": len(positions), "risk": 0,
+                        "exposure": 0, "correlation": 0}
+        positions = qualified
+
+    max_positions = min(config.runtime["max_positions"], len(positions))
     max_per_sector = config.tuning["max_positions_per_sector"]
     max_risk_pct = config.runtime["max_single_position_risk_pct"]
     max_gross = config.runtime["max_gross_exposure"]

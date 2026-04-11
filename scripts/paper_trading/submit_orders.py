@@ -25,7 +25,7 @@ load_dotenv()
 
 MAX_DAILY_EXPOSURE = 100_000
 CIRCUIT_BREAKER_USD = -5_000
-SCALE_OUT_PCT = 0.33
+SCALE_OUT_PCT = 0.50  # BC23: equal bracket split (was 0.33)
 MIN_QUANTITY = 2
 
 EXECUTION_PLAN_DIR = 'output'

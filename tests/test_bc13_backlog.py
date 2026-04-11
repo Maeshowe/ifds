@@ -658,7 +658,7 @@ class TestNotionalLimits:
         config.runtime["daily_notional_file"] = str(tmp_path / "notional.json")
         config.runtime["daily_trades_file"] = str(tmp_path / "trades.json")
 
-        stocks = [_make_stock("AAPL", combined=80.0)]
+        stocks = [_make_stock("AAPL", combined=90.0)]
         gex_list = [_make_gex("AAPL")]
 
         run_phase6(

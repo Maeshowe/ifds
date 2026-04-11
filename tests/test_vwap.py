@@ -59,9 +59,9 @@ class TestVwapEntryCheck:
         """Price 3% above VWAP → REJECT."""
         assert vwap_entry_check(103.0, 100.0) == "REJECT"
 
-    def test_reduce_above_1_pct(self):
-        """Price 1.5% above VWAP → REDUCE."""
-        assert vwap_entry_check(101.5, 100.0) == "REDUCE"
+    def test_normal_above_1_pct(self):
+        """BC23: Price 1.5% above VWAP → NORMAL (REDUCE removed)."""
+        assert vwap_entry_check(101.5, 100.0) == "NORMAL"
 
     def test_boost_below_neg1_pct(self):
         """Price 2% below VWAP → BOOST."""
@@ -83,20 +83,19 @@ class TestVwapEntryCheck:
         assert vwap_entry_check(0.0, 100.0) == "NORMAL"
 
     def test_custom_thresholds(self):
-        """Custom reject/reduce/boost thresholds."""
+        """Custom reject/boost thresholds (BC23: REDUCE removed)."""
         # 5% above, reject at 3% → REJECT
         assert vwap_entry_check(105.0, 100.0, reject_pct=3.0) == "REJECT"
-        # 5% above, reject at 6%, reduce at 4% → REDUCE
-        assert vwap_entry_check(105.0, 100.0, reject_pct=6.0, reduce_pct=4.0) == "REDUCE"
+        # 5% above, reject at 6% → NORMAL (no REDUCE path)
+        assert vwap_entry_check(105.0, 100.0, reject_pct=6.0) == "NORMAL"
 
     def test_exact_boundary_reject(self):
         """Price exactly at reject boundary → REJECT (>2%)."""
         assert vwap_entry_check(102.01, 100.0) == "REJECT"
 
-    def test_exact_boundary_reduce(self):
-        """Price exactly at reduce boundary edge."""
-        # 1.01% above → REDUCE
-        assert vwap_entry_check(101.01, 100.0) == "REDUCE"
+    def test_exact_boundary_normal_above_1pct(self):
+        """BC23: Price 1.01% above VWAP → NORMAL (REDUCE removed)."""
+        assert vwap_entry_check(101.01, 100.0) == "NORMAL"
 
 
 class TestVwapDistancePct:

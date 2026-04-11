@@ -22,10 +22,6 @@
 # Minden script tartalmaz trading day guard-ot (NYSE holidays → exit 0)
 # =============================================================================
 
-# ─── EGYSZERI: hétfő ápr 6 Phase 1-3 (ctx.json.gz a 15:45-ös entry-hez) ────
-# TÖRÖLD hétfő 14:30-kor! Csak az első héthez kell, utána 22:00 cron csinálja.
-0 14 6 4 * /Users/safrtam/SSH-Services/ifds/scripts/deploy_daily.sh --phases 1-3
-
 # ─── ESTI PIPELINE (NYSE zárás után) ────────────────────────────────────────
 
 # Phase 1-3: BMI, Universe, Szektorok, Cross-Asset Regime
@@ -50,14 +46,14 @@
 # ─── PIACNYITÁS KÖRNYÉKE ────────────────────────────────────────────────────
 
 # Gateway health check — IBKR kapcsolat ellenőrzés
-# 15:30 Budapest = 09:30 EDT (NYSE open)
-# ⚠️ Ha FAIL → Gateway újraindítás MIELŐTT 15:45 jön!
-30 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/check_gateway.py
+# BC23: 16:00 Budapest = 10:00 EDT (15 perc a submit előtt)
+# ⚠️ Ha FAIL → Gateway újraindítás MIELŐTT 16:15 jön!
+0 16 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/check_gateway.py
 
 # Phase 4-6 + MKT entry — Scoring, GEX, VWAP, Sizing, Order submission
-# 15:45 Budapest = 09:45 EDT (15 perc NYSE open után)
+# BC23: 16:15 Budapest = 10:15 EDT (45 perc NYSE open után — opening range beáll)
 # Friss intraday árakból dolgozik, VWAP guard aktív
-45 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && ./scripts/deploy_intraday.sh
+15 16 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && ./scripts/deploy_intraday.sh
 
 # ─── INTRADAY MONITORING ────────────────────────────────────────────────────
 

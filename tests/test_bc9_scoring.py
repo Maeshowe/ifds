@@ -143,7 +143,7 @@ class TestSMA50AndRSvsSPY:
         spy_3m_return = 0.05  # SPY only returned 5%
         tech = _analyze_technical(bars, StrategyMode.LONG, config,
                                   spy_3m_return=spy_3m_return)
-        assert tech.rs_spy_score == 40
+        assert tech.rs_spy_score == 15  # BC23: reduced from 40
         assert tech.rs_vs_spy is not None
         assert tech.rs_vs_spy > 0
 
@@ -468,7 +468,7 @@ class TestCombinedScoreBC9:
         """Flow sub-score = BASE + rvol_score (which aggregates pcr+otm+block).
 
         tech=0, flow=50+40=90, funda=50+0=50
-        combined = 0.4*90 + 0.3*50 + 0.3*0 = 36 + 15 + 0 = 51.0
+        combined = 0.6*90 + 0.1*50 + 0.3*0 = 54 + 5 + 0 = 59.0 (BC23 weights)
         """
         tech = TechnicalAnalysis(
             price=100, sma_200=90, sma_20=95, rsi_14=55,
@@ -477,7 +477,7 @@ class TestCombinedScoreBC9:
         flow = FlowAnalysis(rvol_score=40)  # e.g. 15(pcr) + 15(block) + 10(otm) = 40
         funda = FundamentalScoring(funda_score=0, insider_multiplier=1.0)
         combined = _calculate_combined_score(tech, flow, funda, 0, config)
-        assert combined == 51.0
+        assert combined == 59.0
 
     def test_backward_compat_neutral(self, config):
         """All zeros -> flow=50, funda=50, tech=0 → combined=35."""

@@ -415,14 +415,14 @@ class TestPrintConfigTable:
         assert "Account equity" in out
         assert "$100,000" in out
         assert "Risk per trade" in out
-        assert "0.5%" in out
+        assert "0.7%" in out  # BC23: was 0.5%
         assert "Max positions" in out
         assert "Max per sector" in out
         assert "Min score" in out
         assert "Clipping threshold" in out
         assert "VIX multiplier" in out
         assert "Weights" in out
-        assert "flow=0.40" in out
+        assert "flow=0.60" in out
         assert "Async" in out
         assert "true" in out
 

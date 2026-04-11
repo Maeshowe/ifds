@@ -486,7 +486,7 @@ class TestCombinedScore:
         assert combined == 43.75  # 35 * 1.25
 
     def test_weighted_scoring(self, config):
-        """Verify weights: 0.4 flow + 0.3 funda + 0.3 tech."""
+        """Verify weights: 0.6 flow + 0.1 funda + 0.3 tech (BC23)."""
         tech = TechnicalAnalysis(price=100, sma_200=90, sma_20=95,
                                  rsi_14=50, atr_14=2.0, trend_pass=True,
                                  rsi_score=5, sma50_bonus=0, rs_spy_score=0)
@@ -495,8 +495,8 @@ class TestCombinedScore:
 
         combined = _calculate_combined_score(tech, flow, funda, 0, config)
         # tech_score = 0+5+0+0=5, flow_score = 50+15=65, funda_score = 50+10=60
-        # 0.4*65 + 0.3*60 + 0.3*5 = 26 + 18 + 1.5 = 45.5
-        assert combined == 45.5
+        # 0.6*65 + 0.1*60 + 0.3*5 = 39 + 6 + 1.5 = 46.5
+        assert combined == 46.5
 
 
 # ============================================================================

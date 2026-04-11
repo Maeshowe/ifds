@@ -56,11 +56,12 @@ def macro():
 
 
 def _make_stock(ticker, sector="Technology", price=150.0, atr=3.0,
-                combined_score=75.0, rvol_score=0, funda_score=15,
+                combined_score=90.0, rvol_score=0, funda_score=15,
                 insider_multiplier=1.0):
     """Create a StockAnalysis for Phase 6 input.
 
     Note: funda_score default=15 so base+score=50+15=65 >= threshold(60) → M_funda=1.0
+    BC23: combined_score default=90 (was 75) to pass dynamic_position_score_threshold=85
     """
     return StockAnalysis(
         ticker=ticker, sector=sector,
@@ -124,12 +125,12 @@ class TestStockGexJoin:
 # ============================================================================
 
 class TestMultiplierCalculation:
-    def test_m_flow_above_threshold(self, config, macro):
-        # rvol_score=35 → flow_score=50+35=85 > threshold(80) → 1.25
+    def test_m_flow_always_one(self, config, macro):
+        # BC23: M_flow fixed at 1.0 regardless of flow score
         stock = _make_stock("T", rvol_score=35)
         gex = _make_gex("T")
         m_total, mults = _calculate_multiplier_total(stock, gex, macro, config)
-        assert mults["m_flow"] == 1.25
+        assert mults["m_flow"] == 1.0
 
     def test_m_flow_below_threshold(self, config, macro):
         # rvol_score=0 → flow_score=50 ≤ 80 → 1.0
@@ -138,17 +139,19 @@ class TestMultiplierCalculation:
         _, mults = _calculate_multiplier_total(stock, gex, macro, config)
         assert mults["m_flow"] == 1.0
 
-    def test_m_insider_buy_multiplier(self, config, macro):
+    def test_m_insider_always_one_buy(self, config, macro):
+        # BC23: M_insider fixed at 1.0 regardless of insider activity
         stock = _make_stock("T", insider_multiplier=1.25)
         gex = _make_gex("T")
         _, mults = _calculate_multiplier_total(stock, gex, macro, config)
-        assert mults["m_insider"] == 1.25
+        assert mults["m_insider"] == 1.0
 
-    def test_m_insider_sell_multiplier(self, config, macro):
+    def test_m_insider_always_one_sell(self, config, macro):
+        # BC23: M_insider fixed at 1.0 regardless of insider activity
         stock = _make_stock("T", insider_multiplier=0.75)
         gex = _make_gex("T")
         _, mults = _calculate_multiplier_total(stock, gex, macro, config)
-        assert mults["m_insider"] == 0.75
+        assert mults["m_insider"] == 1.0
 
     def test_m_insider_neutral(self, config, macro):
         stock = _make_stock("T", insider_multiplier=1.0)
@@ -156,12 +159,12 @@ class TestMultiplierCalculation:
         _, mults = _calculate_multiplier_total(stock, gex, macro, config)
         assert mults["m_insider"] == 1.0
 
-    def test_m_funda_below_threshold(self, config, macro):
-        # funda_score=-5 → 50+(-5)=45 < threshold(60) → 0.50
+    def test_m_funda_always_one(self, config, macro):
+        # BC23: M_funda fixed at 1.0 regardless of fundamental score
         stock = _make_stock("T", funda_score=-5)
         gex = _make_gex("T")
         _, mults = _calculate_multiplier_total(stock, gex, macro, config)
-        assert mults["m_funda"] == 0.50
+        assert mults["m_funda"] == 1.0
 
     def test_m_funda_above_threshold(self, config, macro):
         # funda_score=15 → 50+15=65 ≥ 60 → 1.0
@@ -207,12 +210,12 @@ class TestMultiplierCalculation:
         _, mults = _calculate_multiplier_total(stock, gex, macro_high, config)
         assert mults["m_vix"] == 0.80
 
-    def test_m_utility_above_threshold(self, config, macro):
-        # combined_score=90 > 85 → min(1.3, 1.0 + (90-85)/100) = 1.05
+    def test_m_utility_always_one(self, config, macro):
+        # BC23: M_utility fixed at 1.0 regardless of combined score
         stock = _make_stock("T", combined_score=90.0)
         gex = _make_gex("T")
         _, mults = _calculate_multiplier_total(stock, gex, macro, config)
-        assert abs(mults["m_utility"] - 1.05) < 0.001
+        assert mults["m_utility"] == 1.0
 
     def test_m_utility_below_threshold(self, config, macro):
         stock = _make_stock("T", combined_score=80.0)
@@ -247,24 +250,26 @@ class TestMultiplierCalculation:
 
 class TestPositionSizing:
     def test_basic_long_position(self, config, macro):
-        stock = _make_stock("AAPL", price=150.0, atr=3.0, combined_score=75.0)
+        stock = _make_stock("AAPL", price=150.0, atr=3.0)
         gex = _make_gex("AAPL")
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
 
         assert pos is not None
         assert pos.ticker == "AAPL"
         assert pos.direction == "BUY"
-        # BaseRisk = 100000 * 0.5 / 100 = $500
-        # M_total = 1.0 (all neutral)
+        # BC23: BaseRisk = 100000 * 0.7 / 100 = $700
+        # M_utility = min(1.3, 1.0 + (90-85)/100) = 1.05 (combined_score=90)
+        # AdjustedRisk = 700 * 1.05 = 735
         # StopDistance = 1.5 * 3.0 = 4.5
-        # Quantity = floor(500 / 4.5) = 111
-        assert pos.quantity == 111
+        # Quantity = floor(735 / 4.5) = 163
+        # Fat finger: 163 * 150 = $24,450 > $20K → floor(20000/150) = 133
+        assert pos.quantity == 133
         # StopLoss = 150 - 4.5 = 145.5
         assert pos.stop_loss == 145.5
-        # TP1 (no call_wall) = 150 + 0.75*3 = 152.25
-        assert pos.take_profit_1 == 152.25
-        # TP2 = 150 + 3.0*3 = 159
-        assert pos.take_profit_2 == 159.0
+        # BC23: TP1 = 150 + 1.5*3 = 154.5 (always ATR-based)
+        assert pos.take_profit_1 == 154.5
+        # BC23: TP2 = 150 + 2.0*3 = 156.0
+        assert pos.take_profit_2 == 156.0
 
     def test_basic_short_position(self, config, macro):
         stock = _make_stock("TSLA", price=200.0, atr=5.0)
@@ -274,65 +279,50 @@ class TestPositionSizing:
         assert pos.direction == "SELL_SHORT"
         # SL = 200 + 1.5*5 = 207.5
         assert pos.stop_loss == 207.5
-        # TP1 = 200 - 0.75*5 = 196.25
-        assert pos.take_profit_1 == 196.25
-        # TP2 = 200 - 3.0*5 = 185
-        assert pos.take_profit_2 == 185.0
+        # BC23: TP1 = 200 - 1.5*5 = 192.5
+        assert pos.take_profit_1 == 192.5
+        # BC23: TP2 = 200 - 2.0*5 = 190.0
+        assert pos.take_profit_2 == 190.0
 
-    def test_tp1_uses_call_wall_when_valid(self, config, macro):
+    def test_tp1_always_atr_ignores_call_wall(self, config, macro):
+        """BC23: call_wall is ignored — TP1 always ATR-based."""
         stock = _make_stock("AAPL", price=150.0, atr=3.0)
-        gex = _make_gex("AAPL", call_wall=165.0)  # > entry
+        gex = _make_gex("AAPL", call_wall=165.0)  # > entry, but irrelevant
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
-        assert pos.take_profit_1 == 165.0
+        assert pos.take_profit_1 == 154.5  # 150 + 1.5*3, NOT call_wall
 
-    def test_tp1_ignores_call_wall_below_entry(self, config, macro):
-        stock = _make_stock("AAPL", price=150.0, atr=3.0)
-        gex = _make_gex("AAPL", call_wall=140.0)  # < entry
-        pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
-        # Falls back to ATR: 150 + 0.75*3 = 152.25
-        assert pos.take_profit_1 == 152.25
-
-    def test_short_tp1_uses_put_wall(self, config, macro):
+    def test_tp1_always_atr_ignores_put_wall(self, config, macro):
+        """BC23: put_wall is ignored — TP1 always ATR-based."""
         stock = _make_stock("TSLA", price=200.0, atr=5.0)
         gex = _make_gex("TSLA", put_wall=180.0, price=200.0)
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.SHORT)
-        assert pos.take_profit_1 == 180.0
+        assert pos.take_profit_1 == 192.5  # 200 - 1.5*5, NOT put_wall
 
-    def test_tp2_adjusted_when_call_wall_exceeds_tp2_long(self, config, macro):
-        """LONG: call_wall=170 > entry+3*ATR=159 → TP1=170, TP2 must be > TP1."""
-        stock = _make_stock("MPLX", price=150.0, atr=3.0)
-        gex = _make_gex("MPLX", call_wall=170.0)  # Higher than entry + 3*ATR = 159
-        pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
-        assert pos.take_profit_1 == 170.0
-        # TP2 would be 150+3*3=159 < TP1=170, so TP2 = TP1 + ATR = 173
-        assert pos.take_profit_2 == 173.0
-        assert pos.take_profit_2 > pos.take_profit_1
-
-    def test_tp2_not_adjusted_when_call_wall_below_tp2_long(self, config, macro):
-        """LONG: call_wall=155 < entry+3*ATR=159 → TP1=155, TP2=159 (no fix needed)."""
+    def test_tp2_always_above_tp1_long(self, config, macro):
+        """BC23: TP2 = entry + 2.0*ATR > TP1 = entry + 1.5*ATR (guaranteed)."""
         stock = _make_stock("T", price=150.0, atr=3.0)
-        gex = _make_gex("T", call_wall=155.0)
+        gex = _make_gex("T")
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
-        assert pos.take_profit_1 == 155.0
-        assert pos.take_profit_2 == 159.0
+        assert pos.take_profit_2 == 156.0   # 150 + 2.0*3
+        assert pos.take_profit_1 == 154.5   # 150 + 1.5*3
         assert pos.take_profit_2 > pos.take_profit_1
 
-    def test_tp2_adjusted_when_put_wall_below_tp2_short(self, config, macro):
-        """SHORT: put_wall=175 < entry=200, TP2=200-3*5=185 > TP1=175, so fix needed."""
+    def test_tp2_always_below_tp1_short(self, config, macro):
+        """BC23: TP2 = entry - 2.0*ATR < TP1 = entry - 1.5*ATR (guaranteed)."""
         stock = _make_stock("TSLA", price=200.0, atr=5.0)
-        gex = _make_gex("TSLA", put_wall=175.0, price=200.0)
+        gex = _make_gex("TSLA", price=200.0)
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.SHORT)
-        assert pos.take_profit_1 == 175.0
-        # TP2 would be 200-3*5=185 > TP1=175, so TP2 = TP1 - ATR = 170
-        assert pos.take_profit_2 == 170.0
+        assert pos.take_profit_2 == 190.0   # 200 - 2.0*5
+        assert pos.take_profit_1 == 192.5   # 200 - 1.5*5
         assert pos.take_profit_2 < pos.take_profit_1
 
     def test_quantity_rounded_down(self, config, macro):
-        # BaseRisk=500, ATR=3.33 → stop_dist=4.995 → 500/4.995=100.1 → 100
+        # BC23: BaseRisk=700, M_total=1.0 (all fixed), AdjustedRisk=700
+        # ATR=3.33 → stop_dist=4.995 → 700/4.995=140.14 → 140
         stock = _make_stock("T", price=100.0, atr=3.33)
         gex = _make_gex("T")
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
-        assert pos.quantity == math.floor(500 / (1.5 * 3.33))
+        assert pos.quantity == math.floor(700 / (1.5 * 3.33))
 
     def test_zero_atr_returns_none(self, config, macro):
         stock = _make_stock("T", atr=0.0)
@@ -345,7 +335,7 @@ class TestPositionSizing:
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
         # scale_out = 100 + 2.0*2 = 104
         assert pos.scale_out_price == 104.0
-        assert pos.scale_out_pct == 0.33
+        assert pos.scale_out_pct == 0.50  # BC23: equal bracket split
 
     def test_multiplier_affects_quantity(self, config, macro):
         """Higher multiplier → higher adjusted risk → more shares."""
@@ -364,7 +354,7 @@ class TestPositionSizing:
 # ============================================================================
 
 class TestPositionLimits:
-    def _make_positions(self, n, sector="Technology", price=100.0, score=75.0):
+    def _make_positions(self, n, sector="Technology", price=100.0, score=95.0):
         return [
             PositionSizing(
                 ticker=f"T{i:02d}", sector=sector, direction="BUY",
@@ -385,40 +375,42 @@ class TestPositionLimits:
                 ticker=f"T{i:02d}", sector=sectors[i % len(sectors)],
                 direction="BUY", entry_price=100.0, quantity=50,
                 stop_loss=95.0, take_profit_1=106.0, take_profit_2=109.0,
-                risk_usd=400.0, combined_score=75.0 - i,
+                risk_usd=400.0, combined_score=95.0 - i,
                 gex_regime="POSITIVE", multiplier_total=1.0,
             ))
         accepted, counts = _apply_position_limits(positions, config, logger)
-        assert len(accepted) == 8  # max_positions=8
-        assert counts["position"] == 4
+        assert len(accepted) == 5  # BC23: max_positions=5
+        # 12 positions: scores 95..84. Threshold=85 filters 1 (score=84) → 11 remain.
+        # max_positions=5 → 6 excluded by position limit.
+        assert counts["position"] == 6
 
     def test_sector_diversification(self, config, logger):
-        # 5 Tech stocks → only 3 pass
+        # 5 Tech stocks → only 2 pass (BC23: max_positions_per_sector=2)
         positions = self._make_positions(5, sector="Technology")
         accepted, counts = _apply_position_limits(positions, config, logger)
-        assert len(accepted) == 3  # max_positions_per_sector=3
-        assert counts["sector"] == 2
+        assert len(accepted) == 2  # BC23: max_positions_per_sector=2
+        assert counts["sector"] == 3
 
     def test_sector_limit_keeps_highest_score(self, config, logger):
-        positions = self._make_positions(4, sector="Energy", score=80.0)
+        positions = self._make_positions(4, sector="Energy", score=92.0)
         accepted, _ = _apply_position_limits(positions, config, logger)
-        # First three (highest scores) should be kept
-        assert len(accepted) == 3
-        assert accepted[0].combined_score == 80.0
-        assert accepted[1].combined_score == 79.0
-        assert accepted[2].combined_score == 78.0
+        # BC23: max_positions_per_sector=2 → top 2 kept
+        assert len(accepted) == 2
+        assert accepted[0].combined_score == 92.0
+        assert accepted[1].combined_score == 91.0
 
     def test_mixed_sectors_pass(self, config, logger):
         """Different sectors can fill up to max_positions."""
-        tech = self._make_positions(3, sector="Technology", score=80.0)
-        fin = self._make_positions(3, sector="Financials", score=70.0)
-        health = self._make_positions(3, sector="Healthcare", score=60.0)
+        tech = self._make_positions(3, sector="Technology", score=96.0)
+        fin = self._make_positions(3, sector="Financials", score=93.0)
+        health = self._make_positions(3, sector="Healthcare", score=90.0)
         positions = tech + fin + health
         # Sort by score descending (simulating what run_phase6 does)
         positions.sort(key=lambda p: p.combined_score, reverse=True)
         accepted, _ = _apply_position_limits(positions, config, logger)
-        # 3 Tech + 3 Fin + 2 Health = 8, all within max_positions(8)
-        assert len(accepted) == 8
+        # BC23: max_per_sector=2, max_positions=5
+        # Tech: 2 pass (sector limit), Fin: 2 pass, Health: 1 pass (position limit=5)
+        assert len(accepted) == 5
 
     def test_max_single_position_risk(self, config, logger):
         # risk_usd=2000 > max (100000 * 1.5% = 1500)
@@ -427,7 +419,7 @@ class TestPositionLimits:
                 ticker="BIG", sector="Technology", direction="BUY",
                 entry_price=100.0, quantity=50, stop_loss=95.0,
                 take_profit_1=106.0, take_profit_2=109.0,
-                risk_usd=2000.0, combined_score=80.0,
+                risk_usd=2000.0, combined_score=90.0,
                 gex_regime="POSITIVE", multiplier_total=1.0,
             )
         ]
@@ -436,13 +428,13 @@ class TestPositionLimits:
         assert counts["risk"] == 1
 
     def test_max_gross_exposure(self, config, logger):
-        # Each position: 50 * 2100 = $105K → exceeds max_gross($100K)
+        # Each position: 50 * 2100 = $105K → exceeds max_gross($80K BC23)
         positions = [
             PositionSizing(
                 ticker="EXP", sector="Technology", direction="BUY",
                 entry_price=2100.0, quantity=50, stop_loss=2095.0,
                 take_profit_1=2106.0, take_profit_2=2109.0,
-                risk_usd=400.0, combined_score=80.0,
+                risk_usd=400.0, combined_score=90.0,
                 gex_regime="POSITIVE", multiplier_total=1.0,
             )
         ]
@@ -457,7 +449,7 @@ class TestPositionLimits:
                 ticker="RED", sector="Technology", direction="BUY",
                 entry_price=150.0, quantity=200, stop_loss=145.0,
                 take_profit_1=156.0, take_profit_2=159.0,
-                risk_usd=400.0, combined_score=80.0,
+                risk_usd=400.0, combined_score=90.0,
                 gex_regime="POSITIVE", multiplier_total=1.0,
             )
         ]
@@ -500,8 +492,8 @@ class TestFreshnessAlpha:
         history_path = str(tmp_path / "nonexistent.parquet")
         count, fresh_info = _apply_freshness_alpha(candidates, config, history_path, logger)
         assert count == 1
-        # Score should be multiplied by freshness_bonus (1.5), uncapped
-        assert candidates[0][0].combined_score == 112.5  # 75 * 1.5
+        # BC23: freshness_bonus=1.0 → score unchanged (90 * 1.0 = 90)
+        assert candidates[0][0].combined_score == 90.0
         # fresh_info is now a set of fresh ticker symbols
         assert "AAPL" in fresh_info
 
@@ -518,7 +510,7 @@ class TestFreshnessAlpha:
         candidates = [(_make_stock("AAPL"), _make_gex("AAPL"))]
         count, fresh_info = _apply_freshness_alpha(candidates, config, history_path, logger)
         assert count == 0
-        assert candidates[0][0].combined_score == 75.0  # Unchanged
+        assert candidates[0][0].combined_score == 90.0  # Unchanged
         assert "AAPL" not in fresh_info
 
     @_skip_no_pandas
@@ -596,8 +588,8 @@ class TestFreshnessAlpha:
         ]
         count, fresh_info = _apply_freshness_alpha(candidates, config, history_path, logger)
         assert count == 1
-        assert candidates[0][0].combined_score == 75.0       # AAPL unchanged
-        assert candidates[1][0].combined_score == 112.5  # MSFT boosted: 75 * 1.5
+        assert candidates[0][0].combined_score == 90.0       # AAPL unchanged (stale)
+        assert candidates[1][0].combined_score == 90.0   # BC23: MSFT unchanged (bonus=1.0)
         assert "AAPL" not in fresh_info
         assert "MSFT" in fresh_info
 
@@ -609,8 +601,8 @@ class TestFreshnessAlpha:
 class TestPhase6Integration:
     def test_full_flow_long(self, config, logger, macro):
         stocks = [
-            _make_stock("AAPL", price=150.0, atr=3.0, combined_score=80.0),
-            _make_stock("MSFT", price=400.0, atr=8.0, combined_score=75.0),
+            _make_stock("AAPL", price=150.0, atr=3.0, combined_score=92.0),
+            _make_stock("MSFT", price=400.0, atr=8.0, combined_score=88.0),
         ]
         gex = [
             _make_gex("AAPL", call_wall=165.0),
@@ -654,14 +646,14 @@ class TestPhase6Integration:
         """More than max_positions → limited by some limit (position or exposure)."""
         # Use low price so exposure doesn't hit limit first
         stocks = [_make_stock(f"T{i:02d}", sector=f"S{i}", price=10.0,
-                              atr=0.5, combined_score=80 - i)
+                              atr=0.5, combined_score=95 - i)
                   for i in range(12)]
         gex = [_make_gex(f"T{i:02d}", price=10.0) for i in range(12)]
 
         result = run_phase6(config, logger, stocks, gex, macro,
                             StrategyMode.LONG, signal_history_path=None)
 
-        assert len(result.positions) <= 8
+        assert len(result.positions) <= 5  # BC23: max_positions=5
         # Some exclusion must have occurred
         total_excluded = (result.excluded_position_limit +
                           result.excluded_exposure_limit +
@@ -669,20 +661,20 @@ class TestPhase6Integration:
         assert total_excluded > 0
 
     def test_sector_limit_applied(self, config, logger, macro):
-        """3+ stocks in same sector → sector limit kicks in."""
+        """3+ stocks in same sector → sector limit kicks in (BC23: max=2)."""
         stocks = [_make_stock(f"T{i}", sector="Technology",
-                              combined_score=80 - i)
+                              combined_score=95 - i)
                   for i in range(5)]
         gex = [_make_gex(f"T{i}") for i in range(5)]
 
         result = run_phase6(config, logger, stocks, gex, macro,
                             StrategyMode.LONG, signal_history_path=None)
 
-        assert len(result.positions) == 3
-        assert result.excluded_sector_limit == 2
+        assert len(result.positions) == 2  # BC23: max_positions_per_sector=2
+        assert result.excluded_sector_limit == 3
 
     def test_result_totals(self, config, logger, macro):
-        stocks = [_make_stock("A", price=100.0, atr=2.0, combined_score=78)]
+        stocks = [_make_stock("A", price=100.0, atr=2.0, combined_score=90)]
         gex = [_make_gex("A")]
 
         result = run_phase6(config, logger, stocks, gex, macro,
@@ -693,12 +685,13 @@ class TestPhase6Integration:
         assert abs(result.total_exposure_usd - exposure) < 0.01
 
     def test_known_values(self, config, logger, macro):
-        """Verify exact sizing for known input (IDEA.md §5.6.4 NVDA example).
+        """Verify exact sizing for known input (NVDA-like scenario).
 
-        Adapted: NVDA-like scenario
-        - Price=875, ATR=14.5, CombinedScore=88 (>85 → M_utility)
-        - M_flow=1.25 (flow_score>80), rest=1.0
-        - BaseRisk=$500, StopDist=21.75
+        BC23 simplified multiplier chain:
+        - Price=875, ATR=14.5, CombinedScore=88
+        - M_flow=1.0, M_insider=1.0, M_funda=1.0, M_utility=1.0 (all fixed)
+        - M_gex=1.0, M_vix=1.0, M_target=1.0 (no analyst_target)
+        - M_total = 1.0, BaseRisk=700
         """
         stock = _make_stock("NVDA", price=875.0, atr=14.5,
                             combined_score=88.0, rvol_score=35)
@@ -706,17 +699,15 @@ class TestPhase6Integration:
 
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
 
-        # M_flow = 1.25 (50+35=85>80)
-        # M_utility = min(1.3, 1.0 + (88-85)/100) = 1.03
-        # M_total = 1.25 * 1.03 = 1.2875
-        # AdjustedRisk = 500 * 1.2875 = 643.75
+        # BC23: M_total = M_gex(1.0) * M_vix(1.0) * M_target(1.0) = 1.0
+        # AdjustedRisk = 700 * 1.0 = 700
         # StopDist = 1.5 * 14.5 = 21.75
-        # Quantity = floor(643.75 / 21.75) = 29
+        # Quantity = floor(700 / 21.75) = 32
         # Fat finger cap (BC12): max_single_ticker_exposure/entry = 20000/875 = 22
         assert pos is not None
         assert pos.quantity == 22
-        assert abs(pos.risk_usd - 643.75) < 0.01
-        assert abs(pos.multiplier_total - 1.2875) < 0.001
+        assert abs(pos.risk_usd - 700.0) < 0.01
+        assert abs(pos.multiplier_total - 1.0) < 0.001
         # No freshness → original_score == combined_score, is_fresh == False
         assert pos.is_fresh is False
         assert pos.original_score == 88.0
@@ -735,16 +726,15 @@ class TestPhase6Integration:
         assert pos.combined_score == 112.5  # 75 * 1.5
 
     def test_freshness_preserves_ranking(self, config, logger, macro):
-        """Freshness bonus should not destroy ranking differentiation.
+        """Freshness bonus=1.0 (BC23) → scores unchanged, ranking preserved.
 
-        3 tickers with scores [85, 78, 72] — after freshness × 1.5,
-        combined_score = [127.5, 117.0, 108.0] (uncapped).
-        Sort by original_score preserves the ranking [85, 78, 72].
+        3 tickers with scores [95, 90, 87] — bonus=1.0 means no change.
+        All above dynamic_position_score_threshold=85.
         """
         stocks = [
-            _make_stock("A", sector="Technology", combined_score=85.0),
-            _make_stock("B", sector="Healthcare", combined_score=78.0),
-            _make_stock("C", sector="Energy", combined_score=72.0),
+            _make_stock("A", sector="Technology", combined_score=95.0),
+            _make_stock("B", sector="Healthcare", combined_score=90.0),
+            _make_stock("C", sector="Energy", combined_score=87.0),
         ]
         gex = [_make_gex("A"), _make_gex("B"), _make_gex("C")]
 
@@ -759,13 +749,13 @@ class TestPhase6Integration:
         assert result.positions[1].ticker == "B"
         assert result.positions[2].ticker == "C"
         # Original scores preserved — this is the ranking key
-        assert result.positions[0].original_score == 85.0
-        assert result.positions[1].original_score == 78.0
-        assert result.positions[2].original_score == 72.0
-        # combined_score uncapped — freshness preserves differentiation
-        assert result.positions[0].combined_score == 127.5  # 85 * 1.5
-        assert result.positions[1].combined_score == 117.0  # 78 * 1.5
-        assert result.positions[2].combined_score == 108.0  # 72 * 1.5
+        assert result.positions[0].original_score == 95.0
+        assert result.positions[1].original_score == 90.0
+        assert result.positions[2].original_score == 87.0
+        # BC23: freshness_bonus=1.0 → combined_score unchanged
+        assert result.positions[0].combined_score == 95.0
+        assert result.positions[1].combined_score == 90.0
+        assert result.positions[2].combined_score == 87.0
 
 
 # ============================================================================

@@ -83,8 +83,7 @@ def vwap_entry_check(
 
     if distance_pct > reject_pct:
         return "REJECT"
-    if distance_pct > reduce_pct:
-        return "REDUCE"
+    # BC23: REDUCE removed — binary decision (REJECT or PASS)
     if distance_pct < boost_pct:
         return "BOOST"
     return "NORMAL"
