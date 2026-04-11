@@ -1,46 +1,39 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-08 Budapest, CC -->
+<!-- Utolsó frissítés: 2026-04-11 Budapest, CC -->
 
 ## Paper Trading
-Day 33/63 | cum. PnL: −$1,113.16 (−1.11%) | IBKR DUH118657
-**Hétfőtől (ápr 6): Swing Hybrid Exit éles — 5 napos holding**
-Deployment checklist: `docs/tasks/2026-04-03-monday-deployment-checklist.md`
-**Mac Mini**: crontab kész, git pull szükséges (print→logger + Telegram redesign)
+Day 40/63 | cum. PnL: ~−$1,928 (~−1.93%) | IBKR DUH118657
+**BC23 Scoring & Exit Redesign deployolva** — hétfőtől éles
+**Mac Mini**: git pull OK, crontab frissítés szükséges (16:15 submit)
 
-## Lezárt BC-k + fixek (2026-04-03)
+## BC23 — Scoring & Exit Redesign (2026-04-11)
 
-| Scope | Commitok | Tesztek |
+| Változás | Régi | Új |
 |---|---|---|
-| BC20 SIM-L2 Mód 2 (20A+20C+20B) | `9cb823d` `5b96270` `037fe4c` | +75 |
-| BC21 Risk Layer (21B+21A) | `69bec6a` `c63ee67` | +34 |
-| BC20A Swing Hybrid Exit (20A_1–5) | `db524c8` `edc10d6` `c90e634` `b848854` `49f5539` | +68 |
-| Log Infra F1-F4 | 6 commit | +17 |
-| NYSE Calendar | `6c10be5` | +5 |
-| Telegram Split | `8c0bd30` | — |
-| Leftover fix + Skip day | 2 commit | — |
-| Code Review Fixes | `fd92eda` | — |
-| PT print→logger + Telegram redesign | `cceb2d1` `e17b3f2` | — |
-| Pipeline Split ctx load fix (P0) | `fa00a0e` | +3 |
-| Silent IBKR reject fix (P0) — MKT entry + status check | `72d5655` `788cf6d` | +10 |
-| **Összesen: 26 commit** | | **+212 teszt** |
+| Scoring súlyok | flow=0.40 funda=0.30 tech=0.30 | **flow=0.60** funda=0.10 tech=0.30 |
+| Freshness bonus | 1.5× | **1.0** (kikapcsolva) |
+| RS vs SPY bonus | +40 | **+15** |
+| TP1 ATR multiple | 0.75 (0.5:1 R:R) | **1.5 (1:1 R:R)** |
+| TP2 ATR multiple | 3.0 | **2.0** |
+| Bracket split | 33/67 | **50/50** |
+| Call wall TP1 | aktív | **kikapcsolva** |
+| Max positions | 8 | **5** |
+| Score threshold | nincs | **85** |
+| Risk per trade | 0.5% | **0.7%** |
+| Multiplier chain | 7 aktív | **3 aktív** (M_vix, M_gex, M_target) |
+| MMS sizing | on | **off** |
+| VWAP REDUCE | aktív | **eltávolítva** |
+| Submit idő | 15:45 CEST | **16:15 CEST** |
 
-Teszt baseline: **1092 → 1291**
-
-## Élesben futó feature-ök (hétfőtől)
-- Pipeline Split: Phase 1-3 (22:00) + Phase 4-6 (15:45 Budapest)
-- MKT entry + VWAP guard (REJECT >2%, REDUCE >1%)
+## Élesben futó feature-ök
+- Pipeline Split: Phase 1-3 (22:00) + Phase 4-6 (**16:15** Budapest)
+- MKT entry + VWAP guard (csak REJECT >2%)
 - Swing Management: 5 napos hold, TP1 50% partial, TRAIL, breakeven SL, D+5 MOC
-- PositionTracker: state/open_positions.json
-- Cross-Asset Regime: NORMAL→CAUTIOUS→RISK_OFF→CRISIS (VIX küszöb-tolás)
-- Korrelációs Guard: szektorcsoport-limitek + Portfolio VaR cap 3%
-- NYSE trading calendar: holiday skip + early close handling
-- Telegram: MACRO SNAPSHOT (22:00) + TRADING PLAN (15:45)
-- EWMA simítás, MMS multiplierek, M_target penalty, BMI momentum guard
-
-## Ismert DEFERRED itemek (code review)
-- H1: StockAnalysis mutation — ifds-rules.md-ben dokumentálva, architektúrális refactor kellene
-- H3: PositionTracker setattr mutation — swing_manager loop sorrendje biztonságos
+- Dynamic positions: max 5, score threshold 85
+- Cross-Asset Regime + Korrelációs Guard + Portfolio VaR 3%
+- Company Intel: 16:15 submit után (friss tickerekre)
+- EWMA simítás, M_target penalty, BMI momentum guard
 
 ## Shadow mode
 
@@ -50,11 +43,11 @@ Teszt baseline: **1092 → 1291**
 | Skip Day Shadow Guard | 2026-04-02 | Kiértékelés ~máj 2 |
 
 ## Következő
-- BC22 (~máj): HRP Allokáció + pozíciószám 8→15
+- BC23 live monitoring (hétfőtől): dynamic threshold, TP1 hit rate, pozíciószám
 - Day 63 kiértékelés (~máj 14): Paper→éles döntés
 
 ## Tesztek
-1304 passing, 0 failure
+1315 passing, 0 failure
 
 ## Blokkolók
 nincs
