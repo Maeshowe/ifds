@@ -5,7 +5,7 @@
 ## Paper Trading
 Day 40/63 | cum. PnL: ~−$1,928 (~−1.93%) | IBKR DUH118657
 **BC23 Scoring & Exit Redesign deployolva** — hétfőtől éles
-**Mac Mini**: git pull OK, crontab frissítés szükséges (16:15 submit)
+**Mac Mini**: git pull + crontab szükséges (16:00 gw, 16:15 submit, 22:10 metrics)
 
 ## BC23 — Scoring & Exit Redesign (2026-04-11)
 
@@ -47,7 +47,7 @@ Day 40/63 | cum. PnL: ~−$1,928 (~−1.93%) | IBKR DUH118657
 - Day 63 kiértékelés (~máj 14): Paper→éles döntés
 
 ## Tesztek
-1315 passing, 0 failure
+1328 passing, 0 failure
 
 ## Blokkolók
 nincs
