@@ -76,14 +76,33 @@ def save_state(today_str: str, state: dict) -> None:
 
 
 def tp1_was_filled(ib, sym: str) -> bool:
-    """Check if Bracket A TP order was filled today via executions."""
+    """Check if Bracket A TP order was filled today via executions.
+
+    BC23-cleanup: ExecutionFilter alone is unreliable — IBKR sometimes
+    returns older executions for the same orderRef (e.g. LION/SDRL
+    phantom fills after 22:00 UTC rollover). Double-check the execution
+    date matches today before accepting the match.
+    """
     from ib_insync import ExecutionFilter
 
-    today = date.today().strftime("%Y%m%d")
-    fills = ib.reqExecutions(ExecutionFilter(time=f"{today} 00:00:00"))
+    today = date.today()
+    today_str = today.strftime("%Y%m%d")
+    target_ref = f"IFDS_{sym}_A_TP"
+    fills = ib.reqExecutions(ExecutionFilter(time=f"{today_str} 00:00:00"))
     for fill in fills:
-        if fill.execution.orderRef == f"IFDS_{sym}_A_TP":
+        if fill.execution.orderRef != target_ref:
+            continue
+        exec_time = getattr(fill.execution, "time", None)
+        if exec_time is None:
+            continue
+        # Accept only same-day executions — guards against stale IBKR cache
+        exec_date = exec_time.date() if hasattr(exec_time, "date") else None
+        if exec_date == today:
             return True
+        logger.debug(
+            f"{sym}: ignoring stale execution (exec_date={exec_date}, "
+            f"today={today}, orderRef={target_ref})"
+        )
     return False
 
 

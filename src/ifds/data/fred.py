@@ -58,8 +58,13 @@ class FREDClient(BaseAPIClient):
         return params
 
     def check_health(self) -> APIHealthResult:
-        """Check FRED API connectivity."""
-        return self.health_check(self.HEALTH_CHECK_ENDPOINT, is_critical=True)
+        """Check FRED API connectivity.
+
+        BC23: is_critical=False — FRED is non-blocking because VIX has a
+        Polygon I:VIX primary source, TNX has a Polygon ticker fallback,
+        and yield-curve 2s10s is used in shadow mode only.
+        """
+        return self.health_check(self.HEALTH_CHECK_ENDPOINT, is_critical=False)
 
     def get_series(self, series_id: str, limit: int = 30) -> list[dict] | None:
         """Get recent observations for a FRED series.

@@ -14,6 +14,7 @@ import os
 import sys
 import time
 from datetime import date
+from pathlib import Path
 
 try:
     asyncio.get_event_loop()
@@ -54,6 +55,7 @@ def main():
     do_orders = args.orders or (not args.orders and not args.positions)
     do_positions = args.positions or (not args.orders and not args.positions)
 
+    _log_path = Path("logs") / f"pt_nuke_{date.today().isoformat()}.log"
     logger.info(f"Log: {_log_path}")
 
     ib = IB()
