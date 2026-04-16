@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-11 Budapest, CC -->
+<!-- Utolsó frissítés: 2026-04-16 Budapest, CC -->
 
 ## Paper Trading
 Day 40/63 | cum. PnL: ~−$1,928 (~−1.93%) | IBKR DUH118657
@@ -47,7 +47,10 @@ Day 40/63 | cum. PnL: ~−$1,928 (~−1.93%) | IBKR DUH118657
 - Day 63 kiértékelés (~máj 14): Paper→éles döntés
 
 ## Tesztek
-1328 passing, 0 failure
+1335 passing, 0 failure
+
+## Utolsó commit
+`1bffb57` — fix(cleanup): nuke.py log_path, FRED optional, phantom date guard
 
 ## Blokkolók
 nincs
