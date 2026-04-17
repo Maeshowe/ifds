@@ -5,6 +5,41 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## IBKR ExecutionFilter — nem szigorú dátum-szűrő (rule, 2026-04-15)
+
+Az `ib.reqExecutions(ExecutionFilter(time="yyyyMMdd 00:00:00"))` **nem garantáltan
+szűr** a megadott időponttól. Régebbi napok executionjei átszivároghatnak ugyanazzal
+az `orderRef`-fel (pl. ha a submit újra beadta másnap ugyanazt a tickert), és ez
+phantom fill detektálást okoz.
+
+**Szabály:**
+
+Minden `reqExecutions()` eredményt **KÖTELEZŐEN post-filterelni** kell az
+execution dátumára:
+
+```python
+today = date.today()
+fills = ib.reqExecutions(ExecutionFilter(time=f"{today:%Y%m%d} 00:00:00"))
+for fill in fills:
+    if fill.execution.orderRef != target_ref:
+        continue
+    exec_date = getattr(fill.execution.time, "date", lambda: None)()
+    if exec_date != today:
+        logger.debug(f"ignoring stale execution: {fill.execution}")
+        continue
+    # ... valós mai fill
+```
+
+Az ExecutionFilter.time az IBKR szerver időzónájában (NY) értelmeződik,
+nem a kliens localban — 22:00 CEST ≈ 16:00 EDT környékén a határ körül
+bőven van lehetőség tegnapi fillek beszivárgására.
+
+**Referencia:** `1bffb57` (date guard), `tp1_was_filled()` a pt_monitor.py-ban,
+`tests/test_bc23_cleanup.py::TestTp1WasFilledDateGuard` (4 regression teszt).
+Gyökérok: LION/SDRL/DELL/DOCN phantom fillek a 22:00 UTC rollover után.
+
+---
+
 ## IBKR Paper Account — Adaptive algo silent reject (rule, 2026-04-08)
 
 Az IBKR paper account (DUH118657) csendben elutasítja az `algoStrategy='Adaptive'`
