@@ -232,7 +232,9 @@ class AsyncUWClient(AsyncBaseAPIClient):
         if self._api_key:
             return {
                 "Authorization": f"Bearer {self._api_key}",
+                "UW-CLIENT-API-ID": "100001",
                 "User-Agent": "PythonClient",
+                "Accept": "application/json",
             }
         return {}
 
@@ -257,7 +259,7 @@ class AsyncUWClient(AsyncBaseAPIClient):
                 return cached
 
         endpoint = f"/api/darkpool/{ticker}"
-        data = await self._get(endpoint, params={"limit": 200},
+        data = await self._get(endpoint, params={"limit": 500},
                                headers=self._auth_headers())
         result = None
         if data and isinstance(data, dict) and data.get("data"):

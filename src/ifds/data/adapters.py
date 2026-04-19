@@ -382,13 +382,19 @@ def _aggregate_dp_records(records: list[dict]) -> dict:
     dp_buys = 0
     dp_sells = 0
     dp_volume = 0
+    dp_volume_dollars = 0.0
     total_volume = 0
     block_trade_count = 0
+    block_trade_dollars = 0.0
     venue_counts: Counter = Counter()
 
     for record in records:
         size = _safe_int(record.get("size", 0))
         dp_volume += size
+
+        # premium = trade dollar value (size × price, server-precomputed)
+        premium = _safe_float(record.get("premium", 0))
+        dp_volume_dollars += premium
 
         # Each DP record carries the stock's total day volume
         vol = _safe_int(record.get("volume", 0))
@@ -398,8 +404,10 @@ def _aggregate_dp_records(records: list[dict]) -> dict:
         price = _safe_float(record.get("price", 0))
 
         # Block trade detection ($500K+ notional)
-        if size * price > 500_000:
+        notional = size * price
+        if notional > 500_000:
             block_trade_count += 1
+            block_trade_dollars += notional
 
         # Venue tracking for Shannon entropy
         mc = record.get("market_center", "UNKNOWN")
@@ -434,6 +442,7 @@ def _aggregate_dp_records(records: list[dict]) -> dict:
 
     return {
         "dp_volume": dp_volume,
+        "dp_volume_dollars": dp_volume_dollars,
         "total_volume": total_volume,
         "dp_pct": dp_pct,
         "dp_buys": dp_buys,
@@ -441,6 +450,7 @@ def _aggregate_dp_records(records: list[dict]) -> dict:
         "signal": signal,
         "source": "unusual_whales",
         "block_trade_count": block_trade_count,
+        "block_trade_dollars": block_trade_dollars,
         "venue_entropy": venue_entropy,
     }
 
