@@ -168,6 +168,13 @@ def run_phase5(config: Config, logger: EventLogger,
                 data_source=source,
             )
 
+            # Persist GEX structural data onto StockAnalysis for snapshot output
+            # (BC24 foundation, 2026-04-17 — used by ticker_liquidity_audit_v3)
+            stock.net_gex = net_gex
+            stock.call_wall = call_wall
+            stock.put_wall = put_wall
+            stock.zero_gamma = zero_gamma
+
             # MMS MM analysis (BC15)
             mms_result = None
             if should_run_mms and mms_store is not None:
@@ -522,6 +529,12 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
                 gex_multiplier=multiplier,
                 data_source=source,
             )
+
+            # Persist GEX structural data onto StockAnalysis for snapshot output
+            stock.net_gex = net_gex
+            stock.call_wall = call_wall
+            stock.put_wall = put_wall
+            stock.zero_gamma = zero_gamma
 
             # MMS MM analysis
             mms_result = None

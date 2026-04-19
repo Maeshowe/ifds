@@ -119,6 +119,12 @@ def snapshot_to_stock_analysis(record: dict) -> "StockAnalysis":
         block_trade_score=record.get("block_trade_score", 0),
         buy_pressure_score=record.get("buy_pressure_score", 0),
         squat_bar=record.get("squat_bar", False),
+        # Dollar-weighted metrics (2026-04-17, default 0/0.0 for legacy snapshots)
+        dp_volume_shares=record.get("dp_volume_shares", 0),
+        total_volume=record.get("total_volume", 0),
+        dp_volume_dollars=record.get("dp_volume_dollars", 0.0),
+        block_trade_dollars=record.get("block_trade_dollars", 0.0),
+        venue_entropy=record.get("venue_entropy", 0.0),
     )
 
     fundamental = FundamentalScoring(
@@ -144,6 +150,11 @@ def snapshot_to_stock_analysis(record: dict) -> "StockAnalysis":
         combined_score=record.get("combined_score", 0.0),
         sector_adjustment=record.get("sector_adjustment", 0),
         shark_detected=record.get("shark_detected", False),
+        # Phase 5 GEX fields (None for legacy snapshots)
+        net_gex=record.get("net_gex"),
+        call_wall=record.get("call_wall"),
+        put_wall=record.get("put_wall"),
+        zero_gamma=record.get("zero_gamma"),
     )
 
 
@@ -196,4 +207,15 @@ def _stock_to_dict(stock) -> dict:
         "shark_detected_funda": fu.shark_detected,
         "inst_ownership_trend": fu.inst_ownership_trend,
         "inst_ownership_score": fu.inst_ownership_score,
+        # Dollar-weighted flow metrics (2026-04-17)
+        "dp_volume_shares": fl.dp_volume_shares,
+        "total_volume": fl.total_volume,
+        "dp_volume_dollars": fl.dp_volume_dollars,
+        "block_trade_dollars": fl.block_trade_dollars,
+        "venue_entropy": fl.venue_entropy,
+        # Phase 5 GEX structural fields (None when options data unavailable)
+        "net_gex": getattr(stock, "net_gex", None),
+        "call_wall": getattr(stock, "call_wall", None),
+        "put_wall": getattr(stock, "put_wall", None),
+        "zero_gamma": getattr(stock, "zero_gamma", None),
     }

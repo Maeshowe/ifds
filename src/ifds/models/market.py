@@ -333,6 +333,12 @@ class FlowAnalysis:
     buy_pressure_score: int = 0                   # buy pressure + VWAP signal
     venue_entropy: float = 0.0                    # Shannon entropy of DP venue distribution
 
+    # Dollar-weighted dark pool metrics (BC24 foundation, 2026-04-17)
+    dp_volume_shares: int = 0                     # Absolute DP shares (dark_pool_pct denominator basis)
+    total_volume: int = 0                         # Total daily stock volume (liquidity context)
+    dp_volume_dollars: float = 0.0                # DP $ volume (sum of premium across records)
+    block_trade_dollars: float = 0.0              # $ volume of block trades ($500K+ notional)
+
 
 @dataclass
 class FundamentalScoring:
@@ -365,6 +371,13 @@ class StockAnalysis:
     exclusion_reason: str | None = None  # "tech_filter", "min_score", "clipping"
     shark_detected: bool = False
     analyst_target: float | None = None  # FMP consensus price target (from Phase 4)
+
+    # Phase 5 GEX snapshot fields (flat for easy snapshot serialization, 2026-04-17)
+    # None until Phase 5 fills them; options data unavailable → stays None.
+    net_gex: float | None = None
+    call_wall: float | None = None
+    put_wall: float | None = None
+    zero_gamma: float | None = None
 
 
 @dataclass

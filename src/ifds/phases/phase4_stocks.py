@@ -629,6 +629,11 @@ def _analyze_flow_from_data(ticker: str, bars: list[dict],
         vwap=round(vwap, 4),
         buy_pressure_score=buy_pressure_score,
         venue_entropy=dp_data.get("venue_entropy", 0.0) if dp_data else 0.0,
+        # Dollar-weighted fields (from adapter QW commit 533763b)
+        dp_volume_shares=int(dp_data.get("dp_volume", 0)) if dp_data else 0,
+        total_volume=int(dp_data.get("total_volume", 0)) if dp_data else 0,
+        dp_volume_dollars=float(dp_data.get("dp_volume_dollars", 0.0)) if dp_data else 0.0,
+        block_trade_dollars=float(dp_data.get("block_trade_dollars", 0.0)) if dp_data else 0.0,
     )
 
 
