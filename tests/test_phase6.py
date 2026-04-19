@@ -266,8 +266,8 @@ class TestPositionSizing:
         assert pos.quantity == 133
         # StopLoss = 150 - 4.5 = 145.5
         assert pos.stop_loss == 145.5
-        # BC23: TP1 = 150 + 1.5*3 = 154.5 (always ATR-based)
-        assert pos.take_profit_1 == 154.5
+        # W16 follow-up: TP1 = 150 + 1.25*3 = 153.75 (tightened from 1.5)
+        assert pos.take_profit_1 == 153.75
         # BC23: TP2 = 150 + 2.0*3 = 156.0
         assert pos.take_profit_2 == 156.0
 
@@ -279,8 +279,8 @@ class TestPositionSizing:
         assert pos.direction == "SELL_SHORT"
         # SL = 200 + 1.5*5 = 207.5
         assert pos.stop_loss == 207.5
-        # BC23: TP1 = 200 - 1.5*5 = 192.5
-        assert pos.take_profit_1 == 192.5
+        # W16 follow-up: TP1 = 200 - 1.25*5 = 193.75 (tightened from 1.5)
+        assert pos.take_profit_1 == 193.75
         # BC23: TP2 = 200 - 2.0*5 = 190.0
         assert pos.take_profit_2 == 190.0
 
@@ -289,32 +289,44 @@ class TestPositionSizing:
         stock = _make_stock("AAPL", price=150.0, atr=3.0)
         gex = _make_gex("AAPL", call_wall=165.0)  # > entry, but irrelevant
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
-        assert pos.take_profit_1 == 154.5  # 150 + 1.5*3, NOT call_wall
+        # W16 follow-up: 150 + 1.25*3 = 153.75 (NOT call_wall)
+        assert pos.take_profit_1 == 153.75
 
     def test_tp1_always_atr_ignores_put_wall(self, config, macro):
         """BC23: put_wall is ignored — TP1 always ATR-based."""
         stock = _make_stock("TSLA", price=200.0, atr=5.0)
         gex = _make_gex("TSLA", put_wall=180.0, price=200.0)
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.SHORT)
-        assert pos.take_profit_1 == 192.5  # 200 - 1.5*5, NOT put_wall
+        # W16 follow-up: 200 - 1.25*5 = 193.75 (NOT put_wall)
+        assert pos.take_profit_1 == 193.75
 
     def test_tp2_always_above_tp1_long(self, config, macro):
-        """BC23: TP2 = entry + 2.0*ATR > TP1 = entry + 1.5*ATR (guaranteed)."""
+        """W16: TP2 = entry + 2.0*ATR > TP1 = entry + 1.25*ATR (guaranteed)."""
         stock = _make_stock("T", price=150.0, atr=3.0)
         gex = _make_gex("T")
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
-        assert pos.take_profit_2 == 156.0   # 150 + 2.0*3
-        assert pos.take_profit_1 == 154.5   # 150 + 1.5*3
+        assert pos.take_profit_2 == 156.0    # 150 + 2.0*3
+        assert pos.take_profit_1 == 153.75   # 150 + 1.25*3
         assert pos.take_profit_2 > pos.take_profit_1
 
     def test_tp2_always_below_tp1_short(self, config, macro):
-        """BC23: TP2 = entry - 2.0*ATR < TP1 = entry - 1.5*ATR (guaranteed)."""
+        """W16: TP2 = entry - 2.0*ATR < TP1 = entry - 1.25*ATR (guaranteed)."""
         stock = _make_stock("TSLA", price=200.0, atr=5.0)
         gex = _make_gex("TSLA", price=200.0)
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.SHORT)
-        assert pos.take_profit_2 == 190.0   # 200 - 2.0*5
-        assert pos.take_profit_1 == 192.5   # 200 - 1.5*5
+        assert pos.take_profit_2 == 190.0    # 200 - 2.0*5
+        assert pos.take_profit_1 == 193.75   # 200 - 1.25*5
         assert pos.take_profit_2 < pos.take_profit_1
+
+    def test_tp1_ratio_to_sl(self, config, macro):
+        """W16: TP1 (1.25*ATR) / SL (1.5*ATR) = 0.833:1 R:R."""
+        stock = _make_stock("T", price=100.0, atr=4.0)
+        gex = _make_gex("T")
+        pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
+        tp1_distance = pos.take_profit_1 - 100.0
+        sl_distance = 100.0 - pos.stop_loss
+        ratio = tp1_distance / sl_distance
+        assert ratio == pytest.approx(1.25 / 1.5, rel=1e-6)
 
     def test_quantity_rounded_down(self, config, macro):
         # BC23: BaseRisk=700, M_total=1.0 (all fixed), AdjustedRisk=700

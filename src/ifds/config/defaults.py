@@ -29,7 +29,7 @@ CORE = {
 
     # Position Sizing
     "stop_loss_atr_multiple": 1.5,      # k in StopLoss = Entry - k * ATR
-    "tp1_atr_multiple": 1.5,           # BC23: 1:1 R:R (was 0.75 → 0.5:1)
+    "tp1_atr_multiple": 1.25,          # W16 follow-up: tightened after 0/18 TP1 hits (was 1.5)
     "tp2_atr_multiple": 2.0,           # BC23: reachable swing target (was 3.0 → 0.4% hit rate)
     "scale_out_atr_multiple": 2.0,     # Scale-out trigger at 2 * ATR
     "scale_out_pct": 0.50,             # BC23: equal bracket split (was 0.33)

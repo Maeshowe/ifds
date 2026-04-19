@@ -632,11 +632,26 @@ def main() -> None:
         "--fetch-spy", action="store_true",
         help="Fetch SPY daily returns via Polygon and update the cache",
     )
+    parser.add_argument(
+        "--since", metavar="YYYY-MM-DD",
+        help="Filter trades to date >= value (e.g. BC23 post-deploy: 2026-04-13)",
+    )
+    parser.add_argument(
+        "--output", metavar="FILENAME",
+        help="Override report filename (e.g. scoring-validation-bc23-w16.md)",
+    )
     args = parser.parse_args()
+
+    report_path = OUT_DIR / args.output if args.output else REPORT_PATH
 
     print(f"Loading trades from {TRADES_DIR}...")
     trades = load_trades()
     print(f"  {len(trades)} trades loaded")
+
+    if args.since:
+        original_n = len(trades)
+        trades = [t for t in trades if t.date >= args.since]
+        print(f"  {len(trades)} / {original_n} trades remain after --since {args.since}")
 
     print(f"Loading Phase 4 snapshots from {PHASE4_DIR}...")
     snapshots = load_phase4_snapshots()
@@ -667,9 +682,9 @@ def main() -> None:
     print("Generating report...")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     report = generate_report(trades, snapshots, cum_pnl, spy_returns)
-    with open(REPORT_PATH, "w") as f:
+    with open(report_path, "w") as f:
         f.write(report)
-    print(f"Report written to {REPORT_PATH}")
+    print(f"Report written to {report_path}")
     print(f"Plots written to {PLOTS_DIR}")
 
 
