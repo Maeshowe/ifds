@@ -383,6 +383,7 @@ RUNTIME = {
     "unusual_whales_api_key": None,     # IFDS_UW_API_KEY
     "fmp_api_key": None,                # IFDS_FMP_API_KEY
     "fred_api_key": None,               # IFDS_FRED_API_KEY (free but required)
+    "mid_api_key": None,                # MID_API_KEY (optional, shadow-mode only)
 
     # API Timeouts and Retries
     "api_timeout_polygon": 10,
@@ -390,6 +391,7 @@ RUNTIME = {
     "api_timeout_uw": 10,
     "api_timeout_fmp": 10,
     "api_timeout_fred": 10,
+    "api_timeout_mid": 10,              # MID bundle API (shadow-mode, non-fatal)
     "api_max_retries": 3,
 
     # Async Concurrency (Phase 1/4/5 parallel processing — BC16 tuning)

@@ -94,11 +94,62 @@ def run_phase0(config: Config, logger: EventLogger) -> DiagnosticsResult:
         polygon_macro.close()
         fred.close()
 
+    # --- Step 4 (optional, shadow-mode): MID bundle snapshot ---
+    # Non-fatal: any failure (missing key, network error, malformed response)
+    # is logged as a warning and the pipeline proceeds. Phase 3-6 are NOT
+    # affected — this is purely shadow-mode data collection for offline
+    # MID-vs-IFDS sector-rotation comparison.
+    _save_mid_bundle_if_configured(config, logger)
+
     # --- All checks passed ---
     result.pipeline_can_proceed = True
     _log_phase_complete(logger, start_time)
 
     return result
+
+
+def _save_mid_bundle_if_configured(config: Config, logger: EventLogger) -> None:
+    """Fetch the MID bundle and persist it under state/mid_bundles/.
+
+    All failures are caught and logged as warnings — the pipeline must
+    continue regardless of MID availability.
+    """
+    mid_key = config.get_api_key("mid")
+    if not mid_key:
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=0,
+            message="MID_API_KEY not configured — skipping MID bundle snapshot",
+        )
+        return
+
+    try:
+        from ifds.data.mid_bundle_snapshot import save_bundle_snapshot
+        from ifds.data.mid_client import MIDClient
+
+        client = MIDClient(
+            api_key=mid_key,
+            timeout=config.runtime.get("api_timeout_mid", 10),
+        )
+        bundle = client.get_bundle()
+        if not bundle:
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=0,
+                message="MID bundle empty (unavailable or auth failure) — skipping snapshot",
+            )
+            return
+
+        saved_path = save_bundle_snapshot(bundle)
+        if saved_path:
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=0,
+                message=f"MID bundle saved: {saved_path}",
+            )
+    except Exception as e:
+        # Defensive: any unexpected error must not break Phase 0
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=0,
+            message=f"MID bundle snapshot failed (non-fatal): {type(e).__name__}: {e}",
+        )
 
 
 def _check_all_apis(config: Config, logger: EventLogger) -> list[APIHealthResult]:

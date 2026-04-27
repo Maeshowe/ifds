@@ -74,6 +74,7 @@ class Config:
             "IFDS_UW_API_KEY": "unusual_whales_api_key",
             "IFDS_FMP_API_KEY": "fmp_api_key",
             "IFDS_FRED_API_KEY": "fred_api_key",
+            "MID_API_KEY": "mid_api_key",
             "IFDS_ACCOUNT_EQUITY": ("account_equity", float),
             "IFDS_RISK_PER_TRADE_PCT": ("risk_per_trade_pct", float),
             "IFDS_MAX_POSITIONS": ("max_positions", int),
@@ -111,6 +112,7 @@ class Config:
             "unusual_whales": "unusual_whales_api_key",
             "fmp": "fmp_api_key",
             "fred": "fred_api_key",
+            "mid": "mid_api_key",
         }
         return self.runtime.get(key_map.get(provider))
 

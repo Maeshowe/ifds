@@ -15,15 +15,26 @@
 | BC21 | Risk Layer (Correlation Guard, Cross-Asset Regime, Portfolio VaR) | 2026-04 |
 | **BC23** | **Scoring & Exit Redesign** (súlyok, TP/SL, positions, simplify) | **2026-04-13** |
 
-## Folyamatban — W17 Follow-up (2026-04-17 CC DONE, hétfőn élesedik)
+## W17 Follow-up — DONE (2026-04-13 ... 2026-04-17)
 
-- TP1 1.25×ATR csökkentés (W16 0/18 hit rate trigger)
-- Scoring validation rerun BC23 post-deploy adaton
-- Flow component decomposition analysis (232 trade)
-- **UW Client Quick Wins** (`533763b`) — header, limit 500, premium aggregation
-- **Phase 4 Snapshot Enrichment** (`97fbeda`) — dollar + GEX fields
+- TP1 1.25×ATR csökkentés (W16 0/18 hit rate trigger) ✅
+- Scoring validation rerun BC23 post-deploy adaton ✅
+- Flow component decomposition analysis (232 trade) ✅
+- **UW Client Quick Wins** (`533763b`) — header, limit 500, premium aggregation ✅
+- **Phase 4 Snapshot Enrichment** (`97fbeda`) — dollar + GEX fields ✅
 
-**Tervezett élesedés:** hétfő ápr 20 (első pipeline futás az új mezőkkel)
+W17 mérés (ápr 20-24) lezárult: Net +$593, Excess vs SPY +0.13%, Score corr r=+0.18.
+
+## Folyamatban — W18 Shadow Mode (2026-04-27 — 2026-05-01)
+
+- **MID Bundle Integration Shadow Mode** — CC DONE 2026-04-27
+  - `MIDClient` + bundle snapshot storage (`state/mid_bundles/YYYY-MM-DD.json.gz`)
+  - Phase 0 hook (non-blocking, X-API-Key header)
+  - Offline `mid_vs_ifds_sector_comparison.py` script
+  - 25 új test, 1377 passing
+  - Aktiválás: Mac Mini `MID_API_KEY` beállítás (Tamás, kedd reggel)
+- **M_contradiction multiplier ×0.80** — CC pending (Chat task fájl szerda reggel)
+- Adatgyűjtés W18 alatt → W19 elején BC25 GO/NO-GO döntés
 
 ---
 

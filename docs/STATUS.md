@@ -68,6 +68,7 @@ Day 50/63 | cum. PnL: **−$19.03 (−0.02%)** ← **breakeven közelben** | IBK
 - Dynamic positions: max 5, score threshold 70 (Phase 4) / 85 qualified
 - **UW Client v2**: kötelező header, limit 500, premium aggregálás, dollár-alapú DP
 - **Snapshot v2**: dollár + GEX mezők minden új snapshotban ✅
+- **MID Bundle Snapshot (shadow mode)**: napi MID bundle mentés `state/mid_bundles/`-be, Phase 0 végén non-blocking. Phase 3 NINCS érintve, csak adatgyűjtés a W19 BC25 GO/NO-GO döntéshez. Aktiválás Mac Mini `MID_API_KEY` beállítás után.
 - Cross-Asset Regime + Korrelációs Guard + Portfolio VaR 3%
 - Company Intel: 16:15 submit után
 - EWMA simítás, M_target penalty, BMI momentum guard
@@ -135,7 +136,7 @@ Day 50/63 | cum. PnL: **−$19.03 (−0.02%)** ← **breakeven közelben** | IBK
 
 ## Tesztek
 
-**1352 passing**, 0 failure
+**1377 passing** (1352 + 25 új MID test), 0 failure
 
 ## Utolsó commitok
 
