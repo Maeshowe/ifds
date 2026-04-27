@@ -5,6 +5,53 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## Live API integráció — schema verifikáció commit ELŐTT (rule, 2026-04-27)
+
+Új külső API integrációk (REST kliens, válasz-mező mapping) ESETÉN kötelező
+**egy live diagnostic dump** futtatása az **első commit ELŐTT**:
+
+```python
+client = SomeClient(api_key=os.environ["SOME_KEY"])
+data = client.fetch_endpoint()
+print("top-level keys:", sorted(data.keys()))
+print("sample sub-dict:", sorted(data["sub"].keys()))
+print("sample value:", data["sub"]["field"])
+```
+
+A task fájlban / dokumentációban szereplő mező-példák (`bundle.flat.growth`,
+`response.results[].close`, stb.) gyakran **csak placeholder-ek**, vagy a doc
+elavult. A tényleges API mezőnevek eltérhetnek (camelCase vs snake_case,
+prefix/suffix konvenció, nested vs flat). Mock fixture önmagában nem szűri ki
+ezt — a teszt zöld lehet, miközben élesben minden mező `None`.
+
+**Szabály:**
+
+1. Új API kliens: a `client.fetch_*()` metódus első futtatása **élő API-val**
+   történik, és az output kulcsait kézzel ellenőrizzük (Mac Mini terminal vagy
+   egyszer egy diagnostic notebook). Ezt megelőzi a mock fixture-ök írását.
+
+2. A mock test fixture **a tényleges live response-ból** származik (sample
+   payload), NEM a task spec / doc példákból.
+
+3. **Sikerkritérium**: az első commit után az élő futás 100%-os mező-coverage-ot
+   produkál (semmi `None` ott, ahol érték kellene). Ha None-ok vannak,
+   first-commit verifikáció kimaradt.
+
+**Példa-sértés (mit ne csináljunk):**
+A 2026-04-27-i MID Bundle integráció `get_regime()`-je 20 mezőből 9-et
+`None`-nal adott vissza Mac Mini-n. Két commit (`a3dfaf7` → `41f8e23` → `25806f2`)
+kellett a fix-hez. Az élő bundle a `flat.g_score/i_score/p_score` és
+`engines.tpi.level/level_description/tpi_score` kulcsokat használja, nem a
+task fájlban szereplő `flat.growth/inflation/policy` és
+`engines.tpi.state/description` mintát. Egy `print(client.get_bundle()['flat'].keys())`
+az első commit előtt megtakarította volna a fix ciklust.
+
+**Referencia:** `25806f2` (fix), `src/ifds/data/mid_client.py::get_regime`,
+`tests/test_mid_client.py::sample_bundle` fixture (a fix után már a live
+schemát tükrözi).
+
+---
+
 ## IBKR ExecutionFilter — nem szigorú dátum-szűrő (rule, 2026-04-15)
 
 Az `ib.reqExecutions(ExecutionFilter(time="yyyyMMdd 00:00:00"))` **nem garantáltan
