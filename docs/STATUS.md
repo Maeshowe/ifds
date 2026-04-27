@@ -1,77 +1,77 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-17 Budapest, Chat -->
+<!-- Utolsó frissítés: 2026-04-24 Budapest, Chat (péntek este) -->
 
 ## Paper Trading
-Day 45/63 | cum. PnL: **−$694.53 (−0.69%)** | IBKR DUH118657
-**BC23 Scoring & Exit Redesign — első teljes hét (W16) DONE**
-Heti bontás: W16 +$1,721 (+1.72% gross), de SPY +4.45% → excess -2.73%
+Day 50/63 | cum. PnL: **−$19.03 (−0.02%)** ← **breakeven közelben** | IBKR DUH118657
+**BC23 W17 lezárult:** +$593 net, excess vs SPY +0.13% — **első "nem-katasztrofális" hét** a BC23 óta
+**Péntek mentő eredmény:** +$640 net (NVDA TP1 hit + CSCO MOC nyer)
 
-## BC23 első hét (W16, ápr 13-17)
+## W17 összefoglalás (2026-04-20 — 2026-04-24)
 
-| Nap | Napi P&L | Win rate | Excess vs SPY |
-|-----|---------|----------|---------------|
-| ápr 13 (hétfő) | +$390 | 3/3 | -0.59% |
-| ápr 14 (kedd) | +$191 | 2/3 | -1.03% |
-| ápr 15 (szerda) | +$600 | 2/3 | -0.19% |
-| ápr 16 (csütörtök) | +$577 | 4/4 | +0.33% (**első pozitív**) |
-| ápr 17 (péntek) | -$37 | 2/4 | -1.25% (flat nap) |
-| **W16 összesen** | **+$1,721** | **13/17 (76%)** | **-2.73%** |
+| Nap | Net P&L | Excess vs SPY | TP1 |
+|-----|---------|---------------|-----|
+| Hétfő | -$433 | -0.21% | 0/5 |
+| Kedd | **+$553** | **+1.22%** | 2/5 (POWI) |
+| Szerda | +$60 | -0.94% | 0/3 |
+| Csütörtök | -$227 | +0.19% | 0/5 |
+| Péntek | **+$640** | -0.13% | 1/3 (NVDA) |
+| **Σ W17** | **+$593** | **+0.13%** | **3/21 (14%)** |
 
-**Kritikus jelek W16-ban:**
-- TP1 hit rate: **0/18** (0%) — 1.5×ATR túl magas volt
-- Score→P&L korreláció: **r = -0.414** (negatív, scoring edge még nem bizonyított)
-- Abszolút P&L jó, de nagy része a bullish piacból jött, nem a ticker selection-ből
+**Heti metrika:** weekly_metrics.py lefutott, hivatalos report: `docs/analysis/weekly/2026-W17.md`. Kulcs számok: Net +$593.09, 34 trades, Win days 3/5, TP1 3/34 (9%), TP2 2, LOSS_EXIT 7, MOC 22, R:R 1:1.59, Commission $82 (12% of gross), **Score→P&L korreláció r=+0.180** (első pozitív a BC23 óta). Teljes elemzés: `docs/analysis/weekly/2026-W17-analysis.md`.
 
-## W17 follow-up (2026-04-17 CC DONE, hétfőn élesedik)
+## BC23 2 hetes kumulatív (W16 + W17)
 
-| # | Változás | Fájl / commit |
-|---|----------|---------------|
-| 1 | TP1 1.5×ATR → **1.25×ATR** | `config/defaults.py` |
-| 2 | `scoring_validation.py` rerun BC23 adatokon | `docs/analysis/scoring-validation-bc23-w16.md` |
-| 3 | Flow component decomposition (232 trade) | `docs/analysis/flow-decomposition.md` |
+| Mérés | W16 | W17 | Együtt |
+|-------|-----|-----|--------|
+| Net P&L | +$1,661 | +$593 | **+$2,254** |
+| Cumulative | -$694 | -$19 | **-$19** |
+| Excess vs SPY átlag | -2.73% | **+0.13%** | **-1.30%** |
+| **Score→P&L korreláció** | **r=-0.414** | **r=+0.180** | **irány váltott** |
+| TP1 hit rate | 0/18 (0%) | 3/34 (9%) | 3/52 (6%) |
+| Win days | 4/5 | 3/5 | 7/10 (70%) |
 
-**Flow findings (232 enriched trade, teljes history):**
-- `pcr_score`: **+0.203** ** (p=0.002) — legerősebb pozitív prediktor
-- `otm_score`: **−0.194** ** (p=0.003) — szignifikáns NEGATÍV (fordított jel)
-- `rvol_score`: +0.147 * (p=0.026) — mérsékelt pozitív
-- `dp_pct_score`: mindig 0 → **UW Quick Wins orvosolja** (lásd alább)
-- `block_trade_score`, `buy_pressure_score`, `squat_bar_bonus`: zaj
+**Vélemény:** A BC23 1.5 hét alatt **nem adott pozitív alpha-t** SPY-hoz képest, de **drámai javulás** a W16-W17 közötti átmenettel. Kumulatív **breakeven közelben**.
 
-## UW Client Quick Wins + Phase 4 Snapshot Enrichment (2026-04-17)
+## Azonosított strukturális problémák (W17 után)
 
-**Commits:** `533763b` (QW) + `97fbeda` (Snapshot Enrichment)
+1. **Contradiction pattern 5/6 (83%)** — CONTRADICTION flagged tickerek szinte mindig veszítenek
+2. **POWI paradoxon** — recent winner másnap korrigál, scoring nem veszi figyelembe
+3. **TP1 fix 1.25×ATR** — csak magas-vol napokon elérhető
+4. **Score threshold 85** — gyakran csak 1 qualified, de 5 pozíció (alacsony konverzió)
 
-Három kritikus probléma egyszerre orvosolva a UW adapter rétegben:
-1. `UW-CLIENT-API-ID: 100001` header hozzáadva (skill.md szerint kötelező)
-2. `limit=200` → **500** a `/api/darkpool/{ticker}` hívásnál
-3. `premium` mező aggregálása → `dp_volume_dollars`, `block_trade_dollars`
+**Rögzítve backlog-ideas.md-be:** M_contradiction multiplier ×0.80, Recent Winner Penalty / Position Dedup, TP1 dinamikus skálázás, M_target szigorítás.
 
-**Verifikáció (10 top liquid ticker):**
-| Metrika | OLD | NEW | Δ |
-|---------|-----|-----|---|
-| DP trade count | 2000 | 5000 | +150% |
-| DP $ forgalom | $5.5B | **$10.1B** | +84% |
-| prem-coverage | 100% | 100% | nincs változás (mindig is volt) |
-| NVDA egyedül | $118M | **$1.22B** | 10× |
+## Piaci környezet (W17 záró)
 
-**Snapshot Enrichment** (a Phase 4+5 mezők perzisztálódnak):
-- Flow új mezők: `dp_volume_shares`, `total_volume`, `dp_volume_dollars`, `block_trade_dollars`, `venue_entropy`
-- GEX új mezők (Phase 5 outputból): `net_gex`, `call_wall`, `put_wall`, `zero_gamma`
+- **VIX záró:** 18.72 (-3.01%) — a stressz teljesen feloldódott
+- **SPY heti kumulatív:** +0.55% (5 nap)
+- **MID regime:** STAGFLATION Day 7 (változatlan a teljes héten)
+- **MID events:** 0 egész héten — az event detector konzervatív, regime stabil
 
-**Backward compat tesztelve:** 43 régi snapshot változatlanul olvasható, új mezők default értékkel (0 / None). BC20 Mód 2 re-score érintetlen.
+## UW Quick Wins + Snapshot v2
+
+**Commits:** `533763b` (QW) + `97fbeda` (Snapshot Enrichment) — W17 elejétől élesben.
+
+## MID API (új fejlemények)
+
+- **2026-04-21:** `/api/bundle/latest` élesben
+- **2026-04-22:** `/api/bundle/{date}` historical + webhook/SSE + Alembic normalize
+- **2026-04-24:** W17 alatt 0 event (stabil regime)
+- **W18:** IFDS MID Bundle Integration shadow mode task CC-nél
 
 ## Élesben futó feature-ök
 
-- Pipeline Split: Phase 1-3 (22:00 CEST) + Phase 4-6 (**16:15** CEST)
+- Pipeline Split: Phase 1-3 (22:00 CEST) + Phase 4-6 (16:15 CEST)
 - MKT entry + VWAP guard (csak REJECT >2%)
 - Swing Management: 5 napos hold, TP1 50% partial, TRAIL, breakeven SL, D+5 MOC
-- Dynamic positions: **max 5**, score threshold 85
+- Dynamic positions: max 5, score threshold 70 (Phase 4) / 85 qualified
 - **UW Client v2**: kötelező header, limit 500, premium aggregálás, dollár-alapú DP
-- **Snapshot v2**: dollár + GEX mezők minden új snapshotban (**hétfőtől éles**)
+- **Snapshot v2**: dollár + GEX mezők minden új snapshotban ✅
 - Cross-Asset Regime + Korrelációs Guard + Portfolio VaR 3%
-- Company Intel: 16:15 submit után (friss tickerekre)
+- Company Intel: 16:15 submit után
 - EWMA simítás, M_target penalty, BMI momentum guard
+- TP1 1.25×ATR — W17-ben 3 hit (POWI kedd TP1+TP2, NVDA péntek TP1)
 
 ## Shadow mode
 
@@ -79,21 +79,59 @@ Három kritikus probléma egyszerre orvosolva a UW adapter rétegben:
 |---|---|---|
 | Crowdedness composite | 2026-03-23 | TBD |
 | Skip Day Shadow Guard | 2026-04-02 | Kiértékelés ~máj 2 |
+| **MID Bundle Shadow** | **W18 hétfőn indul** | **W19 eleji döntés** |
 
-## Következő (W17: ápr 20-24)
+## W18 prioritásos terv (hétfő ápr 27-től)
 
-- **Hétfő (ápr 20):** első futás új adatokkal — **snapshot ellenőrzés kritikus** (új mezők jelen vannak-e, dollár értékekkel)
-- Hétfő-péntek: napi review-k
-- **Péntek (ápr 24):** W17 heti metrika → **BC23 2 hetes értékelés**
+### Párhuzamos futtatás
 
-**W18 (ápr 27-):** dollár-alapú `ticker_liquidity_audit_v3` → BC24 ticker univerzum alap
+**1. BC23 folytatódik** — normál pipeline, paper trading Day 51-55. Célok:
+- A W17-es +0.13% excess **fenntartása vagy javítása**
+- TP1 hit rate **stabilizálódása** a 9-15% sávba
+- Nincs új strukturális hiba
 
-## Tervezett BC-k (frissítve 2026-04-17)
+**2. MID Bundle Integration Shadow Mode** — CC task kész, hétfő reggel kezdés
+- `docs/tasks/2026-04-21-mid-bundle-integration-shadow.md`
+- Effort: 4-5h
+- Output: 5 napi MID bundle snapshot, W19 eleji comparison
 
-- **BC24 Institutional Flow Intelligence** (~W19-W22, máj 4-29) — UW új endpoints integráció, dollar-weighted scoring — design: `docs/analysis/uw-api-inventory-v2.md`
-- **BC25 IFDS Phase 3 ← MID CAS** (~W21+) — `docs/tasks/future-2026-04-17-bc-ifds-phase3-from-mid.md` (várakozik MID-re)
-- **MID BC ETF X-Ray 13F Layer** (MID projekten belül, külön ütemezés) — `/mid/docs/planning/BC-etf-xray-institutional-13f-layer.md`
-- **Paper Trading Day 63** (~máj 14): **éles/paper folytatás döntés**
+**3. Kis priority CC task (ha idő van):**
+- **M_contradiction multiplier ×0.80** implementáció (2-3h)
+- Alapja: 5/6 W17 pattern
+- Risk: alacsony, konzervatív paraméter
+
+### NEM W18-ra
+
+- **Recent Winner Penalty / Position Dedup** — várunk W18 adatra, ha ismétlődik a POWI-minta
+- **TP1 dinamikus skálázás** — BC24 scope
+- **BC25 Phase 3 refactor** — W19 után, shadow mode eredménye alapján
+- **BC24 UW Institutional Flow** — W19+ scope
+
+## Paper Trading Day 63 (~máj 14) döntési keret
+
+**13 nap múlva** éles/paper döntés. A jelenlegi -$19 breakeven nem indokol élesre váltást.
+
+**Valószínű kimenet:** +1 hónap paper trading, közben a fenti javítások implementálása, és **június elején** újra-kiértékelés.
+
+## Anomáliák
+
+- **ARMK 4-split péntek** — 428 shares → 100+103+100+125. Érdekes lenne hétfő utáni elemzés a IBKR paper account max order size viselkedéséről.
+- **Telegram regresszió** változatlanul él ("4/6 breakdown" hiányzik).
+- **CRGY + AAPL leftover** — 5 napja folyamatosan, hétvégi Tamás nuke.
+- **`docs/analysis/weekly/2026-W17.md`** — a hivatalos weekly_metrics.py report **megérkezett** ✅
+
+## Tervezett BC-k (változatlan)
+
+- **BC24 Institutional Flow Intelligence** (~W19-W22, máj 4-29) — UW új endpoints, dollar-weighted scoring
+- **BC25 IFDS Phase 3 ← MID CAS** (~W20+) — MID bundle API kész, shadow mode W18-ban, GO/NO-GO W19 elején
+- **Paper Trading Day 63** (~máj 14): éles/paper folytatás döntés
+
+## Hétvégi teendők
+
+- **Tamás:** CRGY + AAPL leftover manuális nuke
+- **Tamás:** pt_daily_metrics cron időzítés (W17 két napon ~1 óra késés)
+- **Chat:** MID vs IFDS sector rotation informális elemzés (CAS heatmap alapú)
+- **Chat:** W17 weekly elemzés ✅ elkészült (`docs/analysis/weekly/2026-W17-analysis.md`)
 
 ## Tesztek
 
@@ -104,7 +142,6 @@ Három kritikus probléma egyszerre orvosolva a UW adapter rétegben:
 - `97fbeda` — feat(models+snapshot): enrich snapshots with dollar-weighted flow + GEX
 - `533763b` — fix(uw-client): add required header, increase limit, aggregate premium
 - `0b905e6` — BC23 Scoring & Exit Redesign deploy (2026-04-13)
-- `1bffb57` — fix(cleanup): nuke.py log_path, FRED optional, phantom date guard
 
 ## Blokkolók
 

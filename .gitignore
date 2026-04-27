@@ -40,6 +40,9 @@ scripts/paper_trading/logs/
 # Reference (v13 source, not committed)
 /reference
 
+# Reference PDFs (large books, not committed; markdown is fine)
+docs/references/*.pdf
+
 # Temp config files
 obsidian_on.json
 .conductor/memory/*.db
