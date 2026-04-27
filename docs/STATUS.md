@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-24 Budapest, Chat (péntek este) -->
+<!-- Utolsó frissítés: 2026-04-27 Budapest, CC (W18 hétfő — MID Shadow deploy) -->
 
 ## Paper Trading
 Day 50/63 | cum. PnL: **−$19.03 (−0.02%)** ← **breakeven közelben** | IBKR DUH118657
@@ -140,6 +140,11 @@ Day 50/63 | cum. PnL: **−$19.03 (−0.02%)** ← **breakeven közelben** | IBK
 
 ## Utolsó commitok
 
+- `25806f2` — fix(mid): correct bundle.flat field paths for GIP gauges and TPI
+- `41f8e23` — feat(mid): add top_sectors/bottom_sectors and freshness metadata to get_regime()
+- `a3dfaf7` — feat(mid): integrate MID bundle API in shadow mode
+- `f09ad31` — docs(references): add Raschke adaptive-vs-automated note
+- `29858ca` — docs: sync W17 weekly + analysis + reviews + MID task
 - `97fbeda` — feat(models+snapshot): enrich snapshots with dollar-weighted flow + GEX
 - `533763b` — fix(uw-client): add required header, increase limit, aggregate premium
 - `0b905e6` — BC23 Scoring & Exit Redesign deploy (2026-04-13)
