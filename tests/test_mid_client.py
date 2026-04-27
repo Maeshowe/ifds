@@ -14,17 +14,34 @@ import pytest
 
 @pytest.fixture
 def sample_bundle() -> dict:
+    """Mirrors the live /api/bundle/latest response on 2026-04-27."""
     return {
         "flat": {
-            "regime": "STAGFLATION",
-            "tpi": 43,
-            "growth": "LOW",
-            "inflation": "HIGH",
-            "policy": "HAWKISH",
-            "rpi": 28,
-            "esi": 55,
+            "regime": "Stagflation",
+            "confidence": 0.10108678936284508,
+            "growth": 0.23928571428571432,
+            "inflation": 0.8131968789560814,
+            "policy": 0.5121441478933665,
+            "growth_dir": "flat",
+            "inflation_dir": "flat",
+            "policy_dir": "flat",
+            "tpi": 43.0,
+            "rpi": 47.264515035168216,
+            "esi": 0.2232,
+            "esi_label": "neutral",
+            "yield_curve_regime": "bull_steepener",
+            "s2s10_bps": 50.99999999999998,
+            "top_sectors": ["XLK", "XLE", "XLB"],
+            "bottom_sectors": ["XLV", "XLF", "XLY"],
+            "as_of_date": "2026-04-27",
+            "age_days": 11,
         },
-        "engines": {"tpi": {"state": "HIGH"}},
+        "engines": {
+            "tpi": {
+                "state": "HIGH",
+                "description": "Significant pressure. Multiple systems near thresholds.",
+            },
+        },
         "etf_xray": {
             "sectors": [
                 {"etf": "XLK", "consensus_state": "OVERWEIGHT", "score": 88},
@@ -182,9 +199,83 @@ class TestMidClientHelpers:
             client = MIDClient(api_key="fake-key")
             regime = client.get_regime()
 
-        assert regime["regime"] == "STAGFLATION"
-        assert regime["tpi_score"] == 43
+        # Original 8 fields (unchanged behavior)
+        assert regime["regime"] == "Stagflation"
+        assert regime["tpi_score"] == 43.0
         assert regime["tpi_state"] == "HIGH"
+        assert regime["growth"] == pytest.approx(0.2392857, rel=1e-5)
+        assert regime["inflation"] == pytest.approx(0.8131969, rel=1e-5)
+        assert regime["policy"] == pytest.approx(0.5121441, rel=1e-5)
+        assert regime["rpi"] == pytest.approx(47.2645150, rel=1e-5)
+        assert regime["esi"] == 0.2232
+
+    def test_get_regime_new_fields(self, sample_bundle: dict) -> None:
+        """Verify the 12 new fields added per live API verification (2026-04-27)."""
+        from ifds.data.mid_client import MIDClient
+
+        with patch("ifds.data.mid_client.httpx.get",
+                   return_value=_ok_response(sample_bundle)):
+            client = MIDClient(api_key="fake-key")
+            regime = client.get_regime()
+
+        assert regime["confidence"] == pytest.approx(0.10108679, rel=1e-5)
+        assert regime["growth_dir"] == "flat"
+        assert regime["inflation_dir"] == "flat"
+        assert regime["policy_dir"] == "flat"
+        assert regime["tpi_description"].startswith("Significant pressure")
+        assert regime["esi_label"] == "neutral"
+        assert regime["yield_curve_regime"] == "bull_steepener"
+        assert regime["s2s10_bps"] == pytest.approx(51.0, rel=1e-3)
+        assert regime["top_sectors"] == ["XLK", "XLE", "XLB"]
+        assert regime["bottom_sectors"] == ["XLV", "XLF", "XLY"]
+        assert regime["as_of_date"] == "2026-04-27"
+        assert regime["age_days"] == 11
+
+    def test_get_regime_alternate_field_paths(self) -> None:
+        """yc_regime/s2s10/bundle-level top_sectors fallbacks."""
+        from ifds.data.mid_client import MIDClient
+
+        bundle = {
+            "flat": {
+                "regime": "Goldilocks",
+                "yc_regime": "bear_flattener",
+                "s2s10": 12.5,
+            },
+            "top_sectors": ["XLY"],
+            "bottom_sectors": ["XLP"],
+            "as_of_date": "2026-04-28",
+            "age_days": 0,
+        }
+        with patch("ifds.data.mid_client.httpx.get",
+                   return_value=_ok_response(bundle)):
+            client = MIDClient(api_key="fake-key")
+            regime = client.get_regime()
+
+        assert regime["yield_curve_regime"] == "bear_flattener"
+        assert regime["s2s10_bps"] == 12.5
+        assert regime["top_sectors"] == ["XLY"]
+        assert regime["bottom_sectors"] == ["XLP"]
+        assert regime["as_of_date"] == "2026-04-28"
+        assert regime["age_days"] == 0
+
+    def test_get_regime_missing_optional_fields(self) -> None:
+        """Missing fields ⇒ None for scalars, [] for sector lists."""
+        from ifds.data.mid_client import MIDClient
+
+        with patch("ifds.data.mid_client.httpx.get",
+                   return_value=_ok_response({"flat": {"regime": "Goldilocks"}})):
+            client = MIDClient(api_key="fake-key")
+            regime = client.get_regime()
+
+        assert regime["regime"] == "Goldilocks"
+        assert regime["confidence"] is None
+        assert regime["tpi_description"] is None
+        assert regime["yield_curve_regime"] is None
+        assert regime["s2s10_bps"] is None
+        assert regime["top_sectors"] == []
+        assert regime["bottom_sectors"] == []
+        assert regime["as_of_date"] is None
+        assert regime["age_days"] is None
 
     def test_get_regime_empty_bundle(self) -> None:
         from ifds.data.mid_client import MIDClient

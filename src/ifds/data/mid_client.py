@@ -103,10 +103,19 @@ class MIDClient:
         return sectors if isinstance(sectors, list) else []
 
     def get_regime(self) -> dict[str, Any]:
-        """Return current regime + TPI summary from ``bundle.flat`` and
-        ``bundle.engines.tpi``.
+        """Return the full regime + TPI + sector summary from the bundle.
 
-        Returns an empty dict on any failure.
+        Mapped against the live ``/api/bundle/latest`` response on 2026-04-27.
+        Sources:
+            - ``bundle.flat.*`` — GIP gauges (growth/inflation/policy + dirs),
+              regime + confidence, RPI, ESI + label, yield curve regime + 2s10s,
+              pre-ranked top/bottom sectors, as-of date and age
+            - ``bundle.engines.tpi.*`` — TPI state and description
+            - ``bundle.flat.tpi`` — TPI score (0..100)
+
+        Defensive: every field is fetched with ``.get()`` so a missing or
+        renamed field becomes ``None`` (or ``[]`` for the sector lists)
+        rather than raising. Empty bundle ⇒ empty dict.
         """
         bundle = self.get_bundle()
         if not bundle:
@@ -114,13 +123,57 @@ class MIDClient:
         flat = bundle.get("flat", {}) if isinstance(bundle.get("flat"), dict) else {}
         engines = bundle.get("engines", {}) if isinstance(bundle.get("engines"), dict) else {}
         tpi = engines.get("tpi", {}) if isinstance(engines.get("tpi"), dict) else {}
+
+        # Some sector / metadata fields can live in a few alternate locations
+        # depending on the bundle version; fall back through them.
+        top_sectors = (
+            flat.get("top_sectors")
+            or bundle.get("top_sectors")
+            or []
+        )
+        bottom_sectors = (
+            flat.get("bottom_sectors")
+            or bundle.get("bottom_sectors")
+            or []
+        )
+        as_of_date = (
+            flat.get("as_of_date")
+            or bundle.get("as_of_date")
+        )
+        age_days = (
+            flat.get("age_days")
+            if flat.get("age_days") is not None
+            else bundle.get("age_days")
+        )
+        yield_curve_regime = (
+            flat.get("yield_curve_regime")
+            or flat.get("yc_regime")
+        )
+        s2s10_bps = (
+            flat.get("s2s10_bps")
+            if flat.get("s2s10_bps") is not None
+            else flat.get("s2s10")
+        )
+
         return {
             "regime": flat.get("regime"),
-            "tpi_score": flat.get("tpi"),
-            "tpi_state": tpi.get("state"),
+            "confidence": flat.get("confidence"),
             "growth": flat.get("growth"),
             "inflation": flat.get("inflation"),
             "policy": flat.get("policy"),
+            "growth_dir": flat.get("growth_dir"),
+            "inflation_dir": flat.get("inflation_dir"),
+            "policy_dir": flat.get("policy_dir"),
+            "tpi_score": flat.get("tpi"),
+            "tpi_state": tpi.get("state"),
+            "tpi_description": tpi.get("description"),
             "rpi": flat.get("rpi"),
             "esi": flat.get("esi"),
+            "esi_label": flat.get("esi_label"),
+            "yield_curve_regime": yield_curve_regime,
+            "s2s10_bps": s2s10_bps,
+            "top_sectors": top_sectors if isinstance(top_sectors, list) else [],
+            "bottom_sectors": bottom_sectors if isinstance(bottom_sectors, list) else [],
+            "as_of_date": as_of_date,
+            "age_days": age_days,
         }
