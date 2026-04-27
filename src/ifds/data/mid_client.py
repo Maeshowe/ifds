@@ -156,24 +156,31 @@ class MIDClient:
         )
 
         return {
+            # GIP regime classification
             "regime": flat.get("regime"),
             "confidence": flat.get("confidence"),
-            "growth": flat.get("growth"),
-            "inflation": flat.get("inflation"),
-            "policy": flat.get("policy"),
-            "growth_dir": flat.get("growth_dir"),
-            "inflation_dir": flat.get("inflation_dir"),
-            "policy_dir": flat.get("policy_dir"),
-            "tpi_score": flat.get("tpi"),
-            "tpi_state": tpi.get("state"),
-            "tpi_description": tpi.get("description"),
+            # GIP gauges (Growth/Inflation/Policy) — bundle uses g/i/p prefixes
+            "growth": flat.get("g_score"),
+            "inflation": flat.get("i_score"),
+            "policy": flat.get("p_score"),
+            "growth_dir": flat.get("g_dir"),
+            "inflation_dir": flat.get("i_dir"),
+            "policy_dir": flat.get("p_dir"),
+            # TPI (Threat Pressure Index) — under engines.tpi, not flat
+            "tpi_score": tpi.get("tpi_score"),
+            "tpi_state": tpi.get("level"),
+            "tpi_description": tpi.get("level_description"),
+            # Supporting indicators
             "rpi": flat.get("rpi"),
             "esi": flat.get("esi"),
             "esi_label": flat.get("esi_label"),
+            # Yield curve
             "yield_curve_regime": yield_curve_regime,
             "s2s10_bps": s2s10_bps,
+            # Pre-ranked sector picks (3+3)
             "top_sectors": top_sectors if isinstance(top_sectors, list) else [],
             "bottom_sectors": bottom_sectors if isinstance(bottom_sectors, list) else [],
+            # Freshness metadata
             "as_of_date": as_of_date,
             "age_days": age_days,
         }

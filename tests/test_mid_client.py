@@ -14,32 +14,44 @@ import pytest
 
 @pytest.fixture
 def sample_bundle() -> dict:
-    """Mirrors the live /api/bundle/latest response on 2026-04-27."""
+    """Mirrors the live /api/bundle/latest schema verified on 2026-04-27.
+
+    GIP gauges live as g_score/i_score/p_score (+ g_dir/i_dir/p_dir) under
+    bundle.flat. TPI lives under bundle.engines.tpi as {tpi_score, level,
+    level_description}. The remaining flat fields use direct names
+    (regime, confidence, rpi, esi, esi_label, yield_curve_regime,
+    s2s10_bps, top_sectors, bottom_sectors, as_of_date, age_days).
+    """
     return {
         "flat": {
             "regime": "Stagflation",
             "confidence": 0.10108678936284508,
-            "growth": 0.23928571428571432,
-            "inflation": 0.8131968789560814,
-            "policy": 0.5121441478933665,
-            "growth_dir": "flat",
-            "inflation_dir": "flat",
-            "policy_dir": "flat",
-            "tpi": 43.0,
+            # GIP gauges use g/i/p prefixes in the live API
+            "g_score": 0.23928571428571432,
+            "i_score": 0.8131968789560814,
+            "p_score": 0.5121441478933665,
+            "g_dir": "flat",
+            "i_dir": "flat",
+            "p_dir": "flat",
+            # Supporting indicators
             "rpi": 47.264515035168216,
             "esi": 0.2232,
             "esi_label": "neutral",
+            # Yield curve
             "yield_curve_regime": "bull_steepener",
             "s2s10_bps": 50.99999999999998,
+            # Pre-ranked sectors
             "top_sectors": ["XLK", "XLE", "XLB"],
             "bottom_sectors": ["XLV", "XLF", "XLY"],
+            # Freshness
             "as_of_date": "2026-04-27",
             "age_days": 11,
         },
         "engines": {
             "tpi": {
-                "state": "HIGH",
-                "description": "Significant pressure. Multiple systems near thresholds.",
+                "tpi_score": 43.0,
+                "level": "HIGH",
+                "level_description": "Significant pressure. Multiple systems near thresholds.",
             },
         },
         "etf_xray": {
