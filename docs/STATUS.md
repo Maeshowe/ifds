@@ -1,11 +1,12 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-27 Budapest, CC (W18 hétfő — MID Shadow deploy) -->
+<!-- Utolsó frissítés: 2026-04-28 Budapest, Chat (kedd reggel — W18 Day 1 review) -->
 
 ## Paper Trading
-Day 50/63 | cum. PnL: **−$19.03 (−0.02%)** ← **breakeven közelben** | IBKR DUH118657
-**BC23 W17 lezárult:** +$593 net, excess vs SPY +0.13% — **első "nem-katasztrofális" hét** a BC23 óta
-**Péntek mentő eredmény:** +$640 net (NVDA TP1 hit + CSCO MOC nyer)
+Day 51/63 | cum. PnL: **−$348.85 (−0.35%)** | IBKR DUH118657
+**BC23 W18 Day 1 (hétfő ápr 27):** -$361 net, excess vs SPY -0.50% — visszaesés a -$19 breakeven-ből
+**MID Bundle Integration:** ÉLES — első shadow snapshot 2026-04-27 (Stagflation Day 11/28, top XLK/XLE/XLB)
+**Megfigyelés:** 4/5 mai ticker MID top-3 sectorban volt, mégis vesztes — **ticker-szintű selectíon a probléma**, nem sector level
 
 ## W17 összefoglalás (2026-04-20 — 2026-04-24)
 
