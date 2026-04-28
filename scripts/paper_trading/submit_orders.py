@@ -515,6 +515,8 @@ def main():
                 'trail_high': None,
                 'scenario_b_activated': False,
                 'scenario_b_eligible': True,
+                'breakeven_locked': False,
+
                 'avwap_state': 'IDLE',
                 'avwap_dipped': False,
                 'avwap_last': None,

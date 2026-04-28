@@ -178,6 +178,56 @@ def get_scenario_b_hour_utc() -> int:
     return target_cet.astimezone(ZoneInfo("UTC")).hour
 
 
+# ---------------------------------------------------------------------------
+# 19:00 CEST Breakeven Lock — soft floor on B bracket trail SL
+# ---------------------------------------------------------------------------
+
+BREAKEVEN_LOCK_LOSS_CAP_PCT = 0.01  # entry × 0.99 = max -1% loss when below entry
+
+
+def is_breakeven_lock_window(now_cest: datetime) -> bool:
+    """Return True if the given Europe/Budapest time is in 19:00:00–19:04:59 CEST.
+
+    The 5-minute window matches the cron `*/5 16-21` cadence: a single
+    cron firing at 19:00 always lands inside, even with small clock skew.
+    """
+    return now_cest.hour == 19 and now_cest.minute < 5
+
+
+def compute_breakeven_lock(
+    entry_price: float,
+    current_price: float,
+    trail_sl: float,
+    loss_cap_pct: float = BREAKEVEN_LOCK_LOSS_CAP_PCT,
+) -> tuple[float, str]:
+    """Compute the soft-floor SL for the 19:00 CEST breakeven lock.
+
+    Soft floor semantics: returns ``max(trail_sl, floor)`` so the existing
+    trail mechanism continues unchanged when the trail is already above
+    the floor.
+
+    Floor:
+        - ``current_price > entry_price`` → ``floor = entry_price``
+          (lock_type ``profit_breakeven``)
+        - ``current_price <= entry_price`` → ``floor = entry × (1 − loss_cap_pct)``
+          (lock_type ``loss_capped_minus_1pct``)
+
+    Mathematical guarantee: ``max(x, y) >= x``, so the new SL is never
+    looser than the existing trail. The change is strictly risk-reducing.
+
+    Returns:
+        ``(new_sl, lock_type)`` — both rounded to 4 decimals.
+    """
+    if current_price > entry_price:
+        floor = entry_price
+        lock_type = "profit_breakeven"
+    else:
+        floor = entry_price * (1 - loss_cap_pct)
+        lock_type = "loss_capped_minus_1pct"
+    new_sl = round(max(trail_sl, floor), 4)
+    return new_sl, lock_type
+
+
 def main() -> None:
     try:
         from lib.trading_day_guard import check_trading_day
@@ -407,6 +457,50 @@ def main() -> None:
                         f"profit threshold ${threshold:.2f}, "
                         f"loss threshold ${s['entry_price'] * SCENARIO_B_LOSS_THRESHOLD:.2f})"
                     )
+
+        # --- 19:00 CEST Breakeven Lock (B bracket soft floor) ---
+        # Risk control: prevents winner-to-loser drift (e.g. POST 2026-04-27).
+        # Soft floor on the existing trail SL — never lowers, only raises.
+        # See docs/tasks/2026-04-28-1900-cest-breakeven-lock.md for rationale.
+        if (
+            s.get("trail_active")
+            and not s.get("breakeven_locked")
+            and is_breakeven_lock_window(datetime.now(CET))
+        ):
+            current_price_lock = get_last_price(ib, sym)
+            if current_price_lock is not None:
+                old_sl = s["trail_sl_current"]
+                new_sl, lock_type = compute_breakeven_lock(
+                    entry_price=s["entry_price"],
+                    current_price=current_price_lock,
+                    trail_sl=old_sl,
+                )
+                if new_sl > old_sl:
+                    s["trail_sl_current"] = new_sl
+                    msg = (
+                        f"LOCK {sym}: Breakeven lock applied ({lock_type})\n"
+                        f"Trail SL: ${old_sl:.2f} → ${new_sl:.2f}\n"
+                        f"Entry: ${s['entry_price']:.2f} | "
+                        f"Current: ${current_price_lock:.2f}"
+                    )
+                    logger.info(msg)
+                    if evt:
+                        evt.log(
+                            "monitor", "breakeven_lock_applied", ticker=sym,
+                            old_sl=old_sl, new_sl=new_sl,
+                            entry=s["entry_price"],
+                            current_price=current_price_lock,
+                            lock_type=lock_type,
+                        )
+                else:
+                    logger.info(
+                        f"{sym}: Breakeven lock no-op "
+                        f"(trail ${old_sl:.2f} >= floor for {lock_type})"
+                    )
+                # Mark locked even when no-op so we don't re-evaluate the
+                # 5-min window twice on overlapping cron firings.
+                s["breakeven_locked"] = True
+                state_changed = True
 
         # --- Trail SL update + hit detection ---
         if s.get("trail_active"):
