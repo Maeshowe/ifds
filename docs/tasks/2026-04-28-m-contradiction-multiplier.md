@@ -1,9 +1,21 @@
 # M_contradiction Multiplier — Position Sizing Penalty for CONTRADICTION-flagged Tickers
 
-**Status:** PROPOSED (W18 scope, implementation szerda ápr 29 után)
+**Status:** BLOCKED
 **Created:** 2026-04-28
 **Priority:** P1 — adatvezérelt javítás, W17 5/6 pattern alapján
 **Estimated effort:** ~2-3h CC
+
+**BLOCKED (2026-04-29 architecture discovery):** `scripts/company_intel.py` runs
+**post-submit** (after `deploy_intraday.sh` submit_orders), so the CONTRADICTION
+flag does not exist at Phase 6 sizing time. The flag lives only in an LLM prompt
+template (`scripts/company_intel.py:296`), not as structured output. Three
+options surfaced:
+- A: T+1 cache (lossy, asymmetric)
+- B: Pre-Phase-6 refactor (large scope, BC25-grade)
+- C: skip + halaszt → **chosen**
+
+Re-scoping by Chat 2026-04-30 after inspecting actual `company_intel.py` output
+format. Until then, this task does not proceed.
 **Depends on:**
 - W17 heti metrika lezárult (`docs/analysis/weekly/2026-W17.md` + Chat elemzés)
 - MID Bundle Integration deployolt (commit `a3dfaf7`) — független, párhuzamosan fut
