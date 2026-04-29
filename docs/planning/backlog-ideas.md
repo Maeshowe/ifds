@@ -280,6 +280,69 @@ Momentum + mean reversion kombinatciw. De túl komplex, egyelőre hagyjuk.
 
 ---
 
+---
+
+## Vol Control Implied Equity Allocation — Macro Layer Enrichment Idea (W19+ scope) — ÚJ 2026-04-28
+
+**Forrás:** Ivory Hill chart (Twitter @KurtSAltrichter, 2026-04-24): "Vol Control Implied Notional Equity Exposure vs SPX". A Vol Control / Volatility Targeting stratégiák (CTA-k, risk parity fundok, target-vol mandátumok) becsült összesített equity allokációja AUM × min(1, 10% / max(RV21, RV63)) képlettel számolva, ~$300B AUM bázison.
+
+**Az adat lényege:**
+
+Ezek a stratégiák fix volatilitás-targetet tartanak. Magas realized vol = mechanikus eladás, alacsony realized vol = mechanikus visszavásárlás. Ezzel a ~$300B AUM **kötelező irányú** flow-t generál, **fundamentális vélemény nélkül**.
+
+**A 2026-04-24-i érték (~$150-160B) a 2024-es csúcs (~$300B) szintjéhez képest fele.** Ez azt jelenti, hogy a passzív/algoritmikus pénz **alacsony szinten** áll most. Két lehetséges következmény:
+
+- **Re-leveraging tailwind:** ha a realized vol leesik, a fundok mechanikus visszavásárlást indítanak — strukturális tailwind a piacra, **független** a fundamentumoktól
+- **Continued risk-off:** ha a vol magas marad, a fundok kívül maradnak, és az SPY rally **vékony alapokon** áll
+
+**Implikáció az IFDS-nek:**
+
+A pipeline jelenleg nem méri ezt a faktort. Sem a Phase 0 diagnostics, sem a Phase 4 ticker scoring nem nézi a "systematic flow potential" dimenziót. Ez egy **macro layer enrichment idea**, nem ticker-szintű módosítás.
+
+A W17-W18 megfigyelése (4/5 mai ticker MID top-3 sectorban, mégis vesztes) **összhangban van** ezzel a macro képpel: a Stagflation regime + magas korreláció + alacsony Vol Control allocation együtt egy olyan környezetet teremt, ahol az **egyedi ticker dispersion alacsony**, és a fundamentális scoring **kevésbé prediktív**.
+
+**Lehetséges feature:**
+
+```python
+# Phase 0 diagnostics bővítés
+def compute_systematic_flow_signal() -> dict:
+    """Returns Vol Control allocation level + trend."""
+    # Adatforrás: ?? (Ivory Hill saját számítás, nem nyilvánosan elérhető)
+    # Alternatíva: saját implementáció CFTC CoT data + RV21/RV63 számolásból
+    return {
+        "vol_control_allocation_bn": 152.4,
+        "vol_control_pct_of_max": 0.51,  # 152/300
+        "vol_control_trend_5d": "rising" | "falling" | "flat",
+        "interpretation": "low_potential_tailwind" | "high_no_buying_left" | "neutral"
+    }
+```
+
+Ez lehet egy **`M_systematic_flow` multiplier** vagy **regime feature** a Phase 6-ban.
+
+**Adatforrás kihívás:**
+
+Az Ivory Hill chart **proprietary számítás**. Nyilvánosan elérhető megfelelő:
+- **CFTC Commitments of Traders (CoT)** report — heti, leveraged funds nettó pozíció (ingyen)
+- **Saját realized vol számolás** RV21, RV63 SPX-en (Polygon adatokból)
+- **Becsült AUM** a major Vol Target ETF-eken (ingyenes Bloomberg/Yahoo proxy)
+
+**~3-4h kutatás + 6-8h implementáció** lenne egy approximate replikáció. **Nem most**, és **nem prioritás**.
+
+**Hosszú távú érték:**
+
+Ha egy modern flow-aware swing trader ráérez erre a faktorra, akkor **másoknál egy lépéssel** előbbre lát. A retail közönség **nem** méri ezt — a magas RV alapján a piacban hisz, vagy nem hisz, **érzelmileg**. A vol target deleveraging/re-leveraging matematikai következetesség, ami **megelőzi** a fundamentális vagy érzelmi mozgásokat.
+
+**Státusz:** ROGZÍTVE 2026-04-28. **NEM prioritás** W18-W22 alatt. **Megfontolandó**:
+
+- BC26 vagy BC27 scope-ban, miután a BC24 (UW Institutional Flow) és BC25 (MID Phase 3) már él
+- **Csak akkor**, ha a Day 90+ paper trading mérés azt mutatja, hogy az IFDS scoring nem differenciál jól a regime-eken belül, és új makro layer kell
+- Q3 2026 vagy később
+
+**Priority:** P3 — **kutatási idea**, nem implementációs task. 
+**Effort:** ~10-12h R&D, **nem most.**
+
+---
+
 ## Kapcsolódó backlog elemek
 
 - BC24 (Institutional Flow Intelligence) — **előfeltétel**, a flow komponens jobb jel nélkül nincs értelme regime-weighted-nek
@@ -287,3 +350,4 @@ Momentum + mean reversion kombinatciw. De túl komplex, egyelőre hagyjuk.
 - M_target penalty (fent) — **független**, W18-ban eldőlhet külön
 - M_contradiction multiplier (finomítva ×0.80-ra 2026-04-23 után, 5/6 = 83% pattern alapján) — **független**, de jobb együtt tenni a regime-aware változtatásokkal, nehogy túl sok változó egyszerre
 - **Recent Winner Penalty / Position Dedup** (most rögzítve, POWI paradoxon alapján) — **független**, egyszerű, hamar implementálható
+- **Vol Control Equity Allocation** (most rögzítve, Ivory Hill chart alapján) — **macro layer enrichment**, BC26+ scope, R&D heavy

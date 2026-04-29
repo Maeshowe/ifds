@@ -1,12 +1,22 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-28 Budapest, Chat (kedd reggel — W18 Day 1 review) -->
+<!-- Utolsó frissítés: 2026-04-29 Budapest, CC /wrap-up (szerda délelőtt — W18 Day 3, vix-close + whipsaw audit deployed, M_contradiction BLOCKED) -->
 
 ## Paper Trading
-Day 51/63 | cum. PnL: **−$348.85 (−0.35%)** | IBKR DUH118657
-**BC23 W18 Day 1 (hétfő ápr 27):** -$361 net, excess vs SPY -0.50% — visszaesés a -$19 breakeven-ből
-**MID Bundle Integration:** ÉLES — első shadow snapshot 2026-04-27 (Stagflation Day 11/28, top XLK/XLE/XLB)
-**Megfigyelés:** 4/5 mai ticker MID top-3 sectorban volt, mégis vesztes — **ticker-szintű selectíon a probléma**, nem sector level
+Day 52/63 | cum. PnL: **−$617.46 (−0.62%)** | IBKR DUH118657
+**BC23 W18 Day 2 (kedd ápr 28):** -$308 net, excess vs SPY **+0.22%** ⭐ outperform negatív napon
+**Breakeven Lock első éles aktiválás:** PAA pozíción 19:00:19 CEST — soft floor entry-re, profit megőrzve (+$135.75)
+**MID Bundle Integration:** ÉLES — Stagflation Day 12/28, top XLK/XLE/XLB változatlan
+
+## W18 Day 3 (szerda ápr 29) — két task DEPLOYED
+
+**vix-close (`0a23a35`):** `daily_metrics.py` Phase 0 `MACRO_REGIME` event-ből + Polygon I:VIX fallback. 8 új teszt. 2026-04-28 → vix=18.04 (Δ=-0.88%).
+
+**LOSS_EXIT whipsaw audit (`a77d425`):** `scripts/analysis/loss_exit_whipsaw_analysis.py`. BC23 minta (6 esemény, 04-13 → 04-29): **net whipsaw cost +$87.98** — a -2% szabály átlagosan védett, nem rontott. Stop saved: GME +$140, SKM +$107, CRWV +$47. Stop hurt: NIO -$128, POWI -$50, ON -$28. **Tanulság:** a NIO eset egy kivétel, nem szabály. **Ne nyúljunk a LOSS_EXIT-hez.** Részletes táblázat: `docs/analysis/loss-exit-whipsaw-analysis.md`.
+
+**M_contradiction multiplier (BLOCKED):** CC felfedezése: a Company Intel script a Phase 6 UTÁN fut (Telegram-only, nem strukturált flag). 2026-04-29 reggeli Tamás megfigyelés: a Company Intel funkciója NEM döntéstámogatás (saját tanulási eszköz), és a CONTRADICTION jelzés strukturált FMP adatból származik (earnings beat ratio, target consensus, analyst downgrades). **Holnap reggel (Chat) re-scope:** új modul `contradiction_signal.py` direkt FMP-ből, Company Intel érintetlenül.
+
+**Tesztek: 1535 passing**, 0 failure (1380 baseline + 138 Breakeven Lock + 8 vix-close + 9 whipsaw).
 
 ## W17 összefoglalás (2026-04-20 — 2026-04-24)
 
@@ -137,19 +147,19 @@ Day 51/63 | cum. PnL: **−$348.85 (−0.35%)** | IBKR DUH118657
 
 ## Tesztek
 
-**1377 passing** (1352 + 25 új MID test), 0 failure
+**1535 passing** (1377 + 138 Breakeven Lock + 8 vix-close + 9 whipsaw + 3 egyéb), 0 failure
 
 ## Utolsó commitok
 
+- `a77d425` — feat(analysis): LOSS_EXIT whipsaw cost retrospective audit (W18 Day 3)
+- `0a23a35` — feat(daily_metrics): populate vix_close from Phase 0 log + Polygon fallback (W18 Day 3)
+- `f024976` — feat(monitor): add 19:00 CEST breakeven lock for B bracket positions (W18 Day 2)
+- `431fc5e` — docs: W18 Day 1 review + status update + 2 új task
+- `b92b509` — docs(rules): add live-API schema verification rule (lessons from 25806f2)
 - `25806f2` — fix(mid): correct bundle.flat field paths for GIP gauges and TPI
 - `41f8e23` — feat(mid): add top_sectors/bottom_sectors and freshness metadata to get_regime()
 - `a3dfaf7` — feat(mid): integrate MID bundle API in shadow mode
-- `f09ad31` — docs(references): add Raschke adaptive-vs-automated note
-- `29858ca` — docs: sync W17 weekly + analysis + reviews + MID task
-- `97fbeda` — feat(models+snapshot): enrich snapshots with dollar-weighted flow + GEX
-- `533763b` — fix(uw-client): add required header, increase limit, aggregate premium
-- `0b905e6` — BC23 Scoring & Exit Redesign deploy (2026-04-13)
 
 ## Blokkolók
 
-nincs
+**M_contradiction multiplier (P1, BLOCKED 2026-04-29):** `scripts/company_intel.py` post-submit fut, a CONTRADICTION flag csak LLM prompt template-ben él — Phase 6 sizing-time-ban nem létezik. Re-scoping: Chat 2026-04-30 reggel a tényleges company_intel output formátum alapján.
