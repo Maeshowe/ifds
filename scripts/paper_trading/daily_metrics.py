@@ -45,6 +45,7 @@ TRADES_DIR = PROJECT_ROOT / "scripts" / "paper_trading" / "logs"
 EXEC_PLAN_DIR = PROJECT_ROOT / "output"
 PHASE4_DIR = PROJECT_ROOT / "state" / "phase4_snapshots"
 METRICS_DIR = PROJECT_ROOT / "state" / "daily_metrics"
+LOGS_DIR = PROJECT_ROOT / "logs"
 INITIAL_CAPITAL = 100_000
 
 
@@ -125,6 +126,97 @@ def _load_phase4_snapshot(target_date: str) -> dict[str, dict]:
     if not isinstance(data, list):
         return {}
     return {row["ticker"]: row for row in data if "ticker" in row}
+
+
+def _load_phase0_vix(target_date: str, logs_dir: Path | None = None) -> float | None:
+    """Parse VIX close from Phase 0 MACRO_REGIME events for target_date.
+
+    Reads ``logs/ifds_run_YYYYMMDD_*.jsonl`` and returns the most recent
+    ``data.vix_value`` from a MACRO_REGIME event in phase 0. Returns None
+    if no log exists or no event carries vix_value.
+    """
+    base = logs_dir or LOGS_DIR
+    date_str = target_date.replace("-", "")
+    pattern = str(base / f"ifds_run_{date_str}_*.jsonl")
+    files = sorted(glob.glob(pattern))
+    if not files:
+        return None
+
+    latest_vix: float | None = None
+    for log_path in files:
+        try:
+            with open(log_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if event.get("event_type") != "MACRO_REGIME":
+                        continue
+                    if event.get("phase") != 0:
+                        continue
+                    data = event.get("data")
+                    if not isinstance(data, dict):
+                        continue
+                    vix_value = data.get("vix_value")
+                    if isinstance(vix_value, (int, float)):
+                        latest_vix = float(vix_value)
+        except OSError:
+            continue
+    return latest_vix
+
+
+def _fetch_vix_close(target_date: str) -> float | None:
+    """Fetch VIX close from Polygon (I:VIX) as a fallback for the log parser."""
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT / "src"))
+        from ifds.data.polygon import PolygonClient
+    except ImportError:
+        return None
+
+    api_key = os.environ.get("IFDS_POLYGON_API_KEY")
+    if not api_key:
+        return None
+
+    from_date = (date.fromisoformat(target_date) - timedelta(days=5)).isoformat()
+    try:
+        client = PolygonClient(api_key)
+        bars = client.get_aggregates("I:VIX", from_date, target_date, timespan="day")
+    except Exception as e:
+        logger.warning(f"VIX fetch failed: {e}")
+        return None
+
+    if not bars:
+        return None
+
+    bars_sorted = sorted(bars, key=lambda b: b.get("t", 0))
+    close = bars_sorted[-1].get("c")
+    return float(close) if close is not None else None
+
+
+def _load_previous_vix_close(target_date: str) -> float | None:
+    """Read vix_close from the previous trading day's daily_metrics.json (if any)."""
+    try:
+        cur = date.fromisoformat(target_date)
+    except ValueError:
+        return None
+    for back in range(1, 8):
+        prev = (cur - timedelta(days=back)).isoformat()
+        path = METRICS_DIR / f"{prev}.json"
+        if not path.exists():
+            continue
+        try:
+            with open(path) as f:
+                prev_data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        prev_vix = (prev_data.get("market") or {}).get("vix_close")
+        if isinstance(prev_vix, (int, float)):
+            return float(prev_vix)
+    return None
 
 
 def _fetch_spy_return(target_date: str) -> float | None:
@@ -222,9 +314,15 @@ def build_daily_metrics(target_date: str) -> dict:
     best = max(trades, key=lambda t: t["pnl"]) if trades else None
     worst = min(trades, key=lambda t: t["pnl"]) if trades else None
 
-    # --- VIX (from Phase 0 log or snapshot) ---
-    # Not available directly — leave as None for now
-    vix_close = None
+    # --- VIX close (Phase 0 MACRO_REGIME event → Polygon I:VIX fallback) ---
+    vix_close = _load_phase0_vix(target_date)
+    if vix_close is None:
+        vix_close = _fetch_vix_close(target_date)
+    vix_delta_pct: float | None = None
+    if vix_close is not None:
+        prev_vix = _load_previous_vix_close(target_date)
+        if prev_vix is not None and prev_vix > 0:
+            vix_delta_pct = (vix_close - prev_vix) / prev_vix * 100
 
     return {
         "date": target_date,
@@ -239,7 +337,8 @@ def build_daily_metrics(target_date: str) -> dict:
 
         "market": {
             "spy_return_pct": round(spy_return, 2) if spy_return is not None else None,
-            "vix_close": vix_close,
+            "vix_close": round(vix_close, 2) if vix_close is not None else None,
+            "vix_delta_pct": round(vix_delta_pct, 2) if vix_delta_pct is not None else None,
             "strategy": "LONG",
         },
 

@@ -1,6 +1,7 @@
 # Daily Metrics — VIX Close Backfill from Phase 0 Diagnostics
 
-**Status:** PROPOSED (W18 nice-to-have, ~30-45min CC)
+**Status:** DONE
+**Updated:** 2026-04-29
 **Created:** 2026-04-28
 **Priority:** P3 — kis CC task, kozmetikai jellegű, de a daily review-k mérőszám-konzisztenciáját javítja
 **Estimated effort:** ~30-45 min CC
