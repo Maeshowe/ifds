@@ -1,14 +1,14 @@
 # Ticker Universe Liquidity Audit v2 (Distribution-first)
 
-**Dataset:** 44 Phase 4 snapshots (2026-02-19 → 2026-04-19), 11791 total records, 1265 unique tickers.
+**Dataset:** 43 Phase 4 snapshots (2026-02-19 → 2026-04-17), 11790 total records, 1265 unique tickers.
 
-**Average passes per ticker:** 9.3 (out of 44 possible days)
+**Average passes per ticker:** 9.3 (out of 43 possible days)
 
 ## Key finding
 
 The Phase 4 ticker universe is **highly rotational**: most tickers appear only on a few days, not consistently across weeks. This alone is worth discussing for the scoring design.
 
-## Persistence histogram (days seen out of 44)
+## Persistence histogram (days seen out of 43)
 
 | Days seen | Ticker count | % of universe |
 |---|---|---|
@@ -21,7 +21,7 @@ The Phase 4 ticker universe is **highly rotational**: most tickers appear only o
 | 21-25 | 100 | 7.9% |
 | 26-30 | 6 | 0.5% |
 | 31-35 | 1 | 0.1% |
-| 36-44 | 0 | 0.0% |
+| 36-43 | 0 | 0.0% |
 
 ## DP Coverage — among persistent tickers (≥10 days seen, 538 total)
 
