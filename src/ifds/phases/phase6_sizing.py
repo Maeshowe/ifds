@@ -582,8 +582,16 @@ def _calculate_multiplier_total(
         stock.technical.price, stock.analyst_target, config
     )
 
+    # M_contradiction (BC23 W18+, 2026-05-02): structured FMP outlier protection.
+    # Phase 4 sets stock.contradiction_flag from earnings/target/grades data;
+    # Phase 6 just consumes the precomputed flag.
+    m_contradiction = 1.0
+    if (config.tuning.get("m_contradiction_enabled", False)
+            and getattr(stock, "contradiction_flag", False)):
+        m_contradiction = config.tuning["m_contradiction_value"]
+
     # Total product, clamped to [0.25, 2.0]
-    m_total = m_gex * m_vix * m_target
+    m_total = m_gex * m_vix * m_target * m_contradiction
     m_total = max(0.25, min(2.0, m_total))
 
     multipliers = {
@@ -594,6 +602,7 @@ def _calculate_multiplier_total(
         "m_vix": m_vix,
         "m_utility": m_utility,
         "m_target": m_target,
+        "m_contradiction": m_contradiction,
     }
     return m_total, multipliers
 
@@ -658,6 +667,17 @@ def _calculate_position(
                                f"overshoot={overshoot_pct:.1%} → M_target={multipliers['m_target']}",
                        data={"ticker": stock.ticker, "m_target": multipliers["m_target"],
                              "overshoot_pct": overshoot_pct})
+
+    # Log M_contradiction if active
+    if multipliers["m_contradiction"] < 1.0 and logger is not None:
+        reasons = list(getattr(stock, "contradiction_reasons", ()) or ())
+        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
+                   message=(f"[M_CONTRADICTION] {stock.ticker}: applied "
+                            f"{multipliers['m_contradiction']:.2f} multiplier "
+                            f"(reasons: {', '.join(reasons)})"),
+                   data={"ticker": stock.ticker,
+                         "m_contradiction": multipliers["m_contradiction"],
+                         "reasons": reasons})
 
     # T5: BMI oversold aggressive sizing REMOVED (BC23) — redundant with BMI guard
 
@@ -764,6 +784,9 @@ def _calculate_position(
         m_vix=multipliers["m_vix"],
         m_utility=multipliers["m_utility"],
         m_target=multipliers["m_target"],
+        m_contradiction=multipliers["m_contradiction"],
+        contradiction_flag=getattr(stock, "contradiction_flag", False),
+        contradiction_reasons=tuple(getattr(stock, "contradiction_reasons", ()) or ()),
         scale_out_price=round(scale_out_price, 2),
         scale_out_pct=config.core["scale_out_pct"],
         is_fresh=is_fresh,

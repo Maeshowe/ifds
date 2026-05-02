@@ -226,7 +226,9 @@ class TestExecutionPlanExtension:
         assert "sector_bmi" in COLUMNS
         assert "sector_regime" in COLUMNS
         assert "is_mean_reversion" in COLUMNS
-        assert len(COLUMNS) == 18  # 13 original + 5 new
+        assert "contradiction_flag" in COLUMNS
+        assert "contradiction_reasons" in COLUMNS
+        assert len(COLUMNS) == 20  # 13 original + 5 + 2 contradiction
 
     def test_new_columns_in_csv(self, tmp_path, logger):
         positions = [_make_position(m_vix=0.8, m_utility=1.2,

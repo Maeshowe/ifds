@@ -1,6 +1,7 @@
 # Contradiction Signal — Strukturált FMP-alapú multiplier (M_contradiction)
 
-**Status:** OPEN — egy fejlesztési körben implementálandó
+**Status:** DONE
+**Updated:** 2026-05-02
 **Created:** 2026-05-02 (vasárnap, Tamás utazás előtt előkészítve)
 **Priority:** **P1** — adatvezérelt javítás, W17 5/6 + W18 DTE -$988 alapján
 **Estimated effort:** ~4-4.5h CC (egyetlen fejlesztési kör)

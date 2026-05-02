@@ -239,6 +239,14 @@ TUNING = {
     "target_severe_threshold": 0.50,        # >50% above target → ×0.60
     "target_severe_penalty": 0.60,
 
+    # M_contradiction multiplier (Phase 6, 2026-05-02 W18 wrap-up)
+    # Outlier protection from structured FMP fundamentals — earnings beat ratio,
+    # consensus target overshoot, analyst HIGH overshoot, recent downgrades.
+    # Computed in Phase 4 (per-ticker), applied here as M_contradiction.
+    # Verified W17 5/6 pattern + W18 DTE -$988 case.
+    "m_contradiction_enabled": True,
+    "m_contradiction_value": 0.80,
+
     # Sector Diversification
     "max_positions_per_sector": 2,     # BC23: was 3
 

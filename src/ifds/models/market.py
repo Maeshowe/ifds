@@ -379,6 +379,13 @@ class StockAnalysis:
     put_wall: float | None = None
     zero_gamma: float | None = None
 
+    # Contradiction signal (BC23 W18+, 2026-05-02): structured FMP-based outlier
+    # protection. Set in Phase 4 from earnings/target/grades data, consumed by
+    # Phase 6 sizing (M_contradiction multiplier).
+    contradiction_flag: bool = False
+    contradiction_reasons: tuple[str, ...] = field(default_factory=tuple)
+    contradiction_detail: dict = field(default_factory=dict)
+
 
 @dataclass
 class Phase4Result:
@@ -479,6 +486,9 @@ class PositionSizing:
     m_vix: float = 1.0
     m_utility: float = 1.0
     m_target: float = 1.0               # Analyst price target contradiction penalty (Phase 6)
+    m_contradiction: float = 1.0        # Structured FMP contradiction signal (Phase 6, 2026-05-02)
+    contradiction_flag: bool = False    # Mirror of stock.contradiction_flag for CSV/audit
+    contradiction_reasons: tuple[str, ...] = field(default_factory=tuple)
     scale_out_price: float = 0.0
     scale_out_pct: float = 0.33
     is_fresh: bool = False

@@ -240,6 +240,57 @@ class FMPClient(BaseAPIClient):
             return result[0]
         return None
 
+    def get_earnings_history(self, ticker: str, n_quarters: int = 4) -> list[dict] | None:
+        """Get the last *n* quarters of reported earnings (actuals only).
+
+        FMP's ``/stable/earnings`` returns past + upcoming quarters mixed.
+        Upcoming entries have ``epsActual=None``; this helper filters them
+        out and returns the last ``n_quarters`` actual reports, newest first.
+
+        Returns list of ``{"date", "epsActual", "epsEstimated", ...}`` or None
+        on fetch failure.
+        """
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        if self._cache:
+            cached = self._cache.get("fmp", "earnings-history", yesterday, ticker)
+            if cached is not None:
+                return cached[:n_quarters]
+
+        params = {"apikey": self._api_key, "symbol": ticker}
+        result = self._get("/stable/earnings", params=params,
+                           headers=self._auth_headers())
+        if not result or not isinstance(result, list):
+            return None
+
+        actuals = [
+            entry for entry in result
+            if isinstance(entry.get("epsActual"), (int, float))
+        ]
+        if self._cache:
+            self._cache.put("fmp", "earnings-history", yesterday, ticker, actuals)
+        return actuals[:n_quarters]
+
+    def get_recent_grades(self, ticker: str, limit: int = 10) -> list[dict] | None:
+        """Get recent analyst grade changes for a ticker.
+
+        Returns list of ``{"date", "action", "gradingCompany",
+        "newGrade", "previousGrade"}`` or None on fetch failure.
+        """
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        if self._cache:
+            cached = self._cache.get("fmp", "grades", yesterday, ticker)
+            if cached is not None:
+                return cached
+
+        params = {"apikey": self._api_key, "symbol": ticker, "limit": limit}
+        result = self._get("/stable/grades", params=params,
+                           headers=self._auth_headers())
+        if not result or not isinstance(result, list):
+            return None
+        if self._cache:
+            self._cache.put("fmp", "grades", yesterday, ticker, result)
+        return result
+
     def get_financial_growth(self, ticker: str) -> dict | None:
         """Get most recent financial growth rates.
 

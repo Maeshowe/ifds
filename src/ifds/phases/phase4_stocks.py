@@ -189,11 +189,42 @@ def run_phase4(config: Config, logger: EventLogger,
                 technical, flow, fundamental, sector_adj, config
             )
 
+            # 5b. Analyst target + contradiction signal (sync path mirrors async)
+            target_data = fmp.get_price_target_consensus(symbol)
+            analyst_target = None
+            target_high = None
+            if target_data and isinstance(target_data, dict):
+                if target_data.get("targetConsensus"):
+                    try:
+                        analyst_target = float(target_data["targetConsensus"])
+                    except (ValueError, TypeError):
+                        analyst_target = None
+                if target_data.get("targetHigh"):
+                    try:
+                        target_high = float(target_data["targetHigh"])
+                    except (ValueError, TypeError):
+                        target_high = None
+            earnings_history = fmp.get_earnings_history(symbol)
+            recent_grades = fmp.get_recent_grades(symbol)
+
+            from ifds.scoring.contradiction_signal import compute_contradiction_signal
+            contradiction = compute_contradiction_signal(
+                price=technical.price,
+                target_consensus=analyst_target,
+                target_high=target_high,
+                earnings_history=earnings_history if isinstance(earnings_history, list) else None,
+                analyst_grades_recent=recent_grades if isinstance(recent_grades, list) else None,
+            )
+
             analysis = StockAnalysis(
                 ticker=symbol, sector=ticker_obj.sector,
                 technical=technical, flow=flow, fundamental=fundamental,
                 combined_score=combined, sector_adjustment=sector_adj,
                 shark_detected=fundamental.shark_detected,
+                analyst_target=analyst_target,
+                contradiction_flag=contradiction.is_contradicted,
+                contradiction_reasons=contradiction.reasons,
+                contradiction_detail=dict(contradiction.detail),
             )
 
             # 6. Filters
@@ -972,7 +1003,8 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                     excluded=True, exclusion_reason="tech_filter",
                 )
 
-            # Stage 3: Parallel FMP + DP + Options + Inst + Target fetch (6-7 calls at once)
+            # Stage 3: Parallel FMP + DP + Options + Inst + Target + Contradiction
+            # signal inputs (9 calls at once)
             results = await asyncio.gather(
                 fmp.get_financial_growth(symbol),
                 fmp.get_key_metrics(symbol),
@@ -981,11 +1013,17 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                 polygon.get_options_snapshot(symbol),
                 fmp.get_institutional_ownership(symbol) if inst_ownership_available else _noop(),
                 fmp.get_price_target_consensus(symbol),
+                fmp.get_earnings_history(symbol),
+                fmp.get_recent_grades(symbol),
                 return_exceptions=True,
             )
 
             # Unpack — treat exceptions as None, log failures
-            _labels = ("fmp_growth", "fmp_metrics", "fmp_insider", "dark_pool", "options", "inst_ownership", "price_target")
+            _labels = (
+                "fmp_growth", "fmp_metrics", "fmp_insider", "dark_pool",
+                "options", "inst_ownership", "price_target",
+                "earnings_history", "recent_grades",
+            )
             for idx, label in enumerate(_labels):
                 if isinstance(results[idx], BaseException):
                     logger.log(EventType.API_ERROR, Severity.WARNING, phase=4,
@@ -998,12 +1036,21 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             options_data = results[4] if not isinstance(results[4], BaseException) else None
             inst_data = results[5] if not isinstance(results[5], BaseException) else None
             target_data = results[6] if not isinstance(results[6], BaseException) else None
+            earnings_history = results[7] if not isinstance(results[7], BaseException) else None
+            recent_grades = results[8] if not isinstance(results[8], BaseException) else None
             analyst_target: float | None = None
-            if target_data and isinstance(target_data, dict) and target_data.get("targetConsensus"):
-                try:
-                    analyst_target = float(target_data["targetConsensus"])
-                except (ValueError, TypeError):
-                    analyst_target = None
+            target_high: float | None = None
+            if target_data and isinstance(target_data, dict):
+                if target_data.get("targetConsensus"):
+                    try:
+                        analyst_target = float(target_data["targetConsensus"])
+                    except (ValueError, TypeError):
+                        analyst_target = None
+                if target_data.get("targetHigh"):
+                    try:
+                        target_high = float(target_data["targetHigh"])
+                    except (ValueError, TypeError):
+                        target_high = None
 
             # Stage 4: Score with pre-fetched data (pure computation)
             flow = _analyze_flow_from_data(symbol, bars, dp_data, config,
@@ -1026,12 +1073,26 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                 technical, flow, fundamental, sector_adj, config,
             )
 
+            # Contradiction signal (BC23 W18+, 2026-05-02): pure-function eval
+            # of structured FMP fundamentals. Defensive — missing inputs ⇒ no flag.
+            from ifds.scoring.contradiction_signal import compute_contradiction_signal
+            contradiction = compute_contradiction_signal(
+                price=technical.price,
+                target_consensus=analyst_target,
+                target_high=target_high,
+                earnings_history=earnings_history if isinstance(earnings_history, list) else None,
+                analyst_grades_recent=recent_grades if isinstance(recent_grades, list) else None,
+            )
+
             return StockAnalysis(
                 ticker=symbol, sector=ticker_obj.sector,
                 technical=technical, flow=flow, fundamental=fundamental,
                 combined_score=combined, sector_adjustment=sector_adj,
                 shark_detected=fundamental.shark_detected,
                 analyst_target=analyst_target,
+                contradiction_flag=contradiction.is_contradicted,
+                contradiction_reasons=contradiction.reasons,
+                contradiction_detail=dict(contradiction.detail),
             )
 
     try:

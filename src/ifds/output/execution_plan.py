@@ -19,6 +19,7 @@ COLUMNS = [
     "quantity", "stop_loss", "take_profit_1", "take_profit_2",
     "risk_usd", "score", "gex_regime", "sector", "multiplier_total",
     "mult_vix", "mult_utility", "sector_bmi", "sector_regime", "is_mean_reversion",
+    "contradiction_flag", "contradiction_reasons",
 ]
 
 SCAN_COLUMNS = [
@@ -84,6 +85,8 @@ def write_execution_plan(positions: list[PositionSizing],
                 "sector_bmi": round(pos.sector_bmi, 2) if pos.sector_bmi is not None else "",
                 "sector_regime": pos.sector_regime,
                 "is_mean_reversion": pos.is_mean_reversion,
+                "contradiction_flag": int(pos.contradiction_flag),
+                "contradiction_reasons": ";".join(pos.contradiction_reasons),
             })
 
     logger.log(EventType.EXECUTION_PLAN, Severity.INFO, phase=6,

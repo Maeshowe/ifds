@@ -182,6 +182,47 @@ class AsyncFMPClient(AsyncBaseAPIClient):
             return result[0]
         return None
 
+    async def get_earnings_history(self, ticker: str, n_quarters: int = 4) -> list[dict] | None:
+        """Get last N quarters of reported earnings (actuals only).
+
+        Filters out upcoming entries (epsActual=None). See sync FMPClient
+        equivalent for full docs.
+        """
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        if self._cache:
+            cached = self._cache.get("fmp", "earnings-history", yesterday, ticker)
+            if cached is not None:
+                return cached[:n_quarters]
+
+        params = {"apikey": self._api_key, "symbol": ticker}
+        result = await self._get("/stable/earnings", params=params)
+        if not result or not isinstance(result, list):
+            return None
+
+        actuals = [
+            entry for entry in result
+            if isinstance(entry.get("epsActual"), (int, float))
+        ]
+        if self._cache:
+            self._cache.put("fmp", "earnings-history", yesterday, ticker, actuals)
+        return actuals[:n_quarters]
+
+    async def get_recent_grades(self, ticker: str, limit: int = 10) -> list[dict] | None:
+        """Get recent analyst grade changes for a ticker."""
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        if self._cache:
+            cached = self._cache.get("fmp", "grades", yesterday, ticker)
+            if cached is not None:
+                return cached
+
+        params = {"apikey": self._api_key, "symbol": ticker, "limit": limit}
+        result = await self._get("/stable/grades", params=params)
+        if not result or not isinstance(result, list):
+            return None
+        if self._cache:
+            self._cache.put("fmp", "grades", yesterday, ticker, result)
+        return result
+
     async def get_institutional_ownership(self, ticker: str) -> list[dict] | None:
         """Get institutional ownership data (most recent 2 quarters)."""
         yesterday = (date.today() - timedelta(days=1)).isoformat()

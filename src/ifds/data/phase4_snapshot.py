@@ -150,11 +150,16 @@ def snapshot_to_stock_analysis(record: dict) -> "StockAnalysis":
         combined_score=record.get("combined_score", 0.0),
         sector_adjustment=record.get("sector_adjustment", 0),
         shark_detected=record.get("shark_detected", False),
+        analyst_target=record.get("analyst_target"),
         # Phase 5 GEX fields (None for legacy snapshots)
         net_gex=record.get("net_gex"),
         call_wall=record.get("call_wall"),
         put_wall=record.get("put_wall"),
         zero_gamma=record.get("zero_gamma"),
+        # Contradiction signal (BC23 W18+, 2026-05-02 — defaults for legacy snapshots)
+        contradiction_flag=record.get("contradiction_flag", False),
+        contradiction_reasons=tuple(record.get("contradiction_reasons", ()) or ()),
+        contradiction_detail=record.get("contradiction_detail", {}) or {},
     )
 
 
@@ -218,4 +223,10 @@ def _stock_to_dict(stock) -> dict:
         "call_wall": getattr(stock, "call_wall", None),
         "put_wall": getattr(stock, "put_wall", None),
         "zero_gamma": getattr(stock, "zero_gamma", None),
+        # Analyst price target (FMP consensus, 2026-04-17)
+        "analyst_target": getattr(stock, "analyst_target", None),
+        # Contradiction signal (BC23 W18+, 2026-05-02)
+        "contradiction_flag": getattr(stock, "contradiction_flag", False),
+        "contradiction_reasons": list(getattr(stock, "contradiction_reasons", ()) or ()),
+        "contradiction_detail": dict(getattr(stock, "contradiction_detail", {}) or {}),
     }
