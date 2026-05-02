@@ -1,5 +1,17 @@
 # Day 63 Decision Framework — Formalizálás docs/decisions/-be
 
+**Status:** ✅ DONE — Chat manuálisan elkészítette 2026-05-02 szombat délelőtt
+**Created:** 2026-04-29
+**Completed:** 2026-05-02
+**Priority:** **P1** — szóbeli megegyezés kódba/docs-ba öntés, a Day 63 (~máj 14) döntés alapja
+**Estimated effort:** ~30-45 min Chat (manuális írás, nem CC kód-feladat)
+
+**Eredmény:** `docs/decisions/2026-04-28-day63-decision-framework.md` — ~580 sor markdown, 3 kimenet feltételei (ÉLESÍTÉS / LEÁLLÍTÁS / PAPER FOLYTATÁS), 3 felülvizsgálati pont (Day 63/90/120), graceful exit 3 verzió, nyitott kérdések (havi infrastruktúra-költség, tőke skálázás, pszichológiai stressz), operatív használat (daily review-k, weekly metrika decision tracking szekció).
+
+---
+
+## Eredeti task tartalom (történeti referencia)
+
 **Status:** PROPOSED (W18 záró vagy W19 nyitó task)
 **Created:** 2026-04-29
 **Priority:** **P1** — szóbeli megegyezés kódba/docs-ba öntés, a Day 63 (~máj 14) döntés alapja
