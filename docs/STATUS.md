@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-02 Budapest, Chat (szombat reggel — W18 Day 5 review + W18 weekly elemzés első közelítés) -->
+<!-- Utolsó frissítés: 2026-05-02 Budapest, CC /wrap-up (vasárnap előkészítés — sync_from_mini improvements deployed, 3 commit pusholva) -->
 
 ## Paper Trading
 Day 55/63 | cum. PnL: **−$986.68 (−0.99%)** | IBKR DUH118657
@@ -154,15 +154,15 @@ Day 55/63 | cum. PnL: **−$986.68 (−0.99%)** | IBKR DUH118657
 
 ## Utolsó commitok
 
+- `fbf4e41` — docs: W18 analysis + day63 framework + M_contradiction task (2026-05-02)
+- `0e84a76` — docs: W18 Day 3-5 reviews + contradiction-signal task + Day 63 decision framework
+- `96e1289` — chore(sync): improve sync_from_mini.sh — docs/analysis coverage + freshness timestamp + pre-flight checks
+- `8c1fe72` — docs: W18 weekly metrics + scoring validation (2026-05-01, Mac Mini-n keletkezett)
+- `1c086ab` — docs: untracked Mac Mini analysis files
+- `9ce2849` — docs: W18 Day 3 wrap-up — session journal + STATUS sync + Chat docs
 - `a77d425` — feat(analysis): LOSS_EXIT whipsaw cost retrospective audit (W18 Day 3)
 - `0a23a35` — feat(daily_metrics): populate vix_close from Phase 0 log + Polygon fallback (W18 Day 3)
-- `f024976` — feat(monitor): add 19:00 CEST breakeven lock for B bracket positions (W18 Day 2)
-- `431fc5e` — docs: W18 Day 1 review + status update + 2 új task
-- `b92b509` — docs(rules): add live-API schema verification rule (lessons from 25806f2)
-- `25806f2` — fix(mid): correct bundle.flat field paths for GIP gauges and TPI
-- `41f8e23` — feat(mid): add top_sectors/bottom_sectors and freshness metadata to get_regime()
-- `a3dfaf7` — feat(mid): integrate MID bundle API in shadow mode
 
 ## Blokkolók
 
-**M_contradiction multiplier (P1, BLOCKED 2026-04-29):** `scripts/company_intel.py` post-submit fut, a CONTRADICTION flag csak LLM prompt template-ben él — Phase 6 sizing-time-ban nem létezik. Re-scoping: Chat 2026-04-30 reggel a tényleges company_intel output formátum alapján.
+Nincs. **M_contradiction (P1) SUPERSEDED** — új task: `docs/tasks/2026-05-04-contradiction-signal-from-fmp.md` (direkt FMP-alapú signal, Company Intel független), implementálható ha CC kapacitás.
