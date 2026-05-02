@@ -1,12 +1,15 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-04-29 Budapest, CC /wrap-up (szerda délelőtt — W18 Day 3, vix-close + whipsaw audit deployed, M_contradiction BLOCKED) -->
+<!-- Utolsó frissítés: 2026-05-02 Budapest, Chat (szombat reggel — W18 Day 5 review + W18 weekly elemzés első közelítés) -->
 
 ## Paper Trading
-Day 52/63 | cum. PnL: **−$617.46 (−0.62%)** | IBKR DUH118657
-**BC23 W18 Day 2 (kedd ápr 28):** -$308 net, excess vs SPY **+0.22%** ⭐ outperform negatív napon
-**Breakeven Lock első éles aktiválás:** PAA pozíción 19:00:19 CEST — soft floor entry-re, profit megőrzve (+$135.75)
-**MID Bundle Integration:** ÉLES — Stagflation Day 12/28, top XLK/XLE/XLB változatlan
+Day 55/63 | cum. PnL: **−$986.68 (−0.99%)** | IBKR DUH118657
+**BC23 W18 Day 5 (péntek máj 1):** **-$1,248 net**, excess vs SPY **-1.50%** ⚠️
+**W18 hét összesen:** -$1,106 net, excess **-1.90%**, win days **2/5**, TP1 **0/38** (0%), LOSS_EXIT **7×**
+**DTE 4-split -$988** egy ticker — earnings miss (kedd ápr 28), IFDS score 92, **ez a M_contradiction "miért kell" napja**
+**Scoring validation (55 nap, 378 trade):** Pearson score→P&L = -0.000 (statisztikailag null), **flow score** Pearson +0.136* (egyetlen jelentős prediktor)
+**VIX 16.69** — 18 alatt, leállítási feltétel inactív
+**8 nap** Day 63-ig — **paper folytatás default** kimenet a legvalószínűbb
 
 ## W18 Day 3 (szerda ápr 29) — két task DEPLOYED
 

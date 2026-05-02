@@ -1,9 +1,17 @@
 # M_contradiction Multiplier — Position Sizing Penalty for CONTRADICTION-flagged Tickers
 
-**Status:** BLOCKED
+**Status:** SUPERSEDED — replaced by `2026-05-04-contradiction-signal-from-fmp.md` (2026-05-02)
 **Created:** 2026-04-28
 **Priority:** P1 — adatvezérelt javítás, W17 5/6 pattern alapján
-**Estimated effort:** ~2-3h CC
+**Estimated effort:** ~2-3h CC (becsült, soha nem implementált)
+
+**LEZÁRÁS OKA (2026-05-02):** A 2026-04-29 architecture discovery után a megoldás iránya megváltozott. A Tamás megfigyelése (2026-04-29 reggel): a Company Intel **NEM döntéstámogatás** — saját tanulási eszköz. A CONTRADICTION jelzés strukturált FMP adatokból (earnings beat ratio, target consensus, analyst high target, recent downgrades) **közvetlenül kalkulálható**, az LLM-megkerülve. Az új task fájl ezt az architektúrát tükrözi: új modul `src/ifds/scoring/contradiction_signal.py`, integráció a Phase 4 snapshot-ba és Phase 6 multiplier-be, a Company Intel érintetlen marad.
+
+**ÚJ TASK:** `docs/tasks/2026-05-04-contradiction-signal-from-fmp.md`
+
+---
+
+## Eredeti tartalom (történeti referencia)
 
 **BLOCKED (2026-04-29 architecture discovery):** `scripts/company_intel.py` runs
 **post-submit** (after `deploy_intraday.sh` submit_orders), so the CONTRADICTION
