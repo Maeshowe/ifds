@@ -391,11 +391,11 @@ def _exclude_sec_filings(tickers, exclusion_days, logger):
 - W17-W18-W19 historikus: hány ticker esetében volt 10-Q a pozíció ideje alatt?
 - Az AGNC eset isolált vagy minta?
 
-**Prióritás:** **P2** — nem blokkoló, de struktúrális gap. AGNC eset megmutatta, hogy a 7 napos earnings exclusion **nem elég** az összes binary event risk lefedéséhez.
+**Prióritás:** **P1** — (eredetileg P2, **2026-05-05 emlélve P1-re** a BUD eset után: két különböző binary event gap egy héten belül, AGNC máj 4 + BUD máj 5).
 
 **Effort:** ~2-3h CC. SEC EDGAR client + Phase 2 integráció + tesztek.
 
-**Mikor:** **W19+ scope**. Adat-vezetési szempont: ha W19-W20 alatt **még** ilyen 10-Q-driven veszteseg jelentkezik, akkor a feature prióritása P1-re emelhető.
+**Mikor:** **W19+ scope**. **Adatvezérlés** — a BUD máj 5 eset adat-vezérelt P1-re emelést indokolja: 2 struktúrális gap egy héten belül struktúrális kockázatot jelez.
 
 **Kapcsolatódásák:**
 
@@ -415,4 +415,19 @@ def _exclude_sec_filings(tickers, exclusion_days, logger):
 - M_contradiction multiplier (CC `f6c4d9e`, 2026-05-02 deployed) — **ÉLES**, W19+ alatt mérhető a hatása
 - **Recent Winner Penalty / Position Dedup** (most rögzítve, POWI paradoxon alapján) — **független**, egyszerű, hamar implementálható
 - **Vol Control Equity Allocation** (most rögzítve, Ivory Hill chart alapján) — **macro layer enrichment**, BC26+ scope, R&D heavy
-- **10-Q / 10-K SEC Filing Exclusion** (most rögzítve, AGNC 2026-05-04 eset alapján) — **független**, W19+ scope, ~2-3h CC
+- **10-Q / 10-K SEC Filing Exclusion** (2026-05-04 rögzítve, AGNC eset alapján; **2026-05-05 P1-re emelve** BUD eset után) — **független**, W19+ scope, ~2-3h CC
+- **ADR earnings adatforrás fix** (ÚJ 2026-05-05, BUD eset alapján) — **P1**, W19+ scope, ~3-4h CC. **DIAGNOSZTIKA MEGERŐSÍTVE 2026-05-05 16:55 CEST**: a Mac Mini-n futtatott direkt FMP API hívás eredménye:
+  ```json
+  GET /stable/earnings?symbol=BUD →
+  [{"symbol": "BUD", "date": "2026-07-30", "epsActual": null,
+    "epsEstimated": 1.05, "lastUpdated": "2026-05-05"}]
+  ```
+  **Az FMP egyetlen entry-t ad a BUD-ra**: a következő várt earnings (júl 30). **A 2026-05-05 mai earnings entry NEM LÉTEZIK az FMP-ben**, sem a historikus quarterek. Ez **adatminőség probléma az FMP oldalán, nem kód-bug**: a `get_next_earnings_date()` logika helyesen visszaadja a júl 30-i dátumot, ami >7 nap, tehát átengedi. **AGNC ellenőrzéshez**: 2 entry van — a júl 20-i upcoming + ápr 20-i historikus (Q1 2026 BEAT, $0.42 actual vs $0.36 est). Vagyis az FMP US-i tickerekre rendben van, ADR-ekre hiányos.
+  
+  **Megoldási útvonalak (priorizált):**
+  - **(A)** **Polygon `tickers/{ticker}/events` endpoint** — Polygon jobban lefedi ADR-eket (~1.5h)
+  - **(B)** **FMP `earnings-calendar` bulk endpoint dupla-check** — másik forrás same provider-en belül, ellenőrzendő ADR coverage (~30 min)
+  - **(C)** **SEC EDGAR 8-K filing scheduler** — ingyenes, kötelező filings (összevonni 10-Q exclusion task-szal, ~2-3h)
+  - **(D)** **Hard-coded ADR blacklist konfig** — top 50-100 ADR earnings dátum manuális tracking (egyszerű fallback, ~1h, fenntartási költséggel)
+  
+  **Ajánlott**: (A) + (D) kombináció — Polygon mint alternatív adatforrás, manuális ADR blacklist mint fallback ha Polygon is hiányos.
