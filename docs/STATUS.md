@@ -1,15 +1,53 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-02 Budapest, CC /wrap-up (vasárnap előkészítés — sync_from_mini improvements deployed, 3 commit pusholva) -->
+<!-- Utolsó frissítés: 2026-05-05 Budapest, Chat (kedd este — W19 Day 2 review, M_contradiction első LIVE fire-ok) -->
 
 ## Paper Trading
-Day 55/63 | cum. PnL: **−$986.68 (−0.99%)** | IBKR DUH118657
-**BC23 W18 Day 5 (péntek máj 1):** **-$1,248 net**, excess vs SPY **-1.50%** ⚠️
-**W18 hét összesen:** -$1,106 net, excess **-1.90%**, win days **2/5**, TP1 **0/38** (0%), LOSS_EXIT **7×**
-**DTE 4-split -$988** egy ticker — earnings miss (kedd ápr 28), IFDS score 92, **ez a M_contradiction "miért kell" napja**
-**Scoring validation (55 nap, 378 trade):** Pearson score→P&L = -0.000 (statisztikailag null), **flow score** Pearson +0.136* (egyetlen jelentős prediktor)
-**VIX 16.69** — 18 alatt, leállítási feltétel inactív
-**8 nap** Day 63-ig — **paper folytatás default** kimenet a legvalószínűbb
+Day 57/63 | cum. PnL: **−$1,377.11 (−1.38%)** | IBKR DUH118657
+**BC23 W19 Day 2 (kedd máj 5):** **-$269 net**, excess vs SPY **-1.04%** ⚠️ underperform bull rally napon (SPY +0.80%)
+**M_contradiction LIVE 2/5 fire** (NE, PTEN) — mindketten vesztesek, irányhelyes! ~$45 becsült megtakarítás ezen a napon
+**3× TP1 hit (DBRG 3-split)** — első TP1 hit-ek a BC23 deploy óta, de profit elhanyagolható ($26)
+**NE -$143** (slippage +0.72%, score 95 + low liquidity), **BUD -$132** (10-Q + FMP ADR gap)
+**A 2 LEGMAGASABB score (NE 95, PTEN 94) MIND vesztett** — score→P&L negatív korreláció megerősítve
+**"Végére visszaesik" pattern**: PTEN trail 18:40-19:11 +0.6% fölé, MOC -0.48% — retracement 2.5h alatt
+**VIX 17.29** (-5.52% napi) — vissza 18 alá, leállítási feltétel monitor aktív
+**6 nap** Day 63-ig — **paper folytatás default** kimenet a legvalószínűbb
+
+## W18 → W19 átmenet
+
+| Metrika | W18 hét | W19 D1 | W19 D2 | W19 átlag |
+|---------|---------|--------|--------|------------|
+| Net P&L | -$1,106 | -$191 | -$269 | -$230/nap |
+| Excess vs SPY | -1.90% | +0.21% | -1.04% | -0.42%/nap |
+| Win rate | 11/38 (29%) | 3/5 (60%) | 2/5 (40%) | 5/10 (50%) |
+| TP1 hits | 0/38 | 0/5 | **3/5** ⭐ | 3/10 (30%) |
+| Avg score | 91.1 | 92.2 | 93.1 | 92.65
+
+## W19+ backlog idea-k (nőtt 6-ra)
+
+1. **10-Q / 10-K SEC Filing Exclusion** — P1, ~2-3h CC (AGNC eset)
+2. **ADR earnings adatforrás fix** — P1, ~3-4h CC (BUD eset, FMP hiány)
+3. **TP1 cél revízió** — P2, ~30 min config (DBRG TP1 cél túl szűk)
+4. **Phase 4 snapshot enrichment** — P3, ~30-45 min (W18 elemzésből)
+5. **Breakeven Lock window-bővítés** — P2, ~30-45 min (PTEN ma a window előtti aktiválás vesztes)
+6. **High-score liquidity check** — P3, ~1h (NE +0.72% slippage)
+
+## Előző nap (hétfő máj 4)
+
+**3 nyertes (BG +$179, NOV +$88, OII +$49) kompenzálta** az AGNC veszteséget; csak VTR -$91 másik vesztes
+**VIX 18.30** (+9.65% napi) — **vissza 18 fölé**, leállítási feltétel monitor aktív
+**Új backlog idea:** 10-Q/10-K SEC Filing Exclusion (W19+ scope, P2)
+**7 nap** Day 63-ig — **paper folytatás default** kimenet a legvalószínűbb
+
+## W18 → W19 átmenet
+
+| Metrika | W18 hét | W19 Day 1 |
+|---------|---------|-----------|
+| Net P&L | -$1,106 | -$191 |
+| Excess vs SPY | -1.90% | **+0.21%** ⭐ |
+| Win rate | 11/38 (29%) | 3/5 (60%) |
+| LOSS_EXIT | 7 | 6 (mind AGNC) |
+| Avg score | 91.1 | 92.2 |
 
 ## W18 Day 3 (szerda ápr 29) — két task DEPLOYED
 

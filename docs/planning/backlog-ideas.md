@@ -416,18 +416,231 @@ def _exclude_sec_filings(tickers, exclusion_days, logger):
 - **Recent Winner Penalty / Position Dedup** (most rögzítve, POWI paradoxon alapján) — **független**, egyszerű, hamar implementálható
 - **Vol Control Equity Allocation** (most rögzítve, Ivory Hill chart alapján) — **macro layer enrichment**, BC26+ scope, R&D heavy
 - **10-Q / 10-K SEC Filing Exclusion** (2026-05-04 rögzítve, AGNC eset alapján; **2026-05-05 P1-re emelve** BUD eset után) — **független**, W19+ scope, ~2-3h CC
-- **ADR earnings adatforrás fix** (ÚJ 2026-05-05, BUD eset alapján) — **P1**, W19+ scope, ~3-4h CC. **DIAGNOSZTIKA MEGERŐSÍTVE 2026-05-05 16:55 CEST**: a Mac Mini-n futtatott direkt FMP API hívás eredménye:
-  ```json
-  GET /stable/earnings?symbol=BUD →
-  [{"symbol": "BUD", "date": "2026-07-30", "epsActual": null,
-    "epsEstimated": 1.05, "lastUpdated": "2026-05-05"}]
-  ```
-  **Az FMP egyetlen entry-t ad a BUD-ra**: a következő várt earnings (júl 30). **A 2026-05-05 mai earnings entry NEM LÉTEZIK az FMP-ben**, sem a historikus quarterek. Ez **adatminőség probléma az FMP oldalán, nem kód-bug**: a `get_next_earnings_date()` logika helyesen visszaadja a júl 30-i dátumot, ami >7 nap, tehát átengedi. **AGNC ellenőrzéshez**: 2 entry van — a júl 20-i upcoming + ápr 20-i historikus (Q1 2026 BEAT, $0.42 actual vs $0.36 est). Vagyis az FMP US-i tickerekre rendben van, ADR-ekre hiányos.
-  
-  **Megoldási útvonalak (priorizált):**
-  - **(A)** **Polygon `tickers/{ticker}/events` endpoint** — Polygon jobban lefedi ADR-eket (~1.5h)
-  - **(B)** **FMP `earnings-calendar` bulk endpoint dupla-check** — másik forrás same provider-en belül, ellenőrzendő ADR coverage (~30 min)
-  - **(C)** **SEC EDGAR 8-K filing scheduler** — ingyenes, kötelező filings (összevonni 10-Q exclusion task-szal, ~2-3h)
-  - **(D)** **Hard-coded ADR blacklist konfig** — top 50-100 ADR earnings dátum manuális tracking (egyszerű fallback, ~1h, fenntartási költséggel)
-  
-  **Ajánlott**: (A) + (D) kombináció — Polygon mint alternatív adatforrás, manuális ADR blacklist mint fallback ha Polygon is hiányos.
+- **ADR earnings adatforrás fix** (2026-05-05, BUD eset) — **P1**, W19+ scope, ~3-4h CC
+- **Breakeven Lock window-bővítés** (ÚJ 2026-05-05, PTEN W19 D2 eset) — **P2**, W19+ scope, ~30-45 min CC
+- **High-score liquidity check** (ÚJ 2026-05-05, NE +0.72% slippage) — **P3**, W19+ scope, ~1h CC
+- **TP1 cél revízió** (ÚJ 2026-05-05, BC23 0.75×ATR értékelés) — **P2**, W19+ scope, ~30 min config
+- **Phase 4 snapshot enrichment** (ÚJ 2026-05-05, W18 elemzésből) — **P3**, W19+ scope, ~30-45 min CC
+
+---
+
+## Breakeven Lock window-bővítés — W19 D2 PTEN finding (2026-05-05)
+
+**Forrás:** PTEN 2026-05-05 eset (-$36 net). A trail bracket B aktiválódott 18:40 CEST-kor (+0.51% felett, entry $12.44 → $12.535), a peak 19:11 CEST-kor $12.605 (+1.33% entry felett), MOC $12.41 = -0.48% — **2.5 óra alatt 1.55% retracement**. A profit elveszett, mert a **Breakeven Lock csak a 19:00:00-19:04:59 CEST window-ban** aktivál a B bracketen. A PTEN trail **20 perccel a window előtt** aktivált, így **NEM kapott soft floor-t**.
+
+**A jelenség:**
+
+A trail mechanika (9% trail SL) folyamatosan követi az árat felfelé, **DE** ha az ár visszaesik a trail SL-ig (ami az aktuális ár alatt 9%-kal van), akkor a trail **csak akkor trigger-el**, ha az ár az aktuális SL-ig esik. **Bull átmeneti retracement-nél** (mint a PTEN ma) az ár visszaesik az entry körülü szóródásba, **anyira** **NEM esik**, hogy a trail SL trigger-eljen, **de** **annyira** **nem emelkedik vissza**, hogy MOC profit lehessen.
+
+**Megfigyelt mintjázat (W19 D2):**
+- BEKE trail aktivált 17:45 CEST (window előtt 1ö perccel) — **szerencsére** MOC nyertes (+$49)
+- PTEN trail aktivált 18:40 CEST (window előtt 20 perccel) — MOC vesztes (-$36)
+- **0/2 trail aktiváció esett a window-ba**
+
+A jelenlegi window logika a 17:45-18:55 CEST aktiválásokat **NEM** védi. Statistikailag ez a **leggyakoribb** trail aktiválási időtáblat, mert ez az opening range utáni erős mozgások időszaka.
+
+**Megoldási irány:**
+
+```python
+# pt_avwap.py vagy pt_monitor.py módosítása
+
+def on_trail_activated_b(ticker, trail_sl, price, entry_price, qty, ts):
+    # ÚJ logika: ha trail B bármikor aktivál +0.5% felett, alkalmazni Breakeven Lock floor-t
+    profit_pct = (price - entry_price) / entry_price
+    
+    if profit_pct >= 0.005:  # 0.5% trigger ükoszöb
+        # Soft floor: max(trail_sl, entry_price)
+        new_sl = max(trail_sl, entry_price)
+        if new_sl > trail_sl:
+            update_trail_sl(ticker, new_sl)
+            logger.log(EventType.BREAKEVEN_LOCK_APPLIED,
+                       message=f"[BREAKEVEN_LOCK_EARLY] {ticker}: "
+                               f"trail_sl {trail_sl:.2f} → {entry_price:.2f} (entry)")
+```
+
+**Kompatibilis a meglevő 19:00 window logikával:** a window-ban továbbra is alkalmazódik a soft floor (már alkalmazva), de **most már korábbi aktiválásoknak is** kapnak floor-t. A meglevő logika módosul: **mindig** ellenőrzi a profitükoszöböt, **függetlenül** az aktiválás időpontjától.
+
+**Kockázat:**
+
+- **Alacsony.** A `max(trail_sl, entry)` matematikai garancia szerint a SL **csak felfelé** mozdul. Egy plotka 0.5% spike sérthető lehet (false trigger), de a trail mechanika **eddig is** ezt csinálta a window-on belül. A módosítás csak az időablak kiterjesztése.
+- **Testélhetőség:** kellene ~5-8 plusz unit teszt a `pt_monitor` test suite-be.
+
+**Mérhetőség W19+ után:**
+
+- Hány aktiválás esett window-ba vs window előtt? (jelenleg ~0/hét window-ban, 5-7/hét window előtt)
+- Az early aktiválások mennyi profitot őriztek meg széles windowval?
+- Hetente becsült megtakarítás: **~$30-50/hét** (a PTEN ma -$36 → 0$ becsülés alapján)
+
+**Prióritás:** **P2** — nem blokkoló, de struktúrális profit-megőrzési kontroll. Közvetlenül mérhető hatás.
+
+**Effort:** **~30-45 min CC**. Kód-módosítás + tesztek.
+
+**Mikor:** **W19+ scope**.
+
+**Kapcsolódása:** a meglevő Breakeven Lock 19:00 window logika kibővítése, NEM helyettesítése.
+
+**Státusz:** RÖGZÍTVE 2026-05-05.
+
+---
+
+## High-score liquidity check — W19 D2 NE finding (2026-05-05)
+
+**Forrás:** NE 2026-05-05 eset (-$143 net). Slippage **+0.72%** (entry planned $50.34 → filled $50.70) — **a hetes legrosszabb slippage**. A NE high-score (95.0, legmagasabb) + alacsony likviditású (~$50M avg vol) energy mid-cap volt. **A slippage költség: +$68.40** ezen a pozíción, ami a -$143 tényleges veszteseg **48%-át adja**.
+
+**A jelenség:**
+
+A high-score tickerek (>94) **gyakran alacsony likviditású cégek**:
+- **NE** (Noble Corp): score 95, avg vol ~$50M, +0.72% slippage
+- **TIGO** (2026-04-16): score 91, ~$30M avg vol, +0.14% slippage (de **+$411 win** — outlier)
+- **TER** (2026-04-30): score 93, breakeven lock TRAIL exit (~+$75)
+
+A score komputsáció a **flow signal-t** prioritizalja (BC23 redesign), ami gyakran **alacsony likviditású** cégen erős. **De** a market impact és a slippage költség **arányosan nagyobb**, ami **kompromittálja az alpha-t**.
+
+**Megoldási irány:**
+
+```python
+# Phase 6 sizing módosítása
+
+def _calculate_multiplier_total(config, ticker, snapshot, ticker_data):
+    # ... meglevő multiplikatorok
+    
+    # ÚJ: M_liquidity
+    m_liquidity = 1.0
+    if config.tuning.get("m_liquidity_enabled", True):
+        if (snapshot.score > 94.0 and
+            ticker_data.get("avg_dollar_volume", 0) < 50_000_000):  # < $50M avg
+            m_liquidity = config.tuning["m_liquidity_value"]  # 0.85
+            logger.log(EventType.SIZING_MULTIPLIER, Severity.INFO,
+                       message=f"[M_LIQUIDITY] {ticker}: applied 0.85 "
+                               f"(score {snapshot.score}, avg_vol ${avg_dollar_vol/1e6:.1f}M)")
+    
+    return m_vix * m_gex * m_target * m_contradiction * m_liquidity
+```
+
+**Config:**
+```python
+TUNING = {
+    ...
+    "m_liquidity_enabled": True,
+    "m_liquidity_value": 0.85,
+    "m_liquidity_score_threshold": 94.0,
+    "m_liquidity_volume_threshold_usd": 50_000_000,
+}
+```
+
+**Adatforrás:** Phase 4 már kivettte a `avg_dollar_volume` mezőt (volume × price 30-day avg). Nem kell új API hívás.
+
+**Alternatív irány (komplex):** **VWAP entry** a high-score + low-liquidity tickereken — LIMIT helyett a 30-perces VWAP-on belül próbálja a tick-eket egymás után. **De ez** ~3-4h CC, és az IBKR paper account-on testélhetősége limitált.
+
+**Prióritás:** **P3** — nem blokkoló, de adat-vezérelt potencionalis enhance. **Ha** a W19 vagy W20 alatt **még** ilyen high-score + slippage > +0.5% eset jelentkezik, akkor **P2**-re emelhető.
+
+**Effort:** **~1h CC**. Egyszerű multiplier integráció + 4-5 unit teszt.
+
+**Mikor:** **W19+ scope**.
+
+**Mérhetőség:**
+- W19+ alatt hány ticker fired-ol M_liquidity-re? (becslés: ~1-2/hét)
+- Az átlagos slippage cskökkenése a flagged tickereken (becslés: -0.2% slippage átlagosan)
+
+**Kapcsolódása:** a meglevő multipler chain következő tagja, NEM helyettesíti az M_contradiction-t.
+
+**Státusz:** RÖGZÍTVE 2026-05-05.
+
+---
+
+## TP1 cél revízió — BC23 0.75×ATR értékelés
+
+**Forrás:** W18 + W19 D1-D2 mintegy 18 napi BC23 adat. A jelenlegi `tp1_target_atr_mult = 0.75` a BC23 redesign-nál (2026-04-13) csökkent a 2.0×ATR-ről. **Cél volt:** magasabb TP1 hit rate.
+
+**Megfigyelt eredmények:**
+- W18 (5 nap): TP1 hit 0/38 (0%)
+- W19 D1 (hétfő): TP1 hit 0/5
+- W19 D2 (kedd): TP1 hit **3/5** (60%, DBRG 3-split) — **DE** profit elhanyagolható ($26 a 1284 share pozícióból = $0.02/share)
+- BC23 összes: TP1 hit 36/378 (9.5%, 55 napi adat)
+
+**A probléma kettős:**
+
+1. **A 0.75×ATR cél túl szűk**, ha az ATR alacsony. A DBRG ma: ATR ~$0.07, TP1 cel = $0.05 → +0.13% target. **Ez gyakorlatilag spread-szerű**, szükségtelenül korai exit.
+2. **A 0.75×ATR cel általában nem elég profit** ahhoz, hogy a -2% LOSS_EXIT karát kompenzálja:
+   - 55 napi exit breakdown: TP1 összes +$1,186 vs LOSS_EXIT -$3,152 = **net deficit -$1,966**
+   - A TP1+TP2+MOC profit: +$3,084 vs LOSS_EXIT+SL: -$4,335 = **-$1,251 net**
+
+**Megoldási irány (három alternatíva):**
+
+**(A) Egyszerű cél-emelvés:** `tp1_target_atr_mult = 1.0` (volt 0.75) — ~33% szélesebb cél.
+
+**(B) Arányos cél-emelés alacsony ATR-re:** ha ATR < 1% entry-hőz, alkalmazni 1.5×ATR-t (a DBRG-szerű eseteknél).
+
+**(C) LOSS_EXIT szűkítése:** -2% → -1.5%. **Csökkenti** a LOSS_EXIT költséget, **de** **kockáztatja** a whipsaw törést (**a múdbeli whipsaw audit csütörtökön +$87.98 net pozitív volt** a -2%-ra, te tartókodva váltózon kell ezt mozogni).
+
+**Ajánlott:** **(A) + (B) kombináció** — a `tp1_target_atr_mult = 1.0` alapjában + ATR < 1% esetnél 1.25×ATR. **(C)** a kovátkező hetekben kisérletezhető, de előszor (A)+(B) leforó W19+ alatt.
+
+**Prióritás:** **P2** — struktúrális profit-megőrzési kontroll. **Közvetlen kapcsolat** a Breakeven Lock window-bővítéssel: ha a TP1 cél magasabb, akkor több idő van a trail aktiválásra, ami a **Breakeven Lock fixálódik be**.
+
+**Effort:** **~30 min config tuning + 5-8 plusz unit teszt**.
+
+**Mikor:** **W19+ scope**. **Adatvezérelt:** a W19 vege után nézzük, hogy az ATR-szerinti TP1 hit rate és a profit-mennyiség összefüggése mit mutat.
+
+**Kockázat:**
+- **Alacsony.** Konfig-driven, könnyen visszafordulható.
+- A megegyállítási feltétel `tp1_target_atr_mult = 0.75 → 1.0` egyetlen sor.
+
+**Mérhetőség:**
+- TP1 hit rate és atlagos TP1 profit összefuggos vizsgálata BC23 változás után
+- Net deficit csökkenése (jelenleg -$1,251, cél: -$500 vagy jaítólag)
+
+**Státusz:** RÖGZÍTVE 2026-05-05. **Előfeltétele:** a W18 weekly elemzésben felmerült finding, mai DBRG 3-split adatpont megerősítette.
+
+---
+
+## Phase 4 snapshot enrichment — teljes scoring tábla mentése
+
+**Forrás:** W18 weekly elemzés + 2026-05-02 MID vs IFDS comparison eredmény. A jelenlegi `state/phase4_snapshots/YYYY-MM-DD.json.gz` **csak a winner tickert** menti, NEM az osszes scoring eredményt. Ez korlatozza:
+
+1. **Sektor allokació elemzése** — a MID vs IFDS comparison **gyakorlatilag NEM összehasonlitas**, mert csak 1 IFDS ticker (Technology) van vs 40 MID sector ETF
+2. **Quintile breakdown elemzése** — csak a winner-ek kerulnek mintaba, az 'majdnem nyertek' (Q4-Q5 score range) hiányoznak
+3. **Backtest képesség** — hipotézikalt scoring módosítások visszamenőleg nem vizsgálhatók a teljes universe-en
+
+**Megoldási irány:**
+
+```python
+# phase4_stocks.py módosítása
+
+def _save_phase4_snapshot(date, all_scored_tickers, winner_tickers):
+    """Save the FULL scoring table, not just winners."""
+    snapshot = {
+        "date": date,
+        "total_evaluated": len(all_scored_tickers),
+        "winners": winner_tickers,  # az aktuális viselkedés
+        "all_tickers": [  # ÚJ: az osszes ticker scoring adata
+            {
+                "ticker": t.symbol,
+                "score": t.score,
+                "flow_score": t.flow_score,
+                "funda_score": t.funda_score,
+                "tech_score": t.tech_score,
+                "sector": t.sector,
+                "is_winner": t in winner_tickers,
+                # ... egyéb releváns mezők
+            }
+            for t in all_scored_tickers
+        ]
+    }
+    save_json_gz(f"state/phase4_snapshots/{date}.json.gz", snapshot)
+```
+
+**Méretbecslés:** ~150-200 ticker/nap × 30 byte/ticker = ~5KB/nap unkomp. + gzip ~1-2KB. **Nem jelentős.**
+
+**Prióritás:** **P3** — nem blokkoló, de a MID vs IFDS comparison és a backtest képességéhez szükséges. **Előfeltétele** a BC25 (MID Phase 3) döntési keretnek.
+
+**Effort:** **~30-45 min CC**. Egy phase4_stocks.py funció bővítése + 3-4 plusz unit teszt.
+
+**Mikor:** **W19+ scope**.
+
+**Kapcsolódása:**
+- BC25 (MID Phase 3 ← CAS) — **előfeltétel** a teljes sektor comparison-höz
+- W18 weekly elemzés — rögzítette, hogy a comparison gyengitése ezen az enrichment-en múlik
+
+**Státusz:** RÖGZÍTVE 2026-05-05.
+
+---
