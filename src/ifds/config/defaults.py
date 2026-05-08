@@ -136,8 +136,12 @@ TUNING = {
     "squat_bar_spread_ratio_max": 0.9,
     "squat_bar_bonus": 10,
 
-    # Dark Pool
-    "dark_pool_volume_threshold_pct": 40,       # DP > 40% of total volume
+    # Dark Pool — recalibrated 2026-05-08 from 60-trade audit (W17-W19).
+    # Pearson r (dp_pct ↔ P&L per share) = -0.265 (p=0.041), Spearman = -0.327
+    # (p=0.011). High dp_pct tickers had Q5 win rate 25% vs Q1 58%. The signal
+    # is INVERSE of the previous bonus configuration. See:
+    # docs/analysis/dp-pct-retrospective-audit.md
+    "dark_pool_volume_threshold_pct": 12,       # > 12% dp_pct → -10 penalty (was 40, unreachable)
 
     # Fundamental Scoring
     "funda_revenue_growth_good": 10,            # > 10% YoY
@@ -265,10 +269,18 @@ TUNING = {
     "block_trade_significant_bonus": 10,
     "block_trade_very_high_bonus": 15,
 
-    # Dark Pool Percentage Scoring (BC10)
-    "dp_pct_high_threshold": 60,              # dp_pct > 60% → higher bonus
-    "dp_pct_bonus": 10,                        # dp_pct > 40% → +10
-    "dp_pct_high_bonus": 15,                  # dp_pct > 60% → +15
+    # Dark Pool Percentage Scoring — sign-flipped + rethresholded 2026-05-08
+    # Audit (60 trades, W17-W19): high dp_pct correlates with NEGATIVE P&L per
+    # share (r=-0.265**, ρ=-0.327**). Q5 win rate 25%, Q1 58%, Q5-Q1 spread
+    # -$163. Old config (+15 for >60%) inverted the signal. New config:
+    #   dp_pct ≤ 12%   → 0
+    #   12% < dp_pct ≤ 18% → -10 (mid penalty)
+    #   dp_pct > 18%   → -15 (high penalty)
+    # Threshold rationale: live per-ticker UW shows liquid tickers in 7-15%,
+    # so 12%/18% covers the high-DP tail (the predictive signal area).
+    "dp_pct_high_threshold": 18,               # > 18% dp_pct → high penalty (was 60)
+    "dp_pct_bonus": -10,                       # dp_pct > 12% → -10 (was +10, sign-flipped)
+    "dp_pct_high_bonus": -15,                  # dp_pct > 18% → -15 (was +15, sign-flipped)
 
     # Buy Pressure + VWAP (BC10)
     "buy_pressure_strong_bonus": 15,           # buy_pos > 0.7 → +15

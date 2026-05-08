@@ -68,34 +68,56 @@ def _make_dp_data(dp_volume=0, signal="BULLISH"):
 # ============================================================================
 
 class TestDarkPoolPercentage:
-    """dp_pct is recalculated using Polygon daily volume, not UW volume field."""
+    """dp_pct is recalculated using Polygon daily volume, not UW volume field.
 
-    def test_dp_pct_from_polygon_volume(self, config):
-        """dp_volume=500K, bars[-1].v=1M → dp_pct=50% → dp_pct_score=+10."""
-        dp_data = _make_dp_data(dp_volume=500_000, signal="BULLISH")
+    Scoring sign-flipped 2026-05-08 (60-trade audit, Pearson r=-0.265**):
+        dp_pct < 12%  →  0
+        12% ≤ dp_pct < 18%  →  -10 (mid penalty)
+        dp_pct ≥ 18%  →  -15 (high penalty)
+    """
+
+    def test_dp_pct_mid_range_returns_minus_10(self, config):
+        """dp_volume=140K, daily_volume=1M → dp_pct=14% → -10."""
+        dp_data = _make_dp_data(dp_volume=140_000, signal="BULLISH")
         bars = _make_bars([100.0] * 30, volume=1_000_000)
         flow = _analyze_flow_from_data("TEST", bars, dp_data, config)
-        assert flow.dark_pool_pct == 50.0
-        assert flow.dp_pct_score == 10
+        assert flow.dark_pool_pct == 14.0
+        assert flow.dp_pct_score == -10
 
-    def test_dp_pct_high_threshold(self, config):
-        """dp_volume=700K, daily_volume=1M → dp_pct=70% → dp_pct_score=+15."""
-        dp_data = _make_dp_data(dp_volume=700_000, signal="BULLISH")
+    def test_dp_pct_high_returns_minus_15(self, config):
+        """dp_volume=220K, daily_volume=1M → dp_pct=22% → -15."""
+        dp_data = _make_dp_data(dp_volume=220_000, signal="BULLISH")
         bars = _make_bars([100.0] * 30, volume=1_000_000)
         flow = _analyze_flow_from_data("TEST", bars, dp_data, config)
-        assert flow.dark_pool_pct == 70.0
-        assert flow.dp_pct_score == 15
+        assert flow.dark_pool_pct == 22.0
+        assert flow.dp_pct_score == -15
 
-    def test_dp_pct_below_threshold(self, config):
-        """dp_volume=300K, daily_volume=1M → dp_pct=30% → dp_pct_score=0."""
-        dp_data = _make_dp_data(dp_volume=300_000, signal="BULLISH")
+    def test_dp_pct_below_threshold_returns_zero(self, config):
+        """dp_volume=80K, daily_volume=1M → dp_pct=8% → 0."""
+        dp_data = _make_dp_data(dp_volume=80_000, signal="BULLISH")
         bars = _make_bars([100.0] * 30, volume=1_000_000)
         flow = _analyze_flow_from_data("TEST", bars, dp_data, config)
-        assert flow.dark_pool_pct == 30.0
+        assert flow.dark_pool_pct == 8.0
         assert flow.dp_pct_score == 0
 
+    def test_dp_pct_boundary_at_12pct_inclusive(self, config):
+        """dp_pct=12.0 exactly → -10 (lower boundary inclusive)."""
+        dp_data = _make_dp_data(dp_volume=120_000, signal="BULLISH")
+        bars = _make_bars([100.0] * 30, volume=1_000_000)
+        flow = _analyze_flow_from_data("TEST", bars, dp_data, config)
+        assert flow.dark_pool_pct == 12.0
+        assert flow.dp_pct_score == -10
+
+    def test_dp_pct_boundary_at_18pct_inclusive(self, config):
+        """dp_pct=18.0 exactly → -15 (upper boundary inclusive)."""
+        dp_data = _make_dp_data(dp_volume=180_000, signal="BULLISH")
+        bars = _make_bars([100.0] * 30, volume=1_000_000)
+        flow = _analyze_flow_from_data("TEST", bars, dp_data, config)
+        assert flow.dark_pool_pct == 18.0
+        assert flow.dp_pct_score == -15
+
     def test_dp_pct_zero_daily_volume(self, config):
-        """daily_volume=0 → dp_pct stays 0.0."""
+        """daily_volume=0 → dp_pct stays 0.0 → score 0."""
         dp_data = _make_dp_data(dp_volume=500_000, signal="BULLISH")
         bars = _make_bars([100.0] * 30, volume=0)
         flow = _analyze_flow_from_data("TEST", bars, dp_data, config)
@@ -103,14 +125,14 @@ class TestDarkPoolPercentage:
         assert flow.dp_pct_score == 0
 
     def test_dp_signal_activates(self, config):
-        """dp_pct > 40% → DarkPoolSignal activates."""
-        dp_data = _make_dp_data(dp_volume=500_000, signal="BULLISH")
+        """dp_pct > 12% threshold → DarkPoolSignal activates."""
+        dp_data = _make_dp_data(dp_volume=200_000, signal="BULLISH")
         bars = _make_bars([100.0] * 30, volume=1_000_000)
         flow = _analyze_flow_from_data("TEST", bars, dp_data, config)
         assert flow.dark_pool_signal == DarkPoolSignal.BULLISH
 
     def test_dp_signal_no_data(self, config):
-        """dp_data=None → dp_pct=0.0, signal=None."""
+        """dp_data=None → dp_pct=0.0, signal=None, score 0."""
         bars = _make_bars([100.0] * 30)
         flow = _analyze_flow_from_data("TEST", bars, None, config)
         assert flow.dark_pool_pct == 0.0
@@ -227,9 +249,10 @@ class TestBC10Integration:
         flow = _analyze_flow_from_data("TEST", bars, dp_data, config,
                                        options_data=options_data)
 
-        # dp_pct = 700K / 1M = 70% → dp_pct_score = +15 (>60%)
+        # dp_pct = 700K / 1M = 70% → dp_pct_score = -15 (>=18% high penalty,
+        # sign-flipped 2026-05-08 from 60-trade audit)
         assert flow.dark_pool_pct == 70.0
-        assert flow.dp_pct_score == 15
+        assert flow.dp_pct_score == -15
         assert flow.dark_pool_signal == DarkPoolSignal.BULLISH
 
         # buy_pressure: buy_pos=0.9 → +15, VWAP: +10 + 5 (strong) = +15
@@ -241,8 +264,8 @@ class TestBC10Integration:
         # Block trade: 10 > 5 → +10
         assert flow.block_trade_score == 10
 
-        # Composite rvol_score should include all
-        assert flow.dp_pct_score in [10, 15]
+        # Composite rvol_score includes the (now negative) dp_pct_score
+        assert flow.dp_pct_score in (-10, -15)
         assert flow.buy_pressure_score > 0
 
     def test_no_dp_no_vwap_field(self, config):

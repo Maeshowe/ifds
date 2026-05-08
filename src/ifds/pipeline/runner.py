@@ -306,7 +306,6 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 from ifds.phases.phase4_stocks import run_phase4
                 from ifds.data.polygon import PolygonClient as PolygonClient4
                 from ifds.data.fmp import FMPClient as FMPClient4
-                from ifds.data.adapters import FallbackDarkPoolProvider
 
                 polygon4 = PolygonClient4(
                     api_key=config.get_api_key("polygon"),
@@ -323,7 +322,12 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     circuit_breaker=cb_fmp,
                 )
 
-                # Dark Pool provider: batch prefetch if UW available
+                # Dark Pool provider: per-ticker fetch (sign-flip rework 2026-05-08).
+                # Switched from UWBatchDarkPoolProvider — the batch endpoint
+                # (/api/darkpool/recent) returns ~3000 trades market-wide across
+                # 5000+ tickers, leaving most candidates with 0-1 records and
+                # dp_pct ≈ 0. Per-ticker /api/darkpool/{ticker} gives full-day
+                # accuracy at the cost of ~250-300 calls/day, well within UW limits.
                 dp_provider = None
                 uw_client = None
                 if ctx.uw_available:
@@ -335,16 +339,8 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                         cache=cache,
                         circuit_breaker=cb_uw,
                     )
-                    from ifds.data.adapters import UWBatchDarkPoolProvider
-                    batch_dp = UWBatchDarkPoolProvider(
-                        uw_client, logger=logger,
-                        max_pages=config.runtime.get("dp_batch_max_pages", 15),
-                        page_delay=config.runtime.get("dp_batch_page_delay", 0.5),
-                    )
-                    batch_dp.prefetch()
-                    dp_provider = FallbackDarkPoolProvider(
-                        batch_dp, logger=logger,
-                    )
+                    from ifds.data.adapters import UWDarkPoolProvider
+                    dp_provider = UWDarkPoolProvider(uw_client)
 
                 try:
                     strategy = ctx.strategy_mode or StrategyMode.LONG

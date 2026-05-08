@@ -321,9 +321,10 @@ class TestFlowAnalysis:
 
     def test_dark_pool_below_threshold(self, config):
         dp_provider = MagicMock()
+        # 80/1000 = 8% — below the 12% threshold (sign-flipped 2026-05-08)
         dp_provider.get_dark_pool.return_value = {
-            "dp_pct": 20.0,
-            "dp_volume": 200,  # 200/1000 = 20% — below 40% threshold
+            "dp_pct": 8.0,
+            "dp_volume": 80,
             "signal": "BULLISH",
         }
         bars = _make_bars([100] * 25)

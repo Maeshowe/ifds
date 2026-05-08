@@ -540,11 +540,13 @@ def _analyze_flow_from_data(ticker: str, bars: list[dict],
             else:
                 dp_signal = DarkPoolSignal.NEUTRAL
 
-        # dp_pct scoring
+        # dp_pct scoring — inclusive boundaries (sign-flipped 2026-05-08).
+        # Buckets: dp_pct < threshold → 0; threshold ≤ dp_pct < dp_high → bonus
+        # (now negative); dp_pct ≥ dp_high → high_bonus (now negative).
         dp_high = config.tuning["dp_pct_high_threshold"]
-        if dp_pct > dp_high:
+        if dp_pct >= dp_high:
             dp_pct_score = config.tuning["dp_pct_high_bonus"]
-        elif dp_pct > threshold:
+        elif dp_pct >= threshold:
             dp_pct_score = config.tuning["dp_pct_bonus"]
 
     # Buy Pressure + VWAP
@@ -898,9 +900,7 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                             strategy_mode: StrategyMode) -> Phase4Result:
     """Async Phase 4: process tickers concurrently with semaphore rate limiting."""
     from ifds.data.async_clients import AsyncPolygonClient, AsyncFMPClient, AsyncUWClient
-    from ifds.data.async_adapters import (
-        AsyncFallbackDarkPoolProvider, AsyncUWBatchDarkPoolProvider,
-    )
+    from ifds.data.async_adapters import AsyncUWDarkPoolProvider
 
     start_time = time.monotonic()
     logger.phase_start(4, "Individual Stock Analysis (async)", input_count=len(tickers))
@@ -923,6 +923,7 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
         semaphore=sem_fmp,
     )
 
+    # Dark Pool: per-ticker fetch (async). See sync runner.py for rationale.
     dp_provider = None
     uw_client = None
     uw_key = config.get_api_key("unusual_whales")
@@ -933,15 +934,7 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             max_retries=config.runtime["api_max_retries"],
             semaphore=sem_uw,
         )
-        batch_dp = AsyncUWBatchDarkPoolProvider(
-            uw_client, logger=logger,
-            max_pages=config.runtime.get("dp_batch_max_pages", 15),
-            page_delay=config.runtime.get("dp_batch_page_delay_async", 0.3),
-        )
-        await batch_dp.prefetch()
-        dp_provider = AsyncFallbackDarkPoolProvider(
-            batch_dp, logger=logger,
-        )
+        dp_provider = AsyncUWDarkPoolProvider(uw_client)
 
     # Exclude breadth adj from ticker-level score (BC14)
     sector_adj_map = {s.sector_name: s.score_adjustment - s.breadth_score_adj
