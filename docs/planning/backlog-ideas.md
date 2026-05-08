@@ -415,12 +415,86 @@ def _exclude_sec_filings(tickers, exclusion_days, logger):
 - M_contradiction multiplier (CC `f6c4d9e`, 2026-05-02 deployed) — **ÉLES**, W19+ alatt mérhető a hatása
 - **Recent Winner Penalty / Position Dedup** (most rögzítve, POWI paradoxon alapján) — **független**, egyszerű, hamar implementálható
 - **Vol Control Equity Allocation** (most rögzítve, Ivory Hill chart alapján) — **macro layer enrichment**, BC26+ scope, R&D heavy
+- **⚠️ LOSS_EXIT bracket SL cancellation** (ÚJ 2026-05-07, SQM + DTE bug) — **P1**, W19+ scope, ~30-45 min CC
 - **10-Q / 10-K SEC Filing Exclusion** (2026-05-04 rögzítve, AGNC eset alapján; **2026-05-05 P1-re emelve** BUD eset után) — **független**, W19+ scope, ~2-3h CC
 - **ADR earnings adatforrás fix** (2026-05-05, BUD eset) — **P1**, W19+ scope, ~3-4h CC
 - **Breakeven Lock window-bővítés** (ÚJ 2026-05-05, PTEN W19 D2 eset) — **P2**, W19+ scope, ~30-45 min CC
 - **High-score liquidity check** (ÚJ 2026-05-05, NE +0.72% slippage) — **P3**, W19+ scope, ~1h CC
 - **TP1 cél revízió** (ÚJ 2026-05-05, BC23 0.75×ATR értékelés) — **P2**, W19+ scope, ~30 min config
 - **Phase 4 snapshot enrichment** (ÚJ 2026-05-05, W18 elemzésből) — **P3**, W19+ scope, ~30-45 min CC
+
+---
+
+## LOSS_EXIT + bracket SL duplikált zárás bug — ÚJ P1 (2026-05-07)
+
+**Forrás:** **Két alkalom 6 napon belül**:
+- DTE 2026-05-01 péntek: 4-split LOSS_EXIT+SL, leftover -130 SHORT
+- SQM 2026-05-07 csüt: 3-split LOSS_EXIT+SL, leftover -91 SHORT
+
+**A bug pontos diagnózisa:**
+
+A `monitor` script `loss_exit` log´ka, amikor -2% (vagy -X%) küszöböt észlel:
+1. ✓ Detektálja a küszöböt
+2. ✓ MARKET SELL order az IBKR-nek a teljes pozícióra
+3. **✗ NEM törli az IBKR-ben a meglévő bracket SL ordereket!**
+
+Amikor az ár tovább esik a bracket SL küszöbé alá, az IBKR **autonóman** triggereli a SL ordereket → **SHORT pozíciót nyitnak** a long zárása után.
+
+**Tünetek:**
+- `leftover_warning: TICKER:-N` event a nap végén (negatív qty)
+- **Duplikált P&L számolás** a daily_metrics-ben (LOSS_EXIT P&L + SL P&L össszevonva, ámbár a tett P&L csak az első)
+- Másnap reggel `nuke.py --positions` kötelező a SHORT pozíció zárására
+- Kitétel nyárg-yó piaci átmenésnél — ha az ár még jobban esik a SHORT-on, valódi veszteség
+
+**Megoldás:**
+
+```python
+# scripts/paper_trading/pt_monitor.py — trigger_loss_exit() módosítása
+
+def trigger_loss_exit(ticker, qty, current_price, ib):
+    # 1. ÚJ: Cancel existing bracket SL orders FIRST
+    open_orders = ib.openOrders()
+    for order in open_orders:
+        if order.contract.symbol == ticker and order.orderType in ("STP", "STP LMT"):
+            ib.cancelOrder(order)
+            logger.log(EventType.ORDER_CANCELLED,
+                       message=f"[LOSS_EXIT_SETUP] {ticker}: cancelled bracket {order.orderType}")
+    
+    # 2. Sleep ~500ms a cancel propagationért
+    ib.sleep(0.5)
+    
+    # 3. Submit MARKET SELL for full qty
+    order = MarketOrder("SELL", qty)
+    trade = ib.placeOrder(contract, order)
+    
+    # 4. Log
+    logger.log(EventType.LOSS_EXIT,
+               message=f"[LOSS_EXIT] {ticker}: SELL {qty} @ MKT (~${current_price:.2f})")
+```
+
+**Tesztek (3-4 plusz unit teszt):**
+- `test_loss_exit_cancels_bracket_orders_before_sell`
+- `test_loss_exit_handles_no_bracket_orders` (defenzive default)
+- `test_loss_exit_logs_cancelled_orders`
+- Integration smoke teszt simulated bracket order-rel
+
+**Prióritás:** **P1** — struktúrális, ismétlődő bug. Két alkalom 6 napon belül. Minden napon kockáztatjuk a megismétlődést.
+
+**Effort:** **~30-45 min CC**. Kód-módosítás + tesztek.
+
+**Mikor:** **W19+ scope, SÜRGŐS**. CC következő fejlesztési körében.
+
+**Mérhetőség W19+ után:**
+- LOSS_EXIT események száma vs leftover_warning száma (cél: 1:1 → 0% leftover)
+- Daily_metrics aggregat pontosság (a duplikált számolás eltűnése)
+- Tókilöé sparált: havi ~$200-400 (ha 2-3 ilyen eset / hó)
+
+**Kapcsolódóak:**
+- `pt_monitor.py` jelenlegi `loss_exit` logika — modosítás
+- IBKR API `cancelOrder()` — már elerhető
+- M_contradiction (CC `f6c4d9e`) — független, már éles
+
+**Státusz:** RÖGZÍTVE 2026-05-07. CC-re vár W19+ alatt.
 
 ---
 

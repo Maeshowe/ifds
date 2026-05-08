@@ -1,35 +1,41 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-07 Budapest, Chat (csütörtök reggel — W19 Day 3 review, Breakeven Lock profit-trigger felfedezve LIVE) -->
+<!-- Utolsó frissítés: 2026-05-08 Budapest, Chat (péntek reggel — W19 Day 4 review, SQM duplikált zárás bug újra) -->
 
 ## Paper Trading
-Day 58/63 | cum. PnL: **−$1,129.43 (−1.13%)** ⭐ visszamászás | IBKR DUH118657
-**BC23 W19 Day 3 (szerda máj 6):** **+$234 net** ⭐ a hét első nyertes napja!
-**UEC +$161 (+4.16%, 4 óra)** — a nap sztárja, alacsony score (91.0) ellenére!
-**KRITIKUS finding:** UEC 17:00 CEST-kor Breakeven Lock alkalmazva (`lock_type: profit_breakeven`) — a feature **NEM csak window-based**, profit-based trigger-rel is fut! **Tegnapi backlog idea revidálva**: a tényleges javaslat "profit-küszöb csökkentése 1% → 0.5%".
-**Excess vs SPY -1.14%** ⚠️ — bull rally underperform pattern **3-szor egymás után** (csüt -0.57%, pént -1.50%, ma -1.14%)
-**Score → P&L negatív korreláció folytatódik:** ERIC 92.5 = $0.00, UEC 91.0 = +$161 (3. egymás utáni nap)
-**"Végére visszaesik" pattern MA NEM jelentkezett**: UEC peak = MOC, CDNS peak < MOC (kvalifikáció a tegnapi finding-hoz)
-**VIX 17.19** (-0.58% napi) — stabil 17 körül, leállítási feltétel inaktív
-**5 nap** Day 63-ig — **paper folytatás default** kimenet a legvalószínűbb
+Day 59/63 | cum. PnL: **−$1,616.13 (−1.62%)** ⚠️ papir aggregát (valós ~-$1,460) | IBKR DUH118657
+**BC23 W19 Day 4 (csütörtök máj 7):** **-$501 net (papir)**, excess vs SPY **-0.18%** ✓ marginal underperform mild risk-off napon
+**⚠️ ÚJABB STRUKTÚRÁLIS BUG:** SQM 3-split LOSS_EXIT+SL **duplikált zárás** — leftover -91 SHORT! Ugyanaz mint péntek (máj 1) DTE eset. Két alkalom 6 napon belül = struktúrális bug! Új **P1 backlog idea**: LOSS_EXIT bracket SL cancellation
+**⭐ QCOM TP1+TP2 sequence: +$556** (a hét legjobbja!) — +10.55% TP2 net 1 nap alatt
+**SQM valós veszteség:** csak ~$425 (LOSS_EXIT realízalva), a SHORT 91 holnap reggel `nuke.py`-szel zárul, valószínűleg ~+$110 profittal (mert az ár jelenleg $91.50)
+**Score → P&L NEGATÍV korreláció 4 nap egymás után:** RMBS 93.5 = -$160, QCOM 92.5 = +$556, SQM 89.5 = -$425
+**Alacsony exposure (3 ticker) 2 nap egymás után** — flow signal konzervatív, megfigyelendő trend
+**VIX 17.13** stabil 17 körül, leállítási feltétel inaktív
+**4 nap** Day 63-ig — **paper folytatás default** kimenet a legvalószínűbb
 
-## W18 → W19 átmenet
+## W19 átmenet (4 nap)
 
-| Metrika | W18 hét | W19 D1 | W19 D2 | W19 D3 ⭐ | W19 átlag |
-|---------|---------|--------|--------|----------|------------|
-| Net P&L | -$1,106 | -$191 | -$269 | **+$234** | -$75/nap |
-| Excess vs SPY | -1.90% | +0.21% | -1.04% | -1.14% | -0.66%/nap |
-| Win rate | 11/38 (29%) | 3/5 (60%) | 2/5 (40%) | 2/3 (67%) | 7/13 (54%) |
-| TP1 hits | 0/38 | 0/5 | 3/5 | 0/3 | 3/13 |
+| Metrika | W18 hét | W19 D1 | W19 D2 | W19 D3 ⭐ | W19 D4 | W19 átlag |
+|---------|---------|--------|--------|----------|--------|------------|
+| Net P&L (paper) | -$1,106 | -$191 | -$269 | +$234 | -$501 | -$182/nap |
+| Excess vs SPY | -1.90% | +0.21% | -1.04% | -1.14% | -0.18% | -0.54%/nap |
+| Win rate | 11/38 (29%) | 3/5 | 2/5 | 2/3 | 1/3 | 8/16 (50%) |
+| TP1 hits | 0/38 | 0/5 | 3/5 | 0/3 | 1/3 | 4/16 (25%) |
+| TP2 hits | 0/38 | 0/5 | 0/5 | 0/3 | 1/3 ⭐ | 1/16 (6%) |
 
-## W19+ backlog idea-k (6, **#3 KORRIGÁLANDÓ**)
+## W19+ backlog idea-k (most **7**)
 
-1. **10-Q / 10-K SEC Filing Exclusion** — P1, ~2-3h CC (AGNC eset)
-2. **ADR earnings adatforrás fix** — P1, ~3-4h CC (BUD eset, FMP hiány)
-3. **Breakeven Lock profit-küszöb csökkentés** — P2, ~10-15 min config + tesztek (KORRIGÁLANDÓ a tegnapi window-bővítés tettért)
-4. **TP1 cél revízió** — P2, ~30 min config (DBRG TP1 cél túl szűk)
-5. **Phase 4 snapshot enrichment** — P3, ~30-45 min (W18 elemzésből)
-6. **High-score liquidity check** — P3, ~1h (NE +0.72% slippage)
+1. **⚠️ ÚJ SÜRGŐS: LOSS_EXIT bracket SL cancellation** — P1, ~30-45 min CC (DTE+SQM bug)
+2. **10-Q / 10-K SEC Filing Exclusion** — P1, ~2-3h CC (AGNC eset)
+3. **ADR earnings adatforrás fix** — P1, ~3-4h CC (BUD eset, FMP hiány)
+4. **Breakeven Lock profit-küszöb csökkentés** — P2, ~10-15 min config + tesztek
+5. **TP1 cél revízió** — P2, ~30 min config (DBRG TP1 cél túl szűk)
+6. **Phase 4 snapshot enrichment** — P3, ~30-45 min (W18 elemzésből)
+7. **High-score liquidity check** — P3, ~1h (NE +0.72% slippage)
+
+## Holnapi (péntek máj 8) reggeli teendő
+
+**⚠️ Tamás Mac Mini-n először:** `nuke.py --positions` az SQM SHORT 91 zárására! Második ilyen eset 6 napon belül.
 
 ## Előző nap (hétfő máj 4)
 
