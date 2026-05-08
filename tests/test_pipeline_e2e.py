@@ -197,6 +197,8 @@ def _mock_client_class(*args, **kwargs):
 class TestEndToEnd:
     """Full pipeline with all phases mocked."""
 
+    @patch("ifds.data.phase4_snapshot.save_phase4_snapshot",
+           return_value=None)
     @patch("ifds.output.execution_plan.write_trade_plan", return_value="/tmp/trade.csv")
     @patch("ifds.output.execution_plan.write_full_scan_matrix", return_value="/tmp/scan.csv")
     @patch("ifds.output.execution_plan.write_execution_plan", return_value="/tmp/test.csv")
@@ -212,7 +214,7 @@ class TestEndToEnd:
     @patch("ifds.data.fmp.FMPClient", _mock_client_class)
     def test_full_pipeline_flow(self, mock_p0, mock_p1, mock_p2, mock_p3,
                                  mock_p4, mock_p5, mock_p6, mock_output,
-                                 mock_scan, mock_trade,
+                                 mock_scan, mock_trade, mock_save_snapshot,
                                  env_setup, tmp_path, monkeypatch):
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
 
@@ -253,6 +255,46 @@ class TestEndToEnd:
         assert len(ctx.positions) == 1
         assert ctx.positions[0].ticker == "AAPL"
         assert ctx.execution_plan_path == "/tmp/test.csv"
+
+
+class TestSnapshotIsolation:
+    """Regression: e2e tests must not write to production state/phase4_snapshots/.
+
+    See 2026-05-08-snapshot-regression-fix.md — the unmocked save_phase4_snapshot
+    in test_full_pipeline_flow overwrote production snapshots from Apr 10
+    onwards (single AAPL ticker, score=78.0, dark_pool_pct=0.0).
+    """
+
+    @patch("ifds.data.phase4_snapshot.save_phase4_snapshot",
+           return_value=None)
+    @patch("ifds.output.execution_plan.write_trade_plan", return_value="/tmp/t.csv")
+    @patch("ifds.output.execution_plan.write_full_scan_matrix", return_value="/tmp/s.csv")
+    @patch("ifds.output.execution_plan.write_execution_plan", return_value="/tmp/p.csv")
+    @patch(_P6, return_value=_mock_phase6())
+    @patch(_P5, return_value=_mock_phase5())
+    @patch(_P4, return_value=_mock_phase4())
+    @patch(_P3, return_value=_mock_phase3())
+    @patch(_P2, return_value=_mock_phase2())
+    @patch(_P1, return_value=_mock_phase1())
+    @patch(_P0, return_value=_mock_diagnostics_ok())
+    @patch("ifds.data.unusual_whales.UnusualWhalesClient", _mock_client_class)
+    @patch("ifds.data.polygon.PolygonClient", _mock_client_class)
+    @patch("ifds.data.fmp.FMPClient", _mock_client_class)
+    def test_save_snapshot_is_mocked_in_e2e(
+        self, mock_p0, mock_p1, mock_p2, mock_p3, mock_p4, mock_p5, mock_p6,
+        mock_output, mock_scan, mock_trade, mock_save_snapshot,
+        env_setup, tmp_path, monkeypatch,
+    ):
+        """save_phase4_snapshot must be called via the mock, never the real fn."""
+        monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
+        result = run_pipeline()
+        assert result.success is True
+        # If the mock was bypassed, the real save would have written a file —
+        # asserting the mock was called proves the patch is wired correctly.
+        assert mock_save_snapshot.called, (
+            "save_phase4_snapshot mock was not invoked — runner may have "
+            "bypassed the patch and written to production state/."
+        )
 
 
 class TestPipelineHalt:
