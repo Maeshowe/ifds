@@ -5,6 +5,131 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## "X feature nem prediktív" verdikt elé adat-egészség check (rule, 2026-05-10)
+
+A scoring validation / korreláció elemzés alapú "X feature nem ad alpha-t"
+verdikteket **TILOS** elfogadni anélkül, hogy a feature input-ját az adott
+adatfolyamban közvetlenül ellenőriznénk. A "nincs jel" mérés gyakran azt
+jelenti, hogy "az adat strukturálisan nullán van", nem azt, hogy a jel
+maga nem prediktív.
+
+**Szabály:**
+
+1. Mielőtt egy feature-re "nem prediktív → eltávolítjuk / sign-flip-pelünk /
+   konfigurációt finomítunk" döntés születne, **kötelező** egy adat-egészség
+   ellenőrzés:
+   - A feature input mezőjének (pl. `dp_pct`, `pcr_score`, `m_target`)
+     **valós eloszlása** az aktuális production snapshot-okban (min/max/
+     median, nem-nulla arány).
+   - Ha a mező eloszlása **degenerált** (pl. minden quintile range 0.0–0.0,
+     vagy max <1% valós küszöb 40% mellett) → **az adat broken, nem a jel**.
+   - Akkor és csak akkor legitim a "nem prediktív" verdikt, ha a mező
+     normál eloszlású és a korreláció stat. szignifikánsan ~0.
+
+2. **Retrospektív audit utat** kell tervezni a production pipeline mellé,
+   ami a broken pontokat megkerüli — pl. read-only közvetlen API hívás
+   történelmi adatra (`date=YYYY-MM-DD` filter) az aktuális live trade-ek
+   ticker × date kombinációira. Kódvátozás nélkül mérhető a feature valós
+   prediktív tartalma.
+
+3. **Két különálló bug egyszerre** lehet a strukturális 0 mögött:
+   - Adatforrás bug (pipeline hibás coverage / threshold lehetetlen / save
+     hibás)
+   - Scoring bug (sign / threshold / aggregálás hibás)
+
+   Az audit eredménye után **mindkettőt fix-elni kell**, csak az egyiket
+   nem elég.
+
+**Példa-sértés (mit ne csináljunk):**
+
+A 2026-05-08-i `flow-decomposition.md` "dp_pct_score Pearson r = n/a, mind
+0" verdiktje 232 trade-en futott, de a 232 enriched trade snapshotokban
+**mind a 232 esetben dp_pct_score = 0 volt** — nem mert a jel nulla, hanem
+mert (a) a snapshot regresszió (Apr 10 óta single AAPL ticker, lásd
+`d3fce73`) miatt a recent snapshot-ok hasznavehetetlenek voltak, és
+(b) a `dark_pool_volume_threshold_pct=40` küszöb soha nem fire-olt valós
+7-15%-os DP eloszláson. A retrospektív per-ticker audit
+(`scripts/analysis/dp_pct_retrospective_audit.py`,
+`/api/darkpool/{ticker}?date=YYYY-MM-DD`) **szignifikáns INVERZ**
+korrelációt mutatott (Pearson r=-0.265, p=0.041, n=60). A scoring
+sign-flip + threshold rekalibráció (12%/18%, -10/-15) commit
+`9a169b9`-ben deployolva.
+
+**Referencia:**
+
+- Audit script: `scripts/analysis/dp_pct_retrospective_audit.py`
+- Audit report: `docs/analysis/dp-pct-retrospective-audit.md`
+- Bug 1 fix (snapshot regression): commit `d3fce73`
+- Bug 2 fix (sign-flip + threshold + per-ticker fetch): commit `9a169b9`
+- Téves verdikt forrás: `docs/analysis/flow-decomposition.md`
+
+---
+
+## Test environment higiénia — production state path írás TILOS (rule, 2026-05-10)
+
+A teszt környezetnek **soha** nem szabad a production `state/`,
+`logs/`, `output/` mappákba írnia. A `tests/test_pipeline_e2e.py`
+2026-04-10 óta naponta felülírta a `state/phase4_snapshots/` production
+snapshotjait, mert a `test_full_pipeline_flow` futtatta a valódi
+`run_pipeline`-t mockolt fázisokkal, **de nem mockolta a
+`save_phase4_snapshot`-ot**. A runner ezért a default
+`state/phase4_snapshots/` path-ra írta a `_mock_phase4()` AAPL rekordot,
+naponta megsemmisítve a 16:15-i éles 93-ticker snapshot-ot. A bug **28
+napig észrevétlen volt**, mert az AAPL output "értelmesen" tűnt és a
+downstream kódban nem volt assertion ami tört volna.
+
+**Szabály:**
+
+1. **Minden teszt, ami a `run_pipeline`-t (vagy bármilyen production
+   entrypoint-ot) közvetlenül futtatja, KÖTELESEN mockolja az összes
+   I/O sink-et** — különösen:
+   - `save_phase4_snapshot` (`ifds.data.phase4_snapshot`)
+   - `save_phase13_context` (`ifds.pipeline.context_persistence`)
+   - `save_mid_bundle_snapshot` (`ifds.data.mid_bundle_snapshot`)
+   - `write_execution_plan`, `write_full_scan_matrix`, `write_trade_plan`
+   - Telegram / Anthropic / IBKR clients
+
+2. **Regressziós teszt-pattern**: minden mock decorator-hoz adj egy
+   asserciót, hogy a mock **hívva volt**:
+   ```python
+   assert mock_save_snapshot.called, (
+       "save_phase4_snapshot mock was not invoked — runner may have "
+       "bypassed the patch and written to production state/."
+   )
+   ```
+   Ez a "test mocked itself out" antipattern detektálja, ha egy jövőbeli
+   refactor a patch path-t elcsúsztatja.
+
+3. **Pre-commit/CI ellenőrzés**: a `state/`, `logs/`, `output/` mappák
+   **mtime-ja** a teszt suite futás után **nem változhat**, csak
+   `tmp_path`-ben létrehozott fájlok keletkezhetnek.
+
+**Példa-sértés (mit ne csináljunk):**
+
+A `tests/test_pipeline_e2e.py::test_full_pipeline_flow` (2026-04-10 előtt
+hozzáadva) `@patch(_P4, return_value=_mock_phase4())` decorator-ral
+mockolta a Phase 4 result-ot, **de nem patcholta a save_phase4_snapshot-ot**.
+A runner line 614 `save_phase4_snapshot(ctx.stock_analyses, snap_dir)` a
+default `"state/phase4_snapshots"` path-ra írt. A 22:00
+`deploy_daily.sh` pre-flight pytest naponta felülírta a 16:15 cron éles
+snapshotját egyetlen AAPL rekorddal (combined_score=78.0). A
+`flow-decomposition.md` ezért a régi (Feb-Apr 1) snapshotokon futott; a
+BC23 utáni időszak teljes adata invalidálódott. Fix:
+`d3fce73` — `@patch("ifds.data.phase4_snapshot.save_phase4_snapshot")`
++ `TestSnapshotIsolation::test_save_snapshot_is_mocked_in_e2e`
+regressziós teszt.
+
+**Referencia:**
+
+- Detection commit: `d3fce73`
+- Affected period: 2026-04-10 → 2026-05-08 (28 trading days)
+- Symptom: `state/phase4_snapshots/{date}.json.gz` mtime mindig 22:00,
+  content mindig single AAPL combined_score=78.0
+- Future audit: keresd más hasonló pattern-eket (patch-eletlen runner.*
+  hívások a tests/-ben)
+
+---
+
 ## Live API integráció — schema verifikáció commit ELŐTT (rule, 2026-04-27)
 
 Új külső API integrációk (REST kliens, válasz-mező mapping) ESETÉN kötelező
