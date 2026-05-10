@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-08 Budapest, Chat (péntek reggel — W19 Day 4 review, SQM duplikált zárás bug újra) -->
+<!-- Utolsó frissítés: 2026-05-10 Budapest, CC /wrap-up (vasárnap délelőtt — két P1 fix deployed: snapshot regression + dp_pct sign-flip + per-ticker UW fetch) -->
 
 ## Paper Trading
 Day 59/63 | cum. PnL: **−$1,616.13 (−1.62%)** ⚠️ papir aggregát (valós ~-$1,460) | IBKR DUH118657
@@ -193,19 +193,25 @@ Day 59/63 | cum. PnL: **−$1,616.13 (−1.62%)** ⚠️ papir aggregát (valós
 
 ## Tesztek
 
-**1535 passing** (1377 + 138 Breakeven Lock + 8 vix-close + 9 whipsaw + 3 egyéb), 0 failure
+**1556 passing** (1535 + 1 snapshot regression + 6 dp_pct rec — 11 legacy frissítve net), 0 failure
 
 ## Utolsó commitok
 
-- `fbf4e41` — docs: W18 analysis + day63 framework + M_contradiction task (2026-05-02)
-- `0e84a76` — docs: W18 Day 3-5 reviews + contradiction-signal task + Day 63 decision framework
-- `96e1289` — chore(sync): improve sync_from_mini.sh — docs/analysis coverage + freshness timestamp + pre-flight checks
-- `8c1fe72` — docs: W18 weekly metrics + scoring validation (2026-05-01, Mac Mini-n keletkezett)
-- `1c086ab` — docs: untracked Mac Mini analysis files
-- `9ce2849` — docs: W18 Day 3 wrap-up — session journal + STATUS sync + Chat docs
-- `a77d425` — feat(analysis): LOSS_EXIT whipsaw cost retrospective audit (W18 Day 3)
-- `0a23a35` — feat(daily_metrics): populate vix_close from Phase 0 log + Polygon fallback (W18 Day 3)
+- `9a169b9` — feat(scoring): dp_pct sign-flip + threshold recalibration + per-ticker UW fetch (W19 hétvége)
+- `d3fce73` — fix(tests): mock save_phase4_snapshot in e2e — production state pollution regression (W19 hétvége)
+- `f7b9024` — analysis(dp_pct): retrospective audit — UW dark-pool % shows significant INVERSE correlation with P&L per share
+- `cf5cafa` — docs: 2026-05-07 daily review + LOSS_EXIT bracket SL cancellation P1 backlog
+- `1e418f0` — docs: 2026-05-06 daily review — Breakeven Lock profit-trigger discovery
+- `220a96c` — docs: W19 D2 daily review + 4 new W19+ backlog ideas
+- `ada8f28` — docs: backlog — ADR earnings adatforrás fix diagnosztika megerősítve (BUD)
+- `62f9c52` — docs: backlog idea — 10-Q/10-K SEC filing exclusion (AGNC 2026-05-04)
 
 ## Blokkolók
 
-Nincs. **M_contradiction (P1) SUPERSEDED** — új task: `docs/tasks/2026-05-04-contradiction-signal-from-fmp.md` (direkt FMP-alapú signal, Company Intel független), implementálható ha CC kapacitás.
+Nincs.
+
+**Aktív P1 fix-ek (2026-05-10 deployolva, hatás W20-tól mérhető):**
+- **dp_pct sign-flip** (`9a169b9`): magas-DP tickerek -10/-15 score reduction; flow-súly 0.40 mellett ~-4/-6 pont a combined_score-on
+- **Snapshot regression fix** (`d3fce73`): Mac Mini `git pull` után a holnapi 16:15 cron tisztán ment 90+ ticker, a flow_decomposition újrafuttatható lesz friss adaton
+
+**W19+ backlog (Chat-oldal):** LOSS_EXIT bracket SL cancellation (P1, 2× ismétlődő bug), 10-Q/10-K SEC Filing Exclusion (P1, AGNC+BUD), ADR earnings adatforrás fix (P1, BUD)
