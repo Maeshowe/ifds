@@ -157,9 +157,11 @@ def run_phase4(config: Config, logger: EventLogger,
                 analyzed.append(analysis)
                 continue
 
-            # 3. Flow Analysis (with options data for PCR/OTM scoring)
+            # 3. Flow Analysis (with options data for PCR/OTM scoring).
+            # Pass 1 (universe scoring) skips dp_provider to stay under the UW
+            # rate limit; dark-pool enrichment runs in Pass 2 below for `passed`.
             options_data = polygon.get_options_snapshot(symbol)
-            flow = _analyze_flow(symbol, bars, dp_provider, config,
+            flow = _analyze_flow(symbol, bars, None, config,
                                  options_data=options_data)
 
             # 4. Fundamental Scoring
@@ -283,6 +285,37 @@ def run_phase4(config: Config, logger: EventLogger,
             )
 
         excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
+
+        # Pass 2: per-ticker dark-pool enrichment for `passed` only (sync path).
+        # Same rationale as the async path: keep the main universe loop off UW.
+        if dp_provider is not None and passed:
+            _enrich_passed_with_dp_sync(passed, dp_provider, config, logger,
+                                        sector_adj_map)
+            still_passing = []
+            for stock in passed:
+                if stock.combined_score > clipping_threshold:
+                    stock.excluded = True
+                    stock.exclusion_reason = "clipping"
+                    clipped_count += 1
+                elif stock.combined_score < min_score:
+                    stock.excluded = True
+                    stock.exclusion_reason = "min_score"
+                    min_score_count += 1
+                else:
+                    still_passing.append(stock)
+            dropped = len(passed) - len(still_passing)
+            if dropped:
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
+                    message=(
+                        f"Dark-pool re-scoring dropped {dropped} ticker(s) "
+                        f"from passed ({len(passed)} → {len(still_passing)})"
+                    ),
+                    data={"dropped": dropped, "before": len(passed),
+                          "after": len(still_passing)},
+                )
+            passed = still_passing
+            excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
 
         result = Phase4Result(
             analyzed=analyzed,
@@ -891,6 +924,116 @@ def _calculate_combined_score(technical: TechnicalAnalysis,
 
 
 # ============================================================================
+# Dark-pool Pass-2 enrichment (per-ticker UW fetch, only for passed tickers)
+# ============================================================================
+
+
+def _recompute_dp_pct_score(dp_pct: float, config: Config) -> int:
+    """Apply the same inclusive-boundary scoring used in _analyze_flow_from_data."""
+    base_threshold = config.tuning["dark_pool_volume_threshold_pct"]
+    high_threshold = config.tuning["dp_pct_high_threshold"]
+    if dp_pct >= high_threshold:
+        return config.tuning["dp_pct_high_bonus"]
+    if dp_pct >= base_threshold:
+        return config.tuning["dp_pct_bonus"]
+    return 0
+
+
+def _apply_dp_enrichment(stock: StockAnalysis, dp_data: dict | None,
+                         config: Config, sector_adj: int) -> None:
+    """Mutate stock.flow with new dp_pct + dp_pct_score and re-score combined.
+
+    Uses the dp_data["total_volume"] field as the denominator (UW reports the
+    stock's full-day volume on every record; the aggregator takes the max).
+    This is a close approximation of the Polygon daily volume used in Pass 1.
+    """
+    if not dp_data:
+        return
+
+    dp_volume = int(dp_data.get("dp_volume", 0) or 0)
+    total_volume = int(dp_data.get("total_volume", 0) or 0)
+    if total_volume <= 0 or dp_volume <= 0:
+        return
+
+    new_dp_pct = round((dp_volume / total_volume) * 100, 2)
+    new_dp_score = _recompute_dp_pct_score(new_dp_pct, config)
+
+    # Adjust the flow aggregate: rvol_score currently has the OLD dp_pct_score
+    # (which was 0, since Pass 1 ran with dp_data=None). Subtract old, add new.
+    old_dp_score = stock.flow.dp_pct_score
+    stock.flow.dark_pool_pct = new_dp_pct
+    stock.flow.dp_pct_score = new_dp_score
+    stock.flow.dp_volume_shares = dp_volume
+    stock.flow.total_volume = total_volume
+    stock.flow.rvol_score = stock.flow.rvol_score - old_dp_score + new_dp_score
+
+    # Re-compute combined_score with the updated flow score
+    stock.combined_score = _calculate_combined_score(
+        stock.technical, stock.flow, stock.fundamental, sector_adj, config,
+    )
+
+
+def _enrich_passed_with_dp_sync(
+    passed: list[StockAnalysis],
+    dp_provider,
+    config: Config,
+    logger: EventLogger,
+    sector_adj_map: dict[str, int],
+) -> None:
+    """Sync counterpart to ``_enrich_passed_with_dp_async`` — serial fetch."""
+    enriched = 0
+    for stock in passed:
+        try:
+            dp_data = dp_provider.get_dark_pool(stock.ticker)
+        except Exception as e:
+            logger.log(EventType.API_ERROR, Severity.WARNING, phase=4,
+                       ticker=stock.ticker,
+                       message=f"{stock.ticker} dp enrichment failed: {e}")
+            continue
+        sector_adj = sector_adj_map.get(stock.sector, 0)
+        _apply_dp_enrichment(stock, dp_data, config, sector_adj)
+        if stock.flow.dark_pool_pct > 0:
+            enriched += 1
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
+        message=f"Dark-pool Pass 2: enriched {enriched}/{len(passed)} passed tickers",
+        data={"enriched": enriched, "passed": len(passed)},
+    )
+
+
+async def _enrich_passed_with_dp_async(
+    passed: list[StockAnalysis],
+    dp_provider,
+    config: Config,
+    logger: EventLogger,
+    sector_adj_map: dict[str, int],
+) -> None:
+    """Pass 2: per-ticker UW dark-pool fetch + re-score for tickers that passed.
+
+    Only ~100-200 calls per run (vs 1425 if done in the main loop). Async
+    semaphore is reused from the UW client (already configured in caller).
+    """
+    async def enrich(stock: StockAnalysis) -> None:
+        try:
+            dp_data = await dp_provider.get_dark_pool(stock.ticker)
+        except Exception as e:
+            logger.log(EventType.API_ERROR, Severity.WARNING, phase=4,
+                       ticker=stock.ticker,
+                       message=f"{stock.ticker} dp enrichment failed: {e}")
+            return
+        sector_adj = sector_adj_map.get(stock.sector, 0)
+        _apply_dp_enrichment(stock, dp_data, config, sector_adj)
+
+    await asyncio.gather(*[enrich(s) for s in passed], return_exceptions=True)
+    enriched = sum(1 for s in passed if s.flow.dark_pool_pct > 0)
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
+        message=f"Dark-pool Pass 2: enriched {enriched}/{len(passed)} passed tickers",
+        data={"enriched": enriched, "passed": len(passed)},
+    )
+
+
+# ============================================================================
 # Async Phase 4 — concurrent ticker processing
 # ============================================================================
 
@@ -996,13 +1139,18 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                     excluded=True, exclusion_reason="tech_filter",
                 )
 
-            # Stage 3: Parallel FMP + DP + Options + Inst + Target + Contradiction
-            # signal inputs (9 calls at once)
+            # Stage 3: Parallel FMP + Options + Inst + Target + Contradiction
+            # signal inputs (8 calls at once).
+            #
+            # NOTE (2026-05-12): dark-pool fetch removed from the main loop.
+            # With ~1425 tickers × per-ticker UW = HTTP 429 rate-limit storm.
+            # Two-pass scoring: dp_pct treated as 0 here, then enriched only
+            # for the `passed` set (~100-200 tickers) before returning.
             results = await asyncio.gather(
                 fmp.get_financial_growth(symbol),
                 fmp.get_key_metrics(symbol),
                 fmp.get_insider_trading(symbol),
-                dp_provider.get_dark_pool(symbol) if dp_provider else _noop(),
+                _noop(),  # was dp_provider.get_dark_pool — moved to Pass 2
                 polygon.get_options_snapshot(symbol),
                 fmp.get_institutional_ownership(symbol) if inst_ownership_available else _noop(),
                 fmp.get_price_target_consensus(symbol),
@@ -1162,6 +1310,45 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             )
 
         excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
+
+        # Pass 2: dark-pool enrichment for `passed` tickers only (2026-05-12).
+        # The main loop above ran without UW dp_provider to stay under the
+        # rate limit on the 1425-ticker universe. Now per-ticker fetch and
+        # re-score only the (~100-200) tickers that already passed scoring.
+        if dp_provider is not None and passed:
+            sector_adj_map_pass2 = sector_adj_map
+            await _enrich_passed_with_dp_async(
+                passed, dp_provider, config, logger, sector_adj_map_pass2,
+            )
+
+            # Re-filter after re-scoring: dp penalty may drop tickers below
+            # min_score or push them past clipping; rebuild passed/analyzed
+            # bookkeeping.
+            still_passing = []
+            for stock in passed:
+                if stock.combined_score > clipping_threshold:
+                    stock.excluded = True
+                    stock.exclusion_reason = "clipping"
+                    clipped_count += 1
+                elif stock.combined_score < min_score:
+                    stock.excluded = True
+                    stock.exclusion_reason = "min_score"
+                    min_score_count += 1
+                else:
+                    still_passing.append(stock)
+            dropped = len(passed) - len(still_passing)
+            if dropped:
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
+                    message=(
+                        f"Dark-pool re-scoring dropped {dropped} ticker(s) "
+                        f"from passed ({len(passed)} → {len(still_passing)})"
+                    ),
+                    data={"dropped": dropped, "before": len(passed),
+                          "after": len(still_passing)},
+                )
+            passed = still_passing
+            excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
 
         phase4_result = Phase4Result(
             analyzed=analyzed,

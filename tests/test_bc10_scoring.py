@@ -141,6 +141,83 @@ class TestDarkPoolPercentage:
 
 
 # ============================================================================
+# TestDarkPoolPass2Enrichment — 4 tests (2026-05-12 two-pass scoring)
+# ============================================================================
+
+
+class TestDarkPoolPass2Enrichment:
+    """Pass-2 enrichment: per-ticker UW dp fetch + re-score for `passed` only.
+
+    The main Phase 4 loop bypasses dp_provider to stay under UW rate limits
+    on the 1425-ticker universe. After scoring, only `passed` tickers
+    (~100-200) get per-ticker UW fetch + flow re-scoring.
+    """
+
+    def _make_stock(self, combined=87.0, flow_rvol_score=45, dp_pct_score=0):
+        from ifds.models.market import (
+            StockAnalysis, TechnicalAnalysis, FlowAnalysis, FundamentalScoring,
+        )
+        return StockAnalysis(
+            ticker="AAPL", sector="Technology",
+            technical=TechnicalAnalysis(
+                price=100.0, sma_200=90.0, sma_20=98.0, rsi_14=55.0,
+                atr_14=2.0, trend_pass=True, rsi_score=15, sma50_bonus=30,
+                rs_spy_score=0,
+            ),
+            flow=FlowAnalysis(rvol_score=flow_rvol_score,
+                              dp_pct_score=dp_pct_score, dark_pool_pct=0.0),
+            fundamental=FundamentalScoring(funda_score=15),
+            combined_score=combined,
+        )
+
+    def test_apply_dp_enrichment_high_dp_drops_combined_score(self, config):
+        """20% dp_pct → -15 penalty applied, combined_score drops."""
+        from ifds.phases.phase4_stocks import _apply_dp_enrichment
+        stock = self._make_stock(combined=87.0)
+        dp_data = {"dp_volume": 200_000, "total_volume": 1_000_000}
+        _apply_dp_enrichment(stock, dp_data, config, sector_adj=0)
+        assert stock.flow.dark_pool_pct == 20.0
+        assert stock.flow.dp_pct_score == -15
+        assert stock.combined_score < 87.0
+
+    def test_apply_dp_enrichment_low_dp_yields_zero_penalty(self, config):
+        """8% dp_pct → 0 penalty, no negative impact on combined_score."""
+        from ifds.phases.phase4_stocks import _apply_dp_enrichment, _calculate_combined_score
+        stock = self._make_stock()
+        # Baseline: what combined_score would be without any enrichment
+        baseline = _calculate_combined_score(
+            stock.technical, stock.flow, stock.fundamental, 0, config,
+        )
+        dp_data = {"dp_volume": 80_000, "total_volume": 1_000_000}
+        _apply_dp_enrichment(stock, dp_data, config, sector_adj=0)
+        assert stock.flow.dark_pool_pct == 8.0
+        assert stock.flow.dp_pct_score == 0
+        # No penalty applied → combined_score equals the baseline
+        assert stock.combined_score == baseline
+
+    def test_apply_dp_enrichment_no_data_skips(self, config):
+        """dp_data=None → no mutation."""
+        from ifds.phases.phase4_stocks import _apply_dp_enrichment
+        stock = self._make_stock(combined=87.0)
+        before = (stock.flow.dark_pool_pct, stock.flow.dp_pct_score,
+                  stock.combined_score)
+        _apply_dp_enrichment(stock, None, config, sector_adj=0)
+        after = (stock.flow.dark_pool_pct, stock.flow.dp_pct_score,
+                 stock.combined_score)
+        assert before == after
+
+    def test_apply_dp_enrichment_zero_total_volume_skips(self, config):
+        """Empty UW response (total_volume=0) → no mutation."""
+        from ifds.phases.phase4_stocks import _apply_dp_enrichment
+        stock = self._make_stock(combined=87.0)
+        before = (stock.flow.dark_pool_pct, stock.combined_score)
+        dp_data = {"dp_volume": 0, "total_volume": 0}
+        _apply_dp_enrichment(stock, dp_data, config, sector_adj=0)
+        after = (stock.flow.dark_pool_pct, stock.combined_score)
+        assert before == after
+
+
+# ============================================================================
 # TestBuyPressureVWAP — 7 tests
 # ============================================================================
 
