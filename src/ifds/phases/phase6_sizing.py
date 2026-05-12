@@ -78,39 +78,58 @@ def get_bmi_momentum_guard(
     bmi_history: list[dict],
     config: Config,
 ) -> tuple[bool, int, float]:
-    """Check BMI momentum and return guard state.
+    """Check BMI momentum and return tiered guard state.
 
-    Returns (active, reduced_max_positions, total_delta).
-    Guard activates when BMI declines for N consecutive days with
-    cumulative delta <= threshold.
+    Returns ``(active, reduced_max_positions, total_delta)``. Guard activates
+    when BMI declines for N consecutive days with cumulative delta <= threshold.
+    The reduction is tiered by the *length* of the decline:
+
+        ≥ severe_days (7) → severe_max_positions (2)
+        ≥ strong_days (5) → strong_max_positions (3)
+        ≥ mild_days   (3) → mild_max_positions   (4)
+
+    Counts the longest consecutive-decline run over the full history (not just
+    the last N+1 days), so a 7-day slide is recognised even after the trigger
+    threshold has already been crossed.
     """
     if not config.tuning.get("bmi_momentum_guard_enabled", True):
         return False, 0, 0.0
 
     min_days = config.tuning.get("bmi_momentum_days", 3)
     min_delta = config.tuning.get("bmi_momentum_min_delta", -1.0)
-    reduced_positions = config.tuning.get("bmi_momentum_max_positions", 5)
 
     if len(bmi_history) < min_days + 1:
         return False, 0, 0.0
 
-    recent = bmi_history[-(min_days + 1):]
-
+    # Walk backward from the most recent entry, accumulating the current
+    # consecutive-decline streak and its cumulative delta.
     consecutive_decline = 0
     total_delta = 0.0
-    for i in range(1, len(recent)):
-        delta = recent[i]["bmi"] - recent[i - 1]["bmi"]
+    for i in range(len(bmi_history) - 1, 0, -1):
+        delta = bmi_history[i]["bmi"] - bmi_history[i - 1]["bmi"]
         if delta < 0:
             consecutive_decline += 1
             total_delta += delta
         else:
-            consecutive_decline = 0
-            total_delta = 0.0
+            break
 
-    if consecutive_decline >= min_days and total_delta <= min_delta:
-        return True, reduced_positions, total_delta
+    if consecutive_decline < min_days or total_delta > min_delta:
+        return False, 0, 0.0
 
-    return False, 0, 0.0
+    severe_days = config.tuning.get("bmi_momentum_severe_days", 7)
+    strong_days = config.tuning.get("bmi_momentum_strong_days", 5)
+    mild_days = config.tuning.get("bmi_momentum_mild_days", 3)
+
+    if consecutive_decline >= severe_days:
+        reduced = config.tuning.get("bmi_momentum_severe_max_positions", 2)
+    elif consecutive_decline >= strong_days:
+        reduced = config.tuning.get("bmi_momentum_strong_max_positions", 3)
+    elif consecutive_decline >= mild_days:
+        reduced = config.tuning.get("bmi_momentum_mild_max_positions", 4)
+    else:
+        return False, 0, 0.0
+
+    return True, reduced, total_delta
 
 
 def check_skip_day_shadow(

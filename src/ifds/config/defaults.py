@@ -87,11 +87,19 @@ TUNING = {
     "bmi_divergence_spy_change_pct": 1.0,   # SPY must rise > 1%
     "bmi_divergence_bmi_change_pts": -2.0,  # BMI must drop > 2 points
 
-    # BMI Momentum Guard (Phase 6)
+    # BMI Momentum Guard (Phase 6) — tiered reduction (recalibrated 2026-05-12).
+    # Original config was a single fixed reduction to 5, but BC23 already set
+    # max_positions=5 → guard was a no-op. Tiered scheme scales the cut with
+    # the duration of the BMI decline.
     "bmi_momentum_guard_enabled": True,     # Reduce max_positions on declining BMI trend
     "bmi_momentum_days": 3,                 # Min consecutive declining days to trigger
     "bmi_momentum_min_delta": -1.0,         # Min cumulative BMI drop over period
-    "bmi_momentum_max_positions": 5,        # Reduced max positions (default 8 → 5)
+    "bmi_momentum_mild_max_positions": 4,   # 3-4 days declining → 4 (was: fixed 5)
+    "bmi_momentum_strong_max_positions": 3, # 5-6 days declining → 3
+    "bmi_momentum_severe_max_positions": 2, # 7+ days declining → 2
+    "bmi_momentum_mild_days": 3,            # Tier 1 threshold (inclusive)
+    "bmi_momentum_strong_days": 5,          # Tier 2 threshold (inclusive)
+    "bmi_momentum_severe_days": 7,          # Tier 3 threshold (inclusive)
 
     # Universe Building — LONG
     "universe_min_market_cap": 2_000_000_000,   # $2B

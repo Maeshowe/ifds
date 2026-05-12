@@ -445,7 +445,10 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 entries = bmi_history.load()  # always load — used by BMI guard + skip day shadow
                 if config.tuning.get("bmi_momentum_guard_enabled", True):
                     guard_active, reduced, total_delta = get_bmi_momentum_guard(entries, config)
-                    if guard_active:
+                    # Skip if the tier-derived reduction is a no-op (or worse,
+                    # an increase). This used to fire as a fixed 5 → 5 message
+                    # for BC23 deployments where max_positions=5.
+                    if guard_active and reduced < original_max_positions:
                         min_days = config.tuning.get("bmi_momentum_days", 3)
                         logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
                                    message=f"[BMI GUARD] BMI declining {min_days}+ days "
@@ -470,6 +473,15 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                                 )
                         except Exception:
                             pass
+                    elif guard_active:
+                        # Active by metric, but the tier doesn't shrink positions.
+                        # Log for visibility, no Telegram noise.
+                        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
+                                   message=f"[BMI GUARD] declining streak detected "
+                                           f"(delta={total_delta:+.1f}, tier reduction={reduced}) "
+                                           f"but max_positions already {original_max_positions} — no-op",
+                                   data={"total_delta": total_delta, "reduced": reduced,
+                                         "original_max_positions": original_max_positions})
 
                 # Cross-Asset Regime — position/score overrides (BC21)
                 original_min_score = config.tuning.get("combined_score_minimum", 70)
