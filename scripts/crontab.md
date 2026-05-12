@@ -84,5 +84,5 @@
 # submit_orders.py    → deploy_intraday.sh átvette (MKT entry)
 # pt_avwap.py         → MKT entry, VWAP guard Phase 6-ban fut
 # deploy_daily.sh (régi 10:00, teljes pipeline) → kettéválasztva:
-#   22:00 Phase 1-3 + 15:45 Phase 4-6
+#   22:00 Phase 1-3 + 16:15 Phase 4-6 (BC23 2026-04-13 óta — eredetileg 15:45 volt)
 # pt_monitor.py 15:xx → 16:00-ra módosítva (NYSE open 15:30, nincs pozíció előtte)
