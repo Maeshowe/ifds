@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-10 Budapest, CC /wrap-up (vasárnap délelőtt — két P1 fix deployed: snapshot regression + dp_pct sign-flip + per-ticker UW fetch) -->
+<!-- Utolsó frissítés: 2026-05-12 Budapest, CC /wrap-up (kedd este — W20 D2 hotfix: Phase 4 two-pass dp scoring + tiered BMI Momentum Guard) -->
 
 ## Paper Trading
 Day 59/63 | cum. PnL: **−$1,616.13 (−1.62%)** ⚠️ papir aggregát (valós ~-$1,460) | IBKR DUH118657
@@ -193,24 +193,26 @@ Day 59/63 | cum. PnL: **−$1,616.13 (−1.62%)** ⚠️ papir aggregát (valós
 
 ## Tesztek
 
-**1556 passing** (1535 + 1 snapshot regression + 6 dp_pct rec — 11 legacy frissítve net), 0 failure
+**1564 passing** (1556 + 4 dp enrichment + 4 tiered BMI guard net), 0 failure
 
 ## Utolsó commitok
 
+- `f62d954` — docs(crontab): fix outdated 15:45 reference in inactive jobs comment (W20 D2)
+- `b6db393` — fix(phase6): tiered BMI momentum guard — kill the 5 → 5 no-op alert (W20 D2)
+- `90cf5b4` — fix(phase4): two-pass dp scoring — restrict UW per-ticker to passed set (W20 D2 hotfix)
+- `cd65132` — docs(rules): add data-health-check + test-env-hygiene rules
+- `b9effd5` — docs(wrap-up): 2026-05-10 session close — dp_pct + snapshot fix deployed
 - `9a169b9` — feat(scoring): dp_pct sign-flip + threshold recalibration + per-ticker UW fetch (W19 hétvége)
 - `d3fce73` — fix(tests): mock save_phase4_snapshot in e2e — production state pollution regression (W19 hétvége)
-- `f7b9024` — analysis(dp_pct): retrospective audit — UW dark-pool % shows significant INVERSE correlation with P&L per share
-- `cf5cafa` — docs: 2026-05-07 daily review + LOSS_EXIT bracket SL cancellation P1 backlog
-- `1e418f0` — docs: 2026-05-06 daily review — Breakeven Lock profit-trigger discovery
-- `220a96c` — docs: W19 D2 daily review + 4 new W19+ backlog ideas
-- `ada8f28` — docs: backlog — ADR earnings adatforrás fix diagnosztika megerősítve (BUD)
-- `62f9c52` — docs: backlog idea — 10-Q/10-K SEC filing exclusion (AGNC 2026-05-04)
+- `f7b9024` — analysis(dp_pct): retrospective audit — UW dark-pool % shows significant INVERSE correlation
 
 ## Blokkolók
 
 Nincs.
 
-**Aktív P1 fix-ek (2026-05-10 deployolva, hatás W20-tól mérhető):**
+**Aktív P1 fix-ek:**
+- **Phase 4 two-pass dp scoring** (`90cf5b4`, 2026-05-12 hotfix): a vasárnapi 1425-ticker UW universe loop 247× HTTP 429-et termelt. Pass 2 enrichment csak a `passed` ~100-200 tickerre — UW budget 1525 → 200-300 per Phase 4-6 run.
+- **Tiered BMI Momentum Guard** (`b6db393`, 2026-05-12 hotfix): a régi `5 → 5` no-op alert helyett 3-4 napja → 4, 5-6 → 3, 7+ → 2. Élesben verifikálva 19:23-as `5 → 4` üzenettel ✅
 - **dp_pct sign-flip** (`9a169b9`): magas-DP tickerek -10/-15 score reduction; flow-súly 0.40 mellett ~-4/-6 pont a combined_score-on
 - **Snapshot regression fix** (`d3fce73`): Mac Mini `git pull` után a holnapi 16:15 cron tisztán ment 90+ ticker, a flow_decomposition újrafuttatható lesz friss adaton
 
