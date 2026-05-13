@@ -980,7 +980,11 @@ def _enrich_passed_with_dp_sync(
     logger: EventLogger,
     sector_adj_map: dict[str, int],
 ) -> None:
-    """Sync counterpart to ``_enrich_passed_with_dp_async`` — serial fetch."""
+    """Sync counterpart to ``_enrich_passed_with_dp_async`` — serial fetch
+    with inter-call delay (default 200 ms, see async docstring for rationale).
+    """
+    import time as _time
+    delay_s = config.runtime.get("dp_enrichment_delay_s", 0.2)
     enriched = 0
     for stock in passed:
         try:
@@ -989,11 +993,14 @@ def _enrich_passed_with_dp_sync(
             logger.log(EventType.API_ERROR, Severity.WARNING, phase=4,
                        ticker=stock.ticker,
                        message=f"{stock.ticker} dp enrichment failed: {e}")
-            continue
-        sector_adj = sector_adj_map.get(stock.sector, 0)
-        _apply_dp_enrichment(stock, dp_data, config, sector_adj)
-        if stock.flow.dark_pool_pct > 0:
-            enriched += 1
+            dp_data = None
+        if dp_data is not None:
+            sector_adj = sector_adj_map.get(stock.sector, 0)
+            _apply_dp_enrichment(stock, dp_data, config, sector_adj)
+            if stock.flow.dark_pool_pct > 0:
+                enriched += 1
+        if delay_s > 0:
+            _time.sleep(delay_s)
     logger.log(
         EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
         message=f"Dark-pool Pass 2: enriched {enriched}/{len(passed)} passed tickers",
@@ -1010,21 +1017,27 @@ async def _enrich_passed_with_dp_async(
 ) -> None:
     """Pass 2: per-ticker UW dark-pool fetch + re-score for tickers that passed.
 
-    Only ~100-200 calls per run (vs 1425 if done in the main loop). Async
-    semaphore is reused from the UW client (already configured in caller).
+    Sequential with inter-call delay (default 200 ms) — the UW Basic tier
+    rate-limits well below the 5-parallel × 300 ms ≈ 17 req/s burst that
+    asyncio.gather produced (W20 D3 measurement: ~28% of enrichment calls
+    hit HTTP 429). 166 tickers × 200 ms = ~33 s extra; fits well inside the
+    15-minute Phase 4-6 cron window and frees UW rate budget for Phase 5 GEX.
     """
-    async def enrich(stock: StockAnalysis) -> None:
+    delay_s = config.runtime.get("dp_enrichment_delay_s", 0.2)
+    for stock in passed:
         try:
             dp_data = await dp_provider.get_dark_pool(stock.ticker)
         except Exception as e:
             logger.log(EventType.API_ERROR, Severity.WARNING, phase=4,
                        ticker=stock.ticker,
                        message=f"{stock.ticker} dp enrichment failed: {e}")
-            return
-        sector_adj = sector_adj_map.get(stock.sector, 0)
-        _apply_dp_enrichment(stock, dp_data, config, sector_adj)
+            dp_data = None
+        if dp_data is not None:
+            sector_adj = sector_adj_map.get(stock.sector, 0)
+            _apply_dp_enrichment(stock, dp_data, config, sector_adj)
+        if delay_s > 0:
+            await asyncio.sleep(delay_s)
 
-    await asyncio.gather(*[enrich(s) for s in passed], return_exceptions=True)
     enriched = sum(1 for s in passed if s.flow.dark_pool_pct > 0)
     logger.log(
         EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,

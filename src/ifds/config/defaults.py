@@ -429,10 +429,15 @@ RUNTIME = {
     "async_sem_uw": 5,                      # UW conservative default
     "async_max_tickers": 10,                # 10 tickers × ~5 FMP calls = 50 concurrent
 
-    # Dark Pool Batch Prefetch
+    # Dark Pool Batch Prefetch (legacy — production switched to per-ticker
+    # enrichment 2026-05-12, see Phase 4 Pass 2 in phase4_stocks.py)
     "dp_batch_max_pages": 15,              # Max pagination pages for /recent
     "dp_batch_page_delay": 0.5,            # Seconds between paginated calls (sync)
     "dp_batch_page_delay_async": 0.3,      # Seconds between paginated calls (async)
+    # Dark Pool Pass 2 Enrichment (per-ticker, sequential — W20 D3 calibration)
+    # 0.2 s × ~150 passed tickers ≈ 30 s extra; eliminates the 5-parallel
+    # burst that produced ~46 HTTP 429s on UW Basic.
+    "dp_enrichment_delay_s": 0.2,
 
     # File-based Cache
     "cache_enabled": False,                 # Set IFDS_CACHE_ENABLED=true to enable
