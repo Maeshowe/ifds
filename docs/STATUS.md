@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-12 Budapest, CC /wrap-up (kedd este — W20 D2 hotfix: Phase 4 two-pass dp scoring + tiered BMI Momentum Guard) -->
+<!-- Utolsó frissítés: 2026-05-13 Budapest, CC /wrap-up (szerda este — W20 D3 hotfix: sequential dp enrichment + 200ms delay, élesben 95.2% success) -->
 
 ## Paper Trading
 Day 59/63 | cum. PnL: **−$1,616.13 (−1.62%)** ⚠️ papir aggregát (valós ~-$1,460) | IBKR DUH118657
@@ -197,20 +197,21 @@ Day 59/63 | cum. PnL: **−$1,616.13 (−1.62%)** ⚠️ papir aggregát (valós
 
 ## Utolsó commitok
 
+- `1f0ffb9` — fix(phase4): sequential dp enrichment with 200ms delay — UW rate-limit calibration (W20 D3, live-verified 95.2%)
+- `8a44178` — docs(wrap-up): 2026-05-12 session close — W20 D2 production hotfixes
 - `f62d954` — docs(crontab): fix outdated 15:45 reference in inactive jobs comment (W20 D2)
 - `b6db393` — fix(phase6): tiered BMI momentum guard — kill the 5 → 5 no-op alert (W20 D2)
 - `90cf5b4` — fix(phase4): two-pass dp scoring — restrict UW per-ticker to passed set (W20 D2 hotfix)
 - `cd65132` — docs(rules): add data-health-check + test-env-hygiene rules
-- `b9effd5` — docs(wrap-up): 2026-05-10 session close — dp_pct + snapshot fix deployed
 - `9a169b9` — feat(scoring): dp_pct sign-flip + threshold recalibration + per-ticker UW fetch (W19 hétvége)
 - `d3fce73` — fix(tests): mock save_phase4_snapshot in e2e — production state pollution regression (W19 hétvége)
-- `f7b9024` — analysis(dp_pct): retrospective audit — UW dark-pool % shows significant INVERSE correlation
 
 ## Blokkolók
 
 Nincs.
 
 **Aktív P1 fix-ek:**
+- **Sequential dp enrichment** (`1f0ffb9`, 2026-05-13 hotfix): 200ms delay + sequential loop a parallel asyncio.gather helyett. Live smoke 166 ticker: 95.2% success, 0 hard error, 77.6s. Várt 5/14 production: ~0 HTTP 429.
 - **Phase 4 two-pass dp scoring** (`90cf5b4`, 2026-05-12 hotfix): a vasárnapi 1425-ticker UW universe loop 247× HTTP 429-et termelt. Pass 2 enrichment csak a `passed` ~100-200 tickerre — UW budget 1525 → 200-300 per Phase 4-6 run.
 - **Tiered BMI Momentum Guard** (`b6db393`, 2026-05-12 hotfix): a régi `5 → 5` no-op alert helyett 3-4 napja → 4, 5-6 → 3, 7+ → 2. Élesben verifikálva 19:23-as `5 → 4` üzenettel ✅
 - **dp_pct sign-flip** (`9a169b9`): magas-DP tickerek -10/-15 score reduction; flow-súly 0.40 mellett ~-4/-6 pont a combined_score-on
