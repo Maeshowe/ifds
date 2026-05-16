@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-16 Budapest, CC /wrap-up (szombat reggel — rate-limit rule rögzítve + W20-W21 bulk docs sync) -->
+<!-- Utolsó frissítés: 2026-05-16 Budapest, CC /continue Ülés A — earnings 7→10 + IBKR Gateway monitoring baseline DEPLOY -->
 
 ## ⭐ MÉRFÖLDKŐ: Day 63 LEZÁRULT (2026-05-14)
 
@@ -74,9 +74,10 @@ A 60 napi adat **strukturális tanulságokat** szolgáltatott — a **B opció (
 - ⏳ Új architektúra design doc (`docs/design/swing-pivot-architecture.md`)
 
 **CC**:
-- ⏳ IBKR Gateway monitoring + Telegram alert (~1 óra)
-- ⏳ 10-Q SEC Filing Exclusion + 10 napi earnings exclusion (~2-3 óra)
-- ⏳ UW config: scoring-ban deaktiválás, shadow log infra (`uw_shadow_*.json`) (~1-2 óra)
+- ✅ IBKR Gateway monitoring baseline DEPLOYED (commit `5b337da`, 2026-05-16) — §10 Fix C heartbeat + §11 Telegram silent-swallow fix; §3 H1/H2/H3 Mac Mini diagnózis függőben (Fix A/B kiegészítés szükség szerint)
+- ✅ Earnings exclusion 7 → 10 nap DEPLOYED (commit `d3be2fe`, 2026-05-16)
+- ⏳ 10-Q SEC Filing Exclusion (Ülés B, vasárnap reggel — ~2.5-3h, live schema verify + 1425-ticker smoke)
+- ⏳ UW config: scoring-ban deaktiválás, shadow log infra (Ülés C, vasárnap délután — ~1.75h)
 
 ### Fázis 2 — Analytic + Design (W23-W24, jún 2 - jún 13)
 
@@ -197,7 +198,7 @@ A Fázis 1 cleanup végén Tamás `nuke.py --positions` futtatja, IBKR paper acc
 
 ## Tesztek
 
-**1564 passing**, 0 failure (utolsó wrap-up: 2026-05-13)
+**1582 passing**, 0 failure (utolsó update: 2026-05-16 Ülés A — earnings 7→10 +3, IBKR Gateway monitoring +15)
 
 > **Fázis 3 deploy után**: a tesztkészlet **átalakul** — sok régi teszt elavul (bracket-mechanika, multiplier chain), új tesztek (mental stop, time-stop, rolling 10-12 sizing).
 
@@ -205,6 +206,10 @@ A Fázis 1 cleanup végén Tamás `nuke.py --positions` futtatja, IBKR paper acc
 
 ## Utolsó commitok
 
+- `5b337da` — feat(monitoring): IBKR Gateway pre-flight + heartbeat alerting baseline (Ülés A, W21 szombat)
+- `d3be2fe` — config(universe): earnings_exclusion_days 7 → 10 (Ülés A, W21 szombat)
+- `800b781` — docs(handoff): Fazis 1 W21 multi-session execution plan for Mon 5/18 market open
+- `41896a6` — docs(wrap-up): 2026-05-16 session close — rate-limit rule + W20-W21 bulk docs sync
 - `81a316b` — docs: W20-W21 wrap — Day 63 decision + weekly metrics + handoffs + new tasks (W21 szombat)
 - `33a665f` — docs(rules): add rate-limit live-smoke rule (W21 szombat)
 - `5dea269` — docs(wrap-up): 2026-05-13 session close — sequential dp enrichment hotfix
