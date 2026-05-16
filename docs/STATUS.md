@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-14 Budapest, Chat — Day 63 milestone lezárás, Swing pivot bejelentés -->
+<!-- Utolsó frissítés: 2026-05-16 Budapest, CC /wrap-up (szombat reggel — rate-limit rule rögzítve + W20-W21 bulk docs sync) -->
 
 ## ⭐ MÉRFÖLDKŐ: Day 63 LEZÁRULT (2026-05-14)
 
@@ -205,14 +205,14 @@ A Fázis 1 cleanup végén Tamás `nuke.py --positions` futtatja, IBKR paper acc
 
 ## Utolsó commitok
 
+- `81a316b` — docs: W20-W21 wrap — Day 63 decision + weekly metrics + handoffs + new tasks (W21 szombat)
+- `33a665f` — docs(rules): add rate-limit live-smoke rule (W21 szombat)
+- `5dea269` — docs(wrap-up): 2026-05-13 session close — sequential dp enrichment hotfix
 - `1f0ffb9` — fix(phase4): sequential dp enrichment with 200ms delay
 - `8a44178` — docs(wrap-up): 2026-05-12 session close
-- `f62d954` — docs(crontab): fix outdated 15:45 reference
 - `b6db393` — fix(phase6): tiered BMI momentum guard
 - `90cf5b4` — fix(phase4): two-pass dp scoring
-- `cd65132` — docs(rules): add data-health-check + test-env-hygiene rules
 - `9a169b9` — feat(scoring): dp_pct sign-flip + threshold recalibration
-- `d3fce73` — fix(tests): mock save_phase4_snapshot in e2e
 
 ---
 
