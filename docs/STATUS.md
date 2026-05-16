@@ -74,7 +74,7 @@ A 60 napi adat **strukturális tanulságokat** szolgáltatott — a **B opció (
 - ⏳ Új architektúra design doc (`docs/design/swing-pivot-architecture.md`)
 
 **CC**:
-- ✅ IBKR Gateway monitoring baseline DEPLOYED (commit `5b337da`, 2026-05-16) — §10 Fix C heartbeat + §11 Telegram silent-swallow fix; §3 H1/H2/H3 Mac Mini diagnózis függőben (Fix A/B kiegészítés szükség szerint)
+- ✅ IBKR Gateway monitoring DONE (commit `5b337da`, 2026-05-16) — §10 Fix C heartbeat + §11 Telegram silent-swallow fix Mac Mini-n verifikálva (1582 passed). §3 H1 igazolt (Telegram alert SOHA nem ért el a requests.post-ig 2026-05-11-én), H2 részleges (check 16:00 → 20 perc submit előtt). Fix A nem szükséges (load_dotenv), Fix B halasztva a swing pivot átállás utánra.
 - ✅ Earnings exclusion 7 → 10 nap DEPLOYED (commit `d3be2fe`, 2026-05-16)
 - ⏳ 10-Q SEC Filing Exclusion (Ülés B, vasárnap reggel — ~2.5-3h, live schema verify + 1425-ticker smoke)
 - ⏳ UW config: scoring-ban deaktiválás, shadow log infra (Ülés C, vasárnap délután — ~1.75h)

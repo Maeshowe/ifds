@@ -1,12 +1,14 @@
 # Task: IBKR Gateway Monitoring — Diagnózis + Targeted Fix
 
-**Status:** WIP
+**Status:** DONE
 **Priority:** P1 (operational risk — `04-risks-and-open-questions.md` §1.1)
 **Created:** 2026-05-19 (W21 D1, Fázis 1 nyitás)
 **Updated:** 2026-05-16
-**Note:** baseline (§10 Fix C + §11 anti-pattern) deployed 2026-05-16. §3 H1/H2/H3
-diagnózis Mac Mini-n függőben (Tamás output kell) → ennek alapján Fix A/B
-kiegészítés szükség esetén.
+**Note:** baseline (§10 Fix C + §11 anti-pattern) deployed + verified Mac Mini-n
+2026-05-16. §3 H1/H2/H3 diagnózis: H1 igazolt (Telegram alert nem ért el a
+requests.post-ig), H2 részleges (check 16:00 → 20 perc submit előtt). Fix A
+NEM szükséges (load_dotenv), Fix B halasztva (swing pivot 15:30 CEST átállás
+után újraértékelendő).
 **Owner:** Claude Code
 **Estimated effort:** ~1–1.5h (diagnózis 20–30 min + targeted fix + tesztek)
 
@@ -198,20 +200,47 @@ anti-pattern fix **a diagnózistól függetlenül** deploy-olva:
   cron-monitor (~16:35 CEST javasolt) → OK / STUCK / MISSING / COLD_START.
 - 15 új unit teszt `tests/test_ibkr_gateway_monitoring.py`-ban (1567 → 1582).
 
-### Mac Mini diagnózis függőben
+### Mac Mini diagnózis eredménye (2026-05-16, Tamás)
 
-A §3 grep parancsok (Tamás) futtatása szükséges a H1/H2/H3 verdikt
-megállapításához:
+**H1 — Telegram alert (igazolt):** a `cron_intraday_20260511_161500.log`
+**KIZÁRÓLAG** `IBKR connection attempt N/3 FAILED (clientId=10)` + `IBKR
+connection FAILED after 3 attempts` sorokat tartalmaz — **semmilyen**
+`telegram` vagy `TELEGRAM` log entry, sem siker, sem hiba. A
+`_send_telegram_alert()` SOHA nem ért el a `requests.post()`-ig az
+incidens idején. Két lehetséges ok:
 
-1. Telegram alert log-keresés a 2026-05-11-i `cron_intraday_20260511_*.log`
-   és `pt_submit_2026-05-11*.log` fájlokban (H1).
-2. `launchctl getenv IFDS_TELEGRAM_BOT_TOKEN` és `_CHAT_ID` ellenőrzése (H1).
-3. `crontab -l | grep check_gateway` és deploy script grep (H2).
+  - **(a)** A `.env`-ben 2026-05-11-én még nem voltak a Telegram
+    tokenek, és a függvény az `if not token or not chat_id: return`
+    ágon csendesen kilépett.
+  - **(b)** A tokenek megvoltak, de a `requests.post` HTTP 4xx vagy
+    network error-ba futott, és az `except Exception: pass` elnyelte.
 
-A baseline deploy után **a Fix A (env var sync) és Fix B (két-fázisú
-pre-flight)** szükségessége csak a diag eredménye után dönthető el —
-és **valószínűsíthető (de nem garantált)**, hogy a heartbeat + WARNING
-log-ok már elegendőek a következő incidens észrevételére.
+A §11 fix után **mindkét eset** mostantól visible:
+`logger.warning("Telegram alert NOT sent: ...")` vagy
+`logger.warning("Telegram alert send failed: HTTP ...")`.
+
+**H2 — check_gateway timing (részleges):** crontab tartalmazza:
+
+```
+0 16 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/check_gateway.py
+```
+
+A check 16:00 CEST-kor fut → 20 perccel a 16:20-i `submit_orders.py`
+cron előtt. A gateway 16:00–16:20 közötti összeomlása esetén a
+check átment, de a submit fail-elt — pontosan ez történt 2026-05-11-én.
+
+**H3 — silent submit fail:** H1+H2 következménye. A 2026-05-11-i
+16:20 submit fail-elt, és mivel a Telegram alert sem ment ki (H1),
+Tamás csak 17:15-kor (55 perccel később) észlelte kézzel.
+
+### Fix verdikt
+
+| Fix | Szükséges? | Indoklás |
+|---|---|---|
+| §11 anti-pattern (`logger.warning`) | ✅ DEPLOY (5/16) | Mostantól H1 mindkét ágán látható |
+| §10 Fix C (heartbeat) | ✅ DEPLOY (5/16) | A heartbeat-monitor a primary out-of-band detect |
+| Fix A (env sync) | ❌ NEM | `load_dotenv()` minden script-ben → `.env` szinkron elegendő |
+| Fix B (két-fázisú pre-flight 16:18) | ⚠️ HALASZTVA | Az átállás-előtti ~20 nap alatt a heartbeat-monitor 16:35-kor 15 perces detect-késleltetéssel elegendő. A swing pivot 15:30 CEST entry-vel (Day 63 §3.6) az új cron-ütemezés más lesz — Fix B akkor újraértékelendő. |
 
 ### Új cron entry javaslat (Mac Mini, Tamás)
 
