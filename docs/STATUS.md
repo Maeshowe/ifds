@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-16 Budapest, CC Ülés B — SEC EDGAR 10-Q/10-K filing exclusion DEPLOY (1607 passing, smoke 1611 ticker 100% success) -->
+<!-- Utolsó frissítés: 2026-05-16 Budapest, CC Ülés C — UW dark pool / GEX deactivation + shadow log DEPLOY (1624 passing) -->
 
 ## ⭐ MÉRFÖLDKŐ: Day 63 LEZÁRULT (2026-05-14)
 
@@ -77,7 +77,7 @@ A 60 napi adat **strukturális tanulságokat** szolgáltatott — a **B opció (
 - ✅ IBKR Gateway monitoring DONE (commit `5b337da`, 2026-05-16) — §10 Fix C heartbeat + §11 Telegram silent-swallow fix Mac Mini-n verifikálva (1582 passed). §3 H1 igazolt (Telegram alert SOHA nem ért el a requests.post-ig 2026-05-11-én), H2 részleges (check 16:00 → 20 perc submit előtt). Fix A nem szükséges (load_dotenv), Fix B halasztva a swing pivot átállás utánra.
 - ✅ Earnings exclusion 7 → 10 nap DEPLOYED (commit `d3be2fe`, 2026-05-16)
 - ✅ **10-Q / 10-K SEC Filing Exclusion DEPLOYED** (Ülés B, 2026-05-16) — `src/ifds/data/sec_edgar.py` + Phase 2 `_exclude_sec_filings` 3-pass + 25 új teszt (1582 → 1607). Live schema verify done (AAPL CIK 0000320193 parallel-array schema), 1611-ticker live smoke **100% success, 0 hard error, 16 flagged**, wall clock 12.9 min (cold cache, daily TTL után inkrementális). 4 Tamás döntés (User-Agent env, ±10d tolerance, 2d cache fallback → fail-open) implementálva.
-- ⏳ UW config: scoring-ban deaktiválás, shadow log infra (Ülés C, vasárnap délután — ~1.75h)
+- ✅ **UW dark pool / GEX deactivation + shadow log DEPLOYED** (Ülés C, 2026-05-16) — `src/ifds/data/uw_shadow.py` (build/write/load/summary helpers), Phase 4 `dp_pct` bonus gating + Phase 6 `M_GEX` gating (both default OFF), runner post-Phase 6 snapshot write to `state/uw_shadow/YYYY-MM-DD.json`, `daily_metrics.py` `uw_shadow_summary` field, 17 új teszt (1607 → 1624). Phase 5 GEX exclusion (NEGATIVE LONG) változatlan. Day 90 (~2026-08-26) Bayesi rekalibrációhoz folytatólagos shadow gyűjtés.
 
 ### Fázis 2 — Analytic + Design (W23-W24, jún 2 - jún 13)
 

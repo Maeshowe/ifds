@@ -1,11 +1,12 @@
 # Task: UW Dark Pool / GEX Deactivation + Shadow Logging
 
-**Status:** OPEN
+**Status:** DONE
 **Priority:** P1 (Fázis 1 lezárás, [`04-risks §1.3`](../master-reference/04-risks-and-open-questions.md) — UW scoring instability)
 **Created:** 2026-05-26 (W22 D1 hétfő)
-**Updated:** 2026-05-26
+**Updated:** 2026-05-16 (Ülés C — DEPLOYED ahead of schedule, W21 weekend)
 **Owner:** Claude Code
 **Estimated effort:** ~1.5–2h (scoring deaktiválás + shadow log infra + dual-write + tesztek)
+**Actual effort:** ~1.5h (Ülés C, 2026-05-16; 1607 → 1624 tests; smoke test green)
 
 **Source decision:** [`docs/decisions/2026-05-14-day63-decision-outcome.md`](../decisions/2026-05-14-day63-decision-outcome.md) §3.2 — Döntés [2]: "UW dark pool / GEX deactivation; shadow logging through Day 90".
 

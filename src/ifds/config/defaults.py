@@ -300,6 +300,18 @@ TUNING = {
     "dp_pct_bonus": -10,                       # dp_pct > 12% → -10 (was +10, sign-flipped)
     "dp_pct_high_bonus": -15,                  # dp_pct > 18% → -15 (was +15, sign-flipped)
 
+    # UW Dark Pool / GEX Deactivation + Shadow Logging (2026-05-26, Day 63 §3.2)
+    # Day 63 outcome decision [2]: the UW dark pool / GEX scoring is deactivated
+    # because the 60-day audit (W17-W19) showed an inverse signal (dp_pct r=-0.265,
+    # ρ=-0.327, p<0.05) and the new swing pivot scoring (Fázis 3, ~2026-06-23)
+    # uses only PCR + OTM-inverse — UW dark pool / GEX has no role in the
+    # multiplier chain. Underlying data continues to be collected as shadow log
+    # through Day 90 (~2026-08-26) for retroactive Bayesian recalibration analysis.
+    "uw_dark_pool_scoring_enabled": False,     # Phase 4: dp_pct bonus gated (default off)
+    "uw_gex_sizing_enabled": False,            # Phase 6: M_GEX forced to 1.0 (default off)
+    "uw_shadow_logging_enabled": True,         # Daily shadow snapshot to state/uw_shadow/
+    "uw_shadow_dir": "state/uw_shadow",        # Shadow log directory
+
     # Buy Pressure + VWAP (BC10)
     "buy_pressure_strong_bonus": 15,           # buy_pos > 0.7 → +15
     "buy_pressure_weak_penalty": -15,          # buy_pos < 0.3 → -15

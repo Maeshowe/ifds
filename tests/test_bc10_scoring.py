@@ -24,7 +24,11 @@ def config(monkeypatch):
     monkeypatch.setenv("IFDS_FMP_API_KEY", "test_fmp")
     monkeypatch.setenv("IFDS_FRED_API_KEY", "test_fred")
     monkeypatch.setenv("IFDS_ASYNC_ENABLED", "false")
-    return Config()
+    c = Config()
+    # BC10 tests cover the dp_pct scoring math itself — explicitly enable
+    # the gate that defaults to False (Day 63 §3.2 deactivation, 2026-05-26).
+    c.tuning["uw_dark_pool_scoring_enabled"] = True
+    return c
 
 
 # ============================================================================

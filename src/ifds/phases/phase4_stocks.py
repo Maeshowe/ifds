@@ -576,11 +576,14 @@ def _analyze_flow_from_data(ticker: str, bars: list[dict],
         # dp_pct scoring — inclusive boundaries (sign-flipped 2026-05-08).
         # Buckets: dp_pct < threshold → 0; threshold ≤ dp_pct < dp_high → bonus
         # (now negative); dp_pct ≥ dp_high → high_bonus (now negative).
-        dp_high = config.tuning["dp_pct_high_threshold"]
-        if dp_pct >= dp_high:
-            dp_pct_score = config.tuning["dp_pct_high_bonus"]
-        elif dp_pct >= threshold:
-            dp_pct_score = config.tuning["dp_pct_bonus"]
+        # 2026-05-26 (Day 63 §3.2): gated by uw_dark_pool_scoring_enabled.
+        # When disabled the raw dp_pct is still captured by the UW shadow log.
+        if config.tuning.get("uw_dark_pool_scoring_enabled", True):
+            dp_high = config.tuning["dp_pct_high_threshold"]
+            if dp_pct >= dp_high:
+                dp_pct_score = config.tuning["dp_pct_high_bonus"]
+            elif dp_pct >= threshold:
+                dp_pct_score = config.tuning["dp_pct_bonus"]
 
     # Buy Pressure + VWAP
     last_bar = bars[-1]
@@ -929,7 +932,14 @@ def _calculate_combined_score(technical: TechnicalAnalysis,
 
 
 def _recompute_dp_pct_score(dp_pct: float, config: Config) -> int:
-    """Apply the same inclusive-boundary scoring used in _analyze_flow_from_data."""
+    """Apply the same inclusive-boundary scoring used in _analyze_flow_from_data.
+
+    2026-05-26 (Day 63 §3.2): gated by ``uw_dark_pool_scoring_enabled``. When
+    disabled the function returns 0 regardless of dp_pct — the raw dp_pct is
+    still captured by the UW shadow log.
+    """
+    if not config.tuning.get("uw_dark_pool_scoring_enabled", True):
+        return 0
     base_threshold = config.tuning["dark_pool_volume_threshold_pct"]
     high_threshold = config.tuning["dp_pct_high_threshold"]
     if dp_pct >= high_threshold:

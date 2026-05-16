@@ -594,8 +594,14 @@ def _calculate_multiplier_total(
     m_funda = 1.0
     m_utility = 1.0
 
-    # Active multipliers — protect against adverse conditions
-    m_gex = gex.gex_multiplier
+    # Active multipliers — protect against adverse conditions.
+    # 2026-05-26 (Day 63 §3.2): M_GEX gated by uw_gex_sizing_enabled. When
+    # disabled M_GEX is forced to 1.0 — the raw gex_regime + gex_multiplier
+    # are still captured by the UW shadow log for Day 90 retrospective audit.
+    if config.tuning.get("uw_gex_sizing_enabled", True):
+        m_gex = gex.gex_multiplier
+    else:
+        m_gex = 1.0
     m_vix = macro.vix_multiplier
     m_target = _calculate_target_multiplier(
         stock.technical.price, stock.analyst_target, config

@@ -46,6 +46,7 @@ EXEC_PLAN_DIR = PROJECT_ROOT / "output"
 PHASE4_DIR = PROJECT_ROOT / "state" / "phase4_snapshots"
 METRICS_DIR = PROJECT_ROOT / "state" / "daily_metrics"
 LOGS_DIR = PROJECT_ROOT / "logs"
+UW_SHADOW_DIR = PROJECT_ROOT / "state" / "uw_shadow"
 INITIAL_CAPITAL = 100_000
 
 
@@ -111,6 +112,41 @@ def _load_execution_plan(target_date: str) -> dict[str, dict]:
                 "risk_usd": float(row.get("risk_usd", 0) or 0),
             }
     return planned
+
+
+def _load_uw_shadow_summary(target_date: str) -> dict:
+    """Load and summarize the daily UW shadow snapshot (Day 63 §3.2).
+
+    Returns an empty-but-typed dict if no snapshot for the date exists.
+    """
+    path = UW_SHADOW_DIR / f"{target_date}.json"
+    if not path.exists():
+        return {
+            "snapshot_path": None,
+            "tickers_logged": 0,
+            "avg_dp_pct": 0.0,
+            "would_have_been_penalty_count": 0,
+            "gex_regime_distribution": {},
+            "m_gex_avg_would_have_been": 1.0,
+        }
+    try:
+        snapshot = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("UW shadow snapshot unreadable for %s: %s", target_date, exc)
+        return {
+            "snapshot_path": str(path),
+            "tickers_logged": 0,
+            "avg_dp_pct": 0.0,
+            "would_have_been_penalty_count": 0,
+            "gex_regime_distribution": {},
+            "m_gex_avg_would_have_been": 1.0,
+        }
+
+    sys.path.insert(0, str(PROJECT_ROOT / "src"))
+    from ifds.data.uw_shadow import summarize_shadow_snapshot
+    summary = summarize_shadow_snapshot(snapshot)
+    summary["snapshot_path"] = str(path)
+    return summary
 
 
 def _load_phase4_snapshot(target_date: str) -> dict[str, dict]:
@@ -262,6 +298,7 @@ def build_daily_metrics(target_date: str) -> dict:
     trades = _load_trades(target_date)
     planned = _load_execution_plan(target_date)
     snapshot = _load_phase4_snapshot(target_date)
+    uw_shadow_summary = _load_uw_shadow_summary(target_date)
 
     # --- Positions ---
     qualified_count = len(snapshot) if snapshot else 0
@@ -377,6 +414,8 @@ def build_daily_metrics(target_date: str) -> dict:
             "spy_return_pct": round(spy_return, 2) if spy_return is not None else None,
             "excess_pct": round(excess, 2) if excess is not None else None,
         },
+
+        "uw_shadow_summary": uw_shadow_summary,
 
         "trades": {
             "best": {

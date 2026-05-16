@@ -6,6 +6,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 
 from ifds.config.loader import Config
 from ifds.config.validator import ConfigValidationError
@@ -625,6 +626,36 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
             except Exception as e:
                 logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
                            message=f"Phase 4 snapshot error: {e}")
+
+        # UW Dark Pool / GEX Shadow Log (Day 63 outcome §3.2, 2026-05-26).
+        # Captures raw UW data + would-have-been scoring while uw_*_enabled=False,
+        # for Day 90 (~2026-08-26) retrospective Bayesian recalibration audit.
+        if config.tuning.get("uw_shadow_logging_enabled", False) and ctx.stock_analyses:
+            try:
+                from ifds.data.uw_shadow import (
+                    build_shadow_snapshot, write_shadow_snapshot,
+                )
+                shadow_dir = Path(config.tuning.get("uw_shadow_dir",
+                                                    "state/uw_shadow"))
+                trading_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                shadow_snapshot = build_shadow_snapshot(
+                    trading_date=trading_date_str,
+                    stock_analyses=ctx.stock_analyses,
+                    gex_analyses=ctx.gex_analyses,
+                    positions=ctx.positions,
+                    tuning=config.tuning,
+                )
+                shadow_path = write_shadow_snapshot(
+                    shadow_dir=shadow_dir,
+                    trading_date=trading_date_str,
+                    snapshot=shadow_snapshot,
+                )
+                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
+                           message=f"UW shadow log saved: {shadow_path} "
+                                   f"({len(shadow_snapshot['tickers'])} tickers)")
+            except Exception as e:
+                logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
+                           message=f"UW shadow log error: {e}")
 
         log_file = str(logger.log_file)
         print_pipeline_result(ctx, log_file, config=config)

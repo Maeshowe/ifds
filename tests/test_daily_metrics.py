@@ -232,6 +232,7 @@ class TestBuildDailyMetrics:
         required_keys = {
             "date", "day_number", "positions", "market", "scoring",
             "execution", "exits", "pnl", "excess_return", "trades",
+            "uw_shadow_summary",  # Day 63 §3.2 — UW shadow log integration
         }
         assert required_keys == set(metrics.keys())
 

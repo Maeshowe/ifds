@@ -655,13 +655,26 @@ dp_pct = dp_volume / polygon_volume × 100
 
 - **Fontos**: Polygon daily volume a nevező (nem UW volume) — megbízhatóbb referencia
 
-#### dp_pct Score (BC10)
+#### dp_pct Score (BC10, sign-flipped 2026-05-08, **deactivated 2026-05-26**)
 
-| dp_pct tartomány | Score | Konfig |
-|------------------|-------|--------|
-| > 60% | **+15** | `dp_pct_high_threshold=60`, `dp_pct_high_bonus=15` |
-| > 40% | **+10** | `dp_pct_bonus=10` |
-| ≤ 40% | **0** | — |
+A 2026-05-08 retrospektív audit (60 trade, W17-W19) alapján **sign-flip**-elve:
+Pearson r=−0.265\*\*, Q5 win rate 25%, Q5−Q1 spread −$163. Az új küszöbök 12%/18%-on.
+
+2026-05-26 (Day 63 §3.2, [`docs/decisions/2026-05-14-day63-decision-outcome.md`](decisions/2026-05-14-day63-decision-outcome.md)):
+a teljes dp_pct bonus **deaktiválva** (`uw_dark_pool_scoring_enabled=False` default),
+mert (a) 60 napi minta nem elég a Bonferroni-korrigált scoring kalibrációra és
+(b) a Fázis 3 swing pivot scoring (~2026-06-23) eleve csak PCR + OTM-inverse-et
+használ. A raw dp_pct érték továbbra is rögzítve a UW shadow log-ba
+(`state/uw_shadow/YYYY-MM-DD.json`) Day 90-ig (~2026-08-26) retrospektív audithoz.
+
+| dp_pct tartomány | Score (aktív) | Score (default — deactivated) | Konfig |
+|------------------|---------------|-------------------------------|--------|
+| ≥ 18% | **−15** | 0 | `dp_pct_high_threshold=18`, `dp_pct_high_bonus=−15` |
+| 12% ≤ x < 18% | **−10** | 0 | `dp_pct_bonus=−10` |
+| < 12% | 0 | 0 | — |
+
+A reactivation `uw_dark_pool_scoring_enabled=True` kapcsolóval lehetséges
+(pl. A/B teszt vagy Day 90 audit eredménye alapján).
 
 #### Buy Pressure Score (BC10)
 
@@ -1010,13 +1023,20 @@ _classify_gex_regime(current_price, zero_gamma, net_gex):
   egyébként:                  → HIGH_VOL (price > ZG de net_gex <= 0)
 ```
 
-### GEX Multiplier
+### GEX Multiplier (**deactivated 2026-05-26 Phase 6 sizing-on**)
 
-| Regime | Multiplier | Konfig kulcs |
-|--------|-----------|--------------|
-| POSITIVE | **1.0** | `gex_positive_multiplier` |
-| HIGH_VOL | **0.6** | `gex_high_vol_multiplier` |
-| NEGATIVE | **0.5** | `gex_negative_multiplier` |
+| Regime | Multiplier (aktív) | M_GEX (default — deactivated) | Konfig kulcs |
+|--------|--------------------|-------------------------------|--------------|
+| POSITIVE | **1.0** | 1.0 | `gex_positive_multiplier` |
+| HIGH_VOL | **0.6** | 1.0 | `gex_high_vol_multiplier` |
+| NEGATIVE | **0.5** | 1.0 | `gex_negative_multiplier` |
+
+2026-05-26 (Day 63 §3.2): a Phase 6 M_GEX multiplier **kikerül a sizing-ból**
+(`uw_gex_sizing_enabled=False` default), mert a Fázis 3 swing pivot scoring eleve
+csak PCR + OTM-inverse-et használ. A nyers `gex_regime` + `gex_multiplier` érték
+továbbra is rögzítve a UW shadow log-ba (`state/uw_shadow/`). A Phase 5 GEX
+**exclusion** (NEGATIVE regime LONG mode-ban) **változatlan** — csak a sizing
+multiplier szűnik meg hatni, az exclusion biztonsági szűrő marad.
 
 ### GEX Filter (csak LONG)
 

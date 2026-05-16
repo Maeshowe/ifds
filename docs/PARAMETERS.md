@@ -177,6 +177,17 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | `dp_pct_bonus` | 10 | P4 | dp_pct > 40% → +10 | +10 | ✅ Azonos |
 | `dp_pct_high_bonus` | 15 | P4 | dp_pct > 60% → +15 | +15 | ✅ Azonos |
 
+### UW Dark Pool / GEX Deactivation + Shadow Logging (2026-05-26, Day 63 §3.2)
+
+| Kulcs | Érték | Phase | Hatás |
+|-------|-------|-------|-------|
+| `uw_dark_pool_scoring_enabled` | False | P4 | dp_pct bonus gating — False (default) → bonus 0, raw dp_pct logged to shadow |
+| `uw_gex_sizing_enabled` | False | P6 | M_GEX gating — False (default) → M_GEX forced 1.0, raw regime logged to shadow |
+| `uw_shadow_logging_enabled` | True | runner | Daily snapshot to `state/uw_shadow/YYYY-MM-DD.json` post-Phase 6 |
+| `uw_shadow_dir` | `state/uw_shadow` | runner | Shadow log directory |
+
+A 60-napi audit (W17-W19, Pearson r=−0.265\*\*) megmutatta a dp_pct **inverz** jelét, és a Fázis 3 swing pivot scoring (~2026-06-23) eleve csak PCR + OTM-inverse-et használ. A nyers UW adat Day 90-ig (~2026-08-26) gyűjtve egy esetleges későbbi Bayesi rekalibráláshoz.
+
 ### Buy Pressure + VWAP (BC10)
 
 | Kulcs | Érték | Phase | Hatás | V13 | Eltérés? |

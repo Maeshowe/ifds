@@ -180,12 +180,16 @@ class TestMultiplierCalculation:
         assert mults["m_gex"] == 1.0
 
     def test_m_gex_negative(self, config, macro):
+        # M_GEX scoring math — Day 63 §3.2 deactivation defaults to off,
+        # this regression test verifies the underlying multiplier when active.
+        config.tuning["uw_gex_sizing_enabled"] = True
         stock = _make_stock("T")
         gex = _make_gex("T", regime=GEXRegime.NEGATIVE, multiplier=0.5)
         _, mults = _calculate_multiplier_total(stock, gex, macro, config)
         assert mults["m_gex"] == 0.5
 
     def test_m_gex_high_vol(self, config, macro):
+        config.tuning["uw_gex_sizing_enabled"] = True
         stock = _make_stock("T")
         gex = _make_gex("T", regime=GEXRegime.HIGH_VOL, multiplier=0.6)
         _, mults = _calculate_multiplier_total(stock, gex, macro, config)

@@ -4,6 +4,68 @@
 
 ---
 
+## Fázis 1 / W21 — UW dark pool / GEX deactivation + shadow logging (1624 tests)
+
+> 2026-05-16 | Day 63 outcome §3.2 — Ülés C (Task #4)
+
+### Új modul: `src/ifds/data/uw_shadow.py`
+- `build_shadow_snapshot(...)` — per-ticker raw UW + would-have-been scoring dump
+- `write_shadow_snapshot(...)` — `state/uw_shadow/YYYY-MM-DD.json` + `captured_at` UTC ts
+- `load_shadow_snapshot(...)` — visszaolvasás (Day 90 audithoz)
+- `summarize_shadow_snapshot(...)` — daily_metrics aggregátor (ticker count, avg dp_pct, regime distribution)
+- `_recompute_dp_pct_score(...)` + `_gex_multiplier_for_regime(...)` — passive helpers, mindig az aktív scoring szabályt tükrözik (flag-független)
+
+### Phase 4 — `dp_pct` bonus gating (`phase4_stocks.py`)
+- `_analyze_flow_from_data` line 580: `if uw_dark_pool_scoring_enabled: ...` köré
+- `_recompute_dp_pct_score` (Pass-2 enrichment): ugyanaz a guard
+- Default OFF → `dp_pct_score = 0` minden tickerre; raw `dark_pool_pct` preserved
+
+### Phase 6 — `M_GEX` gating (`phase6_sizing.py::_calculate_multiplier_total`)
+- `if uw_gex_sizing_enabled: m_gex = gex.gex_multiplier else 1.0`
+- Default OFF → `m_gex = 1.0` minden tickerre; raw `gex_regime` + `gex_multiplier` preserved
+- Phase 5 GEX **exclusion** (NEGATIVE regime LONG) változatlan
+
+### Runner integráció (`pipeline/runner.py`)
+- Post-Phase 6 shadow log write (Phase 4 snapshot mellett, fail-open WARNING-gel)
+- Csak akkor fut, ha `uw_shadow_logging_enabled=True` ÉS `ctx.stock_analyses` non-empty
+- Output: `state/uw_shadow/YYYY-MM-DD.json` — UTC date, schema lásd `uw_shadow.py` docstring
+
+### Daily metrics integráció (`scripts/paper_trading/daily_metrics.py`)
+- Új `_load_uw_shadow_summary(target_date)` helper (graceful empty default ha hiányzik)
+- Új top-level `uw_shadow_summary` key a daily metrics JSON-ban
+
+### Új TUNING kulcsok (`defaults.py`)
+- `uw_dark_pool_scoring_enabled: False` (default OFF — Day 63 §3.2)
+- `uw_gex_sizing_enabled: False` (default OFF)
+- `uw_shadow_logging_enabled: True` (default ON)
+- `uw_shadow_dir: "state/uw_shadow"`
+
+### Tests (+17)
+- `tests/test_uw_shadow_log.py` — 17 új teszt:
+  - Phase 4 dp_pct gating (live + Pass-2 paths, both flags, all boundary cases)
+  - Phase 6 M_GEX gating (forced 1.0 default + propagated when enabled)
+  - Snapshot build (passed tickers + missing GEX safety + empty)
+  - Snapshot I/O (write creates dir, load None for missing, round-trip)
+  - Summary aggregator (counts, averages, empty fallback)
+  - Helpers (boundary thresholds, regime mapping)
+  - Config defaults (Day 63 §3.2 expected values)
+- `tests/test_bc10_scoring.py` config fixture: `uw_dark_pool_scoring_enabled=True` (the suite verifies the scoring math)
+- `tests/test_phase6.py::test_m_gex_negative` + `test_m_gex_high_vol`: per-test `uw_gex_sizing_enabled=True`
+- `tests/test_daily_metrics.py` required-keys set: + `uw_shadow_summary`
+
+### Day 90 értékelési pont (~2026-08-26, W34)
+A shadow log Day 1–90 alatt ~63 napi snapshot-ot termel. Day 90-en a Bayesi
+rekalibráció eldönti, hogy a `dp_pct` és `M_GEX` reaktiválható-e
+(regime-conditional vagy sign-stable módon), vagy végleg shadow marad.
+
+### Refs
+- `docs/decisions/2026-05-14-day63-decision-outcome.md` §3.2 (Decision 2)
+- `docs/analysis/dp-pct-retrospective-audit.md` (60-trade audit, sign-flip)
+- `docs/strategic-review/2026-05-08-strategic-review-mathematical.md` §4 (Bonferroni-minimum scoring)
+- `docs/master-reference/04-risks-and-open-questions.md` §1.3
+
+---
+
 ## Fázis 1 / W21 — SEC EDGAR 10-Q / 10-K filing exclusion (1607 tests)
 
 > 2026-05-16 | Day 63 outcome §3.10 — Ülés B (Task #3)
