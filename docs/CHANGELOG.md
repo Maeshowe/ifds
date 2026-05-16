@@ -4,6 +4,34 @@
 
 ---
 
+## Fázis 1 / W21 — IBKR Gateway monitoring baseline (1582 tests)
+
+> 2026-05-16 | Day 63 outcome §6.1 — Ülés A
+
+### `_send_telegram_alert` anti-pattern fix (task §11)
+- `scripts/paper_trading/lib/connection.py`: silent `except: pass` → `logger.warning`
+- Missing env vars (`IFDS_TELEGRAM_BOT_TOKEN` / `IFDS_TELEGRAM_CHAT_ID`) → WARNING log
+- HTTP 4xx response → WARNING log with status + body preview
+- Telegram outages are now visible in `cron_intraday_*.log` (was silent on 2026-05-11)
+
+### `connect()` context_label parameter
+- Alert body now reflects the caller (`submit_orders.py`, `PRE-FLIGHT Gateway health check`)
+- `check_gateway.py` passes its own label so PRE-FLIGHT failures are distinguishable
+
+### Fix C — file-based heartbeat dead-man switch (task §10)
+- New `scripts/paper_trading/lib/heartbeat.py`: atomic UTC-ISO heartbeat marker (`touch`, `read`)
+- `submit_orders.py` writes `state/last_submit_attempt.json` before `connect()` and
+  `state/last_submit_success.json` after `disconnect()`
+- New `scripts/paper_trading/monitor_submit_heartbeat.py`: independent monitor
+  (suggested 16:35 CEST cron) → OK / STUCK (attempt>success >5min) / MISSING
+  (attempt >26h on trading day) / COLD_START verdicts. STUCK/MISSING → Telegram alert.
+
+### Tests
+- `tests/test_ibkr_gateway_monitoring.py` — 15 new tests across 4 classes
+- Suite: 1567 → 1582 passing
+
+---
+
 ## Fázis 1 / W21 — Earnings exclusion 7 → 10 nap (1567 tests)
 
 > 2026-05-16 | Day 63 outcome §3.10 — Ülés A

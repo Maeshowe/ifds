@@ -38,6 +38,7 @@ def main() -> None:
         max_retries=HEALTH_CHECK_RETRIES,
         retry_delay=HEALTH_CHECK_RETRY_DELAY,
         timeout=HEALTH_CHECK_TIMEOUT,
+        context_label="PRE-FLIGHT Gateway health check",
     )
 
     # If we reach here, connection succeeded (connect() calls sys.exit on failure)

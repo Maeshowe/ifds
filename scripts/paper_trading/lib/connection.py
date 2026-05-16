@@ -27,20 +27,35 @@ CONNECT_TIMEOUT = float(os.getenv("IBKR_CONNECT_TIMEOUT", "15.0"))
 
 
 def _send_telegram_alert(message: str) -> None:
-    """Send Telegram alert on connection failure. Non-blocking."""
+    """Send Telegram alert on connection failure. Non-blocking.
+
+    Failures are logged at WARNING level (never raised) so the calling
+    `connect()` can still `sys.exit(1)`. The previous `except: pass` made
+    Telegram outages invisible — see ifds-rules.md (2026-05-19 monitoring
+    task §11).
+    """
+    token = os.getenv("IFDS_TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("IFDS_TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        logger.warning(
+            "Telegram alert NOT sent: IFDS_TELEGRAM_BOT_TOKEN or "
+            "IFDS_TELEGRAM_CHAT_ID env var missing (cron env mismatch?)"
+        )
+        return
     try:
         import requests
-        token = os.getenv("IFDS_TELEGRAM_BOT_TOKEN")
-        chat_id = os.getenv("IFDS_TELEGRAM_CHAT_ID")
-        if not token or not chat_id:
-            return
-        requests.post(
+        response = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
             json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"},
             timeout=5,
         )
-    except Exception:
-        pass  # Telegram failure must never block
+        if response.status_code >= 400:
+            logger.warning(
+                f"Telegram alert send failed: HTTP {response.status_code} — "
+                f"{response.text[:200]}"
+            )
+    except Exception as e:
+        logger.warning(f"Telegram alert send failed: {e}")
 
 
 def connect(
@@ -50,6 +65,7 @@ def connect(
     max_retries: int = CONNECT_MAX_RETRIES,
     retry_delay: float = CONNECT_RETRY_DELAY,
     timeout: float = CONNECT_TIMEOUT,
+    context_label: str = "Paper trading script",
 ) -> IB:
     """Connect to IBKR Gateway with retry logic.
 
@@ -104,11 +120,11 @@ def connect(
 
     # All retries exhausted
     error_msg = (
-        f"\U0001f6a8 <b>IBKR CONNECTION FAILED</b>\n"
+        f"\U0001f6a8 <b>IBKR CONNECTION FAILED</b> — {context_label}\n"
         f"Host: {host}:{port} | ClientId: {client_id}\n"
         f"Attempts: {max_retries}/{max_retries}\n"
         f"Last error: {last_error}\n"
-        f"<b>Paper trading script aborted — manual intervention required.</b>"
+        f"<b>{context_label} aborted — manual intervention required.</b>"
     )
     logger.error(
         f"IBKR connection FAILED after {max_retries} attempts "

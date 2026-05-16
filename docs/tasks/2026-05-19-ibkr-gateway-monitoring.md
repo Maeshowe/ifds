@@ -1,9 +1,12 @@
 # Task: IBKR Gateway Monitoring — Diagnózis + Targeted Fix
 
-**Status:** OPEN
+**Status:** WIP
 **Priority:** P1 (operational risk — `04-risks-and-open-questions.md` §1.1)
 **Created:** 2026-05-19 (W21 D1, Fázis 1 nyitás)
-**Updated:** 2026-05-19
+**Updated:** 2026-05-16
+**Note:** baseline (§10 Fix C + §11 anti-pattern) deployed 2026-05-16. §3 H1/H2/H3
+diagnózis Mac Mini-n függőben (Tamás output kell) → ennek alapján Fix A/B
+kiegészítés szükség esetén.
 **Owner:** Claude Code
 **Estimated effort:** ~1–1.5h (diagnózis 20–30 min + targeted fix + tesztek)
 
@@ -173,6 +176,49 @@ def test_telegram_alert_logged_even_if_send_fails(caplog):
 ## 7. Diagnózis eredménye (kitöltendő CC-által a diagnózis után)
 
 > Itt rögzítse a CC a H1/H2/H3 ellenőrzés eredményét, és melyik Fix-et választotta. Ez a task fájl marad a permanent record-ja a 2026-05-11-i incidens root cause-ának.
+
+### Baseline deploy 2026-05-16 (commit függőben — Ülés A)
+
+A §10 Tamás-jóváhagyott Fix C (file-based heartbeat) és a §11 mandatory
+anti-pattern fix **a diagnózistól függetlenül** deploy-olva:
+
+- `scripts/paper_trading/lib/connection.py::_send_telegram_alert`:
+  `except: pass` → `logger.warning(...)` (env var hiány, HTTP 4xx, kivétel
+  mind WARNING-ként log-olva).
+- `scripts/paper_trading/lib/connection.py::connect()`: új
+  `context_label` param → az alert üzenet a hívót tükrözi.
+- `scripts/paper_trading/check_gateway.py`: `"PRE-FLIGHT Gateway health
+  check"` context, hogy a connect()-alert megkülönböztethető legyen.
+- `scripts/paper_trading/lib/heartbeat.py`: új modul (atomic write,
+  `touch`/`read` API).
+- `scripts/paper_trading/submit_orders.py`: `heartbeat_touch("submit_attempt")`
+  a `connect()` előtt, `heartbeat_touch("submit_success", extra={...})` a
+  `disconnect()` után.
+- `scripts/paper_trading/monitor_submit_heartbeat.py`: új független
+  cron-monitor (~16:35 CEST javasolt) → OK / STUCK / MISSING / COLD_START.
+- 15 új unit teszt `tests/test_ibkr_gateway_monitoring.py`-ban (1567 → 1582).
+
+### Mac Mini diagnózis függőben
+
+A §3 grep parancsok (Tamás) futtatása szükséges a H1/H2/H3 verdikt
+megállapításához:
+
+1. Telegram alert log-keresés a 2026-05-11-i `cron_intraday_20260511_*.log`
+   és `pt_submit_2026-05-11*.log` fájlokban (H1).
+2. `launchctl getenv IFDS_TELEGRAM_BOT_TOKEN` és `_CHAT_ID` ellenőrzése (H1).
+3. `crontab -l | grep check_gateway` és deploy script grep (H2).
+
+A baseline deploy után **a Fix A (env var sync) és Fix B (két-fázisú
+pre-flight)** szükségessége csak a diag eredménye után dönthető el —
+és **valószínűsíthető (de nem garantált)**, hogy a heartbeat + WARNING
+log-ok már elegendőek a következő incidens észrevételére.
+
+### Új cron entry javaslat (Mac Mini, Tamás)
+
+```cron
+# IBKR submit heartbeat monitor — 16:35 CEST, 15 min after submit_orders cron
+35 16 * * 1-5 cd ~/SSH-Services/ifds && source .env && python scripts/paper_trading/monitor_submit_heartbeat.py >> logs/heartbeat_monitor_$(date +\%Y\%m\%d).log 2>&1
+```
 
 ## 8. Commit message draft
 

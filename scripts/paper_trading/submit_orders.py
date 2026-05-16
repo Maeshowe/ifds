@@ -327,8 +327,10 @@ def main():
     # --- Live mode ---
     from lib.connection import connect, get_account, disconnect
     from lib.orders import validate_contract, create_day_bracket, submit_bracket
+    from lib.heartbeat import touch as heartbeat_touch
 
-    ib = connect(client_id=10)
+    heartbeat_touch("submit_attempt", label=today_str)
+    ib = connect(client_id=10, context_label="submit_orders.py")
     account = get_account(ib)
 
     existing = get_existing_symbols(ib)
@@ -528,6 +530,8 @@ def main():
         logger.info(f'Monitor state written: {state_path} ({len(monitor_state)} tickers)')
 
     disconnect(ib)
+    heartbeat_touch("submit_success", label=today_str,
+                    extra={"submitted_count": submitted})
 
 
 if __name__ == '__main__':
