@@ -2,8 +2,9 @@
 
 **Status:** DONE
 **Priority:** P1 (Fázis 1 lezárás, [`04-risks §1.3`](../master-reference/04-risks-and-open-questions.md) — UW scoring instability)
-**Created:** 2026-05-26 (W22 D1 hétfő)
+**Created:** 2026-05-15 (Chat által írás, pre-Fázis 1 deploy)
 **Updated:** 2026-05-16 (Ülés C — DEPLOYED ahead of schedule, W21 weekend)
+**Deploy:** 2026-05-16 (CC Ülés C, Fázis 1 W21 close)
 **Owner:** Claude Code
 **Estimated effort:** ~1.5–2h (scoring deaktiválás + shadow log infra + dual-write + tesztek)
 **Actual effort:** ~1.5h (Ülés C, 2026-05-16; 1607 → 1624 tests; smoke test green)
@@ -11,9 +12,9 @@
 **Source decision:** [`docs/decisions/2026-05-14-day63-decision-outcome.md`](../decisions/2026-05-14-day63-decision-outcome.md) §3.2 — Döntés [2]: "UW dark pool / GEX deactivation; shadow logging through Day 90".
 
 **Depends on:**
-- [`2026-05-19-ibkr-gateway-monitoring.md`](2026-05-19-ibkr-gateway-monitoring.md) (Fázis 1 stabilizáció)
-- [`2026-05-19-earnings-exclusion-7to10.md`](2026-05-19-earnings-exclusion-7to10.md) (Fázis 1 deploy)
-- [`2026-05-21-sec-10q-exclusion.md`](2026-05-21-sec-10q-exclusion.md) (Fázis 1 deploy)
+- [`2026-05-15-ibkr-gateway-monitoring.md`](2026-05-15-ibkr-gateway-monitoring.md) (Fázis 1 stabilizáció)
+- [`2026-05-15-earnings-exclusion-7to10.md`](2026-05-15-earnings-exclusion-7to10.md) (Fázis 1 deploy)
+- [`2026-05-15-sec-10q-exclusion.md`](2026-05-15-sec-10q-exclusion.md) (Fázis 1 deploy)
 
 **NEM depends on:** swing pivot scoring/sizing implementáció (Fázis 3). A shadow log az új és régi rendszer közötti **híd-mérés** — az új paper trading Day 1-Day 90 alatt **mindkettő** scoring kimenete egymás mellett mérhető.
 
@@ -63,7 +64,7 @@ A shadow log a Day 90 értékelési pontig **gyűjti az adatokat** anélkül, ho
 ### 3.1. Új TUNING kapcsoló (`defaults.py`)
 
 ```python
-# UW Dark Pool / GEX Deactivation (2026-05-26, Day 63 outcome §3.2)
+# UW Dark Pool / GEX Deactivation (2026-05-15, Day 63 outcome §3.2)
 "uw_dark_pool_scoring_enabled": False,  # Phase 4 dp_pct bonus 0-ra forcelt
 "uw_gex_sizing_enabled": False,         # Phase 6 M_GEX 1.0-ra forcelt
 "uw_shadow_logging_enabled": True,      # state/uw_shadow/*.json írás

@@ -2,14 +2,15 @@
 
 **Status:** DONE
 **Priority:** P1 (Fázis 1, [`04-risks §1.2`](../master-reference/04-risks-and-open-questions.md))
-**Created:** 2026-05-21 (W21 D3 szerda)
+**Created:** 2026-05-15 (Chat által írás, pre-Fázis 1 deploy)
 **Updated:** 2026-05-16 (Ülés B — deployed; 1611-ticker live smoke 100% success, 0 429, 16 flagged)
+**Deploy:** 2026-05-16 (CC Ülés B, Fázis 1 W21 close)
 **Owner:** Claude Code
 **Estimated effort:** ~2–3h (SEC EDGAR API integráció + Phase 2 szűrés + cache + tesztek)
 
 **Source decision:** [`docs/decisions/2026-05-14-day63-decision-outcome.md`](../decisions/2026-05-14-day63-decision-outcome.md) §3.10 — a 10 napi earnings exclusion-höz **kapcsolódó** plus védelem: a 10-Q és 10-K SEC filing event-eket is ki kell zárni.
 
-**Depends on:** [`2026-05-19-earnings-exclusion-7to10.md`](2026-05-19-earnings-exclusion-7to10.md) — előbb deployolva, hogy a 10 napi időablak közös legyen.
+**Depends on:** [`2026-05-15-earnings-exclusion-7to10.md`](2026-05-15-earnings-exclusion-7to10.md) — előbb deployolva, hogy a 10 napi időablak közös legyen.
 
 **NEM depends on:** semmilyen swing pivot komponens. A 10-Q exclusion a régi és új architektúrán **egyaránt** releváns.
 
@@ -138,7 +139,7 @@ if config["sec_filing_exclusion_enabled"]:
 ### 4.3. Új TUNING paraméterek (`defaults.py`)
 
 ```python
-# SEC EDGAR Filing Exclusion (2026-05-21, Fázis 1)
+# SEC EDGAR Filing Exclusion (2026-05-15, Fázis 1)
 "sec_filing_exclusion_enabled": True,
 "sec_filing_lookahead_days": 10,           # Egyezzen az earnings_exclusion_days-szel
 "sec_filing_quarterly_tolerance_days": 10,  # ±10 nap a 10-Q predikcióhoz (Tamás döntés 2026-05-15)
@@ -214,7 +215,7 @@ A 2-3h scope egyetlen task fájlon belül **kezelhető**, NEM tagolom külön su
 
 - A SEC EDGAR kliens (4.1) és a Phase 2 integráció (4.2) **szorosan összefüggnek** — egy commit hatékonyabb
 - A tesztek (4.5) az implementációval párhuzamosan írandók
-- A 7→10 nap config change **külön task** ([`2026-05-19-earnings-exclusion-7to10.md`](2026-05-19-earnings-exclusion-7to10.md)) — ott önállóan deploy-olható, és a SEC integrációhoz NEM kell
+- A 7→10 nap config change **külön task** ([`2026-05-15-earnings-exclusion-7to10.md`](2026-05-15-earnings-exclusion-7to10.md)) — ott önállóan deploy-olható, és a SEC integrációhoz NEM kell
 
 Ha a CC implementáció közben a scope-ot túl nagynak találja (pl. a `predict_next_10q_date` heuristika bonyolultabb mint becsültem), **megengedett a kettős tagolás**:
 - Sub-task A: SEC EDGAR kliens + cache (csak adat-beolvasás, NEM Phase 2 integráció), ~1.5h
@@ -329,6 +330,6 @@ def has_upcoming_10q_or_10k(self, ticker: str, lookahead_days: int = 10) -> bool
 
 - `docs/decisions/2026-05-14-day63-decision-outcome.md` §3.10
 - `docs/master-reference/04-risks-and-open-questions.md` §1.2
-- `docs/tasks/2026-05-19-earnings-exclusion-7to10.md` (függőség)
+- `docs/tasks/2026-05-15-earnings-exclusion-7to10.md` (függőség)
 - `docs/review/2026-05-04-daily-review.md` (AGNC -$380 case dokumentációja)
 - SEC EDGAR API docs: https://www.sec.gov/edgar/sec-api-documentation

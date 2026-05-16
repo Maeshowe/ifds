@@ -2,8 +2,9 @@
 
 **Status:** DONE
 **Priority:** P1 (operational risk — `04-risks-and-open-questions.md` §1.1)
-**Created:** 2026-05-19 (W21 D1, Fázis 1 nyitás)
+**Created:** 2026-05-15 (Chat által írás, pre-Fázis 1 deploy)
 **Updated:** 2026-05-16
+**Deploy:** 2026-05-16 (CC Ülés A, Fázis 1 W21 close)
 **Note:** baseline (§10 Fix C + §11 anti-pattern) deployed + verified Mac Mini-n
 2026-05-16. §3 H1/H2/H3 diagnózis: H1 igazolt (Telegram alert nem ért el a
 requests.post-ig), H2 részleges (check 16:00 → 20 perc submit előtt). Fix A

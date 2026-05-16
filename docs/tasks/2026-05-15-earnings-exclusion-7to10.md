@@ -2,8 +2,9 @@
 
 **Status:** DONE
 **Priority:** P1 (Fázis 1 előkészítés)
-**Created:** 2026-05-19
+**Created:** 2026-05-15 (Chat által írás, pre-Fázis 1 deploy)
 **Updated:** 2026-05-16
+**Deploy:** 2026-05-16 (CC Ülés A, Fázis 1 W21 close)
 **Owner:** Claude Code
 **Estimated effort:** ~20–30 min (config + tests + docs)
 
@@ -11,7 +12,7 @@
 
 **Depends on:** nincs
 
-**Related task:** [`2026-05-21-sec-10q-exclusion.md`](2026-05-21-sec-10q-exclusion.md) — a 10-Q SEC filing exclusion integráció (külön task, mert új API integráció, 2-3h scope). **A két task FÜGGETLEN** — a 7→10 váltás önmagában is értékes védelem.
+**Related task:** [`2026-05-15-sec-10q-exclusion.md`](2026-05-15-sec-10q-exclusion.md) — a 10-Q SEC filing exclusion integráció (külön task, mert új API integráció, 2-3h scope). **A két task FÜGGETLEN** — a 7→10 váltás önmagában is értékes védelem.
 
 ---
 
@@ -120,7 +121,7 @@ Refs: docs/decisions/2026-05-14-day63-decision-outcome.md §3.10
 
 ## 7. Out of scope (explicit)
 
-- **10-Q SEC filing exclusion** — külön task ([`2026-05-21-sec-10q-exclusion.md`](2026-05-21-sec-10q-exclusion.md))
+- **10-Q SEC filing exclusion** — külön task ([`2026-05-15-sec-10q-exclusion.md`](2026-05-15-sec-10q-exclusion.md))
 - **ADR earnings adatforrás fix** — Fázis 3, [`04-risks 3.1`](../master-reference/04-risks-and-open-questions.md)
 - **earnings_exit_days változtatása** — a swing exit logika része, az új scoring spec dokumentumban (Fázis 2) tervezett
 
