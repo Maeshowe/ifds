@@ -1,220 +1,243 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-13 Budapest, CC /wrap-up (szerda este — W20 D3 hotfix: sequential dp enrichment + 200ms delay, élesben 95.2% success) -->
+<!-- Utolsó frissítés: 2026-05-14 Budapest, Chat — Day 63 milestone lezárás, Swing pivot bejelentés -->
 
-## Paper Trading
-Day 59/63 | cum. PnL: **−$1,616.13 (−1.62%)** ⚠️ papir aggregát (valós ~-$1,460) | IBKR DUH118657
-**BC23 W19 Day 4 (csütörtök máj 7):** **-$501 net (papir)**, excess vs SPY **-0.18%** ✓ marginal underperform mild risk-off napon
-**⚠️ ÚJABB STRUKTÚRÁLIS BUG:** SQM 3-split LOSS_EXIT+SL **duplikált zárás** — leftover -91 SHORT! Ugyanaz mint péntek (máj 1) DTE eset. Két alkalom 6 napon belül = struktúrális bug! Új **P1 backlog idea**: LOSS_EXIT bracket SL cancellation
-**⭐ QCOM TP1+TP2 sequence: +$556** (a hét legjobbja!) — +10.55% TP2 net 1 nap alatt
-**SQM valós veszteség:** csak ~$425 (LOSS_EXIT realízalva), a SHORT 91 holnap reggel `nuke.py`-szel zárul, valószínűleg ~+$110 profittal (mert az ár jelenleg $91.50)
-**Score → P&L NEGATÍV korreláció 4 nap egymás után:** RMBS 93.5 = -$160, QCOM 92.5 = +$556, SQM 89.5 = -$425
-**Alacsony exposure (3 ticker) 2 nap egymás után** — flow signal konzervatív, megfigyelendő trend
-**VIX 17.13** stabil 17 körül, leállítási feltétel inaktív
-**4 nap** Day 63-ig — **paper folytatás default** kimenet a legvalószínűbb
+## ⭐ MÉRFÖLDKŐ: Day 63 LEZÁRULT (2026-05-14)
 
-## W19 átmenet (4 nap)
+**Hivatalos kimenet**: **PAPER FOLYTATÁS (default)** — DE radikálisan más architektúrán.
 
-| Metrika | W18 hét | W19 D1 | W19 D2 | W19 D3 ⭐ | W19 D4 | W19 átlag |
-|---------|---------|--------|--------|----------|--------|------------|
-| Net P&L (paper) | -$1,106 | -$191 | -$269 | +$234 | -$501 | -$182/nap |
-| Excess vs SPY | -1.90% | +0.21% | -1.04% | -1.14% | -0.18% | -0.54%/nap |
-| Win rate | 11/38 (29%) | 3/5 | 2/5 | 2/3 | 1/3 | 8/16 (50%) |
-| TP1 hits | 0/38 | 0/5 | 3/5 | 0/3 | 1/3 | 4/16 (25%) |
-| TP2 hits | 0/38 | 0/5 | 0/5 | 0/3 | 1/3 ⭐ | 1/16 (6%) |
+**Részletes döntési dokumentum**: [`docs/decisions/2026-05-14-day63-decision-outcome.md`](decisions/2026-05-14-day63-decision-outcome.md) (14 stratégiai döntés)
 
-## W19+ backlog idea-k (most **7**)
+**Kumulatív 63 napi**: -$1,623.78 paper aggregát / ~-$1,400-1,500 valós (bug-korrekciókkal)
 
-1. **⚠️ ÚJ SÜRGŐS: LOSS_EXIT bracket SL cancellation** — P1, ~30-45 min CC (DTE+SQM bug)
-2. **10-Q / 10-K SEC Filing Exclusion** — P1, ~2-3h CC (AGNC eset)
-3. **ADR earnings adatforrás fix** — P1, ~3-4h CC (BUD eset, FMP hiány)
-4. **Breakeven Lock profit-küszöb csökkentés** — P2, ~10-15 min config + tesztek
-5. **TP1 cél revízió** — P2, ~30 min config (DBRG TP1 cél túl szűk)
-6. **Phase 4 snapshot enrichment** — P3, ~30-45 min (W18 elemzésből)
-7. **High-score liquidity check** — P3, ~1h (NE +0.72% slippage)
+### Day 63 keret 3 kimenet kiértékelése
 
-## Holnapi (péntek máj 8) reggeli teendő
+| Kimenet | Feltétel | Eredmény |
+|---|---|---|
+| ÉLESÍTÉS | +$3,000 ÉS +1.5% kumulatív excess vs SPY | NEM teljesült (-$1,623, távolság -$4,623) |
+| LEÁLLÍTÁS | 10 napi excess < -1.5% VAGY VIX > 25 30+ napra | NEM aktivált (10 napi átlag -0.35%, buffer ~1.15%) |
+| **PAPER FOLYTATÁS** (default) | A két fenti egyike sem | ✅ **AKTIVÁLT** |
 
-**⚠️ Tamás Mac Mini-n először:** `nuke.py --positions` az SQM SHORT 91 zárására! Második ilyen eset 6 napon belül.
+---
 
-## Előző nap (hétfő máj 4)
+## Stratégiai fókusz: SWING PIVOT (W21-W30, 8-10 hét)
 
-**3 nyertes (BG +$179, NOV +$88, OII +$49) kompenzálta** az AGNC veszteséget; csak VTR -$91 másik vesztes
-**VIX 18.30** (+9.65% napi) — **vissza 18 fölé**, leállítási feltétel monitor aktív
-**Új backlog idea:** 10-Q/10-K SEC Filing Exclusion (W19+ scope, P2)
-**7 nap** Day 63-ig — **paper folytatás default** kimenet a legvalószínűbb
+A jelenlegi rendszer **negatív expectancy-jű** (Kelly $f^* = -0.23$ konzervatív, $-0.46$ default), **kvázi-zéró edge-gel** (Pearson $\rho(S, R) = -0.000$), **19-21% éves súrlódás-teherrel**. **Intézményi befektető allokáció nélkül hagyná.**
 
-## W18 → W19 átmenet
+A 60 napi adat **strukturális tanulságokat** szolgáltatott — a **B opció (multi-day swing)** kvantitatívan a legjobb pivot:
+- Mathematical doc 5.2: a flow signal mutual information $h=5$ napi holding mellett **5× erősebb** ($I \approx 5\rho^2 \approx 0.10$)
+- Kelly criterion swing horizonton **újrakalkulálható**, várhatóan pozitív
+- A LOSS_EXIT bracket SL bug (4 instancia 13 napon belül) **strukturálisan eliminálódik** a mental stop architektúrával
 
-| Metrika | W18 hét | W19 Day 1 |
-|---------|---------|-----------|
-| Net P&L | -$1,106 | -$191 |
-| Excess vs SPY | -1.90% | **+0.21%** ⭐ |
-| Win rate | 11/38 (29%) | 3/5 (60%) |
-| LOSS_EXIT | 7 | 6 (mind AGNC) |
-| Avg score | 91.1 | 92.2 |
+### 14 stratégiai döntés (Day 63 outcome doc)
 
-## W18 Day 3 (szerda ápr 29) — két task DEPLOYED
+| # | Téma | Választás |
+|---|---|---|
+| 1 | Day vs Swing | **SWING (3-5 nap hold)** |
+| 2 | UW API | **Shadow log Day 90-ig**, scoring-ban deaktiválás |
+| 3 | 15 backlog idea | **KEEP 6 / REWORK 4 / DROP 5** |
+| 4 | Strategic-review nem-implementált | **3 elvégzendő, 2 elvetendő** |
+| 5 | Reset roadmap | **3 fázisú, W21-W30** |
+| 6 | Entry/exit timing | **15:30 CEST entry, 3-5 nap hold, mental stop** |
+| 7 | Pozíció-méretezés | **Rolling 10-12 equal-weight, 0.35% risk/position** |
+| 8 | Time-stop | **5 trading nap full MOC exit** |
+| 9 | Universum | **S&P 500 + Russell 1000 (~1000 likvid)** |
+| 10 | Earnings exclusion | **10 nap előretekintés (hold × 2)** |
+| 11 | Sector concentration cap | **30% notional/szektor** |
+| 12 | Stop-loss típus | **Mental stop, daily eval, NINCS IBKR bracket** |
+| 13 | Scoring revízió | **PCR + OTM-inverse only** (Bonferroni-szignifikáns minimum) |
+| 14 | Új élesítési kritérium | **Day 126: +$2,000 + Sharpe>0.5 + 25+ napi pos excess** |
 
-**vix-close (`0a23a35`):** `daily_metrics.py` Phase 0 `MACRO_REGIME` event-ből + Polygon I:VIX fallback. 8 új teszt. 2026-04-28 → vix=18.04 (Δ=-0.88%).
+### Új Day 126 milestone
 
-**LOSS_EXIT whipsaw audit (`a77d425`):** `scripts/analysis/loss_exit_whipsaw_analysis.py`. BC23 minta (6 esemény, 04-13 → 04-29): **net whipsaw cost +$87.98** — a -2% szabály átlagosan védett, nem rontott. Stop saved: GME +$140, SKM +$107, CRWV +$47. Stop hurt: NIO -$128, POWI -$50, ON -$28. **Tanulság:** a NIO eset egy kivétel, nem szabály. **Ne nyúljunk a LOSS_EXIT-hez.** Részletes táblázat: `docs/analysis/loss-exit-whipsaw-analysis.md`.
+**Naptári dátum (becsült)**: 2026-09-15 (W37). Akkor lesz az élő pénzes kereskedés döntésének **első valós alapja**.
 
-**M_contradiction multiplier (BLOCKED):** CC felfedezése: a Company Intel script a Phase 6 UTÁN fut (Telegram-only, nem strukturált flag). 2026-04-29 reggeli Tamás megfigyelés: a Company Intel funkciója NEM döntéstámogatás (saját tanulási eszköz), és a CONTRADICTION jelzés strukturált FMP adatból származik (earnings beat ratio, target consensus, analyst downgrades). **Holnap reggel (Chat) re-scope:** új modul `contradiction_signal.py` direkt FMP-ből, Company Intel érintetlenül.
+---
 
-**Tesztek: 1535 passing**, 0 failure (1380 baseline + 138 Breakeven Lock + 8 vix-close + 9 whipsaw).
+## 3 fázisú reset roadmap
 
-## W17 összefoglalás (2026-04-20 — 2026-04-24)
+### Fázis 1 — Operational cleanup (W21-W22, máj 19 - máj 30)
 
-| Nap | Net P&L | Excess vs SPY | TP1 |
-|-----|---------|---------------|-----|
-| Hétfő | -$433 | -0.21% | 0/5 |
-| Kedd | **+$553** | **+1.22%** | 2/5 (POWI) |
-| Szerda | +$60 | -0.94% | 0/3 |
-| Csütörtök | -$227 | +0.19% | 0/5 |
-| Péntek | **+$640** | -0.13% | 1/3 (NVDA) |
-| **Σ W17** | **+$593** | **+0.13%** | **3/21 (14%)** |
+**Cél**: a régi architektúra "lezárása", az új scoping előkészítése.
 
-**Heti metrika:** weekly_metrics.py lefutott, hivatalos report: `docs/analysis/weekly/2026-W17.md`. Kulcs számok: Net +$593.09, 34 trades, Win days 3/5, TP1 3/34 (9%), TP2 2, LOSS_EXIT 7, MOC 22, R:R 1:1.59, Commission $82 (12% of gross), **Score→P&L korreláció r=+0.180** (első pozitív a BC23 óta). Teljes elemzés: `docs/analysis/weekly/2026-W17-analysis.md`.
+**Tamás (manuális)**:
+- Máj 19 (h): `nuke.py --positions` AAPL/AVDL.CVR teljes takarítás
+- Máj 19: IBKR TWS UI — minden függő bracket TP/SL order manuális cancel
+- Máj 20-22: IBKR paper account reset ($100k újra)
 
-## BC23 2 hetes kumulatív (W16 + W17)
+**Chat**:
+- ✅ Day 63 outcome doc (KÉSZ — `docs/decisions/2026-05-14-day63-decision-outcome.md`)
+- ✅ Strategic-review $354 → $665 korrekció (KÉSZ, 2026-05-14)
+- 🔄 Master-reference frissítés (folyamatban)
+- 🔄 Backlog frissítés (folyamatban)
+- 🔄 Új handoff doc (folyamatban)
+- ⏳ Új architektúra design doc (`docs/design/swing-pivot-architecture.md`)
 
-| Mérés | W16 | W17 | Együtt |
-|-------|-----|-----|--------|
-| Net P&L | +$1,661 | +$593 | **+$2,254** |
-| Cumulative | -$694 | -$19 | **-$19** |
-| Excess vs SPY átlag | -2.73% | **+0.13%** | **-1.30%** |
-| **Score→P&L korreláció** | **r=-0.414** | **r=+0.180** | **irány váltott** |
-| TP1 hit rate | 0/18 (0%) | 3/34 (9%) | 3/52 (6%) |
-| Win days | 4/5 | 3/5 | 7/10 (70%) |
+**CC**:
+- ⏳ IBKR Gateway monitoring + Telegram alert (~1 óra)
+- ⏳ 10-Q SEC Filing Exclusion + 10 napi earnings exclusion (~2-3 óra)
+- ⏳ UW config: scoring-ban deaktiválás, shadow log infra (`uw_shadow_*.json`) (~1-2 óra)
 
-**Vélemény:** A BC23 1.5 hét alatt **nem adott pozitív alpha-t** SPY-hoz képest, de **drámai javulás** a W16-W17 közötti átmenettel. Kumulatív **breakeven közelben**.
+### Fázis 2 — Analytic + Design (W23-W24, jún 2 - jún 13)
 
-## Azonosított strukturális problémák (W17 után)
+**Cél**: a swing pivot kvantitatív megalapozása + technikai design.
 
-1. **Contradiction pattern 5/6 (83%)** — CONTRADICTION flagged tickerek szinte mindig veszítenek
-2. **POWI paradoxon** — recent winner másnap korrigál, scoring nem veszi figyelembe
-3. **TP1 fix 1.25×ATR** — csak magas-vol napokon elérhető
-4. **Score threshold 85** — gyakran csak 1 qualified, de 5 pozíció (alacsony konverzió)
+**Chat**:
+- Entry timing backtest (4 alternatív időablak a 60+ napi adaton, ~1-2 óra)
+- M_contradiction sign-flip elemzés (~1 óra)
+- Új scoring design doc (`docs/design/swing-scoring-spec.md`) — PCR + OTM-inverse
+- Új risk management spec (`docs/design/swing-risk-spec.md`) — mental stop, time-stop, hard SL
+- Új position sizing spec (`docs/design/swing-sizing-spec.md`) — rolling 10-12, 0.35% risk
 
-**Rögzítve backlog-ideas.md-be:** M_contradiction multiplier ×0.80, Recent Winner Penalty / Position Dedup, TP1 dinamikus skálázás, M_target szigorítás.
+**CC**:
+- Design specifikációk alapján prototípusok (unit-test szinten) — NEM deploy (~3-5 óra)
 
-## Piaci környezet (W17 záró)
+### Fázis 3 — Re-deploy + új paper trading (W25-W30, jún 16 - júl 25)
 
-- **VIX záró:** 18.72 (-3.01%) — a stressz teljesen feloldódott
-- **SPY heti kumulatív:** +0.55% (5 nap)
-- **MID regime:** STAGFLATION Day 7 (változatlan a teljes héten)
-- **MID events:** 0 egész héten — az event detector konzervatív, regime stabil
+**Cél**: új architektúra élesítése + 63 napi paper trading futás.
 
-## UW Quick Wins + Snapshot v2
+**CC**:
+- Új scoring funkcionál deploy (~3-4 óra)
+- Universum builder módosítás (S&P 500 + Russell 1000 union, ~1-2 óra)
+- Új risk management deploy (~5-8 óra)
+- Új position sizing deploy (~3-4 óra)
+- Integration tests, smoke tests (~3-5 óra)
 
-**Commits:** `533763b` (QW) + `97fbeda` (Snapshot Enrichment) — W17 elejétől élesben.
+**Tamás (manuális)**:
+- Kb. jún 23 (W26 hétfő): IBKR paper account reset + **új paper trading INDUL Day 1-en**
 
-## MID API (új fejlemények)
+**Új Day 63 milestone**: kb. **2026-09-15 (W37)** — élő kereskedés döntés első valós alapja.
 
-- **2026-04-21:** `/api/bundle/latest` élesben
-- **2026-04-22:** `/api/bundle/{date}` historical + webhook/SSE + Alembic normalize
-- **2026-04-24:** W17 alatt 0 event (stabil regime)
-- **W18:** IFDS MID Bundle Integration shadow mode task CC-nél
+---
 
-## Élesben futó feature-ök
+## Új W21+ aktív backlog (9 tétel, drasztikusan csökkentve)
+
+A korábbi 15+1 idea-ból **6 dropolva** (a swing pivot strukturálisan eliminálja), **4 átalakítva**, **6 új aktív** (köztük 1 új P1 = dinamikus pozíciószám).
+
+### P1 — Fázis 1 azonnali (W21-W22)
+
+| # | Tétel | Effort | Owner |
+|---|---|---|---|
+| P1.1 | IBKR Gateway monitoring + Telegram alert | ~1 óra | CC |
+| P1.2 | 10-Q SEC Filing Exclusion (10 napi earnings + 10-Q) | ~2-3 óra | CC |
+
+### P2 — Fázis 2 analitikus (W23-W24)
+
+| # | Tétel | Effort | Owner |
+|---|---|---|---|
+| P2.1 | Entry timing optimalizáció backtest | ~1-2 óra | Chat |
+| P2.2 | M_contradiction sign-flip vizsgálat | ~1 óra | Chat |
+| P2.3 | TP1 cél revízió (új swing TP-struktúra: 1.5/3.0× ATR) | ~30 min config + ~1 óra CC | CC |
+| P2.4 | Dinamikus pozíciószám (rolling 10-12, 0.35% risk) | ~1 óra CC | CC |
+
+### P3 — Fázis 3 vagy később
+
+| # | Tétel | Effort | Owner |
+|---|---|---|---|
+| P3.1 | ADR earnings adatforrás fix | ~3-4 óra CC | CC |
+| P3.2 | Breakeven Lock profit-küszöb (swing-integrált) | ~30 min config | CC |
+| P3.3 | Phase 4 snapshot enrichment | ~30-45 min CC | CC |
+
+### DROPPED (a swing pivot által strukturálisan eliminált)
+
+- **LOSS_EXIT bracket SL cancellation** (4 instancia bug): mental stop architektúra → bracket NINCS, bug megszűnik
+- **`nuke.py --orders` scope expansion**: NINCS bracket order, `--positions` elég
+- **UW rate limit kezelés finomítás**: UW shadow log, scoring-ban deaktiválva
+- **LOSS_EXIT küszöb finomítás per-ticker ATR**: mental stop architektúra
+- **dp_pct fallback default**: UW scoring-ban deaktiválva
+- **Slippage-adjusted scoring validation**: új scoring eleve slippage-szembesített
+- **High-score liquidity check**: a "magas pontszám paradoxon" a scoring revízión át kezelendő
+- **monitor.py belső replay események jelölése**: alacsony prioritás, későbbi
+
+Részletes mátrix: [`docs/decisions/2026-05-14-day63-decision-outcome.md`](decisions/2026-05-14-day63-decision-outcome.md) — 4. fejezet.
+
+---
+
+## Élesben futó feature-ök (a régi rendszer utolsó hete, W20 vége)
+
+> **Megjegyzés**: ezek a feature-ök a Fázis 3 deploy után **átalakulnak vagy megszűnnek**. A Fázis 1-2 (W21-W24) alatt **változatlanul futnak**, mert nincs új deploy.
 
 - Pipeline Split: Phase 1-3 (22:00 CEST) + Phase 4-6 (16:15 CEST)
 - MKT entry + VWAP guard (csak REJECT >2%)
 - Swing Management: 5 napos hold, TP1 50% partial, TRAIL, breakeven SL, D+5 MOC
 - Dynamic positions: max 5, score threshold 70 (Phase 4) / 85 qualified
-- **UW Client v2**: kötelező header, limit 500, premium aggregálás, dollár-alapú DP
-- **Snapshot v2**: dollár + GEX mezők minden új snapshotban ✅
-- **MID Bundle Snapshot (shadow mode)**: napi MID bundle mentés `state/mid_bundles/`-be, Phase 0 végén non-blocking. Phase 3 NINCS érintve, csak adatgyűjtés a W19 BC25 GO/NO-GO döntéshez. Aktiválás Mac Mini `MID_API_KEY` beállítás után.
+- UW Client v2 + Snapshot v2 (kötelező header, dollár-alapú DP)
 - Cross-Asset Regime + Korrelációs Guard + Portfolio VaR 3%
-- Company Intel: 16:15 submit után
-- EWMA simítás, M_target penalty, BMI momentum guard
-- TP1 1.25×ATR — W17-ben 3 hit (POWI kedd TP1+TP2, NVDA péntek TP1)
+- EWMA simítás, M_target penalty, BMI momentum guard (tiered: 3-4 nap → 4, 5-6 → 3, 7+ → 2)
+- TP1 1.25×ATR, dp_pct sign-flip (-10/-15 penalty)
+- Sequential dp enrichment (200ms delay, élesben 95.2% success)
 
-## Shadow mode
+### Shadow mode (Fázis 1-ben deaktiválandók)
 
-| Feature | Shadow óta | Élesítés |
+| Feature | Shadow óta | Új státusz |
 |---|---|---|
-| Crowdedness composite | 2026-03-23 | TBD |
-| Skip Day Shadow Guard | 2026-04-02 | Kiértékelés ~máj 2 |
-| **MID Bundle Shadow** | **W18 hétfőn indul** | **W19 eleji döntés** |
+| Crowdedness composite | 2026-03-23 | Fázis 3-ban **újra-értékelendő** swing kontextusban |
+| Skip Day Shadow Guard | 2026-04-02 | Fázis 3-ban **átalakítva** vagy dropolt |
+| MID Bundle Shadow | 2026-04-27 | **Megőrzendő** — portfolio context layer az új architektúrán |
+| **UW dark pool + GEX shadow** | **2026-05-19 (új)** | Day 90 érdemleges power-rel audit (n=180) |
 
-## W18 prioritásos terv (hétfő ápr 27-től)
+---
 
-### Párhuzamos futtatás
+## Paper Trading
 
-**1. BC23 folytatódik** — normál pipeline, paper trading Day 51-55. Célok:
-- A W17-es +0.13% excess **fenntartása vagy javítása**
-- TP1 hit rate **stabilizálódása** a 9-15% sávba
-- Nincs új strukturális hiba
+**Day 63/63 LEZÁRULT** | IBKR DUH118657 (kb. máj 22-én reset)
 
-**2. MID Bundle Integration Shadow Mode** — CC task kész, hétfő reggel kezdés
-- `docs/tasks/2026-04-21-mid-bundle-integration-shadow.md`
-- Effort: 4-5h
-- Output: 5 napi MID bundle snapshot, W19 eleji comparison
+A Fázis 1 cleanup végén Tamás `nuke.py --positions` futtatja, IBKR paper account reset, $100k újra. **Új paper trading kb. jún 23 (W26 D1) indul.**
 
-**3. Kis priority CC task (ha idő van):**
-- **M_contradiction multiplier ×0.80** implementáció (2-3h)
-- Alapja: 5/6 W17 pattern
-- Risk: alacsony, konzervatív paraméter
+### W20 utolsó hete (régi rendszer)
 
-### NEM W18-ra
+| Nap | Net P&L | Excess | Megjegyzés |
+|---|---|---|---|
+| W20 D1 (h, máj 11) | +$28 | -0.19% | mild bull underperform, manuális 17:15 entry, snapshot fix DEPLOYED |
+| W20 D2 (k, máj 12) | -$369 | -0.20% | TGB+NVDA LOSS_EXIT, entry timing finding |
+| W20 D3 (sz, máj 13) | -$189 | -0.74% | bull rally EXTRÉM underperform, FORM/AAPL bracket bug |
+| W20 D4 (cs, máj 14) | **DAY 63** | — | **Milestone** — outcome doc készítés |
 
-- **Recent Winner Penalty / Position Dedup** — várunk W18 adatra, ha ismétlődik a POWI-minta
-- **TP1 dinamikus skálázás** — BC24 scope
-- **BC25 Phase 3 refactor** — W19 után, shadow mode eredménye alapján
-- **BC24 UW Institutional Flow** — W19+ scope
-
-## Paper Trading Day 63 (~máj 14) döntési keret
-
-**13 nap múlva** éles/paper döntés. A jelenlegi -$19 breakeven nem indokol élesre váltást.
-
-**Valószínű kimenet:** +1 hónap paper trading, közben a fenti javítások implementálása, és **június elején** újra-kiértékelés.
-
-## Anomáliák
-
-- **ARMK 4-split péntek** — 428 shares → 100+103+100+125. Érdekes lenne hétfő utáni elemzés a IBKR paper account max order size viselkedéséről.
-- **Telegram regresszió** változatlanul él ("4/6 breakdown" hiányzik).
-- **CRGY + AAPL leftover** — 5 napja folyamatosan, hétvégi Tamás nuke.
-- **`docs/analysis/weekly/2026-W17.md`** — a hivatalos weekly_metrics.py report **megérkezett** ✅
-
-## Tervezett BC-k (változatlan)
-
-- **BC24 Institutional Flow Intelligence** (~W19-W22, máj 4-29) — UW új endpoints, dollar-weighted scoring
-- **BC25 IFDS Phase 3 ← MID CAS** (~W20+) — MID bundle API kész, shadow mode W18-ban, GO/NO-GO W19 elején
-- **Paper Trading Day 63** (~máj 14): éles/paper folytatás döntés
-
-## Hétvégi teendők
-
-- **Tamás:** CRGY + AAPL leftover manuális nuke
-- **Tamás:** pt_daily_metrics cron időzítés (W17 két napon ~1 óra késés)
-- **Chat:** MID vs IFDS sector rotation informális elemzés (CAS heatmap alapú)
-- **Chat:** W17 weekly elemzés ✅ elkészült (`docs/analysis/weekly/2026-W17-analysis.md`)
+---
 
 ## Tesztek
 
-**1564 passing** (1556 + 4 dp enrichment + 4 tiered BMI guard net), 0 failure
+**1564 passing**, 0 failure (utolsó wrap-up: 2026-05-13)
+
+> **Fázis 3 deploy után**: a tesztkészlet **átalakul** — sok régi teszt elavul (bracket-mechanika, multiplier chain), új tesztek (mental stop, time-stop, rolling 10-12 sizing).
+
+---
 
 ## Utolsó commitok
 
-- `1f0ffb9` — fix(phase4): sequential dp enrichment with 200ms delay — UW rate-limit calibration (W20 D3, live-verified 95.2%)
-- `8a44178` — docs(wrap-up): 2026-05-12 session close — W20 D2 production hotfixes
-- `f62d954` — docs(crontab): fix outdated 15:45 reference in inactive jobs comment (W20 D2)
-- `b6db393` — fix(phase6): tiered BMI momentum guard — kill the 5 → 5 no-op alert (W20 D2)
-- `90cf5b4` — fix(phase4): two-pass dp scoring — restrict UW per-ticker to passed set (W20 D2 hotfix)
+- `1f0ffb9` — fix(phase4): sequential dp enrichment with 200ms delay
+- `8a44178` — docs(wrap-up): 2026-05-12 session close
+- `f62d954` — docs(crontab): fix outdated 15:45 reference
+- `b6db393` — fix(phase6): tiered BMI momentum guard
+- `90cf5b4` — fix(phase4): two-pass dp scoring
 - `cd65132` — docs(rules): add data-health-check + test-env-hygiene rules
-- `9a169b9` — feat(scoring): dp_pct sign-flip + threshold recalibration + per-ticker UW fetch (W19 hétvége)
-- `d3fce73` — fix(tests): mock save_phase4_snapshot in e2e — production state pollution regression (W19 hétvége)
+- `9a169b9` — feat(scoring): dp_pct sign-flip + threshold recalibration
+- `d3fce73` — fix(tests): mock save_phase4_snapshot in e2e
+
+---
 
 ## Blokkolók
 
-Nincs.
+**Nincs aktív blokkolók**. A Fázis 1 cleanup a Tamás IBKR reset után (máj 22-25 körül) indul érdemben.
 
-**Aktív P1 fix-ek:**
-- **Sequential dp enrichment** (`1f0ffb9`, 2026-05-13 hotfix): 200ms delay + sequential loop a parallel asyncio.gather helyett. Live smoke 166 ticker: 95.2% success, 0 hard error, 77.6s. Várt 5/14 production: ~0 HTTP 429.
-- **Phase 4 two-pass dp scoring** (`90cf5b4`, 2026-05-12 hotfix): a vasárnapi 1425-ticker UW universe loop 247× HTTP 429-et termelt. Pass 2 enrichment csak a `passed` ~100-200 tickerre — UW budget 1525 → 200-300 per Phase 4-6 run.
-- **Tiered BMI Momentum Guard** (`b6db393`, 2026-05-12 hotfix): a régi `5 → 5` no-op alert helyett 3-4 napja → 4, 5-6 → 3, 7+ → 2. Élesben verifikálva 19:23-as `5 → 4` üzenettel ✅
-- **dp_pct sign-flip** (`9a169b9`): magas-DP tickerek -10/-15 score reduction; flow-súly 0.40 mellett ~-4/-6 pont a combined_score-on
-- **Snapshot regression fix** (`d3fce73`): Mac Mini `git pull` után a holnapi 16:15 cron tisztán ment 90+ ticker, a flow_decomposition újrafuttatható lesz friss adaton
+**Várt blokkolók (Fázis 3 előtt)**:
+- IBKR paper account állapota (Tamás manuális reset szükséges)
+- Új design dokumentumok (Fázis 2 végén) Tamás review-ja
 
-**W19+ backlog (Chat-oldal):** LOSS_EXIT bracket SL cancellation (P1, 2× ismétlődő bug), 10-Q/10-K SEC Filing Exclusion (P1, AGNC+BUD), ADR earnings adatforrás fix (P1, BUD)
+---
+
+## Kapcsolódó docs
+
+- **Day 63 outcome** (a fő dokumentum): [`docs/decisions/2026-05-14-day63-decision-outcome.md`](decisions/2026-05-14-day63-decision-outcome.md)
+- **Strategic-review**: [`docs/strategic-review/2026-05-08-strategic-review-summary.md`](strategic-review/2026-05-08-strategic-review-summary.md) (5 oldal), [`...full.md`](strategic-review/2026-05-08-strategic-review-full.md) (25 oldal), [`...mathematical.md`](strategic-review/2026-05-08-strategic-review-mathematical.md) (~30 oldal)
+- **Master-reference**: [`docs/master-reference/INDEX.md`](master-reference/INDEX.md) (frissítendő Fázis 1-ben)
+- **Backlog**: [`docs/planning/backlog-ideas.md`](planning/backlog-ideas.md) (frissítendő Fázis 1-ben)
+- **API_STACK**: [`docs/API_STACK.md`](API_STACK.md) (frissítendő Fázis 1-ben, 2026-03-01-i elavult)
+- **Régi handoff**: [`docs/handoff/2026-05-08-chat-handoff-strategic-review.md`](handoff/2026-05-08-chat-handoff-strategic-review.md)
+- **Új handoff** (folyamatban): [`docs/handoff/2026-05-14-chat-handoff-day63-outcome.md`](handoff/)
+
+---
+
+## 🔑 Egy mondatban — a következő 8-10 hét
+
+A 60 napi paper trading **negatív expectancy-jű intraday rendszert** rögzített; a **swing pivot** (3-5 napi hold, PCR + OTM-inverse scoring, mental stop, rolling 10-12 sizing) **a kvantitatívan helyes irány**, ami **8-10 hét reset után** (W21-W30) egy **új 63 napi paper trading futást** indít — az **élő pénzes kereskedés első valós döntési pontja kb. 2026-09-15 (W37)**.

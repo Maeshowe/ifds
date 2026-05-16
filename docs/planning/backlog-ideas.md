@@ -1,5 +1,15 @@
 # IFDS Backlog — Ötletek, nem ütemezett
 
+<!-- Utolsó frissítés: 2026-05-14 (Day 63 outcome + Swing pivot annotáció) -->
+
+> **⛔ KORSZAKVÁLTÁS (2026-05-14)**: A Day 63 milestone outcome alapján a rendszer **swing pivot**-ot indít (3-5 napi hold, PCR + OTM-inverse only scoring, mental stop). Az alábbi BC20+ scope-ú ötletek (VectorBT, MCP, Company Intel v2 stb.) **többnyire PARKOLT-ak Day 126-ig** (kb. 2026-09-15, W37). A részletes döntési dok: [`docs/decisions/2026-05-14-day63-decision-outcome.md`](../decisions/2026-05-14-day63-decision-outcome.md).
+>
+> **A jelenleg aktív W21+ backlog** (9 tétel: 2 P1, 4 P2, 3 P3) a [`docs/master-reference/04-risks-and-open-questions.md`](../master-reference/04-risks-and-open-questions.md)-ben található.
+>
+> Az alábbi ötletek **történelmi rétegként** maradnak meg — újraértékelésre várnak az új swing architektúra stabilizálódása után.
+
+---
+
 ## VectorBT CC Skill (BC20+ scope)
 
 **Forrás:** marketcalls/vectorbt-backtesting-skills repo elemzése (2026-02-24)
