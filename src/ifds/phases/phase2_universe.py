@@ -14,15 +14,21 @@ SHORT/Zombie universe (FMP screener):
 
 Zombie Hunter:
 - Exclude tickers with earnings within N calendar days (binary event risk, default 7).
+
+SEC Filing Exclusion (Fázis 1, 2026-05-16):
+- Exclude tickers with a predicted 10-Q (or 10-K proxy) within `sec_filing_lookahead_days`.
+- Plugs the AGNC-style hole where FMP's earnings_calendar misses the SEC filing event.
 """
 
 import json
 import os
 import time
 from datetime import date, timedelta
+from pathlib import Path
 
 from ifds.config.loader import Config
 from ifds.data.fmp import FMPClient
+from ifds.data.sec_edgar import SecEdgarClient
 from ifds.events.logger import EventLogger
 from ifds.events.types import EventType, Severity
 from ifds.models.market import Phase2Result, StrategyMode, Ticker
@@ -59,6 +65,9 @@ def run_phase2(config: Config, logger: EventLogger,
             raw_tickers, fmp, exclusion_days, logger
         )
 
+        # Step 3: SEC 10-Q / 10-K filing exclusion (Fázis 1, 2026-05-16)
+        tickers, sec_excluded = _exclude_sec_filings(tickers, config, logger)
+
         result = Phase2Result(
             tickers=tickers,
             total_screened=total_screened,
@@ -66,6 +75,7 @@ def run_phase2(config: Config, logger: EventLogger,
             strategy_mode=strategy_mode,
             bulk_excluded_count=bulk_n,
             ticker_specific_excluded_count=ticker_n,
+            sec_filing_excluded=sec_excluded,
         )
 
         # Survivorship bias protection: snapshot + diff
@@ -77,12 +87,13 @@ def run_phase2(config: Config, logger: EventLogger,
             message=(
                 f"Universe: {len(tickers)} tickers "
                 f"(screened={total_screened}, earnings_excluded={len(earnings_excluded)}, "
-                f"mode={strategy_mode.value})"
+                f"sec_filing_excluded={len(sec_excluded)}, mode={strategy_mode.value})"
             ),
             data={
                 "ticker_count": len(tickers),
                 "total_screened": total_screened,
                 "earnings_excluded_count": len(earnings_excluded),
+                "sec_filing_excluded_count": len(sec_excluded),
                 "strategy_mode": strategy_mode.value,
             },
         )
@@ -316,6 +327,79 @@ def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
     )
 
     return pass2_filtered, excluded, bulk_excluded_count, len(pass2_excluded)
+
+
+def _exclude_sec_filings(tickers: list[Ticker], config: Config,
+                          logger: EventLogger) -> tuple[list[Ticker], list[str]]:
+    """Exclude tickers with an upcoming 10-Q / 10-K filing (Fázis 1, 2026-05-16).
+
+    Closes the AGNC 2026-05-04 case: a 10-Q event (not earnings) caused a
+    -$380 LOSS_EXIT. FMP's earnings_calendar misses these.
+
+    Fail-open by design: any failure to query SEC EDGAR (network, stale
+    cache > 2d, missing CIK) → ticker passes through. Risk-asymmetry is
+    documented in the task spec §8 — false negative <2-5% accepted under
+    the 12-position concurrent cap.
+    """
+    if not config.tuning.get("sec_filing_exclusion_enabled", False):
+        return tickers, []
+
+    if not tickers:
+        return tickers, []
+
+    cache_dir = Path(config.tuning.get("sec_filing_cache_dir", "state/sec_cache"))
+    lookahead_days = int(config.tuning.get("sec_filing_lookahead_days", 10))
+    tolerance_days = int(config.tuning.get("sec_filing_quarterly_tolerance_days", 10))
+    cik_refresh_days = int(config.tuning.get("sec_filing_cik_refresh_days", 30))
+    filings_refresh_days = int(config.tuning.get("sec_filing_filings_refresh_days", 1))
+
+    client = SecEdgarClient(
+        cache_dir=cache_dir,
+        cik_refresh_days=cik_refresh_days,
+        filings_refresh_days=filings_refresh_days,
+        tolerance_days=tolerance_days,
+    )
+
+    filtered: list[Ticker] = []
+    excluded: list[str] = []
+    for ticker in tickers:
+        try:
+            if client.has_upcoming_10q_or_10k(ticker.symbol, lookahead_days=lookahead_days):
+                excluded.append(ticker.symbol)
+                logger.log(
+                    EventType.SEC_FILING_EXCLUSION, Severity.INFO, phase=2,
+                    ticker=ticker.symbol,
+                    message=(
+                        f"{ticker.symbol} excluded: predicted 10-Q within "
+                        f"{lookahead_days}d (±{tolerance_days}d tolerance)"
+                    ),
+                )
+            else:
+                filtered.append(ticker)
+        except Exception as exc:
+            # Defensive fail-open: a single ticker's exception must not derail Phase 2
+            logger.log(
+                EventType.API_FALLBACK, Severity.WARNING, phase=2,
+                ticker=ticker.symbol,
+                message=f"SEC EDGAR check failed for {ticker.symbol} ({exc}) — fail-open",
+            )
+            filtered.append(ticker)
+
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
+        message=(
+            f"SEC filing exclusion: {len(excluded)} tickers excluded "
+            f"(lookahead={lookahead_days}d ±{tolerance_days}d)"
+        ),
+        data={
+            "sec_filing_excluded_count": len(excluded),
+            "sec_filing_excluded": excluded[:50],
+            "lookahead_days": lookahead_days,
+            "tolerance_days": tolerance_days,
+        },
+    )
+
+    return filtered, excluded
 
 
 def _fmp_to_ticker(item: dict) -> Ticker:

@@ -118,6 +118,15 @@ TUNING = {
     "earnings_exclusion_days": 10,              # Skip if earnings within 10 calendar days
                                                 # (swing hold × 2 buffer — Day 63 outcome §3.10)
 
+    # SEC EDGAR Filing Exclusion (Fázis 1, 2026-05-16) — 10-Q / 10-K event-protection
+    # Closes the AGNC 2026-05-04 case (10-Q event, NOT earnings release, -$380 LOSS_EXIT)
+    "sec_filing_exclusion_enabled": True,
+    "sec_filing_lookahead_days": 10,            # Match earnings_exclusion_days (10d swing buffer)
+    "sec_filing_quarterly_tolerance_days": 10,  # ±10d on the 10-Q prediction (Tamás 2026-05-15)
+    "sec_filing_cache_dir": "state/sec_cache",
+    "sec_filing_cik_refresh_days": 30,          # Ticker→CIK map TTL
+    "sec_filing_filings_refresh_days": 1,       # Per-ticker submissions TTL
+
     # Sector Momentum
     "sector_leader_count": 3,                   # Top 3 → Leader
     "sector_laggard_count": 3,                  # Bottom 3 → Laggard

@@ -239,6 +239,7 @@ class Phase2Result:
     strategy_mode: StrategyMode = StrategyMode.LONG
     bulk_excluded_count: int = 0
     ticker_specific_excluded_count: int = 0
+    sec_filing_excluded: list[str] = field(default_factory=list)
 
 
 # ============================================================================

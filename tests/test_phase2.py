@@ -12,17 +12,28 @@ from ifds.phases.phase2_universe import (
     _screen_long_universe,
     _screen_short_universe,
     _exclude_earnings,
+    _exclude_sec_filings,
     _fmp_to_ticker,
 )
 
 
 @pytest.fixture
-def config(monkeypatch):
+def config(monkeypatch, tmp_path):
+    """Default config for Phase 2 tests.
+
+    SEC filing exclusion is DISABLED by default in the test fixture — the
+    `sec_edgar` module owns its own tests (test_sec_edgar.py). Tests that
+    exercise the SEC filing path explicitly re-enable it via
+    `config.tuning["sec_filing_exclusion_enabled"] = True` + a tmp cache dir.
+    """
     monkeypatch.setenv("IFDS_POLYGON_API_KEY", "test_poly")
     monkeypatch.setenv("IFDS_FMP_API_KEY", "test_fmp")
     monkeypatch.setenv("IFDS_FRED_API_KEY", "test_fred")
     monkeypatch.setenv("IFDS_ASYNC_ENABLED", "false")
-    return Config()
+    cfg = Config()
+    cfg.tuning["sec_filing_exclusion_enabled"] = False
+    cfg.tuning["sec_filing_cache_dir"] = str(tmp_path / "sec_cache")
+    return cfg
 
 
 @pytest.fixture
@@ -410,3 +421,87 @@ class TestPhase2Integration:
         universe_events = [e for e in logger.events if e["event_type"] == "UNIVERSE_BUILT"]
         assert len(universe_events) == 1
         assert universe_events[0]["data"]["ticker_count"] == 1
+
+
+class TestSecFilingExclusion:
+    """Phase 2 §3 — SEC EDGAR 10-Q / 10-K filing exclusion (Fázis 1, 2026-05-16)."""
+
+    def test_disabled_passthrough(self, config, logger):
+        config.tuning["sec_filing_exclusion_enabled"] = False
+        tickers = [Ticker(symbol="AAPL", company_name="Apple")]
+        filtered, excluded = _exclude_sec_filings(tickers, config, logger)
+        assert filtered == tickers
+        assert excluded == []
+
+    def test_empty_tickers_passthrough(self, config, logger):
+        config.tuning["sec_filing_exclusion_enabled"] = True
+        filtered, excluded = _exclude_sec_filings([], config, logger)
+        assert filtered == []
+        assert excluded == []
+
+    def test_exclusion_when_client_flags_ticker(self, config, logger):
+        config.tuning["sec_filing_exclusion_enabled"] = True
+        tickers = [
+            Ticker(symbol="AAPL", company_name="Apple"),
+            Ticker(symbol="MSFT", company_name="Microsoft"),
+            Ticker(symbol="AGNC", company_name="AGNC"),
+        ]
+        mock_client = MagicMock()
+        # AGNC flagged, others not
+        mock_client.has_upcoming_10q_or_10k.side_effect = (
+            lambda t, lookahead_days: t == "AGNC"
+        )
+        with patch("ifds.phases.phase2_universe.SecEdgarClient", return_value=mock_client):
+            filtered, excluded = _exclude_sec_filings(tickers, config, logger)
+        symbols = [t.symbol for t in filtered]
+        assert symbols == ["AAPL", "MSFT"]
+        assert excluded == ["AGNC"]
+
+    def test_fail_open_when_client_raises(self, config, logger):
+        """A per-ticker exception must NOT derail Phase 2 — ticker passes through."""
+        config.tuning["sec_filing_exclusion_enabled"] = True
+        tickers = [Ticker(symbol="AAPL", company_name="Apple")]
+        mock_client = MagicMock()
+        mock_client.has_upcoming_10q_or_10k.side_effect = RuntimeError("network down")
+        with patch("ifds.phases.phase2_universe.SecEdgarClient", return_value=mock_client):
+            filtered, excluded = _exclude_sec_filings(tickers, config, logger)
+        assert [t.symbol for t in filtered] == ["AAPL"]
+        assert excluded == []
+        # WARNING surfaced for observability
+        warnings = [e for e in logger.events
+                    if e["severity"] == "WARNING" and "SEC EDGAR" in e["message"]]
+        assert len(warnings) == 1
+
+    def test_run_phase2_does_not_write_production_state(self, config, logger, tmp_path):
+        """Regression guard ([ifds-rules.md] 'Test env hygiene'): the SEC filing
+        path must use the config-provided tmp cache dir, not state/sec_cache."""
+        config.tuning["sec_filing_exclusion_enabled"] = True
+        fmp = MagicMock()
+        fmp.screener.return_value = [_make_fmp_ticker("AAPL")]
+        fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.return_value = None
+
+        mock_client = MagicMock()
+        mock_client.has_upcoming_10q_or_10k.return_value = False
+        with patch("ifds.phases.phase2_universe.SecEdgarClient",
+                   return_value=mock_client) as mock_ctor:
+            run_phase2(config, logger, fmp, StrategyMode.LONG)
+        # The Phase 2 helper instantiated SecEdgarClient with the tmp cache dir
+        kwargs = mock_ctor.call_args.kwargs
+        assert str(kwargs["cache_dir"]).startswith(str(tmp_path))
+
+    def test_reports_sec_filing_excluded_in_result(self, config, logger):
+        config.tuning["sec_filing_exclusion_enabled"] = True
+        fmp = MagicMock()
+        fmp.screener.return_value = [_make_fmp_ticker("AAPL"), _make_fmp_ticker("AGNC")]
+        fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.return_value = None
+
+        mock_client = MagicMock()
+        mock_client.has_upcoming_10q_or_10k.side_effect = (
+            lambda t, lookahead_days: t == "AGNC"
+        )
+        with patch("ifds.phases.phase2_universe.SecEdgarClient", return_value=mock_client):
+            result = run_phase2(config, logger, fmp, StrategyMode.LONG)
+        assert "AGNC" in result.sec_filing_excluded
+        assert "AAPL" not in result.sec_filing_excluded

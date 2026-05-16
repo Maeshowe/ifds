@@ -36,6 +36,7 @@ class EventType(Enum):
     # Universe Building (Phase 2)
     UNIVERSE_BUILT = "UNIVERSE_BUILT"
     EARNINGS_EXCLUSION = "EARNINGS_EXCLUSION"
+    SEC_FILING_EXCLUSION = "SEC_FILING_EXCLUSION"
 
     # Data Loading
     DATA_PREFETCH = "DATA_PREFETCH"

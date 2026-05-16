@@ -1,9 +1,9 @@
 # Task: 10-Q / 10-K SEC Filing Exclusion (Phase 2 universum-szűrés)
 
-**Status:** OPEN
+**Status:** DONE
 **Priority:** P1 (Fázis 1, [`04-risks §1.2`](../master-reference/04-risks-and-open-questions.md))
 **Created:** 2026-05-21 (W21 D3 szerda)
-**Updated:** 2026-05-21
+**Updated:** 2026-05-16 (Ülés B — deployed; 1611-ticker live smoke 100% success, 0 429, 16 flagged)
 **Owner:** Claude Code
 **Estimated effort:** ~2–3h (SEC EDGAR API integráció + Phase 2 szűrés + cache + tesztek)
 

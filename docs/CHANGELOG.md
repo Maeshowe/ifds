@@ -4,6 +4,46 @@
 
 ---
 
+## Fázis 1 / W21 — SEC EDGAR 10-Q / 10-K filing exclusion (1607 tests)
+
+> 2026-05-16 | Day 63 outcome §3.10 — Ülés B (Task #3)
+
+### New module: `src/ifds/data/sec_edgar.py`
+- `SecEdgarClient` — ticker → CIK map (30d cache) + per-CIK filings (1d cache)
+- `predict_next_10q_date(filings)` — most-recent-10-Q + 90d quarterly heuristika, ±10d tolerance
+- `has_upcoming_10q_or_10k(ticker, lookahead_days=10)` — symmetric −tolerance/+lookahead window
+- SEC rate-limit compliant: 0.11s sleep between calls (10 req/sec cap)
+- Mandatory `User-Agent` header from `IFDS_SEC_EDGAR_USER_AGENT` env var (WARNING when unset)
+- Fail-open semantics: API fail + 2d cache fallback → return `[]` (don't exclude)
+- Real-schema verified against AAPL submissions on 2026-05-16
+
+### Phase 2 integration (`_exclude_sec_filings`)
+- New third pass after `_exclude_earnings` (Zombie Hunter)
+- Per-ticker exception is fail-open (warning log + ticker passes through)
+- `SEC_FILING_EXCLUSION` event type for per-ticker observability
+- `Phase2Result.sec_filing_excluded: list[str]` for downstream visibility
+
+### New TUNING keys (defaults.py)
+- `sec_filing_exclusion_enabled: True` (default ON for Fázis 1 deploy)
+- `sec_filing_lookahead_days: 10` (matches `earnings_exclusion_days`)
+- `sec_filing_quarterly_tolerance_days: 10` (±10d → 20d effective protection zone)
+- `sec_filing_cache_dir: "state/sec_cache"`
+- `sec_filing_cik_refresh_days: 30`
+- `sec_filing_filings_refresh_days: 1`
+
+### Tests (+25)
+- `tests/test_sec_edgar.py` — 19 tests covering schema parsing, window logic,
+  CIK cache, filings cache TTL, fail-open fallback, User-Agent header, rate limiting,
+  retroactive AGNC 2026-05-04 validation
+- `tests/test_phase2.py::TestSecFilingExclusion` — 6 integration tests for
+  disabled passthrough, exclusion, fail-open, production-state hygiene regression
+
+### Closes
+- 04-risks §1.2 (10-Q event-rés) — AGNC 2026-05-04 case (-$380 LOSS_EXIT) retroactively excluded
+- Day 63 outcome §3.10 — earnings-free **+ filing-free** zóna a swing hold teljes idejére
+
+---
+
 ## Fázis 1 / W21 — IBKR Gateway monitoring baseline (1582 tests)
 
 > 2026-05-16 | Day 63 outcome §6.1 — Ülés A

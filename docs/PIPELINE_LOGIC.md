@@ -274,6 +274,34 @@ API hiba → fail-open (ticker átengedett, WARNING log)
 - Konfig: `earnings_exclusion_days=10` (swing hold × 2 buffer — Day 63 outcome §3.10, 2026-05-19 deploy)
 - FMP endpoints: `/stable/earnings-calendar` (bulk) + `/stable/earnings?symbol=` (per-ticker)
 
+### SEC EDGAR 10-Q / 10-K Filing Exclusion (Fázis 1, 2026-05-16)
+
+A Zombie Hunter után fut. A FMP earnings_calendar **csak earnings release-eket** ad —
+a 10-Q (negyedéves) és 10-K (éves) SEC filing event-ek ettől eltérő dátumúak.
+Az AGNC 2026-05-04 case (-$380 LOSS_EXIT) pont egy ilyen event volt.
+
+```
+for each candidate ticker after earnings exclusion:
+  cik = ticker_to_cik(ticker)                       # cache: state/sec_cache/cik_map.json (30d TTL)
+  filings = sec_recent_filings(cik)                 # cache: state/sec_cache/filings/{cik}.json (1d TTL)
+  predicted = last_10q_filingDate + 90 days         # quarterly-cycle heuristika
+  if -tolerance <= (predicted - today).days <= lookahead_days:
+    EXCLUDE  (SEC_FILING_EXCLUSION INFO log)
+  else:
+    KEEP
+API hiba → 2 napi cache fallback; ennél stale → fail-open (ticker átengedett, WARNING log)
+```
+
+- Konfig: `sec_filing_exclusion_enabled=True`, `sec_filing_lookahead_days=10`,
+  `sec_filing_quarterly_tolerance_days=10` (effektív 20 napi védőzóna)
+- SEC EDGAR rate limit: 10 req/sec (0.11s sleep beépítve)
+- User-Agent header KÖTELEZŐ — `IFDS_SEC_EDGAR_USER_AGENT` env var
+- Modul: `src/ifds/data/sec_edgar.py` (`SecEdgarClient`, `predict_next_10q_date`)
+- Tervezett kockázat-aszimmetria (task §8 Döntés 2): false positive ~10-15%
+  (méltatlanul kizárt ~10-20 ticker az 1000-es univerzumból, van pótlék),
+  false negative ~2-5% (a 10-Q event ténylegesen átszivárog) — a kockázat-asszimetria
+  a swing pozíció-szintű veszteségre vonatkozik
+
 ### Survivorship Bias Protection (BC13)
 
 ```

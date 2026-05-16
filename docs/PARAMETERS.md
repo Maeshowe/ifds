@@ -88,6 +88,12 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | `zombie_max_net_margin` | 0.0 | P2 | Negatív margin | `universe.zombie.net_margin_max: 0` | ✅ Azonos |
 | `zombie_max_interest_coverage` | 1.5 | P2 | Alacsony kamatfedezet | `universe.zombie.interest_coverage_max: 1.5` | ✅ Azonos |
 | `earnings_exclusion_days` | 10 | P2 | Earnings előtti kizárás (swing hold × 2 buffer) | Implicit (10 nap) | ✅ Azonos |
+| `sec_filing_exclusion_enabled` | True | P2 | SEC 10-Q / 10-K event-szűrő bekapcsolása (Fázis 1, 2026-05-16) | — | Új |
+| `sec_filing_lookahead_days` | 10 | P2 | Előretekintés (egyezzen az earnings_exclusion_days-szel) | — | Új |
+| `sec_filing_quarterly_tolerance_days` | 10 | P2 | ±10 nap a 10-Q predikcióhoz (Tamás 2026-05-15) | — | Új |
+| `sec_filing_cache_dir` | `state/sec_cache` | P2 | CIK map + per-CIK filings cache mappa | — | Új |
+| `sec_filing_cik_refresh_days` | 30 | P2 | Ticker → CIK map TTL | — | Új |
+| `sec_filing_filings_refresh_days` | 1 | P2 | Per-ticker submissions cache TTL | — | Új |
 
 ### Sector Momentum (Phase 3)
 
