@@ -4,6 +4,19 @@
 
 ---
 
+## Fázis 1 / W21 — Earnings exclusion 7 → 10 nap (1567 tests)
+
+> 2026-05-16 | Day 63 outcome §3.10 — Ülés A
+
+### `earnings_exclusion_days` 7 → 10
+- `src/ifds/config/defaults.py` TUNING: 7 → 10 (swing hold × 2 buffer)
+- Indoklás: swing pivot 5 napos max hold (Day 63 §3.8) → 10 napi előretekintés garantálja, hogy a pozíció teljes ideje earnings-free
+- A 60 napi adat 3 dokumentált earnings-szűrő lyukat mutatott (DTE 5/1, BUD 5/5 részben a 7-napos ablak miatt; AGNC 5/4 10-Q event → külön task)
+- 3 új teszt (`TestEarningsExclusion10DayWindow`): 9d/10d/11d boundary
+- `PARAMETERS.md` és `PIPELINE_LOGIC.md` frissítve
+
+---
+
 ## Quick Wins — TP1 Calibration + VIX SL + Yield Curve + Contradiction Penalty + BMI Guard (1054 tests)
 
 > 2026-03-27 | Post-BC18, pre-BC20

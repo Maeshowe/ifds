@@ -316,6 +316,56 @@ class TestEarningsExclusionPass2:
         assert data["ticker_specific_catches"] == ["ADR"]
 
 
+class TestEarningsExclusion10DayWindow:
+    """Boundary tests for the 7→10 day swing buffer (Day 63 outcome §3.10)."""
+
+    def test_earnings_within_10_days_excluded(self, logger):
+        """Earnings 9 napon belül → kizárás (új küszöb)."""
+        tickers = [Ticker(symbol="WITHIN")]
+        fmp = MagicMock()
+        fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.return_value = "2026-03-05"  # today + 9
+
+        with patch("ifds.phases.phase2_universe.date") as mock_date:
+            mock_date.today.return_value = date(2026, 2, 24)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 10, logger)
+
+        assert "WITHIN" in excluded
+        assert len(filtered) == 0
+
+    def test_earnings_at_exactly_10_days_excluded(self, logger):
+        """Earnings pontosan 10 napra → kizárás (inclusive boundary)."""
+        tickers = [Ticker(symbol="BOUNDARY")]
+        fmp = MagicMock()
+        fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.return_value = "2026-03-06"  # today + 10
+
+        with patch("ifds.phases.phase2_universe.date") as mock_date:
+            mock_date.today.return_value = date(2026, 2, 24)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 10, logger)
+
+        assert "BOUNDARY" in excluded
+        assert len(filtered) == 0
+
+    def test_earnings_at_11_days_included(self, logger):
+        """Earnings 11 napra → marad az univerzumban."""
+        tickers = [Ticker(symbol="OUTSIDE")]
+        fmp = MagicMock()
+        fmp.get_earnings_calendar.return_value = []
+        fmp.get_next_earnings_date.return_value = "2026-03-07"  # today + 11
+
+        with patch("ifds.phases.phase2_universe.date") as mock_date:
+            mock_date.today.return_value = date(2026, 2, 24)
+            mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+            filtered, excluded, _, _ = _exclude_earnings(tickers, fmp, 10, logger)
+
+        assert "OUTSIDE" not in excluded
+        assert len(filtered) == 1
+        assert filtered[0].symbol == "OUTSIDE"
+
+
 class TestPhase2Integration:
     def test_long_mode_full_flow(self, config, logger):
         fmp = MagicMock()

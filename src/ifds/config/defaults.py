@@ -115,7 +115,8 @@ TUNING = {
     "zombie_max_interest_coverage": 1.5,
 
     # Zombie Hunter (Earnings exclusion)
-    "earnings_exclusion_days": 7,               # Skip if earnings within 7 calendar days
+    "earnings_exclusion_days": 10,              # Skip if earnings within 10 calendar days
+                                                # (swing hold × 2 buffer — Day 63 outcome §3.10)
 
     # Sector Momentum
     "sector_leader_count": 3,                   # Top 3 → Leader

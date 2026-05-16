@@ -1,9 +1,9 @@
 # Task: earnings_exclusion_days 7 → 10 (config + dokumentáció)
 
-**Status:** OPEN
+**Status:** DONE
 **Priority:** P1 (Fázis 1 előkészítés)
 **Created:** 2026-05-19
-**Updated:** 2026-05-19
+**Updated:** 2026-05-16
 **Owner:** Claude Code
 **Estimated effort:** ~20–30 min (config + tests + docs)
 

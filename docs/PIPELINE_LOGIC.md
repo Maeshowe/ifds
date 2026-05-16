@@ -271,7 +271,7 @@ Ha bármelyik pass-ban a ticker earnings-je a következő N napon belül van →
 API hiba → fail-open (ticker átengedett, WARNING log)
 ```
 
-- Konfig: `earnings_exclusion_days=7`
+- Konfig: `earnings_exclusion_days=10` (swing hold × 2 buffer — Day 63 outcome §3.10, 2026-05-19 deploy)
 - FMP endpoints: `/stable/earnings-calendar` (bulk) + `/stable/earnings?symbol=` (per-ticker)
 
 ### Survivorship Bias Protection (BC13)
