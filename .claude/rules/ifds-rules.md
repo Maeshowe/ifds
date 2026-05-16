@@ -5,6 +5,70 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## Rate-limit-érzékeny változtatás — live smoke a teljes terheléssel (rule, 2026-05-14)
+
+Új rate-limit-érzékeny kódút bevezetése (per-ticker külső API hívás, batch
+→ per-instance switch, semaphore-tuning, parallel → sequential refactor, stb.)
+ESETÉN **TILOS** extrapolált smoke-test-tel élesíteni. Minden ilyen
+változtatás előtt **kötelező egy live smoke a tényleges production
+terheléssel** (méret, párhuzamosság, semaphore-méret).
+
+**Példa-sértés:** a 2026-05-10-i `9a169b9` commit `UWBatchDarkPoolProvider`
+→ `UWDarkPoolProvider` switch-et deployolt egy **20-ticker × 300ms = 6s
+serial** smoke alapján "≈ 250 hívás/nap, rendben"-re extrapolálva. A
+production valójában **1425 ticker × sem_uw=5 parallel = ~17 req/s burst**-öt
+generált → **304 HTTP 429** az első élesi futáskor. Két nap utáni iteratív
+hotfix kellett (`90cf5b4` two-pass + `1f0ffb9` sequential+delay) ahhoz, hogy
+0-szerű hibarátára érkezzen a rendszer.
+
+**Szabály:**
+
+1. **A smoke-test paramétereinek azonosnak kell lenniük a production
+   paraméterekkel:**
+   - Ticker-szám: production `passed` vagy `analyzed` size (NEM "20 minta")
+   - Párhuzamosság: production `sem_uw`/`async_max_tickers` érték (NEM "1 serial")
+   - Időbeli sűrűség: production batch-/burst-mintázat (NEM "lassan, kézzel")
+   - API tier: production API key tier (NEM dev key magasabb limittel)
+
+2. **Méret-extrapoláció TILOS** rate-limit-érzékeny mérésnél. A
+   "20 × X ms × N = total time" formula **nem mond semmit** a tényleges
+   server-side rate-limit állapotról, mert a server **frekvenciára**, nem
+   abszolút hívásszámra érzékeny.
+
+3. **A smoke output-jának 3 metrikát kell tartalmaznia:**
+   - **Success rate** (ok / total) — várt: ≥95% production-ready számára
+   - **Hard error rate** (429 + exception) — várt: ≤5%
+   - **Wall-clock idő** — várt: férjen el a production cron ablakban
+
+4. **Ha a smoke 429-eket termel, NEM szabad commit-olni** a változtatást.
+   Iterálj a paraméterekkel (sequential delay, semaphore csökkentés,
+   exponential backoff, batch-hibrid) ÉS futtasd újra a live smoke-ot,
+   amíg a 3 metrika kapuban nincs.
+
+5. **A smoke parancsot ad-hoc Python script-ben futtasd** (NE pytest-ben,
+   mert az nem realisztikus terhelést ad). Mentsd el `scripts/analysis/`-ba
+   reprodukálhatóság miatt, ha gyakori a finomítás.
+
+**Példa-megfelelés:**
+
+A 2026-05-13-i `1f0ffb9` commit deploy-olása előtt **élő smoke** futott a
+**166-ticker mai passed list-en** (`logs/ifds_run_20260513_141500.jsonl`
+TICKER_SCORED események), 200ms delay sequential konfiggal, sync UW client-en
+(server-side rate-limit szempontból ekvivalens az async-kel). Eredmény:
+**158/166 success (95.2%), 0 hard error, 77.6s** — minden 3 metrika passed,
+a commit ki lett deploy-olva. A holnapi (5/14) production cron a végleges
+validáció.
+
+**Referencia:**
+
+- Példa-sértés commit: `9a169b9` (per-ticker switch elégtelen smoke-kal)
+- Iteratív javítás láncolat: `90cf5b4` → `1f0ffb9`
+- Példa-megfelelő smoke: 2026-05-13 ad-hoc script, 166 ticker, sequential+200ms
+- Diagnosztika a production log-ból: `cron_intraday_20260512_161500.log`
+  (304 errors) → `cron_intraday_20260513_161500.log` (146 errors)
+
+---
+
 ## "X feature nem prediktív" verdikt elé adat-egészség check (rule, 2026-05-10)
 
 A scoring validation / korreláció elemzés alapú "X feature nem ad alpha-t"
