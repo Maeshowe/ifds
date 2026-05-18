@@ -1,6 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-18 Budapest, CC Ülés C — Swing Daily Metrics + Telegram DEPLOY (1711 passing). Fázis 3 CC scope LEZÁRVA. Day 1 = kedd 5/19 15:30 CEST. -->
+<!-- Utolsó frissítés: 2026-05-18 12:10 CEST — Fázis 3 deploy LIVE. Day 1 = MA hétfő 2026-05-18 15:30 CEST. 1711 passing, Mac Mini crontab swing-aktív, IBKR $100k reset, state files Day 1 reset, 0 leftover positions, VIX 18.98 normal, all APIs healthy. NINCS BLOKKOLÓ. -->
 <!-- Korábbi: 2026-05-18 CC Ülés C — Swing Execution + Exit DEPLOY (1705 passing) -->
 <!-- Korábbi: 2026-05-18 CC Ülés B — Swing Sizing Phase 6 DEPLOY (1672 passing) -->
 <!-- Korábbi: 2026-05-18 CC Ülés A — Swing Universe + Swing Phase 4 scoring DEPLOY (1656 passing) -->

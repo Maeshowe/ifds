@@ -2,7 +2,7 @@
 # IFDS Paper Trading — SWING PIVOT (2026-05-18-tól)
 # =============================================================================
 #
-# Day 1 = 2026-05-19 kedd (új paper trading swing-mode-ban).
+# Day 1 = 2026-05-18 hétfő (új paper trading swing-mode-ban).
 # Architektúra: 15:30 CEST market BUY entry → daily 22:00 EOD eval (mental stop)
 #                → másnap 15:30 next-day exit + same-day 21:40 TIME_STOP MOC.
 # Részletes spec: docs/PIPELINE_LOGIC.md §6.SWING-EXIT
