@@ -1,6 +1,8 @@
 # Task: Swing Daily Metrics + Telegram Template + Deploy Kickoff
 
-**Status:** OPEN
+**Status:** WIP
+**Updated:** 2026-05-18
+**Note:** A rész (CC technikai) DONE 1711 tests; B rész (Tamás manual + push) PENDING
 **Priority:** P1 (Fázis 3 deploy lezárás)
 **Created:** 2026-05-17
 **Owner:** Claude Code (technikai rész) + Tamás (manual config + push)

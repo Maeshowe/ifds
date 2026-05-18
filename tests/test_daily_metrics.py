@@ -233,6 +233,7 @@ class TestBuildDailyMetrics:
             "date", "day_number", "positions", "market", "scoring",
             "execution", "exits", "pnl", "excess_return", "trades",
             "uw_shadow_summary",  # Day 63 §3.2 — UW shadow log integration
+            "swing_state",        # Task #5 — swing portfolio snapshot
         }
         assert required_keys == set(metrics.keys())
 

@@ -4,6 +4,32 @@
 
 ---
 
+## Fázis 3 / W21 — Swing Daily Metrics + Compact Telegram (1711 tests)
+
+> 2026-05-18 | Day 63 §3 (összes) — Ülés C / Task #5 A rész
+
+### `daily_metrics.py` — `swing_state` block
+- Új `_build_swing_state(target_date, planned, snapshot)` helper a `state/swing_positions.json` alapján:
+  - `open_positions`, `new_entries_today`, `new_entries_tickers`
+  - `total_notional`, `total_notional_pct_equity`
+  - `sector_distribution`, `sector_max_pct`
+  - `avg_days_held`, `max_days_held`
+  - `exits_today` (next_action != HOLD count by action)
+  - `next_day_planned.exits_at_1530` és `time_stops_at_2140`
+  - `swing_score_distribution` (threshold-fölötti tickerek + top 3 Sj)
+
+### `src/ifds/output/swing_telegram.py` — kompakt template
+- Új `format_swing_compact_telegram(metrics)` pure formatter — mobile-friendly < 800 char
+- Régi BMI / GEX / Cross-Asset Regime sorok elhagyva; csak swing-releváns mezők
+
+### Tesztek
+- `tests/test_swing_metrics_telegram.py` — **6 új teszt** (Telegram compact format,
+  zero entries, max entries, top-scores omitted, sector_distribution sums, empty state)
+- `tests/test_daily_metrics.py::test_output_has_required_keys` kibővítve `swing_state` kulccsal
+- **1705 → 1711 passing**, 0 regression
+
+---
+
 ## Fázis 3 / W21 — Swing Execution + Exit (mental stop, daily EOD eval) (1705 tests)
 
 > 2026-05-18 | Day 63 §3.1, §3.6, §3.8, §3.12 — Ülés C / Task #4

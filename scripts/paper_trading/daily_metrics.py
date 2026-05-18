@@ -114,6 +114,110 @@ def _load_execution_plan(target_date: str) -> dict[str, dict]:
     return planned
 
 
+def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
+    """Task #5 §2: swing_state metrics block.
+
+    Reads ``state/swing_positions.json`` and aggregates the swing portfolio view
+    for the daily Telegram report:
+      - open_positions, new_entries_today, total_notional
+      - sector_distribution, sector_max_pct
+      - avg/max days_held
+      - next_day_planned (15:30 exits + 21:40 TIME_STOPs)
+      - swing_score_distribution (qualifying threshold count, top 3 scores)
+    """
+    try:
+        from ifds.config.loader import Config
+        from ifds.state.swing_positions import load_swing_positions
+    except ImportError:
+        return {}
+
+    try:
+        cfg = Config()
+        state_file = cfg.tuning.get(
+            "swing_positions_state_file", "state/swing_positions.json",
+        )
+        max_concurrent = int(cfg.tuning.get("swing_max_concurrent", 12))
+        threshold = float(cfg.tuning.get("swing_score_threshold", 50.0))
+        equity = float(cfg.runtime.get("account_equity", 100_000.0))
+    except Exception:
+        state_file = "state/swing_positions.json"
+        max_concurrent = 12
+        threshold = 50.0
+        equity = 100_000.0
+
+    positions = load_swing_positions(state_file)
+
+    new_entries = [p for p in positions if p.entry_date == target_date]
+    total_notional = sum(p.entry_price * p.qty_remaining for p in positions)
+
+    sector_distribution: dict[str, float] = {}
+    for p in positions:
+        sector = p.sector or "UNKNOWN"
+        sector_distribution[sector] = (
+            sector_distribution.get(sector, 0.0) + p.entry_price * p.qty_remaining
+        )
+    sector_max_pct = (
+        max(v / equity * 100 for v in sector_distribution.values())
+        if sector_distribution else 0.0
+    )
+
+    if positions:
+        avg_days_held = sum(p.days_held for p in positions) / len(positions)
+        max_days_held = max(p.days_held for p in positions)
+    else:
+        avg_days_held = 0.0
+        max_days_held = 0
+
+    exits_today: dict[str, int] = {}
+    next_day_exits_1530: list[str] = []
+    next_day_time_stops: list[str] = []
+    for p in positions:
+        action = p.next_action
+        if action and action != "HOLD":
+            exits_today[action] = exits_today.get(action, 0) + 1
+            label = f"{p.ticker}_{action}"
+            if action == "TIME_STOP":
+                next_day_time_stops.append(label)
+            else:
+                next_day_exits_1530.append(label)
+
+    qualifying = 0
+    top_scores: list[dict] = []
+    if snapshot:
+        scored = sorted(snapshot, key=lambda r: float(r.get("combined_score", 0.0)), reverse=True)
+        qualifying = sum(1 for r in scored if float(r.get("combined_score", 0.0)) >= threshold)
+        for r in scored[:3]:
+            top_scores.append({
+                "ticker": r.get("ticker", "?"),
+                "S_j": round(float(r.get("combined_score", 0.0)), 1),
+                "sector": r.get("sector", ""),
+            })
+
+    return {
+        "open_positions": len(positions),
+        "max_concurrent": max_concurrent,
+        "new_entries_today": len(new_entries),
+        "new_entries_tickers": [p.ticker for p in new_entries],
+        "total_notional": round(total_notional, 2),
+        "total_notional_pct_equity": round(total_notional / equity * 100, 2) if equity > 0 else 0.0,
+        "sector_distribution": {k: round(v, 2) for k, v in sector_distribution.items()},
+        "sector_max_pct": round(sector_max_pct, 2),
+        "avg_days_held": round(avg_days_held, 2),
+        "max_days_held": max_days_held,
+        "exits_today": exits_today,
+        "next_day_planned": {
+            "exits_at_1530": next_day_exits_1530,
+            "time_stops_at_2140": next_day_time_stops,
+        },
+        "swing_score_distribution": {
+            "qualifying_threshold_50": qualifying,
+            "threshold": threshold,
+            "selected_for_entry": len(new_entries),
+            "top_3_scores": top_scores,
+        },
+    }
+
+
 def _load_uw_shadow_summary(target_date: str) -> dict:
     """Load and summarize the daily UW shadow snapshot (Day 63 §3.2).
 
@@ -299,6 +403,7 @@ def build_daily_metrics(target_date: str) -> dict:
     planned = _load_execution_plan(target_date)
     snapshot = _load_phase4_snapshot(target_date)
     uw_shadow_summary = _load_uw_shadow_summary(target_date)
+    swing_state = _build_swing_state(target_date, planned, snapshot)
 
     # --- Positions ---
     qualified_count = len(snapshot) if snapshot else 0
@@ -416,6 +521,8 @@ def build_daily_metrics(target_date: str) -> dict:
         },
 
         "uw_shadow_summary": uw_shadow_summary,
+
+        "swing_state": swing_state,
 
         "trades": {
             "best": {
