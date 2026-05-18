@@ -300,6 +300,15 @@ TUNING = {
     "dp_pct_bonus": -10,                       # dp_pct > 12% → -10 (was +10, sign-flipped)
     "dp_pct_high_bonus": -15,                  # dp_pct > 18% → -15 (was +15, sign-flipped)
 
+    # Swing Universe (2026-05-18, Day 63 §3.9 Döntés 9)
+    # Replace the FMP screener (~1390 unstable weekly-rotating universe)
+    # with S&P 500 + Russell 1000 union (~1000 stable, monthly-rebalanced).
+    # Required by the new Phase 4 percentile-normalized scoring which needs a
+    # stable universe distribution.
+    "universe_source": "swing_sp500_r1000",        # "fmp_screener" | "swing_sp500_r1000"
+    "swing_universe_cache_dir": "state/swing_universe",
+    "swing_universe_cache_ttl_days": 7,            # Wikipedia monthly rebalance buffer
+
     # UW Dark Pool / GEX Deactivation + Shadow Logging (2026-05-26, Day 63 §3.2)
     # Day 63 outcome decision [2]: the UW dark pool / GEX scoring is deactivated
     # because the 60-day audit (W17-W19) showed an inverse signal (dp_pct r=-0.265,

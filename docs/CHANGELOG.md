@@ -4,6 +4,45 @@
 
 ---
 
+## Fázis 2 / W21 — Swing Universe (S&P 500 + Russell 1000) (1638 tests)
+
+> 2026-05-18 | Day 63 §3.9 Döntés 9 — Ülés A / Task #1
+
+### Új modul: `src/ifds/data/swing_universe.py`
+- `SwingUniverseSource(cache_dir, cache_ttl_days=7)` — Wikipedia primary, FMP fallback, 7d cache
+- `fetch_sp500_from_wikipedia()`, `fetch_russell1000_from_wikipedia()` — header-driven
+  Symbol column detection (`id="constituents"` table, `<th>` szöveg match)
+- `_FirstColumnSymbolParser` — stdlib `html.parser` (no lxml/bs4 dependency)
+- Class-share normalizálás: `BRK.B → BRK-B`, `BF.A → BF-A`
+- Plausibility windows: SP500 [480, 525], R1000 [950, 1050], union [950, 1100]
+- Live verified (2026-05-18): SP500=503, R1000=1002, union=1008, overlap=497
+
+### Phase 2 integráció (`_screen_long_universe`)
+- Új `_load_swing_membership()` helper a swing source betöltésére
+- `universe_source=swing_sp500_r1000` (default) → FMP screener result **intersect** swing union
+- Per-ticker FMP enrichment (sector, market_cap, price, volume) megőrizve
+- Fail-open: swing fetch failure → fallback raw FMP screener + WARNING log
+
+### Új TUNING kulcsok (`defaults.py`)
+- `universe_source: "swing_sp500_r1000"` (default — legacy `fmp_screener` opcióként)
+- `swing_universe_cache_dir: "state/swing_universe"`
+- `swing_universe_cache_ttl_days: 7`
+
+### Tests (+14)
+- `tests/test_swing_universe.py` (új) — 14 teszt 4 osztályban:
+  - `TestParser` (4): SP500 first-col + R1000 second-col layouts + class-share + non-ticker filter
+  - `TestCacheLifecycle` (4): write, fresh skip, expired refetch, corrupt fallthrough
+  - `TestFailureModes` (3): Wikipedia fail→FMP, both fail→raise, FMP out-of-window→None
+  - `TestPhase2SwingIntegration` (3): intersect filter, swing-fail→raw-fallback, legacy source bypass
+- `tests/test_phase2.py` config fixture: `universe_source="fmp_screener"` pin a regression suite-hoz
+  (rule: test environment must not read production swing_universe cache)
+
+### Refs
+- `docs/decisions/2026-05-14-day63-decision-outcome.md` §3.9 (Döntés 9)
+- `docs/design/swing-pivot-architecture.md` §2.1
+
+---
+
 ## Fázis 1 / W21 — UW dark pool / GEX deactivation + shadow logging (1624 tests)
 
 > 2026-05-16 | Day 63 outcome §3.2 — Ülés C (Task #4)

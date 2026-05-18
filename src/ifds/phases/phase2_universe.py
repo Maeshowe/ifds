@@ -111,7 +111,15 @@ def run_phase2(config: Config, logger: EventLogger,
 
 def _screen_long_universe(fmp: FMPClient, config: Config,
                           logger: EventLogger) -> list[Ticker]:
-    """Screen for LONG universe using FMP screener."""
+    """Screen for LONG universe.
+
+    2026-05-18 (Day 63 §3.9): the default `universe_source` is now
+    "swing_sp500_r1000" — the FMP screener result is **intersected** with the
+    S&P 500 + Russell 1000 union so per-ticker FMP enrichment (sector,
+    market_cap, price, volume) is preserved while the universe membership
+    comes from a stable index-based source. Legacy `fmp_screener` source
+    kept as fallback (set `universe_source: "fmp_screener"` in config).
+    """
     params = {
         "marketCapMoreThan": config.tuning["universe_min_market_cap"],
         "priceMoreThan": config.tuning["universe_min_price"],
@@ -136,13 +144,30 @@ def _screen_long_universe(fmp: FMPClient, config: Config,
                     message="FMP screener returned no results for LONG universe")
         return []
 
+    universe_source = config.tuning.get("universe_source", "swing_sp500_r1000")
+    swing_membership: set[str] | None = None
+    if universe_source == "swing_sp500_r1000":
+        swing_membership = _load_swing_membership(fmp, config, logger)
+        if swing_membership is None:
+            logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=2,
+                       message="Swing universe fetch failed — falling back to "
+                               "raw FMP screener (legacy ~1390 ticker universe)")
+
     tickers = []
     filtered_inactive = 0
+    filtered_membership = 0
     for item in raw:
         # Filter: must have options (if configured)
         if config.tuning["universe_require_options"]:
             if not item.get("isActivelyTrading", True):
                 filtered_inactive += 1
+                continue
+
+        # Filter: swing universe membership (S&P 500 + Russell 1000)
+        if swing_membership is not None:
+            symbol = (item.get("symbol") or "").upper().replace(".", "-")
+            if symbol not in swing_membership:
+                filtered_membership += 1
                 continue
 
         ticker = _fmp_to_ticker(item)
@@ -154,7 +179,43 @@ def _screen_long_universe(fmp: FMPClient, config: Config,
                    data={"filtered_inactive": filtered_inactive,
                          "remaining": len(tickers)})
 
+    if filtered_membership:
+        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
+                   message=(f"Swing universe filter: {filtered_membership} tickers "
+                            f"excluded (not in S&P 500 + Russell 1000)"),
+                   data={"swing_membership_size": len(swing_membership or []),
+                         "filtered_membership": filtered_membership,
+                         "remaining": len(tickers)})
+
     return tickers
+
+
+def _load_swing_membership(fmp: FMPClient, config: Config,
+                           logger: EventLogger) -> set[str] | None:
+    """Load the S&P 500 + Russell 1000 union as a normalized symbol set.
+
+    Returns None on any failure so the caller can fall back to the raw
+    screener result (legacy behavior).
+    """
+    from ifds.data.swing_universe import SwingUniverseSource
+
+    cache_dir = Path(config.tuning.get(
+        "swing_universe_cache_dir", "state/swing_universe",
+    ))
+    ttl_days = int(config.tuning.get("swing_universe_cache_ttl_days", 7))
+    source = SwingUniverseSource(cache_dir=cache_dir, cache_ttl_days=ttl_days)
+    try:
+        symbols = source.get_universe(fmp_client=fmp)
+    except Exception as exc:
+        logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=2,
+                   message=f"Swing universe load failed: {exc}")
+        return None
+
+    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
+               message=f"Swing universe loaded: {len(symbols)} symbols "
+                       f"(S&P 500 + Russell 1000 union)",
+               data={"swing_universe_size": len(symbols)})
+    return {s.upper() for s in symbols}
 
 
 def _screen_short_universe(fmp: FMPClient, config: Config,

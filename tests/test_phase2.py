@@ -33,6 +33,13 @@ def config(monkeypatch, tmp_path):
     cfg = Config()
     cfg.tuning["sec_filing_exclusion_enabled"] = False
     cfg.tuning["sec_filing_cache_dir"] = str(tmp_path / "sec_cache")
+    # Legacy FMP-screener path for existing universe tests — the new swing
+    # source (`swing_sp500_r1000`) is exercised in TestSwingUniverseSource.
+    # This pins the fixture so existing tests don't accidentally hit the
+    # network or read a leftover state/swing_universe/ cache (rule: test
+    # environment must not depend on production state — ifds-rules.md
+    # 2026-05-10).
+    cfg.tuning["universe_source"] = "fmp_screener"
     return cfg
 
 

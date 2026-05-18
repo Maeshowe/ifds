@@ -78,6 +78,16 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | `universe_min_avg_volume` | 500K | P2 | Min átlag napi forgalom | `universe.long.min_volume: 1M` | ⚠️ **V13=1M, V2=500K** |
 | `universe_require_options` | True | P2 | Kell-e opciós piac | Implicit | ✅ |
 
+### Swing Universe (2026-05-18, Day 63 §3.9 Döntés 9)
+
+| Kulcs | Érték | Phase | Hatás |
+|-------|-------|-------|-------|
+| `universe_source` | `swing_sp500_r1000` | P2 | `swing_sp500_r1000` (default) → S&P 500 + Russell 1000 union (~1000) intersect FMP screener. `fmp_screener` → legacy ~1390 universe (fallback). |
+| `swing_universe_cache_dir` | `state/swing_universe` | P2 | Cache directory a Wikipedia + FMP fetch eredménynek |
+| `swing_universe_cache_ttl_days` | 7 | P2 | Cache TTL — havi index-rebalansz buffer |
+
+A swing horizon (3-5 nap hold) likviditás-érzékenyebb mint az intraday — a Russell 1000 alsó határa (~$700M-1B cap) elfogadható, de a Russell 2000 small-cap réteget kizárjuk a slippage-érzékenység miatt. A Phase 4 percentile-normalizált scoring (Task #2) **stabil universe distribution-t igényel**, amit a heti-szezonális FMP screener-rotáció nem ad. Wikipedia primary forrás (`id="constituents"` table, header-driven Symbol column detection), FMP `/stable/sp500-constituent` + `/stable/russell1000-constituent` fallback (best-effort).
+
 ### Universe Building — SHORT (Zombie)
 
 | Kulcs | Érték | Phase | Hatás | V13 | Eltérés? |

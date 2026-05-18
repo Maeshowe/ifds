@@ -1,6 +1,8 @@
 # Task: Swing Universe — S&P 500 + Russell 1000 forrás
 
-**Status:** OPEN
+**Status:** DONE
+**Updated:** 2026-05-18 (Ülés A, deploy ahead of schedule)
+**Actual effort:** ~1.5h (live smoke + header-driven parser rewrite Russell 1000-hez)
 **Priority:** P0 (Fázis 3 deploy, BLOKKOLÓ — minden további task függősége)
 **Created:** 2026-05-17 (vasárnap, Fázis 2+3 deploy nap)
 **Owner:** Claude Code

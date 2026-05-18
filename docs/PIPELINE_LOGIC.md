@@ -244,8 +244,23 @@ FMP Screener alapján szűri a piacot kereskedhető univerzumra.
 | Átlagos forgalom | > 500,000 db/nap | `universe_min_avg_volume` |
 | ETF | Nem | `isEtf=False` |
 | Aktívan kereskedett | Igen | `universe_require_options` |
+| **Swing index-membership** | S&P 500 ∪ Russell 1000 | `universe_source=swing_sp500_r1000` (2026-05-18) |
 
-Eredmény: ~3,000 ticker
+Eredmény: ~3,000 ticker (legacy `fmp_screener`) **/ ~870 ticker** (default swing intersect).
+
+#### Swing Universe Source (2026-05-18, Day 63 §3.9 Döntés 9)
+
+A `universe_source=swing_sp500_r1000` (default) az FMP screener eredményét **metszi** az **S&P 500 + Russell 1000 union** szimbólum-listával:
+
+1. Wikipedia primary fetch: `https://en.wikipedia.org/wiki/List_of_S%26P_500_companies` + `Russell_1000_Index`
+   - Header-driven Symbol oszlop felismerés (`id="constituents"` table, "Symbol"/"Ticker" header)
+   - Class-share normalizálás: `BRK.B → BRK-B`, `BF.A → BF-A`
+2. FMP fallback (best-effort): `/stable/sp500-constituent` + `/stable/russell1000-constituent`
+3. Wikipedia + FMP mindkettő fail → Phase 2 visszaesik a raw FMP screener-re (legacy ~3000 ticker, WARNING log)
+
+Plausibility window: S&P 500 ∈ [480, 525], Russell 1000 ∈ [950, 1050], union ∈ [950, 1100]. Cache: `state/swing_universe/universe.json`, 7-napi TTL (havi rebalansz buffer).
+
+A swing horizon (3-5 nap) likviditás-érzékenyebb az intraday-nél, és a Phase 4 percentile-normalizált scoring stabil universe distribution-t igényel — a heti-szezonális FMP screener-rotáció (~30%/nap változás) instabilizálná. A Russell 2000 small-cap réteg explicit kizárva slippage-érzékenység miatt.
 
 ### SHORT (Zombie) Universe Szűrők
 
