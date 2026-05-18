@@ -106,8 +106,8 @@ Phase 6 multiplier chain swing-módra:
 | `swing_max_daily_new` | 3 | P6 | Napi új-entry plafond ("2-3 csak ha érdemes"); a sector cap önmagában is korlátoz |
 | `swing_sector_cap_pct` | 0.30 | P6 | 30% notional / sector — Decision 11 (régi: `max_positions_per_sector=2`) |
 | `swing_stop_atr_multiple` | 2.0 | P6 | Mental stop = 2.0×ATR (sizing képletbe) |
-| `swing_tp1_atr_multiple` | 1.25 | P6 | TP1 a swing-mode swing képletből |
-| `swing_tp2_atr_multiple` | 2.0 | P6 | TP2 a swing-mode swing képletből |
+| `swing_tp1_atr_multiple` | 1.5 | P6 | TP1 swing-spec ATR multiple (Task #4 felülírta a Task #3 1.25-öt) |
+| `swing_tp2_atr_multiple` | 3.0 | P6 | TP2 swing-spec ATR multiple (Task #4 felülírta a Task #3 2.0-t) |
 | `swing_min_notional` | 1_000 | P6 | Numerikus floor — $1k alatti notional → skip |
 | `max_positions` (runtime) | 12 | P6 | Régi: 5 — összhangban a swing cap-pel |
 | `max_gross_exposure` (runtime) | 150_000 | P6 | 12 × ~$12.5k átlag (régi: 80k) |
@@ -126,6 +126,48 @@ A `_select_swing_entries` sector-balanced greedy fill (Decision 10):
 3. Megáll, ha `swing_max_daily_new` elérve VAGY `swing_max_concurrent - len(open_positions)` elérve
 
 A legacy BMI Momentum Guard, BC21 Correlation Guard sector-group cap, és a régi `_apply_position_limits` cascade **NEM** fut a swing-mode-on. A Portfolio VaR check (BC21) **megmarad** mindkét pathon.
+
+### Swing Execution + Exit (2026-05-18, Day 63 §3.1, §3.6, §3.8, §3.12 — Task #4)
+
+Mental-stop architektúra: az IBKR csak a nyitott pozíciót tartja; a stop/TP1/TP2/trail
+a `pt_monitor.py --mode=eod_eval` napi (22:00 CEST) eval-ja számolja, a `state/swing_positions.json`
+state fájlban tárolt szintek alapján. A kilépés-akciók (`HARD_SL`, `MENTAL_SL`, `TP1`, `TP2`, `TRAIL_SL`)
+másnap 15:30 CEST market SELL-lel teljesülnek a `close_positions.py --mode=eod_flags`-on, a `TIME_STOP`
+pedig same-day 21:40 CEST MOC SELL a `close_positions.py --mode=time_stop`-on.
+
+| Kulcs | Érték | Komponens | Hatás |
+|-------|-------|-----------|-------|
+| `swing_execution_enabled` | True | submit/close/monitor | Aktív → market BUY only + mental stop arch. False → legacy bracket OCA |
+| `swing_entry_time_cest` | "15:30" | cron submit | 09:30 ET market-open entry (régi: 16:20 CEST = 45 min open után) |
+| `swing_eod_eval_time_cest` | "22:00" | cron monitor | 16:00 ET market-close eval |
+| `swing_close_eod_action_time_cest` | "15:30" | cron close eod_flags | Másnap exit a HARD/MENTAL/TP/TRAIL flagre |
+| `swing_close_time_stop_time_cest` | "21:40" | cron close time_stop | Same-day MOC a TIME_STOP flagre |
+| `swing_tp1_sell_pct` | 0.50 | close eod_flags | TP1 → 50% sell, qty_remaining lép |
+| `swing_mental_stop_atr_multiple` | 2.0 | monitor eod | `stop_level = entry - 2.0×ATR` |
+| `swing_trail_atr_multiple` | 1.0 | monitor eod | Trail aktivál TP1 után, `trail_sl = close - 1.0×ATR` |
+| `swing_hard_sl_weekly_cumulative_pct` | -0.08 | monitor eod | -8% weekly cum P&L → HARD_SL (precedes MENTAL_SL) |
+| `swing_time_stop_trading_days` | 5 | monitor eod | 5 calendar days → TIME_STOP (MOC same-day) |
+| `swing_positions_state_file` | `state/swing_positions.json` | submit/close/monitor | State source-of-truth |
+| `ibkr_bracket_enabled` | False | submit | A legacy 3-order bracket OCA kikapcsolva |
+| `loss_exit_intraday_enabled` | False | (legacy) | Régi -2% intraday LOSS_EXIT KIKAPCSOLVA (DTE/SQM duplikált bug osztály megszűnt) |
+| `pt_monitor_5min_mode` | False | monitor | Régi 5-perces trail loop kikapcsolva |
+
+Exit priority (first match wins): `HARD_SL → MENTAL_SL → TP2 → TP1 → TRAIL_SL → TIME_STOP → HOLD`.
+
+`SwingPosition` state schema (`src/ifds/state/swing_positions.py`):
+
+```python
+@dataclass
+class SwingPosition:
+    ticker: str; entry_date: str; entry_price: float; atr: float
+    stop_level: float; tp1_level: float; tp2_level: float
+    qty: int; qty_remaining: int
+    tp1_hit: bool = False; trail_sl: float | None = None
+    days_held: int = 0
+    next_action: str = "HOLD"; next_action_at: str | None = None
+    weekly_pnl_pct: float = 0.0
+    sector: str = ""; direction: str = "BUY"; m_target: float = 1.0
+```
 
 ### Swing Universe (2026-05-18, Day 63 §3.9 Döntés 9)
 

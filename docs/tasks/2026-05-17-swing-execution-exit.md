@@ -1,6 +1,8 @@
 # Task: Swing Execution + Exit — 15:30 entry, mental stop, daily EOD eval
 
-**Status:** OPEN
+**Status:** DONE
+**Updated:** 2026-05-18
+**Note:** Ülés C — 33 új teszt, 1672 → 1705 passing, 0 regression
 **Priority:** P0 (Fázis 3 deploy)
 **Created:** 2026-05-17
 **Owner:** Claude Code

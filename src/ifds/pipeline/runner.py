@@ -570,6 +570,22 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     pass
 
                 strategy = ctx.strategy_mode or StrategyMode.LONG
+
+                # Task #4 wire-up: pass currently-open swing positions into Phase 6
+                # so the 12-cap and 30% sector notional cap know existing exposure.
+                open_positions = []
+                if config.tuning.get("swing_execution_enabled", False):
+                    from ifds.state.swing_positions import (
+                        load_swing_positions, to_position_sizing_stub,
+                    )
+                    state_file = config.tuning.get(
+                        "swing_positions_state_file", "state/swing_positions.json",
+                    )
+                    open_swings = load_swing_positions(state_file)
+                    open_positions = [
+                        to_position_sizing_stub(p) for p in open_swings
+                    ]
+
                 phase6 = run_phase6(
                     config, logger,
                     ctx.stock_analyses,
@@ -581,6 +597,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     signal_hash_file=config.runtime.get("signal_hash_file"),
                     mms_analyses=ctx.mms_analyses,
                     bmi_value=ctx.bmi_value,
+                    open_positions=open_positions,
                 )
                 ctx.phase6 = phase6
                 ctx.positions = phase6.positions

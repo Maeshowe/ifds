@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
-"""IBKR Paper Trading — Close remaining positions at market close (MOC).
+"""IBKR Paper Trading — Close positions.
 
-Runs at 21:45 CET (15:45 ET) — 5 min before NYSE MOC deadline.
-Submits Market-on-Close SELL orders for any open positions.
+Three modes (Task #4 swing pivot, 2026-05-18):
+    --mode=moc         Legacy: MOC SELL all open positions at 21:45 CEST
+    --mode=eod_flags   Swing: next-day 15:30 CEST market SELL of HARD/MENTAL/TP/TRAIL flags
+    --mode=time_stop   Swing: same-day 21:40 CEST MOC SELL of TIME_STOP flags
 
 Usage:
-    python scripts/paper_trading/close_positions.py
+    python scripts/paper_trading/close_positions.py --mode=eod_flags
+    python scripts/paper_trading/close_positions.py --mode=time_stop
+    python scripts/paper_trading/close_positions.py            # default: moc (legacy)
 """
+import argparse
 import os
-from datetime import date
+import sys
+from datetime import date, datetime, timezone
 
 from dotenv import load_dotenv
 
@@ -96,12 +102,142 @@ def get_net_open_qty(symbol: str, con_id: int, gross_qty: int, todays_fills) -> 
 # ---------------------------------------------------------------------------
 
 
+def run_swing_eod_flags(state_file: str, today_str: str) -> None:
+    """15:30 CEST next-day exit — Task #4 (HARD_SL/MENTAL_SL/TP1/TP2/TRAIL_SL).
+
+    Reads state/swing_positions.json, finds positions with next_action ∈
+    {HARD_SL, MENTAL_SL, TP1, TP2, TRAIL_SL}, submits market SELL orders,
+    and updates state (TP1 → partial; others → remove).
+    """
+    from ifds.state.swing_positions import (
+        ACTION_HOLD, ACTION_TP1, EOD_ACTIONS_NEXT_DAY,
+        apply_executed_exit, load_swing_positions, save_swing_positions,
+    )
+    from lib.connection import connect, get_account, disconnect
+    from ib_insync import MarketOrder, Stock
+
+    positions = load_swing_positions(state_file)
+    actionable = [p for p in positions if p.next_action in EOD_ACTIONS_NEXT_DAY]
+    if not actionable:
+        logger.info("[SWING 15:30 close] No EOD action flags set — nothing to do.")
+        return
+
+    ib = connect(client_id=11, context_label="close_positions.py (swing eod_flags)")
+    account = get_account(ib)
+
+    new_state = [p for p in positions if p.next_action not in EOD_ACTIONS_NEXT_DAY]
+    tp1_sell_pct = 0.50  # mirrored from TUNING — close_positions stays minimal
+    submitted: list[tuple[str, str, int]] = []
+
+    for pos in actionable:
+        from ifds.state.swing_positions import compute_sell_qty
+        qty = compute_sell_qty(pos, pos.next_action, tp1_sell_pct=tp1_sell_pct)
+        contract = Stock(pos.ticker, "SMART", "USD")
+        ib.qualifyContracts(contract)
+        order = MarketOrder(action="SELL", totalQuantity=qty)
+        order.account = account
+        order.orderRef = f"IFDS_SWING_{pos.ticker}_{pos.next_action}"
+        ib.placeOrder(contract, order)
+        ib.sleep(1)
+        logger.info(f"  {pos.ticker}: {pos.next_action} → SELL {qty} (MKT)")
+        if evt:
+            evt.log("close", "swing_eod_exit", ticker=pos.ticker,
+                    action=pos.next_action, qty=qty)
+        submitted.append((pos.ticker, pos.next_action, qty))
+
+        if pos.next_action == ACTION_TP1:
+            updated = apply_executed_exit(pos, ACTION_TP1, tp1_sell_pct=tp1_sell_pct)
+            if updated is not None:
+                new_state.append(updated)
+
+    save_swing_positions(state_file, new_state)
+    logger.info(f"[SWING 15:30 close] Submitted {len(submitted)} exits | open: {len(new_state)}")
+
+    if submitted:
+        lines = [f"📤 IFDS Swing 15:30 Exit — {today_str}"]
+        for ticker, action, qty in submitted:
+            lines.append(f"  {ticker}: {action} qty {qty}")
+        send_telegram("\n".join(lines))
+
+    disconnect(ib)
+
+
+def run_swing_time_stop(state_file: str, today_str: str) -> None:
+    """21:40 CEST same-day TIME_STOP MOC SELL — Task #4."""
+    from ifds.state.swing_positions import (
+        ACTION_TIME_STOP, load_swing_positions, save_swing_positions,
+    )
+    from lib.connection import connect, get_account, disconnect
+    from lib.orders import create_moc_order
+    from ib_insync import Stock
+
+    positions = load_swing_positions(state_file)
+    actionable = [p for p in positions if p.next_action == ACTION_TIME_STOP]
+    if not actionable:
+        logger.info("[SWING 21:40 close] No TIME_STOP flags — nothing to do.")
+        return
+
+    ib = connect(client_id=11, context_label="close_positions.py (swing time_stop)")
+    account = get_account(ib)
+
+    new_state = [p for p in positions if p.next_action != ACTION_TIME_STOP]
+    submitted: list[tuple[str, int]] = []
+    for pos in actionable:
+        contract = Stock(pos.ticker, "SMART", "USD")
+        ib.qualifyContracts(contract)
+        order = create_moc_order(pos.qty_remaining, account, action="SELL")
+        order.orderRef = f"IFDS_SWING_{pos.ticker}_TIME_STOP"
+        ib.placeOrder(contract, order)
+        ib.sleep(1)
+        logger.info(f"  {pos.ticker}: TIME_STOP → MOC SELL {pos.qty_remaining}")
+        if evt:
+            evt.log("close", "swing_time_stop_moc", ticker=pos.ticker,
+                    qty=pos.qty_remaining)
+        submitted.append((pos.ticker, pos.qty_remaining))
+
+    save_swing_positions(state_file, new_state)
+    logger.info(f"[SWING 21:40 close] MOC submitted {len(submitted)} | open: {len(new_state)}")
+
+    if submitted:
+        lines = [f"🌒 IFDS Swing TIME_STOP MOC — {today_str}"]
+        for ticker, qty in submitted:
+            lines.append(f"  {ticker}: MOC SELL qty {qty}")
+        send_telegram("\n".join(lines))
+
+    disconnect(ib)
+
+
 def main():
+    parser = argparse.ArgumentParser(description="IFDS Paper Trading — Close Positions")
+    parser.add_argument(
+        "--mode", choices=["moc", "eod_flags", "time_stop"], default="moc",
+        help="moc: legacy 21:45 MOC close all | eod_flags: 15:30 next-day swing exits | time_stop: 21:40 same-day TIME_STOP MOC",
+    )
+    args, _ = parser.parse_known_args()
+
     try:
         from lib.trading_day_guard import check_trading_day
         check_trading_day(logger)
     except ModuleNotFoundError:
         pass
+
+    today_str = date.today().strftime('%Y-%m-%d')
+
+    if args.mode in ("eod_flags", "time_stop"):
+        try:
+            from ifds.config.loader import Config as _IFDSConfig
+            _cfg = _IFDSConfig()
+            state_file = _cfg.tuning.get(
+                "swing_positions_state_file", "state/swing_positions.json",
+            )
+        except Exception:
+            state_file = "state/swing_positions.json"
+
+        if args.mode == "eod_flags":
+            run_swing_eod_flags(state_file, today_str)
+        else:
+            run_swing_time_stop(state_file, today_str)
+        return
 
     # Early close detection
     try:
@@ -121,8 +257,6 @@ def main():
 
     from lib.connection import connect, get_account, disconnect
     from lib.orders import create_moc_order
-
-    today_str = date.today().strftime('%Y-%m-%d')
 
     ib = connect(client_id=11)
     ib.sleep(3)  # Initial sync

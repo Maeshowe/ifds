@@ -179,6 +179,182 @@ def get_existing_symbols(ib):
 
 
 # ---------------------------------------------------------------------------
+# Swing-mode entry (Task #4 — mental stop architecture)
+# ---------------------------------------------------------------------------
+
+
+def submit_swing_market_only(
+    tickers,
+    dry_run,
+    today_str,
+    cfg,
+    state_file,
+):
+    """Submit market BUYs only and persist swing position state.
+
+    Per Day 63 §3.12, the swing horizon replaces the IBKR bracket (BUY+SL+TP1)
+    with a single market BUY. The mental stop/TP1/TP2 levels live in
+    ``state/swing_positions.json`` and are evaluated by the daily EOD pt_monitor.
+    """
+    from ifds.state.swing_positions import (
+        SwingPosition,
+        load_swing_positions,
+        save_swing_positions,
+    )
+
+    stop_mult = cfg.tuning.get("swing_mental_stop_atr_multiple", 2.0)
+
+    # --- Reconstruct ATR per ticker from CSV's stop_loss (entry - stop_mult*ATR)
+    # so the SwingPosition has a clean ATR for downstream trail math.
+    def _atr_from_row(t):
+        if stop_mult <= 0:
+            return 0.0
+        return (t['limit_price'] - t['stop_loss']) / stop_mult
+
+    existing_swings = {p.ticker: p for p in load_swing_positions(state_file)}
+
+    if dry_run:
+        logger.info("[DRY RUN — SWING] No IBKR connection")
+        submitted_tickers = []
+        new_state: list[SwingPosition] = list(existing_swings.values())
+        for t in tickers:
+            sym = t['symbol']
+            if sym in existing_swings:
+                logger.info(f"  Skipping {sym}: already in swing state")
+                continue
+            atr = _atr_from_row(t)
+            pos = SwingPosition(
+                ticker=sym,
+                entry_date=today_str,
+                entry_price=t['limit_price'],
+                atr=atr,
+                stop_level=t['stop_loss'],
+                tp1_level=t['take_profit_1'],
+                tp2_level=t['take_profit_2'],
+                qty=t['total_qty'],
+                qty_remaining=t['total_qty'],
+                sector=t.get('sector', ''),
+                direction=t['direction'],
+            )
+            new_state.append(pos)
+            submitted_tickers.append(sym)
+            logger.info(
+                f"  {sym}: MKT BUY {t['total_qty']} @ ~${t['limit_price']:.2f} "
+                f"| stop ${pos.stop_level:.2f} | TP1 ${pos.tp1_level:.2f} "
+                f"| TP2 ${pos.tp2_level:.2f}"
+            )
+
+        logger.info(f"[SWING DRY RUN] Would submit: {len(submitted_tickers)} tickers")
+        return
+
+    # --- Live swing submit ---
+    from lib.connection import connect, get_account, disconnect
+    from lib.heartbeat import touch as heartbeat_touch
+    from ib_insync import MarketOrder
+
+    heartbeat_touch("submit_attempt", label=today_str)
+    ib = connect(client_id=10, context_label="submit_orders.py (swing)")
+    account = get_account(ib)
+
+    existing = get_existing_symbols(ib)
+    if existing:
+        logger.info(f"Existing IBKR positions/orders: {existing}")
+
+    submitted_tickers = []
+    new_state: list[SwingPosition] = list(existing_swings.values())
+
+    for t in tickers:
+        sym = t['symbol']
+        if sym in existing or sym in existing_swings:
+            logger.info(f"  Skipping {sym}: already has position or swing state")
+            if evt:
+                evt.log("submit", "existing_skip", ticker=sym)
+            continue
+
+        from lib.orders import validate_contract
+        contract = validate_contract(ib, sym)
+        if not contract:
+            logger.warning(f"  Skipping {sym}: contract not found in IBKR")
+            continue
+
+        # Single market BUY (no bracket)
+        order = MarketOrder(action='BUY', totalQuantity=t['total_qty'])
+        order.account = account
+        order.orderRef = f"IFDS_SWING_{sym}"
+        trade = ib.placeOrder(contract, order)
+        ib.sleep(1.5)
+
+        # Silent-reject check (paper account guard — see ifds-rules.md 2026-04-08)
+        status = getattr(trade.orderStatus, "status", "")
+        _VALID = {"PreSubmitted", "Submitted", "Filled", "PendingSubmit"}
+        if status and status not in _VALID:
+            logger.warning(
+                f"{sym}: market BUY status={status} — silent reject possible. "
+                f"trade.log={getattr(trade, 'log', [])}"
+            )
+            if evt:
+                evt.log("submit", "swing_silent_reject", ticker=sym, status=status)
+            continue
+
+        atr = _atr_from_row(t)
+        pos = SwingPosition(
+            ticker=sym,
+            entry_date=today_str,
+            entry_price=t['limit_price'],
+            atr=atr,
+            stop_level=t['stop_loss'],
+            tp1_level=t['take_profit_1'],
+            tp2_level=t['take_profit_2'],
+            qty=t['total_qty'],
+            qty_remaining=t['total_qty'],
+            sector=t.get('sector', ''),
+            direction=t['direction'],
+        )
+        new_state.append(pos)
+        submitted_tickers.append(sym)
+        logger.info(
+            f"  {sym}: MKT BUY {t['total_qty']} @ ~${t['limit_price']:.2f} "
+            f"| stop ${pos.stop_level:.2f} | TP1 ${pos.tp1_level:.2f} "
+            f"| TP2 ${pos.tp2_level:.2f}"
+        )
+        if evt:
+            evt.log(
+                "submit", "swing_order_submitted", ticker=sym,
+                qty=t['total_qty'], entry=t['limit_price'],
+                stop=pos.stop_level, tp1=pos.tp1_level, tp2=pos.tp2_level,
+                atr=atr,
+            )
+
+    save_swing_positions(state_file, new_state)
+    logger.info(
+        f"[SWING] Submitted: {len(submitted_tickers)} tickers | "
+        f"State: {state_file} ({len(new_state)} open)"
+    )
+
+    if submitted_tickers:
+        # Telegram notification (compact swing format)
+        lines = [
+            f"📈 IFDS Swing Submit — {today_str}",
+            f"{len(submitted_tickers)} pozíció | Total open: {len(new_state)}",
+            "",
+        ]
+        for sym in submitted_tickers:
+            t = next(t for t in tickers if t['symbol'] == sym)
+            atr = _atr_from_row(t)
+            lines.append(
+                f"{sym}  qty {t['total_qty']}  @${t['limit_price']:.2f}  "
+                f"SL ${t['stop_loss']:.2f}  ATR ${atr:.2f}"
+            )
+        send_telegram("\n".join(lines))
+
+    disconnect(ib)
+    heartbeat_touch(
+        "submit_success", label=today_str,
+        extra={"submitted_count": len(submitted_tickers), "mode": "swing"},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -324,7 +500,28 @@ def main():
             logger.info("Telegram sent.")
         return
 
-    # --- Live mode ---
+    # --- Swing-mode dispatch (Task #4) ---
+    # When swing_execution_enabled=True (defaults.py TUNING), submit market BUYs
+    # only and persist the new state/swing_positions.json. The legacy bracket
+    # path (3 IBKR orders per ticker) is taken only when the flag is False.
+    try:
+        from ifds.config.loader import Config as _IFDSConfig
+        _cfg = _IFDSConfig()
+        _swing_mode = bool(_cfg.tuning.get("swing_execution_enabled", False))
+        _swing_state_file = _cfg.tuning.get(
+            "swing_positions_state_file", "state/swing_positions.json",
+        )
+    except Exception:
+        _swing_mode = False
+        _swing_state_file = "state/swing_positions.json"
+
+    if _swing_mode:
+        submit_swing_market_only(
+            tickers, args.dry_run, today_str, _cfg, _swing_state_file,
+        )
+        return
+
+    # --- Live mode (legacy bracket) ---
     from lib.connection import connect, get_account, disconnect
     from lib.orders import validate_contract, create_day_bracket, submit_bracket
     from lib.heartbeat import touch as heartbeat_touch

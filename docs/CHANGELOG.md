@@ -4,6 +4,58 @@
 
 ---
 
+## Fázis 3 / W21 — Swing Execution + Exit (mental stop, daily EOD eval) (1705 tests)
+
+> 2026-05-18 | Day 63 §3.1, §3.6, §3.8, §3.12 — Ülés C / Task #4
+
+### Mental-stop architektúra (`src/ifds/state/swing_positions.py`)
+- **Új modul:** `SwingPosition` dataclass + `evaluate_position_eod` (6-condition eval) +
+  state I/O (`load_swing_positions`, `save_swing_positions`) + batch helper
+  (`evaluate_all_positions`) + `apply_executed_exit` (TP1 partial / full-exit)
+- **Exit priority** (first match wins): HARD_SL → MENTAL_SL → TP2 → TP1 → TRAIL_SL → TIME_STOP → HOLD
+- **State source-of-truth:** `state/swing_positions.json`
+
+### `submit_orders.py` átalakítás
+- **`submit_swing_market_only`** branch — market BUY only, OCA bracket eliminálva
+- State írás (`save_swing_positions`) entry után — stop/TP1/TP2 szintek a CSV-ből
+- Silent-reject guard (paper-account `algoStrategy` rule) megőrizve
+
+### `pt_monitor.py` — `--mode=eod_eval`
+- Daily 22:00 CEST eval — Polygon napi bar → `evaluate_all_positions` → state frissítés
+- Telegram exit summary az 6-condition trigger esetén
+- Legacy 5-min scenario_a path változatlan (csak gating-elve)
+
+### `close_positions.py` — `--mode=eod_flags|time_stop`
+- `--mode=eod_flags` @ 15:30 CEST — HARD_SL/MENTAL_SL/TP1/TP2/TRAIL_SL market SELL
+  (TP1 → 50% sell, qty_remaining csökken; mások → full close)
+- `--mode=time_stop` @ 21:40 CEST — TIME_STOP MOC SELL same-day
+- Legacy `--mode=moc` (régi MOC zárás) megmarad fallback
+
+### `runner.py` wire-up
+- `run_phase6(...)` hívása `open_positions=` kiegészítve:
+  ha `swing_execution_enabled=True`, betölti `state/swing_positions.json`-t
+  és `to_position_sizing_stub`-bal `PositionSizing` stubokat ad át a sector cap math-hoz.
+
+### Új TUNING paraméterek (`defaults.py`)
+- `swing_execution_enabled=True`
+- `swing_entry_time_cest="15:30"`, `swing_eod_eval_time_cest="22:00"`,
+  `swing_close_eod_action_time_cest="15:30"`, `swing_close_time_stop_time_cest="21:40"`
+- `swing_tp1_sell_pct=0.50`
+- `swing_mental_stop_atr_multiple=2.0`, `swing_trail_atr_multiple=1.0`
+- `swing_hard_sl_weekly_cumulative_pct=-0.08`, `swing_time_stop_trading_days=5`
+- `swing_positions_state_file="state/swing_positions.json"`
+- `ibkr_bracket_enabled=False`, `loss_exit_intraday_enabled=False`, `pt_monitor_5min_mode=False`
+- **`swing_tp1_atr_multiple` 1.25 → 1.5** és **`swing_tp2_atr_multiple` 2.0 → 3.0**
+  (Task #3 értékek felülírva swing-specifikus TP geometria szerint)
+
+### Tesztek
+- `tests/test_swing_execution.py` — **33 új teszt** (state I/O, pure helpers,
+  6-condition EOD eval, trail ratchet logika, batch eval, TP1 apply, 3-day
+  lifecycle integration smoke, TUNING wiring regression)
+- **1672 → 1705 passing**, 0 regression
+
+---
+
 ## Fázis 3 / W21 — Swing Sizing Phase 6 (0.35% risk, 12 cap, 30% sector notional) (1672 tests)
 
 > 2026-05-18 | Day 63 §3.7, §3.11 — Ülés B / Task #3

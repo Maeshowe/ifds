@@ -341,9 +341,30 @@ TUNING = {
     "swing_max_daily_new": 3,                  # Daily new-entry cap (D[7])
     "swing_sector_cap_pct": 0.30,              # 30% notional per sector (D[11])
     "swing_stop_atr_multiple": 2.0,            # 2.0×ATR mental stop in sizing formula (D[7])
-    "swing_tp1_atr_multiple": 1.25,            # Match legacy CORE.tp1_atr_multiple for swing TP1
-    "swing_tp2_atr_multiple": 2.0,             # Match legacy CORE.tp2_atr_multiple for swing TP2
+    "swing_tp1_atr_multiple": 1.5,             # Task #4: swing-specific TP1 (was 1.25 in Task #3)
+    "swing_tp2_atr_multiple": 3.0,             # Task #4: swing-specific TP2 (was 2.0 in Task #3)
     "swing_min_notional": 1_000,               # Skip entries smaller than $1k (numerical floor)
+
+    # Swing Execution + Exit — Task #4 (2026-05-18, Day 63 §3.1, §3.6, §3.8, §3.12)
+    # Mental-stop architecture: IBKR holds only the open position; stop, TP1,
+    # TP2 and trail are evaluated by the daily EOD eval (22:00 CEST) and
+    # executed next-day 15:30 (or same-day 21:40 MOC for TIME_STOP).
+    "swing_execution_enabled": True,
+    "swing_entry_time_cest": "15:30",
+    "swing_eod_eval_time_cest": "22:00",
+    "swing_close_eod_action_time_cest": "15:30",   # next-day exit
+    "swing_close_time_stop_time_cest": "21:40",    # same-day MOC for TIME_STOP
+    "swing_tp1_sell_pct": 0.50,                    # 50/50 split
+    "swing_mental_stop_atr_multiple": 2.0,         # Same as swing_stop_atr_multiple (Task #3)
+    "swing_trail_atr_multiple": 1.0,               # Trail activated after TP1 hit
+    "swing_hard_sl_weekly_cumulative_pct": -0.08,  # -8% weekly cum P&L → HARD_SL
+    "swing_time_stop_trading_days": 5,             # 5 trading days → TIME_STOP MOC
+    "swing_positions_state_file": "state/swing_positions.json",
+
+    # IBKR bracket DEAKTIVÁLVA — Task #4 (swing mental stop arch)
+    "ibkr_bracket_enabled": False,                  # Csak market BUY (no bracket OCA)
+    "loss_exit_intraday_enabled": False,           # Régi -2% intraday LOSS_EXIT KIKAPCSOLVA
+    "pt_monitor_5min_mode": False,                  # New: napi egyszer EOD eval @ 22:00 CEST
 
     # Swing Universe (2026-05-18, Day 63 §3.9 Döntés 9)
     # Replace the FMP screener (~1390 unstable weekly-rotating universe)

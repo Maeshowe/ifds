@@ -228,7 +228,99 @@ def compute_breakeven_lock(
     return new_sl, lock_type
 
 
+def fetch_today_ohlc_polygon(ticker: str, today_iso: str, polygon_client) -> dict | None:
+    """Fetch today's daily OHLC bar from Polygon for one ticker.
+
+    Returns ``{"close", "high", "low", "open"}`` or ``None`` on miss.
+    """
+    bars = polygon_client.get_aggregates(ticker, today_iso, today_iso, "day", 1)
+    if not bars:
+        return None
+    bar = bars[-1]
+    return {
+        "close": float(bar.get("c", 0.0)),
+        "high": float(bar.get("h", 0.0)),
+        "low": float(bar.get("l", 0.0)),
+        "open": float(bar.get("o", 0.0)),
+    }
+
+
+def run_eod_eval() -> None:
+    """Daily 22:00 CEST EOD eval — Task #4 mental stop architecture.
+
+    1. Load ``state/swing_positions.json``.
+    2. For each open position, fetch today's daily OHLC from Polygon.
+    3. Run the 6-exit-condition eval (HARD_SL → MENTAL_SL → TP2 → TP1 → TRAIL_SL → TIME_STOP).
+    4. Persist updated state with ``next_action`` set for next-day close_positions.
+    5. Telegram summary of triggered exits.
+    """
+    from ifds.config.loader import Config
+    from ifds.data.polygon import PolygonClient
+    from ifds.state.swing_positions import (
+        evaluate_all_positions,
+        load_swing_positions,
+        save_swing_positions,
+    )
+
+    cfg = Config()
+    state_file = cfg.tuning.get(
+        "swing_positions_state_file", "state/swing_positions.json",
+    )
+    positions = load_swing_positions(state_file)
+    if not positions:
+        logger.info("[SWING EOD] No open positions to evaluate.")
+        return
+
+    api_key = cfg.runtime.get("polygon_api_key") or os.environ.get(
+        "IFDS_POLYGON_API_KEY", "",
+    )
+    if not api_key:
+        logger.error("[SWING EOD] No POLYGON API key — cannot fetch today's bars.")
+        return
+
+    poly = PolygonClient(api_key=api_key)
+    today_iso = date.today().isoformat()
+    ohlc_map: dict[str, dict[str, float]] = {}
+    for pos in positions:
+        bar = fetch_today_ohlc_polygon(pos.ticker, today_iso, poly)
+        if bar:
+            ohlc_map[pos.ticker] = bar
+        else:
+            logger.warning(f"[SWING EOD] No bar for {pos.ticker} — staying HOLD")
+
+    equity = float(cfg.runtime.get("account_equity", 100_000.0))
+    updated, exits = evaluate_all_positions(
+        positions, ohlc_map, date.today(), config=cfg.tuning, equity=equity,
+    )
+    save_swing_positions(state_file, updated)
+    logger.info(
+        f"[SWING EOD] Evaluated {len(positions)} positions — {len(exits)} exit flags set"
+    )
+    for ticker, action in exits:
+        logger.info(f"  {ticker}: {action}")
+        if evt:
+            evt.log("monitor", "swing_eod_action", ticker=ticker, action=action)
+
+    if exits:
+        lines = [f"🌙 IFDS Swing EOD — {today_iso}"]
+        for ticker, action in exits:
+            lines.append(f"  {ticker}: {action}")
+        send_telegram("\n".join(lines))
+
+
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="IFDS Paper Trading Monitor")
+    parser.add_argument(
+        "--mode", choices=["scenario_a", "eod_eval"], default="scenario_a",
+        help="scenario_a: legacy 5-min trail loop | eod_eval: Task #4 daily EOD eval",
+    )
+    args, _ = parser.parse_known_args()
+
+    if args.mode == "eod_eval":
+        run_eod_eval()
+        return
+
     try:
         from lib.trading_day_guard import check_trading_day
         check_trading_day(logger)

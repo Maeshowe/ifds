@@ -1283,6 +1283,8 @@ a pathon — őket az új formula + sector notional cap váltja le. **Portfolio 
 | `swing_max_daily_new` | 3 | Napi új-entry plafond |
 | `swing_sector_cap_pct` | 0.30 | 30% notional / sector |
 | `swing_stop_atr_multiple` | 2.0 | Mental stop = 2.0×ATR |
+| `swing_tp1_atr_multiple` | 1.5 | TP1 = 1.5×ATR (Task #4 felülírta Task #3 1.25-öt) |
+| `swing_tp2_atr_multiple` | 3.0 | TP2 = 3.0×ATR (Task #4 felülírta Task #3 2.0-t) |
 | `swing_score_threshold` | 50.0 | Phase 4 swing EWMA küszöb |
 | `m_vix_enabled` | False | M_VIX forced 1.0 |
 | `m_contradiction_enabled` | False | M_contradiction forced 1.0 |
@@ -1300,9 +1302,62 @@ A swing path eredménye `Phase6Result`-be megy, ahol:
 - `excluded_sector_limit` = sector cap hit száma
 - `excluded_position_limit` = daily_cap + concurrent_cap kombinált
 
-Az `open_positions` lista átadása `run_phase6`-nak (Task #4 előtt) opcionális —
-default `None` → üres lista. Ezáltal a smoke + e2e tesztek (és a production
-runner Task #4 előtt) változatlanul futnak.
+Az `open_positions` lista átadását a `runner.py:573` **Task #4 már wire-elte**:
+ha `swing_execution_enabled=True`, a runner betölti a `state/swing_positions.json`-t
+(`load_swing_positions`), és `to_position_sizing_stub`-bal PositionSizing-szerű
+stubbá alakítja a sector cap math-hoz. Üres state (Day 1 deploy) → üres lista,
+12-cap és 30% sector cap változatlanul fut.
+
+---
+
+### 6.SWING-EXIT Swing Execution + Exit Pipeline (Task #4)
+
+Mental-stop architektúra a `submit_orders.py` (entry) — `pt_monitor.py --mode=eod_eval` (EOD eval)
+— `close_positions.py --mode=eod_flags|time_stop` (exit) láncon. Az IBKR oldal csak a
+nyitott pozíciót tartja; a stop/TP1/TP2/trail szintek a `state/swing_positions.json`-ben
+élnek és a daily 22:00 CEST eval értékeli őket.
+
+**Daily timeline (CEST, hétköznapok):**
+
+```
+14:30   Phase 4-6 cron (cron_intraday)
+        → execution_plan.csv generálódik 14:55-re
+15:25   check_gateway.py pre-flight (IBKR Gateway alive?)
+15:30   submit_orders.py — market BUY only (no bracket); state/swing_positions.json írva
+        + másnap exit-flag-ek végrehajtása (close_positions.py --mode=eod_flags)
+21:40   close_positions.py --mode=time_stop (same-day TIME_STOP MOC)
+22:00   pt_monitor.py --mode=eod_eval — daily 6-condition eval, state frissítés
+22:05   eod_report.py — Telegram daily summary
+```
+
+**Submit (15:30):** `submit_swing_market_only` egy market BUY-t ad fel per ticker
+(`orderRef=IFDS_SWING_{sym}`). A silent-reject guard (`status not in PreSubmitted/Submitted/Filled/PendingSubmit`)
+loggol, de tovább megy. A `SwingPosition` felépül a CSV `stop_loss` mezőből visszafejtett
+ATR-rel (`ATR = (entry - stop_loss) / swing_mental_stop_atr_multiple`).
+
+**EOD eval (22:00):** `evaluate_position_eod` (pure, `src/ifds/state/swing_positions.py`):
+
+```
+Priority: HARD_SL → MENTAL_SL → TP2 → TP1 → TRAIL_SL → TIME_STOP → HOLD
+
+1. weekly_pnl_pct < -0.08                       → HARD_SL   (next-day 15:30 100%)
+2. close < stop_level (entry - 2.0×ATR)         → MENTAL_SL (next-day 15:30 100%)
+3. high >= tp2_level (entry + 3.0×ATR)          → TP2       (next-day 15:30 remainder)
+4. high >= tp1_level (entry + 1.5×ATR), !tp1_hit → TP1       (next-day 15:30 50%)
+5. tp1_hit AND close < trail_sl                 → TRAIL_SL  (next-day 15:30 remainder)
+   (otherwise ratchet trail_sl = max(prev, close - 1.0×ATR))
+6. days_held >= 5                               → TIME_STOP (same-day 21:40 MOC)
+```
+
+**Close (15:30 next-day / 21:40 same-day):** `run_swing_eod_flags` / `run_swing_time_stop`
+beolvassa a state-et, kiveszi az `EOD_ACTIONS_NEXT_DAY` (HARD/MENTAL/TP1/TP2/TRAIL) vagy
+`TIME_STOP` flagű pozíciókat, és MKT (vagy MOC) SELL-eket ad fel. TP1 → `apply_executed_exit`
+50% partial (qty_remaining csökken, `tp1_hit=True`). Minden más exit → teljes zárás (state-ből
+törölve).
+
+**Régi rendszer kikapcsolva:** `ibkr_bracket_enabled=False`, `loss_exit_intraday_enabled=False`,
+`pt_monitor_5min_mode=False`. A `submit_orders.py` legacy 3-order bracket path-ja **csak akkor**
+fut, ha `swing_execution_enabled=False` (azaz egy explicit fallback config-on).
 
 ---
 
