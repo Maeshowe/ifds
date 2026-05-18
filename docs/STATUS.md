@@ -1,6 +1,7 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-16 Budapest, CC Ülés C — UW dark pool / GEX deactivation + shadow log DEPLOY (1624 passing) -->
+<!-- Utolsó frissítés: 2026-05-18 Budapest, CC Ülés A — Swing Universe + Swing Phase 4 scoring DEPLOY (1656 passing). Day 1 = kedd 5/19 15:30 CEST. -->
+<!-- Korábbi: 2026-05-16 CC Ülés C — UW dark pool / GEX deactivation + shadow log DEPLOY (1624 passing) -->
 
 ## ⭐ MÉRFÖLDKŐ: Day 63 LEZÁRULT (2026-05-14)
 
@@ -78,6 +79,15 @@ A 60 napi adat **strukturális tanulságokat** szolgáltatott — a **B opció (
 - ✅ Earnings exclusion 7 → 10 nap DEPLOYED (commit `d3be2fe`, 2026-05-16)
 - ✅ **10-Q / 10-K SEC Filing Exclusion DEPLOYED** (Ülés B, 2026-05-16) — `src/ifds/data/sec_edgar.py` + Phase 2 `_exclude_sec_filings` 3-pass + 25 új teszt (1582 → 1607). Live schema verify done (AAPL CIK 0000320193 parallel-array schema), 1611-ticker live smoke **100% success, 0 hard error, 16 flagged**, wall clock 12.9 min (cold cache, daily TTL után inkrementális). 4 Tamás döntés (User-Agent env, ±10d tolerance, 2d cache fallback → fail-open) implementálva.
 - ✅ **UW dark pool / GEX deactivation + shadow log DEPLOYED** (Ülés C, 2026-05-16) — `src/ifds/data/uw_shadow.py` (build/write/load/summary helpers), Phase 4 `dp_pct` bonus gating + Phase 6 `M_GEX` gating (both default OFF), runner post-Phase 6 snapshot write to `state/uw_shadow/YYYY-MM-DD.json`, `daily_metrics.py` `uw_shadow_summary` field, 17 új teszt (1607 → 1624). Phase 5 GEX exclusion (NEGATIVE LONG) változatlan. Day 90 (~2026-08-26) Bayesi rekalibrációhoz folytatólagos shadow gyűjtés.
+
+#### Fázis 3 deploy folyamatban (2026-05-18, vasárnap kimaradt → hétfő-kedd 3 ülésben)
+- ✅ **Task #1 Swing Universe DEPLOYED** (Ülés A, 2026-05-18 hétfő reggel, commit `50dfb3c`) — `src/ifds/data/swing_universe.py` Wikipedia parser (stdlib only, header-driven Symbol detection, class-share normalizálás), Phase 2 FMP screener intersect swing union, 7d cache, FMP fallback. Live smoke: SP500=503 + R1000=1002 = union 1008 (497 overlap). 14 új teszt (1624 → 1638).
+- ✅ **Task #2 Swing Scoring Phase 4 DEPLOYED** (Ülés A, 2026-05-18 hétfő reggel, commit `13e3b3d`) — `src/ifds/scoring/swing_score.py` (compute_percentile_score, compute_raw_swing_score, SwingEwmaState, compute_swing_scores), Phase 4 `_apply_swing_scoring` post-processor (sync + async paths) recoveryzi a legacy clipping/min_score exclusion-okat és újraértékel a `S_j > 50` Bonferroni-küszöbre, EWMA(5) state persistence `state/swing_ewma_state.json`. Phase 6 M_VIX gating (`m_vix_enabled=False`). 18 új teszt (1638 → 1656). 2-day EWMA chain smoke verified.
+- ⏳ Task #3 Swing Sizing Phase 6 (Ülés B, hétfő délután ~14:00 CEST, ~2h) — 0.35% risk, 12 cap, 30% sector notional, sector-balanced greedy
+- ⏳ Task #4 Swing Execution + Exit (Ülés C, kedd 5/19 reggel ~09:00 CEST, ~3h) — 15:30 MARKET BUY entry, mental stop, 5d time-stop
+- ⏳ Task #5 Deploy Kickoff (Ülés C, kedd ~12:30, ~1h CC + ~30min Tamás) — daily metrics swing-fields, Telegram template, pre-market checklist
+
+**Day 1 = kedd 5/19 15:30 CEST** (1 nap csúszás a vasárnapi pihenőnap miatt — Tamás döntés, intézményi szempontból irreleváns).
 
 ### Fázis 2 — Analytic + Design (W23-W24, jún 2 - jún 13)
 
