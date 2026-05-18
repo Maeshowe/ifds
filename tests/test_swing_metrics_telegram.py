@@ -146,6 +146,48 @@ def test_daily_metrics_sector_distribution_sums_to_total(tmp_path, monkeypatch):
     assert set(swing_state["new_entries_tickers"]) == {"A", "B"}
 
 
+def test_daily_metrics_swing_state_snapshot_dict_shape(tmp_path, monkeypatch):
+    """Phase 4 snapshot arrives as {ticker: data} from _load_phase4_snapshot.
+
+    Regression: an earlier version iterated the dict's keys (strings) and
+    crashed with ``'str' object has no attribute 'get'`` at 22:10 CEST on
+    Day 1. Fixed by detecting dict-shaped snapshot and pulling ``.values()``.
+    """
+    import sys as _sys
+    _sys.path.insert(0, "scripts/paper_trading")
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "daily_metrics", "scripts/paper_trading/daily_metrics.py",
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    class FakeCfg:
+        tuning = {
+            "swing_positions_state_file": str(tmp_path / "absent.json"),
+            "swing_max_concurrent": 12,
+            "swing_score_threshold": 50.0,
+        }
+        runtime = {"account_equity": 100_000.0}
+
+    import ifds.config.loader as _loader
+    monkeypatch.setattr(_loader, "Config", lambda: FakeCfg())
+
+    # The production shape: {ticker: row_dict}
+    snapshot_dict = {
+        "AAPL": {"ticker": "AAPL", "combined_score": 82.5, "sector": "Technology"},
+        "MSFT": {"ticker": "MSFT", "combined_score": 71.0, "sector": "Technology"},
+        "TSLA": {"ticker": "TSLA", "combined_score": 45.0, "sector": "Consumer Cyclical"},
+    }
+
+    swing_state = mod._build_swing_state("2026-05-19", planned={}, snapshot=snapshot_dict)
+
+    top = swing_state["swing_score_distribution"]["top_3_scores"]
+    assert [t["ticker"] for t in top] == ["AAPL", "MSFT", "TSLA"]
+    # Only AAPL and MSFT pass threshold 50.0
+    assert swing_state["swing_score_distribution"]["qualifying_threshold_50"] == 2
+
+
 def test_daily_metrics_swing_state_empty_state(tmp_path, monkeypatch):
     """No swing state file → swing_state has zero fields, no crash."""
     import sys as _sys

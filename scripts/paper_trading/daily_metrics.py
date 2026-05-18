@@ -184,7 +184,9 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
     qualifying = 0
     top_scores: list[dict] = []
     if snapshot:
-        scored = sorted(snapshot, key=lambda r: float(r.get("combined_score", 0.0)), reverse=True)
+        # _load_phase4_snapshot returns {ticker: data}; tests pass list-of-rows.
+        rows = list(snapshot.values()) if isinstance(snapshot, dict) else list(snapshot)
+        scored = sorted(rows, key=lambda r: float(r.get("combined_score", 0.0)), reverse=True)
         qualifying = sum(1 for r in scored if float(r.get("combined_score", 0.0)) >= threshold)
         for r in scored[:3]:
             top_scores.append({
