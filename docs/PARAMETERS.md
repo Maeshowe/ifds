@@ -78,6 +78,24 @@ Operátor által állítható. A piac viselkedéséhez igazítható.
 | `universe_min_avg_volume` | 500K | P2 | Min átlag napi forgalom | `universe.long.min_volume: 1M` | ⚠️ **V13=1M, V2=500K** |
 | `universe_require_options` | True | P2 | Kell-e opciós piac | Implicit | ✅ |
 
+### Swing Scoring (2026-05-18, Day 63 §3.4, §3.5, §3.13 — Döntés 4, 5, 13)
+
+| Kulcs | Érték | Phase | Hatás |
+|-------|-------|-------|-------|
+| `swing_scoring_enabled` | True | P4 | `S_j = 100×(PCR_pct - OTM_pct) + sector_adj` + EWMA(5) + threshold 50 |
+| `swing_score_threshold` | 50.0 | P4 | Bonferroni-minimum: passed list `ewma > 50` |
+| `swing_ewma_span` | 5 | P4 | EWMA span: α = 2/(N+1) ≈ 0.333 |
+| `swing_ewma_state_file` | `state/swing_ewma_state.json` | P4 | Per-ticker history + last EWMA |
+| `m_vix_enabled` | False | P6 | M_VIX gating — swing horizonon flat 1.0 |
+
+A `S_j > 50` küszöb a 2026-05-08 strategic-review §4 Bonferroni-korrigált küszöbe. A PCR pozitív (magas PCR → hedging = bullish), az OTM negatív (sign-flip — magas OTM call ratio → retail FOMO/short-term momentum chase, negatív edge). A percentile a teljes Phase 4 univerzumon cross-sectional, EWMA(5) simítva per-ticker.
+
+Phase 6 multiplier chain swing-módra:
+- `M_GEX`: deaktivált (`uw_gex_sizing_enabled=False`, Fázis 1)
+- `M_VIX`: deaktivált (`m_vix_enabled=False`, ez a task)
+- `M_contradiction`: deaktivált (`m_contradiction_enabled=False`, Fázis 2 backtest függvénye)
+- `M_target`: **megtartva aktív** (analyst consensus overshoot, Decision 13)
+
 ### Swing Universe (2026-05-18, Day 63 §3.9 Döntés 9)
 
 | Kulcs | Érték | Phase | Hatás |

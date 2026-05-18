@@ -203,7 +203,10 @@ class TestMultiplierCalculation:
         assert mults["m_vix"] == 1.0
 
     def test_m_vix_elevated(self, config):
-        # VIX=30 → multiplier = max(0.25, 1-(30-20)*0.02) = 0.80
+        # VIX=30 → multiplier = max(0.25, 1-(30-20)*0.02) = 0.80.
+        # M_VIX scoring math — Day 63 §3.13 deactivation defaults to off,
+        # this regression test verifies the underlying multiplier when active.
+        config.tuning["m_vix_enabled"] = True
         macro_high = MacroRegime(
             vix_value=30.0, vix_regime=MarketVolatilityRegime.ELEVATED,
             vix_multiplier=0.80, tnx_value=4.2, tnx_sma20=4.1,
@@ -228,7 +231,13 @@ class TestMultiplierCalculation:
         assert mults["m_utility"] == 1.0
 
     def test_m_total_clamped_min(self, config):
-        """All multipliers penalizing — total should not go below 0.25."""
+        """All multipliers penalizing — total should not go below 0.25.
+
+        Requires both M_GEX and M_VIX active so the multiplier chain has
+        enough downward push to hit the clamp.
+        """
+        config.tuning["uw_gex_sizing_enabled"] = True
+        config.tuning["m_vix_enabled"] = True
         macro_panic = MacroRegime(
             vix_value=50.0, vix_regime=MarketVolatilityRegime.PANIC,
             vix_multiplier=0.25, tnx_value=5.0, tnx_sma20=4.0,

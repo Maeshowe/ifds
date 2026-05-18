@@ -300,6 +300,27 @@ TUNING = {
     "dp_pct_bonus": -10,                       # dp_pct > 12% → -10 (was +10, sign-flipped)
     "dp_pct_high_bonus": -15,                  # dp_pct > 18% → -15 (was +15, sign-flipped)
 
+    # Swing Scoring (2026-05-18, Day 63 §3.4, §3.5, §3.13 — Döntés 4, 5, 13)
+    # Radical simplification of Phase 4 scoring for the swing horizon:
+    #   S_j(t) = 100 × (PCR_percentile - OTM_percentile) + sector_adj(t)
+    #   with EWMA(5) smoothing per ticker.
+    # Threshold = 50 (Bonferroni-significant minimum, strategic-review §4).
+    # All legacy sub-scores (flow, tech, funda, freshness, clipping, insider)
+    # are gated off — they still compute as a passive snapshot for the audit
+    # trail, but they do NOT contribute to the new combined_score.
+    "swing_scoring_enabled": True,
+    "swing_score_threshold": 50.0,
+    "swing_ewma_span": 5,
+    "swing_ewma_state_file": "state/swing_ewma_state.json",
+
+    # Phase 6 multiplier chain gates for swing horizon (Day 63 §3.13)
+    # M_GEX already gated by uw_gex_sizing_enabled (Fázis 1).
+    # M_VIX deactivated: VIX-sensitivity less sharp on swing horizon
+    # (overnight gap risk dominates for VIX>20 → cleaner to use a flat 1.0).
+    # M_contradiction deactivated pending Fázis 2 backtest sign-flip analysis.
+    # M_target kept active (analyst consensus overshoot — Decision 13).
+    "m_vix_enabled": False,
+
     # Swing Universe (2026-05-18, Day 63 §3.9 Döntés 9)
     # Replace the FMP screener (~1390 unstable weekly-rotating universe)
     # with S&P 500 + Russell 1000 union (~1000 stable, monthly-rebalanced).

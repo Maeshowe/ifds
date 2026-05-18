@@ -5,13 +5,16 @@ Analyzes each ticker from the Phase 2 universe across three dimensions:
 2. Flow Analysis — RVOL, Spread, Squat Bar, Dark Pool, PCR, OTM%, Block Trades
 3. Fundamental Scoring — Growth, Efficiency, Safety, Insider, Shark Detector
 
-Combined Score = 0.40 * FlowScore + 0.30 * FundaScore + 0.30 * TechScore + SectorAdj
-Applied: insider multiplier, min score filter (70), clipping (configurable threshold).
+Legacy Combined Score = 0.40 * FlowScore + 0.30 * FundaScore + 0.30 * TechScore + SectorAdj
+Swing Combined Score (Day 63 §3.13, 2026-05-18) = 100 × (PCR_pct − OTM_pct) + sector_adj,
+EWMA(5)-smoothed, threshold 50. The legacy sub-scores still compute as a passive
+audit-trail snapshot but do not contribute to the swing combined_score.
 """
 
 import asyncio
 import time
 from datetime import date, timedelta
+from pathlib import Path
 
 from ifds.config.loader import Config
 from ifds.data.adapters import DarkPoolProvider
@@ -33,6 +36,106 @@ from ifds.models.market import (
 
 # Base score for each sub-dimension (adjustments push up/down from here)
 _BASE_SCORE = 50
+
+
+def _apply_swing_scoring(
+    analyzed: list[StockAnalysis],
+    config: Config,
+    logger: EventLogger,
+) -> tuple[list[StockAnalysis], int, int]:
+    """Re-score the analyzed list using the swing formula (Day 63 §3.13).
+
+    For every ticker that survived the structural filters (``tech_filter`` and
+    ``danger_zone`` exclusions are honored, but ``clipping`` / ``min_score``
+    legacy exclusions are reset because the new ``S_j > 50`` threshold makes
+    them obsolete), this:
+
+      1. Builds the cross-sectional PCR and OTM-call-ratio distributions
+         from the surviving universe.
+      2. Computes ``S_j = 100 × (PCR_pct − OTM_pct) + sector_adj`` per ticker.
+      3. Applies EWMA(``swing_ewma_span``) smoothing using the persisted state.
+      4. Overwrites ``analysis.combined_score`` with the smoothed value.
+      5. Rebuilds the ``passed`` list with the ``swing_score_threshold`` cut.
+      6. Persists the EWMA state.
+
+    Returns ``(passed, recovered_count, swing_filtered_count)`` where
+    ``recovered_count`` is the number of tickers reinstated from the legacy
+    ``clipping``/``min_score`` exclusions, and ``swing_filtered_count`` is the
+    number excluded by the new ``S_j > 50`` threshold.
+    """
+    from ifds.scoring.swing_score import SwingEwmaState, compute_swing_scores
+
+    state_path = Path(config.tuning.get(
+        "swing_ewma_state_file", "state/swing_ewma_state.json",
+    ))
+    span = int(config.tuning.get("swing_ewma_span", 5))
+    threshold = float(config.tuning.get("swing_score_threshold", 50.0))
+
+    ewma_state = SwingEwmaState(path=state_path, span=span)
+    ewma_state.load()
+
+    # Reset legacy threshold-based exclusions so swing scoring re-evaluates them.
+    LEGACY_REASONS = {"clipping", "min_score"}
+    recovered = 0
+    candidates: list[StockAnalysis] = []
+    for analysis in analyzed:
+        if analysis.excluded and analysis.exclusion_reason in LEGACY_REASONS:
+            analysis.excluded = False
+            analysis.exclusion_reason = None
+            recovered += 1
+        if not analysis.excluded:
+            candidates.append(analysis)
+
+    tickers_data = [
+        {
+            "ticker": a.ticker,
+            "pcr": a.flow.pcr,
+            "otm_call_ratio": a.flow.otm_call_ratio,
+            "sector_adjustment": float(a.sector_adjustment or 0),
+        }
+        for a in candidates
+    ]
+    results = compute_swing_scores(tickers_data, ewma_state)
+    results_by_ticker = {r.ticker: r for r in results}
+
+    new_passed: list[StockAnalysis] = []
+    swing_filtered = 0
+    for analysis in candidates:
+        result = results_by_ticker.get(analysis.ticker)
+        if result is None:  # defensive — should not happen
+            continue
+        analysis.combined_score = round(float(result.ewma_score), 2)
+        if result.ewma_score > threshold:
+            new_passed.append(analysis)
+        else:
+            analysis.excluded = True
+            analysis.exclusion_reason = "swing_score"
+            swing_filtered += 1
+
+    try:
+        ewma_state.save()
+    except OSError as exc:
+        logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=4,
+                   message=f"Swing EWMA state save failed: {exc}")
+
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
+        message=(
+            f"Swing scoring: {len(candidates)} candidates → "
+            f"{len(new_passed)} passed (threshold={threshold:.1f}, "
+            f"recovered={recovered}, swing_filtered={swing_filtered})"
+        ),
+        data={
+            "candidates": len(candidates),
+            "passed": len(new_passed),
+            "threshold": threshold,
+            "recovered_from_legacy": recovered,
+            "swing_filtered": swing_filtered,
+        },
+    )
+    # Sort passed descending by ewma_score for downstream consumption
+    new_passed.sort(key=lambda a: a.combined_score, reverse=True)
+    return new_passed, recovered, swing_filtered
 
 
 def _is_danger_zone(fundamental: FundamentalScoring, config: Config) -> bool:
@@ -316,6 +419,29 @@ def run_phase4(config: Config, logger: EventLogger,
                 )
             passed = still_passing
             excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
+
+        # Swing scoring post-processor (Day 63 §3.13, 2026-05-18) — replaces
+        # legacy combined_score + min_score/clipping filters with the
+        # PCR/OTM-percentile + EWMA(5) + swing_score_threshold pipeline.
+        if config.tuning.get("swing_scoring_enabled", False):
+            passed, _recovered, _filtered = _apply_swing_scoring(
+                analyzed, config, logger,
+            )
+            # Recompute exclusion buckets — legacy clipped/min_score may have
+            # been recovered, the new bucket is "swing_score".
+            clipped_count = sum(
+                1 for a in analyzed if a.exclusion_reason == "clipping"
+            )
+            min_score_count = sum(
+                1 for a in analyzed if a.exclusion_reason == "min_score"
+            )
+            swing_score_count = sum(
+                1 for a in analyzed if a.exclusion_reason == "swing_score"
+            )
+            excluded_count = (
+                tech_filter_count + min_score_count + clipped_count
+                + danger_zone_count + swing_score_count
+            )
 
         result = Phase4Result(
             analyzed=analyzed,
@@ -1372,6 +1498,25 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                 )
             passed = still_passing
             excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
+
+        # Swing scoring post-processor (Day 63 §3.13, 2026-05-18) — async path
+        if config.tuning.get("swing_scoring_enabled", False):
+            passed, _recovered, _filtered = _apply_swing_scoring(
+                analyzed, config, logger,
+            )
+            clipped_count = sum(
+                1 for a in analyzed if a.exclusion_reason == "clipping"
+            )
+            min_score_count = sum(
+                1 for a in analyzed if a.exclusion_reason == "min_score"
+            )
+            swing_score_count = sum(
+                1 for a in analyzed if a.exclusion_reason == "swing_score"
+            )
+            excluded_count = (
+                tech_filter_count + min_score_count + clipped_count
+                + danger_zone_count + swing_score_count
+            )
 
         phase4_result = Phase4Result(
             analyzed=analyzed,

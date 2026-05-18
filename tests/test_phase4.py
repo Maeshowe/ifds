@@ -43,7 +43,11 @@ def config(monkeypatch):
     monkeypatch.setenv("IFDS_FMP_API_KEY", "test_fmp")
     monkeypatch.setenv("IFDS_FRED_API_KEY", "test_fred")
     monkeypatch.setenv("IFDS_ASYNC_ENABLED", "false")
-    return Config()
+    cfg = Config()
+    # Legacy combined_score path for this regression suite — swing scoring
+    # is exercised in test_swing_score.py / test_phase4_swing.py.
+    cfg.tuning["swing_scoring_enabled"] = False
+    return cfg
 
 
 @pytest.fixture

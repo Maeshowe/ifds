@@ -1,10 +1,12 @@
 # Task: Swing Scoring — Phase 4 átalakítás (PCR + OTM-inverse, percentile, EWMA(5))
 
-**Status:** OPEN
+**Status:** DONE
 **Priority:** P0 (Fázis 3 deploy)
 **Created:** 2026-05-17
+**Updated:** 2026-05-18 (Ülés A DEPLOY — Task #1 + #2 egy ülésben)
 **Owner:** Claude Code
 **Estimated effort:** ~3h CC
+**Actual effort:** ~2h (1638 → 1656 tests, EWMA smoke verified)
 
 **Source decision:** [`docs/decisions/2026-05-14-day63-decision-outcome.md`](../decisions/2026-05-14-day63-decision-outcome.md) §3.4, §3.5, §3.13 — Döntés [4, 5, 13]: scoring egyszerűsítése, EWMA, multiplier chain átalakítás.
 

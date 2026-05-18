@@ -602,7 +602,16 @@ def _calculate_multiplier_total(
         m_gex = gex.gex_multiplier
     else:
         m_gex = 1.0
-    m_vix = macro.vix_multiplier
+
+    # 2026-05-18 (Day 63 §3.13): M_VIX gated by m_vix_enabled. The swing
+    # horizon (3-5 day hold) is less VIX-sensitive than intraday; overnight
+    # gap risk dominates VIX>20 conditions and a flat 1.0 produced cleaner
+    # backtest results.
+    if config.tuning.get("m_vix_enabled", True):
+        m_vix = macro.vix_multiplier
+    else:
+        m_vix = 1.0
+
     m_target = _calculate_target_multiplier(
         stock.technical.price, stock.analyst_target, config
     )

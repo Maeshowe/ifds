@@ -4,6 +4,60 @@
 
 ---
 
+## Fázis 3 / W21 — Swing Scoring Phase 4 (PCR + OTM-inverse percentile + EWMA(5)) (1656 tests)
+
+> 2026-05-18 | Day 63 §3.4, §3.5, §3.13 — Ülés A / Task #2
+
+### Új modul: `src/ifds/scoring/swing_score.py`
+- `compute_percentile_score(values, target)` — scipy `percentileofscore(kind="rank")`
+- `compute_raw_swing_score(...)` — pure function `S = 100×(PCR_pct - OTM_pct) + sector_adj`
+- `SwingEwmaState` — per-ticker history + EWMA persistence (`state/swing_ewma_state.json`)
+- `compute_swing_scores(tickers_data, ewma_state)` — bulk operation,
+  median-fallback for missing PCR/OTM, returns ordered `SwingScoreResult` list
+
+### Phase 4 post-processor (`_apply_swing_scoring`)
+- Recovers legacy `clipping` + `min_score` exclusions (re-evaluates on swing threshold)
+- Honors structural `tech_filter` + `danger_zone` exclusions
+- Replaces `combined_score` with EWMA(5) swing score for surviving tickers
+- New `swing_score` exclusion bucket
+- Persists EWMA state per Phase 4 run (sync + async paths)
+
+### Phase 6 — M_VIX gating (`phase6_sizing.py::_calculate_multiplier_total`)
+- `if m_vix_enabled: m_vix = macro.vix_multiplier else 1.0`
+- Default OFF — swing horizon less VIX-sensitive (overnight gap risk dominates)
+- M_target preserved active (analyst consensus overshoot — Decision 13)
+
+### Új TUNING kulcsok (`defaults.py`)
+- `swing_scoring_enabled: True` (default ON, legacy combined_score deaktiválva)
+- `swing_score_threshold: 50.0` (Bonferroni-minimum)
+- `swing_ewma_span: 5`, `swing_ewma_state_file: "state/swing_ewma_state.json"`
+- `m_vix_enabled: False`
+
+### Tests (+18)
+- `tests/test_swing_score.py` (új) — 18 teszt 4 osztályban:
+  - `TestPercentileScore` (4): boundary + median + empty universe
+  - `TestRawSwingScore` (3): PCR-positive, OTM-negative, sector_adj
+  - `TestEwmaState` (5): Day-1 raw, Day-2 α-blend, history-cap, persistence, corrupt
+  - `TestComputeSwingScores` (2): decorrelated distribution, missing-PCR median fallback
+  - `TestPhase4SwingPostprocessor` (4): legacy-clipping recovery, threshold filter,
+    sort-descending, EWMA state persistence
+- `tests/test_phase4.py` config fixture: `swing_scoring_enabled=False` pin
+- `tests/test_phase6.py`: per-test `m_vix_enabled=True` for legacy regression
+- `tests/test_phase6_m_contradiction.py`: same
+
+### Smoke test (2026-05-18, EWMA 2-day chain)
+- Day 1: AAPL=81.67 (PCR=1.0, OTM=0.33, sec=+15), MSFT=0.0, TSLA=-86.67
+- Day 2: AAPL Day-2 raw=15.0 → EWMA 0.333×15 + 0.667×81.67 = 59.44 ✓
+- MSFT Day-2 raw=66.67 → EWMA 0.333×66.67 = 22.22 ✓
+- EWMA state file: per-ticker history grows from 1 → 2 entries
+
+### Refs
+- `docs/decisions/2026-05-14-day63-decision-outcome.md` §3.4, §3.5, §3.13
+- `docs/strategic-review/2026-05-08-strategic-review-mathematical.md` §4 (Bonferroni)
+- `docs/design/swing-pivot-architecture.md` §3, §8.1, §8.2
+
+---
+
 ## Fázis 2 / W21 — Swing Universe (S&P 500 + Russell 1000) (1638 tests)
 
 > 2026-05-18 | Day 63 §3.9 Döntés 9 — Ülés A / Task #1

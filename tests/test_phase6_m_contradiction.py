@@ -81,7 +81,12 @@ class TestMContradiction:
         assert mults["m_contradiction"] == 1.0
 
     def test_combined_with_other_multipliers(self, config, macro):
-        """M_total chains M_gex × M_vix × M_target × M_contradiction."""
+        """M_total chains M_gex × M_vix × M_target × M_contradiction.
+
+        Requires M_VIX active (Day 63 §3.13 deactivation defaults to off);
+        this test verifies the chain math when both are active.
+        """
+        config.tuning["m_vix_enabled"] = True
         # m_vix=0.9 (slight VIX penalty), m_gex=1.0, m_target=1.0, m_contradiction=0.80
         macro_v = MacroRegime(
             vix_value=22.0, vix_regime=MarketVolatilityRegime.NORMAL,
