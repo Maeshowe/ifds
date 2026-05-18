@@ -52,7 +52,14 @@ def config(monkeypatch):
     monkeypatch.setenv("IFDS_FMP_API_KEY", "test_fmp")
     monkeypatch.setenv("IFDS_FRED_API_KEY", "test_fred")
     monkeypatch.setenv("IFDS_ASYNC_ENABLED", "false")
-    return Config()
+    c = Config()
+    # Pin legacy Phase 6 path — BC13 tests target legacy daily-trade /
+    # notional limits which the swing-sizing path bypasses.
+    c.tuning["swing_sizing_enabled"] = False
+    c.runtime["max_positions"] = 5
+    c.runtime["max_gross_exposure"] = 80_000
+    c.runtime["max_single_ticker_exposure"] = 20_000
+    return c
 
 
 @pytest.fixture

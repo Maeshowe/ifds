@@ -1231,7 +1231,82 @@ Scored kandidátokat méretezett pozíciókká alakít: kockázat, darabszám, S
 
 ---
 
-### 6.0 Signal Deduplication (BC11)
+### 6.SWING Swing Sizing Path (2026-05-18, Day 63 §3.7, §3.11 — Döntés 7, 11)
+
+A `swing_sizing_enabled=True` (default) kapcsoló esetén `run_phase6` **átirányítja**
+a végrehajtást `_run_phase6_swing` wrapperre, ami az új sizing-mode-ot futtatja.
+A 6.0–6.6 legacy szekciók (Dedup, Daily Trades, Notional caps, Multiplier chain,
+Freshness Alpha, EWMA, Position Limits, Correlation Guard) **NEM** futnak ezen
+a pathon — őket az új formula + sector notional cap váltja le. **Portfolio VaR
+(BC21) megmarad** mindkét pathon (a swing path végén is fut a trim).
+
+```
+1. Threshold filter:
+   qualified = [(s, g) for (s, g) in candidates if s.combined_score >= swing_score_threshold]
+   (default 50.0 — a swing scoring EWMA-output Bonferroni-küszöbe)
+
+2. Per-candidate sizing (_calculate_swing_position):
+   ATR_pct  = ATR_14 / entry_price
+   M_target = analyst overshoot penalty (Decision 13 — csak ez aktív)
+   notional = (equity × swing_risk_per_trade_pct) / (ATR_pct × swing_stop_atr_multiple) × M_target
+   quantity = floor(notional / entry_price)
+                ↓ majd:
+              min(max_single_ticker_exposure / entry, max_order_quantity)
+   stop = entry ± swing_stop_atr_multiple × ATR_14
+   TP1  = entry ± swing_tp1_atr_multiple × ATR_14
+   TP2  = entry ± swing_tp2_atr_multiple × ATR_14
+   M_VIX = M_GEX = M_contradiction = 1.0  (forced)
+
+3. Sector-balanced greedy fill (_select_swing_entries — Decision 10):
+   ranked = sorted(qualified, by combined_score desc)
+   for stock in ranked:
+     if len(selected) >= swing_max_daily_new:        break candidate loop entry
+     if len(open) + len(selected) >= swing_max_concurrent: stop
+     new_sector_total = sector_notionals[sector] + pos_notional
+     if new_sector_total > equity × swing_sector_cap_pct: skip (sector cap hit)
+     selected.append(pos)
+   open_positions argument: Task #4 will wire from PositionTracker;
+   default empty list — production fall-through OK pre-Task-#4.
+
+4. Portfolio VaR trim (közös BC21 path):
+   if portfolio_var_usd / equity > portfolio_var_max_pct:
+     trim_positions_by_var(...)
+```
+
+**Default paraméterek (defaults.py TUNING):**
+
+| Kulcs | Érték | Megjegyzés |
+|-------|-------|------------|
+| `swing_sizing_enabled` | True | False → legacy fallback |
+| `swing_risk_per_trade_pct` | 0.0035 | 0.35% per entry |
+| `swing_max_concurrent` | 12 | Open+new ≤ 12 |
+| `swing_max_daily_new` | 3 | Napi új-entry plafond |
+| `swing_sector_cap_pct` | 0.30 | 30% notional / sector |
+| `swing_stop_atr_multiple` | 2.0 | Mental stop = 2.0×ATR |
+| `swing_score_threshold` | 50.0 | Phase 4 swing EWMA küszöb |
+| `m_vix_enabled` | False | M_VIX forced 1.0 |
+| `m_contradiction_enabled` | False | M_contradiction forced 1.0 |
+| `uw_gex_sizing_enabled` | False | M_GEX forced 1.0 |
+
+**Default paraméterek (defaults.py RUNTIME):**
+
+| Kulcs | Érték | Régi (legacy) |
+|-------|-------|---------------|
+| `max_positions` | 12 | 5 |
+| `max_gross_exposure` | 150_000 | 80_000 |
+| `max_single_ticker_exposure` | 15_000 | 20_000 |
+
+A swing path eredménye `Phase6Result`-be megy, ahol:
+- `excluded_sector_limit` = sector cap hit száma
+- `excluded_position_limit` = daily_cap + concurrent_cap kombinált
+
+Az `open_positions` lista átadása `run_phase6`-nak (Task #4 előtt) opcionális —
+default `None` → üres lista. Ezáltal a smoke + e2e tesztek (és a production
+runner Task #4 előtt) változatlanul futnak.
+
+---
+
+### 6.0 Signal Deduplication (BC11) — *legacy path only*
 
 ```
 SignalDedup (src/ifds/data/signal_dedup.py):

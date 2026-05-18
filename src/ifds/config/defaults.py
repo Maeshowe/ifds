@@ -266,7 +266,10 @@ TUNING = {
     # consensus target overshoot, analyst HIGH overshoot, recent downgrades.
     # Computed in Phase 4 (per-ticker), applied here as M_contradiction.
     # Verified W17 5/6 pattern + W18 DTE -$988 case.
-    "m_contradiction_enabled": True,
+    # 2026-05-18 (Day 63 §3.13 Döntés 13): deactivated pending Fázis 2 backtest
+    # sign-flip analysis — the swing horizon (3-5 day hold) may invert the
+    # signal direction observed at the daily horizon.
+    "m_contradiction_enabled": False,
     "m_contradiction_value": 0.80,
 
     # Sector Diversification
@@ -320,6 +323,27 @@ TUNING = {
     # M_contradiction deactivated pending Fázis 2 backtest sign-flip analysis.
     # M_target kept active (analyst consensus overshoot — Decision 13).
     "m_vix_enabled": False,
+
+    # Swing Sizing — Phase 6 (2026-05-18, Day 63 §3.7, §3.11 — Döntés 7, 11)
+    # "Quality over quantity": fewer but larger swing positions, sector
+    # concentration capped by notional ($) not by ticker count.
+    #
+    # Formula (per entry):
+    #   ATR_pct = ATR_14 / entry_price
+    #   notional = (equity * risk_pct) / (ATR_pct * stop_atr_mult) * M_target
+    #   quantity = floor(notional / entry_price)
+    #
+    # Active multipliers: only M_target. M_VIX, M_GEX, M_contradiction are
+    # forced to 1.0 by their respective enable flags.
+    "swing_sizing_enabled": True,
+    "swing_risk_per_trade_pct": 0.0035,        # 0.35% = $350 / $100k account (D[7])
+    "swing_max_concurrent": 12,                # Portfolio cap (D[7])
+    "swing_max_daily_new": 3,                  # Daily new-entry cap (D[7])
+    "swing_sector_cap_pct": 0.30,              # 30% notional per sector (D[11])
+    "swing_stop_atr_multiple": 2.0,            # 2.0×ATR mental stop in sizing formula (D[7])
+    "swing_tp1_atr_multiple": 1.25,            # Match legacy CORE.tp1_atr_multiple for swing TP1
+    "swing_tp2_atr_multiple": 2.0,             # Match legacy CORE.tp2_atr_multiple for swing TP2
+    "swing_min_notional": 1_000,               # Skip entries smaller than $1k (numerical floor)
 
     # Swing Universe (2026-05-18, Day 63 §3.9 Döntés 9)
     # Replace the FMP screener (~1390 unstable weekly-rotating universe)
@@ -453,10 +477,12 @@ RUNTIME = {
     "risk_per_trade_pct": 0.7,          # BC23: fewer but larger (was 0.5, 5×0.7%=3.5%)
 
     # Position Limits
-    "max_positions": 5,                 # BC23: quality over quantity (was 8)
+    # Day 63 §3.7 (swing pivot): max_positions raised 5 → 12, gross exposure
+    # 80k → 150k (12 × ~$12.5k avg), per-ticker tightened 20k → 15k.
+    "max_positions": 12,
     "max_single_position_risk_pct": 1.5,
-    "max_gross_exposure": 80_000,       # BC23: 5 positions (was 100k for 8)
-    "max_single_ticker_exposure": 20_000,
+    "max_gross_exposure": 150_000,
+    "max_single_ticker_exposure": 15_000,
 
     # API Keys (MUST be loaded from env vars, never hardcoded)
     "polygon_api_key": None,            # IFDS_POLYGON_API_KEY

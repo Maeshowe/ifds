@@ -38,6 +38,13 @@ def config(monkeypatch, tmp_path):
     c = Config()
     c.runtime["daily_trades_file"] = str(tmp_path / "daily_trades.json")
     c.runtime["daily_notional_file"] = str(tmp_path / "daily_notional.json")
+    # Pin legacy multiplier-chain + position-limit behavior for the legacy
+    # Phase 6 tests. The swing-sizing path (Day 63 §3.7) is exercised by
+    # test_swing_sizing_phase6.py and pins these the other way.
+    c.tuning["swing_sizing_enabled"] = False
+    c.runtime["max_positions"] = 5
+    c.runtime["max_gross_exposure"] = 80_000
+    c.runtime["max_single_ticker_exposure"] = 20_000
     return c
 
 

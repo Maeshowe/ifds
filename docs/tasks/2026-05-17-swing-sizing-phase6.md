@@ -1,6 +1,7 @@
 # Task: Swing Sizing — Phase 6 átalakítás (0.35% risk, 12 cap, 30% sector notional, sector-balanced greedy)
 
-**Status:** OPEN
+**Status:** DONE
+**Updated:** 2026-05-18
 **Priority:** P0 (Fázis 3 deploy)
 **Created:** 2026-05-17
 **Owner:** Claude Code

@@ -183,7 +183,8 @@ def run_phase6(config: Config, logger: EventLogger,
                sector_scores: list[SectorScore] | None = None,
                signal_hash_file: str | None = None,
                mms_analyses: list[MMSAnalysis] | None = None,
-               bmi_value: float | None = None) -> Phase6Result:
+               bmi_value: float | None = None,
+               open_positions: list[PositionSizing] | None = None) -> Phase6Result:
     """Run Phase 6: Position Sizing & Risk Management.
 
     Args:
@@ -210,6 +211,18 @@ def run_phase6(config: Config, logger: EventLogger,
             logger.log(EventType.PHASE_COMPLETE, Severity.INFO, phase=6,
                        message="No candidates after stock-GEX join")
             return Phase6Result()
+
+        # Swing sizing path (Day 63 §3.7, §3.11 — Döntés 7, 11).
+        # 0.35% risk per trade, 12 concurrent cap, 30% notional sector cap,
+        # sector-balanced greedy fill. Only M_target is active.
+        if config.tuning.get("swing_sizing_enabled", False):
+            return _run_phase6_swing(
+                config, logger, candidates,
+                strategy_mode=strategy_mode,
+                open_positions=open_positions or [],
+                sector_scores=sector_scores,
+                mms_analyses=mms_analyses,
+            )
 
         # 2. Capture original scores BEFORE freshness alpha modifies them
         original_scores = {s.ticker: s.combined_score for s, _ in candidates}
@@ -447,6 +460,120 @@ def run_phase6(config: Config, logger: EventLogger,
         logger.log(EventType.PHASE_ERROR, Severity.ERROR, phase=6,
                    message=f"Phase 6 error: {e}")
         raise
+
+
+def _run_phase6_swing(
+    config: Config,
+    logger: EventLogger,
+    candidates: list[tuple[StockAnalysis, GEXAnalysis]],
+    *,
+    strategy_mode: StrategyMode,
+    open_positions: list[PositionSizing],
+    sector_scores: list[SectorScore] | None,
+    mms_analyses: list[MMSAnalysis] | None,
+) -> Phase6Result:
+    """Swing sizing branch of Phase 6 (Day 63 §3.7, §3.11).
+
+    Filters by ``swing_score_threshold``, then applies sector-balanced greedy
+    fill with a 30% per-sector notional cap and the 12 concurrent cap. The
+    legacy multiplier chain, BMI momentum guard, correlation guard, and
+    position-limit cascade are intentionally skipped — they are subsumed by
+    the new sizing formula + sector notional cap.
+    """
+    t0 = time.time()
+
+    threshold = config.tuning.get("swing_score_threshold", 0)
+    qualified = [(s, g) for s, g in candidates if s.combined_score >= threshold]
+    skipped_below_threshold = len(candidates) - len(qualified)
+
+    sector_map = {ss.sector_name: ss for ss in (sector_scores or [])}
+    mms_map = {o.ticker: o for o in (mms_analyses or [])}
+
+    positions, counts = _select_swing_entries(
+        qualified,
+        open_positions=open_positions,
+        config=config,
+        strategy_mode=strategy_mode,
+        logger=logger,
+        sector_map=sector_map,
+        mms_map=mms_map,
+    )
+
+    for pos in positions:
+        logger.log(EventType.POSITION_SIZED, Severity.INFO, phase=6,
+                   message=(f"Sized {pos.ticker}: {pos.quantity} shares @ "
+                            f"${pos.entry_price:.2f} (swing path)"),
+                   data={
+                       "ticker": pos.ticker,
+                       "direction": pos.direction,
+                       "quantity": pos.quantity,
+                       "entry_price": pos.entry_price,
+                       "stop_loss": pos.stop_loss,
+                       "risk_usd": round(pos.risk_usd, 2),
+                       "m_target": pos.m_target,
+                   })
+
+    total_risk = sum(p.risk_usd for p in positions)
+    total_exposure = sum(p.quantity * p.entry_price for p in positions)
+
+    portfolio_var_pct = 0.0
+    portfolio_var_usd = 0.0
+    var_removed = 0
+    if config.tuning.get("portfolio_var_enabled", True) and positions:
+        from ifds.risk.portfolio_var import (
+            calculate_portfolio_var,
+            trim_positions_by_var,
+        )
+        confidence = config.tuning.get("portfolio_var_confidence", 0.95)
+        max_var = config.tuning.get("portfolio_var_max_pct", 3.0)
+        account_equity = config.runtime["account_equity"]
+
+        portfolio_var_usd, _ = calculate_portfolio_var(positions, confidence)
+        account_var_pct = (
+            portfolio_var_usd / account_equity * 100 if account_equity > 0 else 0.0
+        )
+        if account_var_pct > max_var:
+            positions, var_removed, portfolio_var_pct = trim_positions_by_var(
+                positions, account_equity, max_var, confidence,
+            )
+            portfolio_var_usd, _ = calculate_portfolio_var(positions, confidence)
+            total_risk = sum(p.risk_usd for p in positions)
+            total_exposure = sum(p.quantity * p.entry_price for p in positions)
+        else:
+            portfolio_var_pct = round(account_var_pct, 4)
+
+    elapsed = time.time() - t0
+    logger.log(EventType.PHASE_COMPLETE, Severity.INFO, phase=6,
+               message=(f"Phase 6 (swing) complete: {len(positions)} entries "
+                        f"in {elapsed:.2f}s"),
+               data={
+                   "positions": len(positions),
+                   "total_risk_usd": round(total_risk, 2),
+                   "total_exposure_usd": round(total_exposure, 2),
+                   "open_positions": len(open_positions),
+                   "skipped_below_threshold": skipped_below_threshold,
+                   "skipped_sector_cap": counts["sector_cap"],
+                   "skipped_daily_cap": counts["daily_cap"],
+                   "skipped_sizing_failed": counts["sizing_failed"],
+               })
+
+    return Phase6Result(
+        positions=positions,
+        excluded_sector_limit=counts["sector_cap"],
+        excluded_position_limit=counts["concurrent_cap"] + counts["daily_cap"],
+        excluded_risk_limit=0,
+        excluded_exposure_limit=0,
+        excluded_dedup=0,
+        excluded_daily_trade_limit=0,
+        excluded_notional_limit=0,
+        excluded_correlation_limit=0,
+        freshness_applied_count=0,
+        total_risk_usd=total_risk,
+        total_exposure_usd=total_exposure,
+        portfolio_var_pct=portfolio_var_pct,
+        portfolio_var_usd=portfolio_var_usd,
+        var_positions_removed=var_removed,
+    )
 
 
 def _join_stock_gex(stock_analyses: list[StockAnalysis],
@@ -1004,3 +1131,248 @@ def _save_daily_counter(file_path: str, counter: dict) -> None:
 def _replace_quantity(pos: PositionSizing, new_qty: int) -> PositionSizing:
     """Create a copy of PositionSizing with an updated quantity."""
     return dataclasses.replace(pos, quantity=new_qty)
+
+
+# ============================================================================
+# Swing Sizing (Day 63 §3.7, §3.11 — Döntés 7, 11)
+#
+# notional_j = (equity * risk_pct) / (ATR_pct_j * stop_atr_mult) * M_target_j
+# quantity_j = floor(notional_j / entry_price_j)
+#
+# Active multiplier chain: only M_target. M_VIX / M_GEX / M_contradiction are
+# forced to 1.0 by their respective enable flags (set False in defaults.py).
+# ============================================================================
+
+
+def compute_swing_notional(
+    stock: StockAnalysis,
+    config: Config,
+) -> tuple[float, float, dict[str, float]]:
+    """Compute target $ notional and M_target for a swing entry.
+
+    Returns ``(notional_usd, m_target, diagnostics)``. ``notional_usd`` is
+    ``0.0`` if the ticker has invalid volatility/price data — caller should
+    skip these.
+    """
+    atr = stock.technical.atr_14
+    entry = stock.technical.price
+
+    if not (atr > 0) or not (entry > 0):
+        return 0.0, 1.0, {"reason": "invalid_atr_or_price"}
+
+    atr_pct = atr / entry
+    if atr_pct <= 0:
+        return 0.0, 1.0, {"reason": "invalid_atr_pct"}
+
+    equity = config.runtime["account_equity"]
+    risk_pct = config.tuning["swing_risk_per_trade_pct"]
+    stop_mult = config.tuning["swing_stop_atr_multiple"]
+
+    m_target = _calculate_target_multiplier(entry, stock.analyst_target, config)
+
+    notional = (equity * risk_pct) / (atr_pct * stop_mult) * m_target
+
+    return notional, m_target, {
+        "atr_pct": atr_pct,
+        "risk_usd": equity * risk_pct * m_target,
+        "stop_mult": stop_mult,
+    }
+
+
+def _calculate_swing_position(
+    stock: StockAnalysis,
+    gex: GEXAnalysis,
+    config: Config,
+    strategy_mode: StrategyMode,
+    sector_map: dict[str, SectorScore] | None = None,
+    mms_map: dict[str, MMSAnalysis] | None = None,
+) -> PositionSizing | None:
+    """Build a PositionSizing for the swing sizing path.
+
+    Returns None if the ticker fails the sizing floor (invalid ATR/price, or
+    notional below ``swing_min_notional``).
+    """
+    notional, m_target, _diag = compute_swing_notional(stock, config)
+    if notional <= 0:
+        return None
+
+    min_notional = config.tuning.get("swing_min_notional", 0)
+    if notional < min_notional:
+        return None
+
+    entry = stock.technical.price
+    atr = stock.technical.atr_14
+    stop_mult = config.tuning["swing_stop_atr_multiple"]
+    tp1_mult = config.tuning.get("swing_tp1_atr_multiple", config.core["tp1_atr_multiple"])
+    tp2_mult = config.tuning.get("swing_tp2_atr_multiple", config.core["tp2_atr_multiple"])
+
+    quantity = math.floor(notional / entry)
+
+    # Per-ticker exposure cap (still applies on swing path)
+    max_single = config.runtime.get("max_single_ticker_exposure", 15_000)
+    max_value_qty = math.floor(max_single / entry) if entry > 0 else quantity
+    quantity = min(quantity, max_value_qty)
+
+    # Fat finger cap
+    max_qty = config.runtime.get("max_order_quantity", 5000)
+    quantity = min(quantity, max_qty)
+
+    if quantity <= 0:
+        return None
+
+    stop_distance = stop_mult * atr
+    tp1_distance = tp1_mult * atr
+    tp2_distance = tp2_mult * atr
+
+    if strategy_mode == StrategyMode.LONG:
+        stop_loss = entry - stop_distance
+        tp1 = entry + tp1_distance
+        tp2 = entry + tp2_distance
+        if tp2 <= tp1:
+            tp2 = tp1 + atr
+        scale_out_price = entry + config.core["scale_out_atr_multiple"] * atr
+        direction = "BUY"
+    else:
+        stop_loss = entry + stop_distance
+        tp1 = entry - tp1_distance
+        tp2 = entry - tp2_distance
+        if tp2 >= tp1:
+            tp2 = tp1 - atr
+        scale_out_price = entry - config.core["scale_out_atr_multiple"] * atr
+        direction = "SELL_SHORT"
+
+    risk_usd = quantity * stop_distance  # actual at-risk dollars given floor()
+
+    _ss = (sector_map or {}).get(stock.sector)
+    sector_etf = _ss.etf if _ss else ""
+    sector_bmi = _ss.sector_bmi if _ss else None
+    sector_regime = _ss.sector_bmi_regime.value if _ss else ""
+    is_mean_reversion = (
+        _ss is not None
+        and _ss.classification == MomentumClassification.LAGGARD
+        and _ss.sector_bmi_regime == SectorBMIRegime.OVERSOLD
+    )
+
+    _mms = (mms_map or {}).get(stock.ticker)
+    mm_regime = _mms.mm_regime.value if _mms else ""
+    unusualness_score = _mms.unusualness_score if _mms else 0.0
+
+    return PositionSizing(
+        ticker=stock.ticker,
+        sector=stock.sector,
+        direction=direction,
+        entry_price=entry,
+        quantity=quantity,
+        stop_loss=round(stop_loss, 2),
+        take_profit_1=round(tp1, 2),
+        take_profit_2=round(tp2, 2),
+        risk_usd=risk_usd,
+        combined_score=stock.combined_score,
+        gex_regime=gex.gex_regime.value,
+        multiplier_total=m_target,  # swing chain reduces to M_target
+        m_flow=1.0,
+        m_insider=1.0,
+        m_funda=1.0,
+        m_gex=1.0,
+        m_vix=1.0,
+        m_utility=1.0,
+        m_target=m_target,
+        m_contradiction=1.0,
+        contradiction_flag=getattr(stock, "contradiction_flag", False),
+        contradiction_reasons=tuple(getattr(stock, "contradiction_reasons", ()) or ()),
+        scale_out_price=round(scale_out_price, 2),
+        scale_out_pct=config.core["scale_out_pct"],
+        is_fresh=False,
+        original_score=stock.combined_score,
+        sector_etf=sector_etf,
+        sector_bmi=sector_bmi,
+        sector_regime=sector_regime,
+        is_mean_reversion=is_mean_reversion,
+        shark_detected=stock.shark_detected,
+        mm_regime=mm_regime,
+        unusualness_score=unusualness_score,
+    )
+
+
+def _select_swing_entries(
+    candidates: list[tuple[StockAnalysis, GEXAnalysis]],
+    open_positions: list[PositionSizing],
+    config: Config,
+    strategy_mode: StrategyMode,
+    logger: EventLogger,
+    sector_map: dict[str, SectorScore] | None = None,
+    mms_map: dict[str, MMSAnalysis] | None = None,
+) -> tuple[list[PositionSizing], dict[str, int]]:
+    """Sector-balanced greedy fill — pick today's swing entries (D10).
+
+    Ranks candidates by ``combined_score`` desc, then iteratively adds the
+    highest-ranked ticker whose addition keeps the per-sector notional below
+    ``swing_sector_cap_pct × equity``. Stops at ``swing_max_daily_new`` new
+    entries or when the total (open + new) would exceed
+    ``swing_max_concurrent``.
+    """
+    equity = config.runtime["account_equity"]
+    sector_cap_pct = config.tuning["swing_sector_cap_pct"]
+    max_daily = config.tuning["swing_max_daily_new"]
+    max_concurrent = config.tuning["swing_max_concurrent"]
+
+    sector_cap_usd = equity * sector_cap_pct
+    sector_notionals: dict[str, float] = {}
+    for pos in open_positions:
+        pos_notional = pos.quantity * pos.entry_price
+        sector_notionals[pos.sector] = (
+            sector_notionals.get(pos.sector, 0.0) + pos_notional
+        )
+
+    headroom = max(0, max_concurrent - len(open_positions))
+    max_new = min(max_daily, headroom)
+
+    counts = {"sector_cap": 0, "concurrent_cap": 0, "sizing_failed": 0, "daily_cap": 0}
+
+    if max_new <= 0:
+        if len(open_positions) >= max_concurrent:
+            counts["concurrent_cap"] = len(candidates)
+            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
+                       message=f"[SWING] No new entries — at concurrent cap "
+                               f"({len(open_positions)}/{max_concurrent})")
+        return [], counts
+
+    ranked = sorted(candidates, key=lambda c: c[0].combined_score, reverse=True)
+
+    selected: list[PositionSizing] = []
+    for stock, gex in ranked:
+        if len(selected) >= max_new:
+            counts["daily_cap"] += 1
+            continue
+
+        pos = _calculate_swing_position(
+            stock, gex, config, strategy_mode, sector_map, mms_map,
+        )
+        if pos is None:
+            counts["sizing_failed"] += 1
+            continue
+
+        pos_notional = pos.quantity * pos.entry_price
+        new_sector_total = sector_notionals.get(pos.sector, 0.0) + pos_notional
+        if new_sector_total > sector_cap_usd:
+            counts["sector_cap"] += 1
+            logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=6,
+                       message=f"[SWING] {pos.ticker} excluded: sector "
+                               f"{pos.sector} would hit "
+                               f"${new_sector_total:.0f} > "
+                               f"${sector_cap_usd:.0f} cap",
+                       data={"ticker": pos.ticker, "sector": pos.sector,
+                             "reason": "sector_notional_cap"})
+            continue
+
+        selected.append(pos)
+        sector_notionals[pos.sector] = new_sector_total
+
+    if not selected and ranked:
+        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
+                   message=f"[SWING] 0 entries from {len(ranked)} candidates "
+                           f"(daily_cap={counts['daily_cap']}, "
+                           f"sector_cap={counts['sector_cap']}, "
+                           f"sizing_failed={counts['sizing_failed']})")
+
+    return selected, counts

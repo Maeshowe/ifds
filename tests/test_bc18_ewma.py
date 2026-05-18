@@ -156,6 +156,12 @@ def _setup_ewma_run(tmp_path, monkeypatch, prev_scores=None):
     c = Config()
     c.tuning["ewma_enabled"] = True
     c.tuning["ewma_span"] = 10
+    # Pin legacy Phase 6 path — EWMA log instrumentation is only emitted by
+    # the legacy multiplier-chain path, not the swing-sizing path.
+    c.tuning["swing_sizing_enabled"] = False
+    c.runtime["max_positions"] = 5
+    c.runtime["max_gross_exposure"] = 80_000
+    c.runtime["max_single_ticker_exposure"] = 20_000
     c.runtime["ewma_scores_file"] = str(tmp_path / "ewma.json")
     c.runtime["daily_trades_file"] = str(tmp_path / "daily_trades.json")
     c.runtime["daily_notional_file"] = str(tmp_path / "daily_notional.json")

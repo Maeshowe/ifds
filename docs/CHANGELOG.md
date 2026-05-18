@@ -4,6 +4,55 @@
 
 ---
 
+## Fázis 3 / W21 — Swing Sizing Phase 6 (0.35% risk, 12 cap, 30% sector notional) (1672 tests)
+
+> 2026-05-18 | Day 63 §3.7, §3.11 — Ülés B / Task #3
+
+### Phase 6 swing sizing path (`phase6_sizing.py`)
+- **Új formula** (sizing képlet):
+  `notional = (equity × 0.0035) / (ATR_pct × 2.0) × M_target`
+- **Új functions:**
+  - `compute_swing_notional(stock, config) → (notional, m_target, diag)`
+  - `_calculate_swing_position(stock, gex, ...)` — full PositionSizing build (csak M_target aktív)
+  - `_select_swing_entries(candidates, open_positions, ...)` — sector-balanced greedy fill (D10)
+  - `_run_phase6_swing(...)` — branch wrapper, threshold filter + greedy + Portfolio VaR
+- `run_phase6()` kibővítve `open_positions: list[PositionSizing] | None` kwarg-gal (default None — Task #4 wire-up)
+- `swing_sizing_enabled=True` esetén a swing path fut; a legacy multiplier chain / `_apply_position_limits` cascade megkerült
+
+### Új TUNING paraméterek (`defaults.py`)
+- `swing_sizing_enabled=True`
+- `swing_risk_per_trade_pct=0.0035`
+- `swing_max_concurrent=12`
+- `swing_max_daily_new=3`
+- `swing_sector_cap_pct=0.30`
+- `swing_stop_atr_multiple=2.0`
+- `swing_tp1_atr_multiple=1.25`, `swing_tp2_atr_multiple=2.0`
+- `swing_min_notional=1_000`
+- `m_contradiction_enabled=False` (default flip — Day 63 §3.13)
+
+### Új RUNTIME paraméterek (`defaults.py`)
+- `max_positions: 5 → 12`
+- `max_gross_exposure: 80_000 → 150_000`
+- `max_single_ticker_exposure: 20_000 → 15_000`
+
+### Legacy test fixture pinning
+A swing path most a default; a legacy multiplier-chain tesztek minden fixture-jét pinneltük
+`swing_sizing_enabled=False` + legacy `max_positions=5` + legacy exposure cap-ekre:
+`test_phase6.py`, `test_phase6_m_contradiction.py`, `test_bc11_robustness.py`,
+`test_bc13_backlog.py`, `test_bc18_ewma.py`.
+
+### Tesztek
+- 16 új `tests/test_swing_sizing_phase6.py` — `compute_swing_notional` (4), `_calculate_swing_position` (3), `_select_swing_entries` (7), end-to-end integration (2)
+- 1656 → **1672 passing**, 0 failure, 0 warning
+
+### Smoke
+Mock 10-ticker univerzum (4 sectorral, vegyes scoring, 1 analyst overshoot):
+3 entry kiválasztva (max_daily_new), $36,800 gross exposure, $731 total risk,
+M_target=0.60 a magas overshoot tickerre helyesen alkalmazva, per-ticker $15k cap
+mindkét Tech tickeren érvényesülve.
+
+---
+
 ## Fázis 3 / W21 — Swing Scoring Phase 4 (PCR + OTM-inverse percentile + EWMA(5)) (1656 tests)
 
 > 2026-05-18 | Day 63 §3.4, §3.5, §3.13 — Ülés A / Task #2

@@ -22,7 +22,14 @@ def config(monkeypatch):
     monkeypatch.setenv("IFDS_POLYGON_API_KEY", "test_poly")
     monkeypatch.setenv("IFDS_FMP_API_KEY", "test_fmp")
     monkeypatch.setenv("IFDS_FRED_API_KEY", "test_fred")
-    return Config()
+    c = Config()
+    # Pin legacy Phase 6 path — M_contradiction belongs to the legacy
+    # multiplier chain.
+    c.tuning["swing_sizing_enabled"] = False
+    c.runtime["max_positions"] = 5
+    c.runtime["max_gross_exposure"] = 80_000
+    c.runtime["max_single_ticker_exposure"] = 20_000
+    return c
 
 
 @pytest.fixture
@@ -61,7 +68,12 @@ def _gex() -> GEXAnalysis:
 class TestMContradiction:
 
     def test_applied_when_flagged(self, config, macro):
-        """A flagged ticker receives the configured multiplier (default 0.80)."""
+        """A flagged ticker receives the configured multiplier (default 0.80).
+
+        Day 63 §3.13 flipped m_contradiction_enabled default to False;
+        this test re-enables it to exercise the original multiplier path.
+        """
+        config.tuning["m_contradiction_enabled"] = True
         stock = _stock(contradiction_flag=True, reasons=("earnings_beats_below_half (1/4)",))
         m_total, mults = _calculate_multiplier_total(stock, _gex(), macro, config)
         assert mults["m_contradiction"] == 0.80
@@ -87,6 +99,7 @@ class TestMContradiction:
         this test verifies the chain math when both are active.
         """
         config.tuning["m_vix_enabled"] = True
+        config.tuning["m_contradiction_enabled"] = True
         # m_vix=0.9 (slight VIX penalty), m_gex=1.0, m_target=1.0, m_contradiction=0.80
         macro_v = MacroRegime(
             vix_value=22.0, vix_regime=MarketVolatilityRegime.NORMAL,
