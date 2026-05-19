@@ -1,6 +1,7 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-18 12:10 CEST — Fázis 3 deploy LIVE. Day 1 = MA hétfő 2026-05-18 15:30 CEST. 1711 passing, Mac Mini crontab swing-aktív, IBKR $100k reset, state files Day 1 reset, 0 leftover positions, VIX 18.98 normal, all APIs healthy. NINCS BLOKKOLÓ. -->
+<!-- Utolsó frissítés: 2026-05-19 16:50 CEST — Day 2 stabil. Task #T (Telegram swing-aware, 5 réteg, 27 új teszt) + #D (state/IBKR reconcile, 7 teszt) + #E (Phase 1-3 freshness, 5 teszt) DEPLOYED. EC TP1 50% SELL filled 15:30. 4 nyitott pozíció: LBRT/MASI/EC-166/PFGC. 1740 passing. Holnap Task #G (pt_monitor replay diagnózis, P0, ~60 min). -->
+<!-- Korábbi: 2026-05-18 12:10 CEST — Fázis 3 deploy LIVE (1711 passing, Day 1 indul) -->
 <!-- Korábbi: 2026-05-18 CC Ülés C — Swing Execution + Exit DEPLOY (1705 passing) -->
 <!-- Korábbi: 2026-05-18 CC Ülés B — Swing Sizing Phase 6 DEPLOY (1672 passing) -->
 <!-- Korábbi: 2026-05-18 CC Ülés A — Swing Universe + Swing Phase 4 scoring DEPLOY (1656 passing) -->
