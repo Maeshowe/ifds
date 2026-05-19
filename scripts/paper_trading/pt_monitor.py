@@ -25,7 +25,7 @@ Usage:
 """
 import json
 import os
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -301,11 +301,56 @@ def run_eod_eval() -> None:
         if evt:
             evt.log("monitor", "swing_eod_action", ticker=ticker, action=action)
 
-    if exits:
-        lines = [f"🌙 IFDS Swing EOD — {today_iso}"]
-        for ticker, action in exits:
-            lines.append(f"  {ticker}: {action}")
-        send_telegram("\n".join(lines))
+    # Task #T §3.3: full-context EOD Telegram (open book + per-ticker eval +
+    # time-stop countdown + market). Sends every cron firing, NOT only on
+    # triggered exits — operatív "no surprises" elv.
+    try:
+        from ifds.output.swing_telegram import format_pt_monitor_eod_telegram
+
+        # Optional market context fetch (cheap: 2 extra polygon calls)
+        market: dict[str, float] = {}
+        try:
+            spy_bar = fetch_today_ohlc_polygon("SPY", today_iso, poly)
+            if spy_bar:
+                spy_close = spy_bar["close"]
+                spy_prev_bars = poly.get_aggregates("SPY",
+                    (date.today() - timedelta(days=10)).isoformat(),
+                    (date.today() - timedelta(days=1)).isoformat(), "day", 1)
+                if spy_prev_bars:
+                    prev_close = float(spy_prev_bars[-1].get("c", 0.0))
+                    if prev_close > 0:
+                        market["spy_return_pct"] = (spy_close - prev_close) / prev_close * 100
+        except Exception as exc:
+            logger.debug(f"SPY fetch failed (non-fatal): {exc}")
+
+        try:
+            vix_bars = poly.get_aggregates("I:VIX", today_iso, today_iso, "day", 1)
+            if vix_bars:
+                market["vix_close"] = float(vix_bars[-1].get("c", 0.0))
+                vix_prev = poly.get_aggregates("I:VIX",
+                    (date.today() - timedelta(days=10)).isoformat(),
+                    (date.today() - timedelta(days=1)).isoformat(), "day", 1)
+                if vix_prev and market["vix_close"]:
+                    prev_v = float(vix_prev[-1].get("c", 0.0))
+                    if prev_v > 0:
+                        market["vix_delta_pct"] = (market["vix_close"] - prev_v) / prev_v * 100
+        except Exception as exc:
+            logger.debug(f"VIX fetch failed (non-fatal): {exc}")
+
+        max_hold = int(cfg.tuning.get("swing_time_stop_trading_days", 5))
+        tg_body = format_pt_monitor_eod_telegram(
+            updated, ohlc_map, exits, date.today(),
+            equity=equity, max_hold_days=max_hold,
+            market=market or None,
+        )
+        send_telegram(tg_body)
+    except Exception as exc:
+        logger.warning(f"Rich EOD Telegram failed, falling back to minimal: {exc}")
+        if exits:
+            lines = [f"🌙 IFDS Swing EOD — {today_iso}"]
+            for ticker, action in exits:
+                lines.append(f"  {ticker}: {action}")
+            send_telegram("\n".join(lines))
 
 
 def main() -> None:

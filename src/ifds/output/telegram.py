@@ -421,7 +421,34 @@ def _format_phases_5_to_6(ctx: PipelineContext, config: Config,
                         earnings_map[p.ticker] = fmp.get_next_earnings_date(p.ticker)
                     except Exception:
                         earnings_map[p.ticker] = None
-            lines.append(_format_exec_table(positions, earnings_map=earnings_map))
+
+            # Task #T §3.1: cross-reference plan vs swing state for OPEN/NEW status
+            existing_swing_tickers: set[str] | None = None
+            if config.tuning.get("swing_execution_enabled", False):
+                try:
+                    from ifds.state.swing_positions import load_swing_positions
+                    state_file = config.tuning.get(
+                        "swing_positions_state_file", "state/swing_positions.json",
+                    )
+                    existing_swing_tickers = {p.ticker for p in load_swing_positions(state_file)}
+                except Exception:
+                    existing_swing_tickers = None
+
+            lines.append(_format_exec_table(
+                positions, earnings_map=earnings_map,
+                existing_swing_tickers=existing_swing_tickers,
+            ))
+            if existing_swing_tickers is not None:
+                new_count = sum(
+                    1 for p in positions if p.ticker not in existing_swing_tickers
+                )
+                open_count = sum(
+                    1 for p in positions if p.ticker in existing_swing_tickers
+                )
+                lines.append(
+                    f"\n15:31 submit várt: {new_count} new entry "
+                    f"| {open_count} existing (skipped)"
+                )
         else:
             lines.append("<i>No positions today.</i>")
 
@@ -509,8 +536,15 @@ def _format_sector_table(sector_scores: list, benchmark=None) -> str:
 
 
 def _format_exec_table(positions: list,
-                       earnings_map: dict[str, str | None] | None = None) -> str:
-    """Format execution plan table as monospace <pre> block."""
+                       earnings_map: dict[str, str | None] | None = None,
+                       existing_swing_tickers: set[str] | None = None) -> str:
+    """Format execution plan table as monospace <pre> block.
+
+    Task #T §3.1: when ``existing_swing_tickers`` is provided, each row is
+    annotated with `OPEN` (already in swing state) vs `NEW` (new candidate)
+    so the operator can see at a glance how many of the Phase 6 picks will
+    actually result in a submit (the rest will be skipped by submit_orders).
+    """
     rows: list[str] = []
 
     base_header = (
@@ -524,7 +558,9 @@ def _format_exec_table(positions: list,
         f"  {'MMS':<4}"
     )
     if earnings_map is not None:
-        header = base_header + f"{'EARN':<5}"
+        base_header += f"{'EARN':<6}"
+    if existing_swing_tickers is not None:
+        header = base_header + f"{'STATUS':<7}"
     else:
         header = base_header
     rows.append(header)
@@ -556,7 +592,10 @@ def _format_exec_table(positions: list,
         if earnings_map is not None:
             full_date = earnings_map.get(p.ticker)
             earn_str = full_date[5:] if full_date else "N/A"
-            row += f"{earn_str:<5}"
+            row += f"{earn_str:<6}"
+        if existing_swing_tickers is not None:
+            status = "OPEN" if p.ticker in existing_swing_tickers else "NEW"
+            row += f"{status:<7}"
         rows.append(row)
 
     return "<pre>" + "\n".join(rows) + "</pre>"

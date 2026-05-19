@@ -66,11 +66,62 @@ def test_telegram_template_compact_format():
 
 
 def test_telegram_template_renders_zero_entries():
-    """Zero entries / exits → 'Új entry today: 0' és 'Exit today: 0'."""
+    """Zero entries / exits → 'Új entry today: 0' és 'Triggered exits: 0'."""
     metrics = _base_metrics()
     out = format_swing_compact_telegram(metrics)
     assert "Új entry today:  0" in out
-    assert "Exit today:      0" in out
+    assert "Triggered exits: 0" in out
+
+
+def test_telegram_template_pnl_block_with_unrealized():
+    """Task #T §3.4: realized + unrealized + cumulative séparálva."""
+    metrics = _base_metrics(pnl={
+        "net": 84.0, "gross": 84.0, "cumulative": 219.0, "cumulative_pct": 0.219,
+        "unrealized": 105.09, "closed_trades_today": 1,
+        "circuit_breaker_threshold": -5000.0,
+    })
+    out = format_swing_compact_telegram(metrics)
+    assert "Realized today:   $+84.00" in out
+    assert "(1 closed)" in out
+    assert "Unrealized:" in out
+    assert "+105.09" in out
+    assert "Cumulative:       $+219" in out
+
+
+def test_telegram_template_sector_breakdown_when_open():
+    """Open positions present → sector breakdown sor."""
+    swing = _base_metrics()["swing_state"]
+    swing["open_positions"] = 3
+    swing["total_notional"] = 23570.0
+    swing["total_notional_pct_equity"] = 23.57
+    swing["sector_distribution"] = {"Energy": 8575.0, "Healthcare": 14995.0}
+    metrics = _base_metrics(swing_state=swing)
+    out = format_swing_compact_telegram(metrics)
+    assert "Open book:" in out and "23,570" in out
+    assert "Sectors:" in out
+    assert "Healthcare 15.0%" in out
+    assert "Energy 8.6%" in out
+
+
+def test_telegram_template_cb_buffer_safe():
+    """Pozitív cumulative → CB buffer = 100%+ (alatta a -5k küszöbnek)."""
+    metrics = _base_metrics(pnl={
+        "net": 0, "gross": 0, "cumulative": 200.0, "cumulative_pct": 0.2,
+        "circuit_breaker_threshold": -5000.0,
+    })
+    out = format_swing_compact_telegram(metrics)
+    assert "CB buffer:" in out
+    assert "$+200 / $-5,000" in out
+
+
+def test_telegram_template_cb_triggered():
+    """Cumulative < -5k → CIRCUIT BREAKER TRIGGERED."""
+    metrics = _base_metrics(pnl={
+        "net": -500, "gross": -500, "cumulative": -5200.0, "cumulative_pct": -5.2,
+        "circuit_breaker_threshold": -5000.0,
+    })
+    out = format_swing_compact_telegram(metrics)
+    assert "CIRCUIT BREAKER" in out and "TRIGGERED" in out
 
 
 def test_telegram_template_renders_max_entries():
@@ -216,3 +267,134 @@ def test_daily_metrics_swing_state_empty_state(tmp_path, monkeypatch):
     assert swing_state["total_notional"] == 0.0
     assert swing_state["sector_distribution"] == {}
     assert swing_state["new_entries_today"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Task #T §3.3 — pt_monitor EOD Telegram formatter
+# ---------------------------------------------------------------------------
+
+from datetime import date as _date
+from ifds.output.swing_telegram import format_pt_monitor_eod_telegram
+from ifds.state.swing_positions import SwingPosition as _SwingPos
+
+
+def _pos(ticker, sector="Energy", qty_remaining=100, entry_price=10.0, days_held=0):
+    return _SwingPos(
+        ticker=ticker, entry_date="2026-05-18", entry_price=entry_price,
+        atr=1.0, stop_level=entry_price - 2.0, tp1_level=entry_price + 1.5,
+        tp2_level=entry_price + 3.0, qty=qty_remaining, qty_remaining=qty_remaining,
+        sector=sector, days_held=days_held,
+    )
+
+
+def test_pt_monitor_telegram_with_3_positions_1_tp1():
+    """3 nyitott pozíció, 1 TP1 flag → eval rows + sectors + market context."""
+    positions = [
+        _pos("EC", sector="Energy", qty_remaining=332, entry_price=13.08),
+        _pos("LBRT", sector="Energy", qty_remaining=127, entry_price=33.34),
+        _pos("MASI", sector="Healthcare", qty_remaining=84, entry_price=178.51),
+    ]
+    ohlc = {
+        "EC":   {"close": 13.59, "high": 13.86, "low": 13.05, "open": 13.10},
+        "LBRT": {"close": 33.30, "high": 33.40, "low": 33.10, "open": 33.20},
+        "MASI": {"close": 178.65, "high": 178.95, "low": 178.40, "open": 178.50},
+    }
+    exits = [("EC", "TP1")]
+    out = format_pt_monitor_eod_telegram(
+        positions, ohlc, exits, _date(2026, 5, 18),
+        day_number=1, market={"vix_close": 18.54, "vix_delta_pct": 2.3, "spy_return_pct": -0.07},
+    )
+    assert "Day 1/63" in out
+    assert "EC" in out and "TP1" in out and "✅" in out
+    assert "LBRT" in out and "⏸" in out
+    assert "Energy" in out and "Healthcare" in out
+    assert "VIX 18.5" in out and "SPY -0.07%" in out
+
+
+def test_pt_monitor_telegram_zero_open_positions():
+    """0 nyitott → 'no open positions' fallback."""
+    out = format_pt_monitor_eod_telegram(
+        [], {}, [], _date(2026, 5, 18), day_number=10,
+    )
+    assert "no open positions" in out
+
+
+def test_pt_monitor_telegram_timestop_countdown():
+    """days_held >= max_hold - 2 → time-stop countdown sor."""
+    positions = [
+        _pos("OLDPOS", qty_remaining=50, days_held=4),  # 1 day left
+        _pos("NEWPOS", qty_remaining=30, days_held=0),  # 5 days left
+    ]
+    ohlc = {
+        "OLDPOS": {"close": 11.0, "high": 11.0, "low": 10.0, "open": 10.5},
+        "NEWPOS": {"close": 11.0, "high": 11.0, "low": 10.0, "open": 10.5},
+    }
+    out = format_pt_monitor_eod_telegram(
+        positions, ohlc, [], _date(2026, 5, 22),
+        max_hold_days=5,
+    )
+    assert "Time-stops:" in out
+    assert "OLDPOS" in out and "1 day" in out
+    # NEWPOS has 5 days left → NOT in countdown section
+    assert out.count("NEWPOS") == 1   # only in EOD eval, not in time-stops
+
+
+def test_pt_monitor_telegram_no_market_context_when_absent():
+    """market=None → nincs VIX/SPY sor."""
+    pos = [_pos("EC", sector="Energy", entry_price=13.08)]
+    out = format_pt_monitor_eod_telegram(
+        pos, {"EC": {"close": 13.5, "high": 13.6, "low": 13.0, "open": 13.1}},
+        [], _date(2026, 5, 18), market=None,
+    )
+    assert "VIX" not in out and "SPY" not in out
+
+
+# ---------------------------------------------------------------------------
+# Task #T §3.1 — Trading Plan exec_table OPEN/NEW status column
+# ---------------------------------------------------------------------------
+
+def test_trading_plan_telegram_distinguishes_open_vs_new():
+    """A _format_exec_table existing_swing_tickers param → OPEN/NEW status."""
+    from ifds.output.telegram import _format_exec_table
+    from ifds.models.market import PositionSizing
+
+    positions = [
+        PositionSizing(
+            ticker="LBRT", sector="Energy", direction="BUY", entry_price=33.07,
+            quantity=124, stop_loss=30.27, take_profit_1=35.17, take_profit_2=37.27,
+            risk_usd=347.0, combined_score=101.7, gex_regime="positive",
+            multiplier_total=1.0, mm_regime="undetermined",
+        ),
+        PositionSizing(
+            ticker="PFGC", sector="Consumer Defensive", direction="BUY", entry_price=96.14,
+            quantity=57, stop_loss=90.02, take_profit_1=100.73, take_profit_2=105.32,
+            risk_usd=349.0, combined_score=92.0, gex_regime="positive",
+            multiplier_total=1.0, mm_regime="undetermined",
+        ),
+    ]
+    existing = {"LBRT", "MASI", "EC"}    # LBRT in swing state, PFGC is new
+
+    out = _format_exec_table(positions, existing_swing_tickers=existing)
+    assert "STATUS" in out
+    # LBRT row should contain "OPEN", PFGC row should contain "NEW"
+    lbrt_line = [l for l in out.split("\n") if l.startswith("LBRT")][0]
+    pfgc_line = [l for l in out.split("\n") if l.startswith("PFGC")][0]
+    assert "OPEN" in lbrt_line
+    assert "NEW" in pfgc_line and "OPEN" not in pfgc_line
+
+
+def test_trading_plan_exec_table_without_swing_state_no_status_column():
+    """Ha existing_swing_tickers=None → STATUS oszlop nincs (legacy mode)."""
+    from ifds.output.telegram import _format_exec_table
+    from ifds.models.market import PositionSizing
+
+    positions = [
+        PositionSizing(
+            ticker="LBRT", sector="Energy", direction="BUY", entry_price=33.07,
+            quantity=124, stop_loss=30.27, take_profit_1=35.17, take_profit_2=37.27,
+            risk_usd=347.0, combined_score=101.7, gex_regime="positive",
+            multiplier_total=1.0, mm_regime="undetermined",
+        ),
+    ]
+    out = _format_exec_table(positions, existing_swing_tickers=None)
+    assert "STATUS" not in out

@@ -1,17 +1,15 @@
-"""Tests for monitor_positions.py — Leftover position detection.
+"""Tests for monitor_positions.py — Leftover position detection (swing-aware).
 
-Covers:
-- No leftover: all positions in today's plan → no Telegram
-- Leftover detected: position not in plan → Telegram warning
-- No plan found: no CSV for today → warning log, no crash
-- CVR positions skipped
-- Zero positions skipped
+Covers (Task #T §3.5 — 2026-05-19 refactor):
+- No leftover: all IBKR positions in swing state → no Telegram (swing carry-over normal)
+- True leftover detected: IBKR pos NOT in swing state → TRUE LEFTOVER Telegram
+- Empty swing state: every IBKR pos becomes true_leftover
+- AVDL.CVR permanent orphan: excluded even when not in swing state
+- Zero position IBKR entries skipped
 """
 
-import csv
 import os
 import sys
-from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -68,8 +66,7 @@ def _import_module(tmp_path):
 
 
 def test_no_leftover(tmp_path):
-    """All positions in today's plan → no Telegram, INFO log."""
-    _write_execution_plan(tmp_path, ["AAPL", "MSFT"])
+    """All IBKR positions present in swing state → no Telegram (carry-over normal)."""
     mod = _import_module(tmp_path)
 
     mock_ib = MagicMock()
@@ -78,17 +75,17 @@ def test_no_leftover(tmp_path):
         _make_position("MSFT", 200),
     ]
 
-    with patch.object(mod, "send_telegram") as mock_tg, patch(
-        "lib.connection.connect", return_value=mock_ib
-    ), patch("lib.connection.disconnect"):
+    with patch.object(mod, "load_swing_state_tickers", return_value={"AAPL", "MSFT"}), \
+         patch.object(mod, "send_telegram") as mock_tg, \
+         patch("lib.connection.connect", return_value=mock_ib), \
+         patch("lib.connection.disconnect"):
         mod.main()
 
     mock_tg.assert_not_called()
 
 
 def test_leftover_detected(tmp_path):
-    """CRGY open but not in plan → Telegram warning with ticker and qty."""
-    _write_execution_plan(tmp_path, ["AAPL"])
+    """CRGY open but not in swing state → TRUE LEFTOVER Telegram."""
     mod = _import_module(tmp_path)
 
     mock_ib = MagicMock()
@@ -97,40 +94,39 @@ def test_leftover_detected(tmp_path):
         _make_position("CRGY", 672),
     ]
 
-    with patch.object(mod, "send_telegram") as mock_tg, patch(
-        "lib.connection.connect", return_value=mock_ib
-    ), patch("lib.connection.disconnect"):
+    with patch.object(mod, "load_swing_state_tickers", return_value={"AAPL"}), \
+         patch.object(mod, "send_telegram") as mock_tg, \
+         patch("lib.connection.connect", return_value=mock_ib), \
+         patch("lib.connection.disconnect"):
         mod.main()
 
     mock_tg.assert_called_once()
     msg = mock_tg.call_args[0][0]
     assert "CRGY" in msg
     assert "+672" in msg
-    assert "LEFTOVER" in msg
+    assert "TRUE LEFTOVER" in msg
 
 
-def test_no_plan_found(tmp_path):
-    """No execution plan CSV for today → warning log, no crash, no Telegram."""
-    # tmp_path is empty — no CSV
+def test_no_swing_state_all_leftover(tmp_path):
+    """Empty swing state → every IBKR pos is true_leftover."""
     mod = _import_module(tmp_path)
 
     mock_ib = MagicMock()
     mock_ib.positions.return_value = [_make_position("AAPL", 100)]
 
-    with patch.object(mod, "send_telegram") as mock_tg, patch(
-        "lib.connection.connect", return_value=mock_ib
-    ), patch("lib.connection.disconnect"):
+    with patch.object(mod, "load_swing_state_tickers", return_value=set()), \
+         patch.object(mod, "send_telegram") as mock_tg, \
+         patch("lib.connection.connect", return_value=mock_ib), \
+         patch("lib.connection.disconnect"):
         mod.main()
 
-    # No plan → all positions are leftover
     mock_tg.assert_called_once()
     msg = mock_tg.call_args[0][0]
     assert "AAPL" in msg
 
 
-def test_cvr_skipped(tmp_path):
-    """AVDL.CVR position should not appear as leftover."""
-    _write_execution_plan(tmp_path, ["AAPL"])
+def test_cvr_permanent_orphan_excluded(tmp_path):
+    """AVDL.CVR is a permanent orphan → never true_leftover even if not in swing state."""
     mod = _import_module(tmp_path)
 
     mock_ib = MagicMock()
@@ -139,17 +135,17 @@ def test_cvr_skipped(tmp_path):
         _make_position("AVDL.CVR", 50),
     ]
 
-    with patch.object(mod, "send_telegram") as mock_tg, patch(
-        "lib.connection.connect", return_value=mock_ib
-    ), patch("lib.connection.disconnect"):
+    with patch.object(mod, "load_swing_state_tickers", return_value={"AAPL"}), \
+         patch.object(mod, "send_telegram") as mock_tg, \
+         patch("lib.connection.connect", return_value=mock_ib), \
+         patch("lib.connection.disconnect"):
         mod.main()
 
     mock_tg.assert_not_called()
 
 
 def test_zero_position_skipped(tmp_path):
-    """position=0 should not appear as leftover."""
-    _write_execution_plan(tmp_path, ["AAPL"])
+    """position=0 IBKR entry filter-elve a raw_positions loopban."""
     mod = _import_module(tmp_path)
 
     mock_ib = MagicMock()
@@ -158,9 +154,10 @@ def test_zero_position_skipped(tmp_path):
         _make_position("CRGY", 0),  # closed, qty=0
     ]
 
-    with patch.object(mod, "send_telegram") as mock_tg, patch(
-        "lib.connection.connect", return_value=mock_ib
-    ), patch("lib.connection.disconnect"):
+    with patch.object(mod, "load_swing_state_tickers", return_value={"AAPL"}), \
+         patch.object(mod, "send_telegram") as mock_tg, \
+         patch("lib.connection.connect", return_value=mock_ib), \
+         patch("lib.connection.disconnect"):
         mod.main()
 
     mock_tg.assert_not_called()

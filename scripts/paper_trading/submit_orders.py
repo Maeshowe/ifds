@@ -342,8 +342,10 @@ def submit_swing_market_only(
             f"(race guard, {len(existing_swings)} open)"
         )
 
+    # Telegram notification — always send (Task #T §3.2): a 0-submit case is
+    # operatively meaningful ("submit ran, 3 existing skipped, no new entries")
+    # and silence-by-success was the Day 1-2 confusion source.
     if submitted_tickers:
-        # Telegram notification (compact swing format)
         lines = [
             f"📈 IFDS Swing Submit — {today_str}",
             f"{len(submitted_tickers)} pozíció | Total open: {len(new_state)}",
@@ -356,6 +358,23 @@ def submit_swing_market_only(
                 f"{sym}  qty {t['total_qty']}  @${t['limit_price']:.2f}  "
                 f"SL ${t['stop_loss']:.2f}  ATR ${atr:.2f}"
             )
+        send_telegram("\n".join(lines))
+    else:
+        # Heartbeat — 0 new entry case (mind already-position)
+        existing_in_plan = [t['symbol'] for t in tickers if t['symbol'] in existing_swings]
+        skipped_other = [
+            t['symbol'] for t in tickers
+            if t['symbol'] not in existing_swings and t['symbol'] not in submitted_tickers
+        ]
+        lines = [
+            f"✓ IFDS Swing Submit — {today_str}",
+            f"0 new entry | {len(existing_swings)} swing open",
+        ]
+        if existing_in_plan:
+            lines.append(f"Skip (existing): {', '.join(existing_in_plan)}")
+        if skipped_other:
+            lines.append(f"Skip (other): {', '.join(skipped_other)}")
+        lines.append(f"Next: 22:00 EOD eval | swing state: {len(existing_swings)} pos")
         send_telegram("\n".join(lines))
 
     disconnect(ib)

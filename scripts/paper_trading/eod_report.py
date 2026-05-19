@@ -590,16 +590,26 @@ def main():
         if evt:
             evt.log("eod", "leftover_warning", leftover=leftover_list, count=len(positions))
 
-    # --- Telegram EOD report (Task #6 swing-aware) ---
+    # --- Telegram EOD report (Task #T §3.4 swing-aware) ---
     # Build the compact swing daily summary from daily_metrics + override P&L
-    # with the EOD report's authoritative fill data. Falls back to the legacy
-    # intraday template if the swing pipeline fails (defensive — never silent).
+    # with the EOD report's authoritative fill data and IBKR portfolio unrealized.
+    # Falls back to the legacy intraday template if anything fails.
     swing_tg_sent = False
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).parent))
         from daily_metrics import build_daily_metrics
         from ifds.output.swing_telegram import format_swing_compact_telegram
+
+        # Unrealized P&L from IBKR portfolio (only swing tickers, exclude AVDL.CVR orphan)
+        unrealized_total = 0.0
+        try:
+            for item in ib.portfolio():
+                sym = item.contract.symbol
+                if item.position != 0 and sym not in IGNORED_POSITIONS:
+                    unrealized_total += float(item.unrealizedPNL or 0.0)
+        except Exception as exc:
+            logger.warning(f"Failed to read IBKR unrealized P&L: {exc}")
 
         metrics = build_daily_metrics(today_str)
         # Override P&L block with eod_report's authoritative numbers
@@ -609,11 +619,13 @@ def main():
         metrics["pnl"]["net"] = round(daily_pnl - commission, 2)
         metrics["pnl"]["cumulative"] = round(cum_pnl, 2)
         metrics["pnl"]["cumulative_pct"] = round(cum_pct, 2)
+        metrics["pnl"]["unrealized"] = round(unrealized_total, 2)
+        metrics["pnl"]["closed_trades_today"] = len(trades)
+        metrics["pnl"]["circuit_breaker_threshold"] = float(CIRCUIT_BREAKER_USD)
         metrics["day_number"] = trading_days
+        metrics["initial_capital"] = INITIAL_CAPITAL
 
         tg_msg = format_swing_compact_telegram(metrics)
-        if cum_pnl <= CIRCUIT_BREAKER_USD:
-            tg_msg += f"\n⚠️ CB ALERT: ${cum_pnl:+,.0f} / ${CIRCUIT_BREAKER_USD:,}"
         send_telegram(tg_msg)
         swing_tg_sent = True
     except Exception as exc:
