@@ -47,17 +47,17 @@
 # ⚠️ Ha FAIL → Gateway újraindítás MIELŐTT 15:30 jön!
 25 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/check_gateway.py
 
-# Submit market BUY (Day 63 §3.6 — 15:30 CEST entry)
-# 15:30 Budapest = 09:30 EDT (NYSE open)
-# Swing-mode: market BUY only (no bracket), state/swing_positions.json írva
-30 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/submit_orders.py
-
 # Másnapi exit végrehajtás (HARD_SL/MENTAL_SL/TP1/TP2/TRAIL_SL — eod_flags)
-# 15:30 Budapest = 09:30 EDT (NYSE open) — másnap végrehajtja az előző esti EOD eval flag-eket
-# Megjegyzés: ugyanabban a percben fut a submit_orders + close_eod, mert
-# új entry-k MKT BUY-ja és előző napi flagű exit-ek MKT SELL-je független
-# (külön IBKR clientId: submit=10, close=11).
+# 15:30 Budapest = 09:30 EDT (NYSE open) — CLOSE fut ELŐSZÖR (sector cap felszabadítás)
+# Day 2 (2026-05-19) race-condition fix: a submit korábban ugyanabban a
+# percben futott és felülírta a close által frissített state-et.
 30 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/close_positions.py --mode=eod_flags
+
+# Submit market BUY (Day 63 §3.6 — 15:31 CEST entry, 1 min after close)
+# 15:31 Budapest = 09:31 EDT (NYSE open + 1 min, biztonság az IBKR Error 10349 ellen)
+# Swing-mode: market BUY only (no bracket), state/swing_positions.json írva
+# (külön IBKR clientId: submit=10, close=11).
+31 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/submit_orders.py
 
 # IBKR submit heartbeat monitor — 15:45 CEST, 15 min after submit
 45 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && source .env && source .venv/bin/activate && python scripts/paper_trading/monitor_submit_heartbeat.py >> logs/heartbeat_monitor_$(date +\%Y\%m\%d).log 2>&1
