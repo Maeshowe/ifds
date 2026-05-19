@@ -82,10 +82,17 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
     if uw and uw.get("tickers_logged", 0):
         lines.append("")
         lines.append("🔬 UW shadow:")
-        dp_avg = uw.get("dp_pct_avg")
+        # daily_metrics.py uses ``avg_dp_pct``; accept ``dp_pct_avg`` for back-compat.
+        dp_avg = uw.get("avg_dp_pct", uw.get("dp_pct_avg"))
         n_log = uw.get("tickers_logged", 0)
+        m_gex = uw.get("m_gex_avg_would_have_been")
         if dp_avg is not None:
-            lines.append(f"   {n_log} logged | dp_pct avg {dp_avg:.1f}%")
+            line = f"   {n_log} logged | dp_pct avg {dp_avg:.2f}%"
+            if m_gex is not None:
+                line += f" | M_GEX avg {m_gex:.2f}"
+            lines.append(line)
+        else:
+            lines.append(f"   {n_log} logged")
 
     mkt = metrics.get("market", {}) or {}
     vix = mkt.get("vix_close")
