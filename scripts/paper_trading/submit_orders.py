@@ -325,11 +325,22 @@ def submit_swing_market_only(
                 atr=atr,
             )
 
-    save_swing_positions(state_file, new_state)
-    logger.info(
-        f"[SWING] Submitted: {len(submitted_tickers)} tickers | "
-        f"State: {state_file} ({len(new_state)} open)"
-    )
+    # Race-condition guard (Day 2 bug): the cron schedules submit_orders.py
+    # and close_positions.py --mode=eod_flags both at 15:30. If we save state
+    # here with 0 new submitted, we may overwrite a fresh state that
+    # close_positions just wrote (e.g. EC TP1 partial). Only save when we
+    # actually added a ticker; otherwise leave the state file untouched.
+    if submitted_tickers:
+        save_swing_positions(state_file, new_state)
+        logger.info(
+            f"[SWING] Submitted: {len(submitted_tickers)} tickers | "
+            f"State: {state_file} ({len(new_state)} open)"
+        )
+    else:
+        logger.info(
+            f"[SWING] Submitted: 0 tickers — state file untouched "
+            f"(race guard, {len(existing_swings)} open)"
+        )
 
     if submitted_tickers:
         # Telegram notification (compact swing format)
