@@ -35,6 +35,10 @@
 # Kimenet: state/phase13_ctx.json.gz (a hét során használja Phase 4-6)
 0 22 * * 0 /Users/safrtam/SSH-Services/ifds/scripts/deploy_daily.sh --phases 1-3
 
+# Phase 1-3 heartbeat — vasárnap 23:00 (1 óra time-window a 22:00 macro cronnak — Task #E)
+# Detect: ha a heti cron silent-fail, vagy a context file stale/missing
+0 23 * * 0 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/check_phase13_freshness.py
+
 # ─── HÉTFŐ-PÉNTEK SWING CRON ────────────────────────────────────────────────
 
 # Phase 4-6: scoring, GEX, MMS, swing sizing
