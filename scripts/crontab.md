@@ -81,6 +81,10 @@
 # 22:10 Budapest = 16:10 EDT (EOD report után 5 perccel)
 10 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/daily_metrics.py
 
+# State/IBKR reconciliation — divergence detect + Telegram WARNING (Task #D)
+# 22:15 Budapest = 16:15 EDT (5 perccel a metrics után, mielőtt Tamás review jön)
+15 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/reconcile_state.py
+
 # Events → SQLite import (log elemzéshez)
 # 22:45 Budapest = 16:45 EDT
 45 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/tools/events_to_sqlite.py
