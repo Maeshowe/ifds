@@ -590,10 +590,40 @@ def main():
         if evt:
             evt.log("eod", "leftover_warning", leftover=leftover_list, count=len(positions))
 
-    # --- Telegram EOD report ---
-    total_trades = len(trades)
-    daily_stats = cum_data['daily_history'][-1] if cum_data['daily_history'] else {}
+    # --- Telegram EOD report (Task #6 swing-aware) ---
+    # Build the compact swing daily summary from daily_metrics + override P&L
+    # with the EOD report's authoritative fill data. Falls back to the legacy
+    # intraday template if the swing pipeline fails (defensive — never silent).
+    swing_tg_sent = False
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).parent))
+        from daily_metrics import build_daily_metrics
+        from ifds.output.swing_telegram import format_swing_compact_telegram
 
+        metrics = build_daily_metrics(today_str)
+        # Override P&L block with eod_report's authoritative numbers
+        commission = sum(t.get("commission", 0) for t in trades)
+        metrics["pnl"]["gross"] = round(daily_pnl, 2)
+        metrics["pnl"]["commission"] = round(commission, 2)
+        metrics["pnl"]["net"] = round(daily_pnl - commission, 2)
+        metrics["pnl"]["cumulative"] = round(cum_pnl, 2)
+        metrics["pnl"]["cumulative_pct"] = round(cum_pct, 2)
+        metrics["day_number"] = trading_days
+
+        tg_msg = format_swing_compact_telegram(metrics)
+        if cum_pnl <= CIRCUIT_BREAKER_USD:
+            tg_msg += f"\n⚠️ CB ALERT: ${cum_pnl:+,.0f} / ${CIRCUIT_BREAKER_USD:,}"
+        send_telegram(tg_msg)
+        swing_tg_sent = True
+    except Exception as exc:
+        logger.warning(f"Swing Telegram failed, falling back to legacy: {exc}")
+
+    if swing_tg_sent:
+        return
+
+    # Legacy intraday Telegram template (fallback only)
+    daily_stats = cum_data['daily_history'][-1] if cum_data['daily_history'] else {}
     tg_lines = [
         f"📊 PAPER TRADING EOD — {today_str}",
         "",
@@ -604,8 +634,6 @@ def main():
     ds_trail = daily_stats.get('trail_hits', 0)
     if ds_loss or ds_trail:
         tg_lines.append(f"LOSS: {ds_loss} | TRAIL: {ds_trail}")
-
-    # Per-ticker P&L breakdown
     if trades:
         sorted_trades = sorted(trades, key=lambda t: t['pnl'], reverse=True)
         ticker_lines = []
@@ -619,15 +647,12 @@ def main():
                 f"{t['ticker']:<6} ${t['pnl']:>+8.2f}  {t['exit_type']}{icon}"
             )
         tg_lines.append(f"\n<pre>{chr(10).join(ticker_lines)}</pre>")
-
     leftover_msg = "nincs ✅" if not positions else f"{len(positions)} ⚠️"
     tg_lines.append(f"\nLeftover: {leftover_msg}")
-
     if cum_pnl <= CIRCUIT_BREAKER_USD:
         tg_lines.append(f"⚠️ CB ALERT: ${cum_pnl:+,.0f} / ${CIRCUIT_BREAKER_USD:,}")
     else:
         tg_lines.append(f"CB: ${cum_pnl:+,.0f} / ${CIRCUIT_BREAKER_USD:,}")
-
     send_telegram("\n".join(tg_lines))
 
     disconnect(ib)
