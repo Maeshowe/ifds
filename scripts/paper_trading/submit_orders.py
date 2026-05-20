@@ -277,10 +277,17 @@ def submit_swing_market_only(
             logger.warning(f"  Skipping {sym}: contract not found in IBKR")
             continue
 
-        # Single market BUY (no bracket)
+        # Single market BUY (no bracket).
+        # Explicit tif='GTC' + outsideRth=True override the paper-account
+        # order preset (Workstation Configuration → Order Presets → Stocks →
+        # Default TIF = DAY), which otherwise triggers Error 10349 + Cancel
+        # on the new swing market-only path (legacy bracket masked this via
+        # OCA parent silent-fill behavior). See 2026-05-20 Day 3 incident.
         order = MarketOrder(action='BUY', totalQuantity=t['total_qty'])
         order.account = account
         order.orderRef = f"IFDS_SWING_{sym}"
+        order.tif = 'GTC'
+        order.outsideRth = True
         trade = ib.placeOrder(contract, order)
         ib.sleep(1.5)
 
