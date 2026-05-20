@@ -4,6 +4,54 @@
 
 ---
 
+## Fázis 3 / W22 — pt_monitor "replay" pollution fix (1745 tests)
+
+> 2026-05-20 | Day 2 swing pivot — Task #G (P0 §0.1 / §8.1.6 resolution)
+
+### Root cause: pytest pre-flight FileHandler binding (H1 confirmed)
+
+A `pt_monitor_2026-05-18.log` és `pt_monitor_2026-05-19.log` LION/SDRL "Trail SL
+hit" / "LOSS_EXIT Scenario B" replay események a `deploy_daily.sh` pytest pre-
+flight ablakából származtak. A `scripts/paper_trading/lib/log_setup.py::
+setup_pt_logger("monitor")` modul-import időben kötötte a FileHandler-t a
+produkciós `logs/pt_monitor_YYYY-MM-DD.log`-ra; a `tests/test_pt_monitor*.py`
+28 teszt `logger.info()` hívásai szivárogtak be.
+
+A legacy 5-perces code path élesben halott (a `submit_orders.py` 2026-05-15 óta
+nem ír `monitor_state_*.json`-t — `if not state: return` early exit). **Nincs live
+impact** — minden "SELL parancs" puszta log-szöveg-pollution volt, NEM IBKR API
+hívás. A test fixture-ök MagicMock(IB)-et használtak.
+
+### Fix — `scripts/paper_trading/lib/log_setup.py::_resolve_log_dir()`
+
+- `PYTEST_CURRENT_TEST` env var detektálással redirect (`$IFDS_PT_LOG_DIR` vagy
+  `$TMPDIR/ifds_pt_logs_test/`) az implicit `log_dir="logs"` default-ra.
+- Explicit caller-supplied `log_dir` (pl. `tmp_path` a `test_log_setup.py` 5
+  meglévő tesztből) változatlanul áthalad.
+- Produkciós cron (PYTEST_CURRENT_TEST not set) bit-for-bit változatlan.
+
+### Hatás
+
+A fix automatikusan védi mind a 10+ PT script-et a pytest-bind pollution-tól:
+`pt_monitor`, `monitor_positions`, `eod_report`, `daily_metrics`,
+`reconcile_state`, `submit_orders`, `pt_avwap`, `monitor_submit_heartbeat`,
+`nuke`, `check_gateway`.
+
+### Tesztek
+
+- `tests/test_log_setup_isolation.py` — **5 új regressziós teszt** (redirect
+  ágak, IFDS_PT_LOG_DIR override, produkciós passthrough, dir creation)
+- `tests/test_log_setup.py` (5 meglévő) változatlan, mind passing
+- **1740 → 1745 passing**, 0 regression
+
+### Refs
+
+- `docs/tasks/2026-05-19-pt-monitor-replay-diagnosis.md` §6
+- `docs/master-reference/04-risks-and-open-questions.md` §0.1 + §8.1.6
+- `docs/review/2026-05-18-daily-review.md` §6 Anomália #1
+
+---
+
 ## Fázis 3 / W21 — Swing Daily Metrics + Compact Telegram (1711 tests)
 
 > 2026-05-18 | Day 63 §3 (összes) — Ülés C / Task #5 A rész
