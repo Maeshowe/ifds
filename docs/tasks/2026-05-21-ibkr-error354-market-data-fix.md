@@ -1,8 +1,8 @@
 # Task: IBKR Error 354 Market Data Block — Permanent Fix
 
-Status: OPEN
+Status: DONE
 Updated: 2026-05-20
-Note: P1 — Day 3 Incident (2026-05-20) revealed that new tickers (first-time trade) are silently blocked by IBKR Workstation "Block submitting orders without market data" Precautionary Setting. Manual Workstation override worked; cron-driven submit will fail until a permanent fix is deployed.
+Note: RESOLVED 2026-05-20 19:00 CEST — Tamás bekapcsolta az API → Precautions → "Bypass Order Precautions for API Orders" beállítást a TWS Global Configuration-ben. 1-share VLO live smoke test t=1.0s Filled @ $254.08 (no Error 354). Cleanup SELL @ $253.19 (P&L -$0.89). State≡IBKR reconciled. **Holnapi Day 4 cron tisztán fut új tickerekkel is.**
 
 **Priority:** P1 (blocks all new-ticker entries on the swing-pivot market-only path)
 **Created:** 2026-05-20

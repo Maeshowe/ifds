@@ -63,7 +63,17 @@ Mindkettő Phase 0-1-et sikeresen lefutott (1711 pytest passed, BMI=52,7% YELLOW
 2. Optimalizálja a `sec_edgar.py:_http_get_json` rate-limit logikát
 3. Csökkentse a Phase 2 work futures concurrency-jét
 
-### 0.4 🚨 Day 3 IBKR Error 354 — new-ticker market data block (P1, OPEN)
+### 0.4 ✅ Day 3 IBKR Error 354 — new-ticker market data block (RESOLVED 2026-05-20 19:00 CEST)
+
+**Státusz**: ✅ RESOLVED — Tamás bekapcsolta az IBKR TWS Global Configuration → **API → Precautions** → **"Bypass Order Precautions for API Orders"** beállítást. 1-share VLO live smoke test (clientId=18, `/tmp/ibkr_debug_submit.py`) **t=1.0s status=Filled @ $254.08**, semmilyen Error 354 vagy TIF warning. Cleanup: SELL 1 share @ $253.19 (P&L -$0.89 negligible). Final reconcile_state.py: state ≡ IBKR mind a 7 ticker-en.
+
+**A pontos beállítás helye** (a Day 4+ session-höz):
+- TWS/Gateway → File → Global Configuration → **API → Precautions** szekció (NEM a Presets → Stocks → Precautionary Settings, ami numeric Price Percentage / Size Limit guard, NEM market data block).
+- **Az első checkbox**: "Bypass Order Precautions for API Orders" → enable + Apply + OK.
+- Hatás: minden API-ról jövő order (clientId=10 submit_orders, clientId=11 close_positions, stb.) bypass-olja az IBKR paper account összes Order Precaution-jét — beleértve a "no market data" Error 354 block-ot.
+- A többi API → Precautions checkbox (Bond warning, negative yield, called bond, same action pair, price-based volatility, redirect order, overfill, route marketable) **nem szükséges** a swing pivot use-case-hez.
+
+
 
 **Időpont**: 2026-05-20 (Day 3 swing pivot) 15:31 CEST cron-driven submit + 16:05/16:20 CEST manual retry-k.
 
