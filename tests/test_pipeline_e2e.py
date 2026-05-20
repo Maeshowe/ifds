@@ -31,11 +31,28 @@ from ifds.pipeline.runner import run_pipeline
 
 @pytest.fixture
 def env_setup(monkeypatch):
-    """Set up environment for pipeline tests."""
+    """Set up environment for pipeline tests.
+
+    Clears IFDS_TELEGRAM_* env vars to prevent the pipeline's end-of-run
+    telegram send (runner.py:680-720, send_macro_snapshot / send_trading_plan
+    / send_daily_report) from firing live messages with _mock_phase4()
+    fixture data. The dev machine's .env populates these vars for real
+    cron use; the cron env_isolation rule (.claude/rules/ifds-rules.md,
+    2026-03-02) requires fixtures to explicitly clear behavior-modifying
+    env vars.
+
+    Incident: 2026-05-20 09:41 + 09:44 CEST, Tamás received two real
+    Telegram MACRO SNAPSHOT messages with _mock_phase1/2/3 fixture data
+    (BMI=45.0%, Passed=2, XLK only) — triggered by my Task #H test
+    `test_phase13_context_save_is_mocked` (phase=(1, 3) hits
+    send_macro_snapshot at runner.py:685-687).
+    """
     monkeypatch.setenv("IFDS_POLYGON_API_KEY", "test_poly")
     monkeypatch.setenv("IFDS_FMP_API_KEY", "test_fmp")
     monkeypatch.setenv("IFDS_FRED_API_KEY", "test_fred")
     monkeypatch.setenv("IFDS_UW_API_KEY", "test_uw")
+    monkeypatch.delenv("IFDS_TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("IFDS_TELEGRAM_CHAT_ID", raising=False)
 
 
 def _mock_diagnostics_ok():
@@ -197,6 +214,9 @@ def _mock_client_class(*args, **kwargs):
 class TestEndToEnd:
     """Full pipeline with all phases mocked."""
 
+    @patch("ifds.output.telegram.send_daily_report", return_value=True)
+    @patch("ifds.output.telegram.send_trading_plan", return_value=True)
+    @patch("ifds.output.telegram.send_macro_snapshot", return_value=True)
     @patch("ifds.pipeline.context_persistence.save_phase13_context",
            return_value=None)
     @patch("ifds.data.uw_shadow.write_shadow_snapshot",
@@ -220,6 +240,7 @@ class TestEndToEnd:
                                  mock_p4, mock_p5, mock_p6, mock_output,
                                  mock_scan, mock_trade, mock_save_snapshot,
                                  mock_write_shadow, mock_save_phase13,
+                                 mock_tg_macro, mock_tg_trading, mock_tg_daily,
                                  env_setup, tmp_path, monkeypatch):
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
 
@@ -277,6 +298,9 @@ class TestSnapshotIsolation:
       ``write_shadow_snapshot`` patch below closes that gap.
     """
 
+    @patch("ifds.output.telegram.send_daily_report", return_value=True)
+    @patch("ifds.output.telegram.send_trading_plan", return_value=True)
+    @patch("ifds.output.telegram.send_macro_snapshot", return_value=True)
     @patch("ifds.pipeline.context_persistence.save_phase13_context",
            return_value=None)
     @patch("ifds.data.uw_shadow.write_shadow_snapshot",
@@ -300,6 +324,7 @@ class TestSnapshotIsolation:
         self, mock_p0, mock_p1, mock_p2, mock_p3, mock_p4, mock_p5, mock_p6,
         mock_output, mock_scan, mock_trade, mock_save_snapshot,
         mock_write_shadow, mock_save_phase13,
+        mock_tg_macro, mock_tg_trading, mock_tg_daily,
         env_setup, tmp_path, monkeypatch,
     ):
         """Both save_phase4_snapshot and write_shadow_snapshot must be mocked."""
@@ -317,6 +342,7 @@ class TestSnapshotIsolation:
             "bypassed the patch and written to production state/uw_shadow/."
         )
 
+    @patch("ifds.output.telegram.send_macro_snapshot", return_value=True)
     @patch("ifds.pipeline.context_persistence.save_phase13_context",
            return_value=None)
     @patch(_P3, return_value=_mock_phase3())
@@ -328,6 +354,7 @@ class TestSnapshotIsolation:
     @patch("ifds.data.fmp.FMPClient", _mock_client_class)
     def test_phase13_context_save_is_mocked(
         self, mock_p0, mock_p1, mock_p2, mock_p3, mock_save_phase13,
+        mock_tg_macro,
         env_setup, tmp_path, monkeypatch,
     ):
         """save_phase13_context must be mocked when --phases 1-3 runs.
@@ -346,6 +373,11 @@ class TestSnapshotIsolation:
         assert mock_save_phase13.called, (
             "save_phase13_context mock was not invoked — runner may have "
             "bypassed the patch and written to production state/phase13_ctx.json.gz."
+        )
+        assert mock_tg_macro.called, (
+            "send_macro_snapshot mock was not invoked — runner may have "
+            "bypassed the patch and sent a live Telegram MACRO SNAPSHOT "
+            "with mock fixture data (see 2026-05-20 09:41/09:44 incident)."
         )
 
 

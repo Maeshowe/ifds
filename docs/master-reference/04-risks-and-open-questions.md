@@ -466,6 +466,74 @@ A 2026-05-19-i shadow log permanently lost — a 14:30 CEST cron által írt ~90
 - Audit szabály: `04-risks` §8.1.6 + §8.1.7
 - Predecessor commits: `d3fce73` (Phase 4 snapshot, 2026-05-08), `1eb9755` (UW shadow, 2026-05-20)
 
+#### 8.1.9 ✅ Telegram pollution — env_setup nem clear-elte IFDS_TELEGRAM_* (INCIDENT, RESOLVED 2026-05-20)
+
+**Státusz**: ✅ RESOLVED — Task #H tesztemen keresztül **aktív (nem proaktív)** pollution incidens. Tamás 2 ÉLŐ MACRO SNAPSHOT Telegram üzenetet kapott mock fixture data-val 2026-05-20 09:41 + 09:44 CEST időpontokban. Fix: `env_setup` fixture kibővítve `IFDS_TELEGRAM_*` delenv-vel + 3 defenzív `@patch` decorator.
+
+**Mi**: a `tests/test_pipeline_e2e.py::env_setup` fixture API key-eket beállította, de **NEM clear-elte** az `IFDS_TELEGRAM_BOT_TOKEN` és `IFDS_TELEGRAM_CHAT_ID` env var-okat. A dev MacBook `.env`-jében valid Telegram credentials voltak. A Task #H (`bd54857`) által hozzáadott új `test_phase13_context_save_is_mocked` teszt:
+
+1. Hívja `run_pipeline(phase=(1, 3))`
+2. A `runner.py:685` elágazás aktiválódik: `if isinstance(phase, tuple) and phase == (1, 3):`
+3. `send_macro_snapshot(ctx, config, logger, duration)` meghívódik
+4. A `ctx` a mock Phase 1/2/3 data-t tartalmazza (`_mock_phase1/2/3()` fixture)
+5. Token+chat_id valid → ténylegesen kiküldi a mock data-t Telegram-on
+
+**Pollution evidencia** — a kiküldött MACRO SNAPSHOT üzenet (09:41 + 09:44) **100%-ban** egyezik a fixture szignatúrákkal:
+- `_mock_phase1()`: `bmi_value=45.0`, `BMIRegime.YELLOW`, `ticker_count_for_bmi=100` → "BMI = 45.0% Regime = YELLOW Tickers used = 100"
+- `_mock_phase2()`: `total_screened=3000`, 2 ticker (AAPL+MSFT) → "Screened: 3000 Passed: 2"
+- `_mock_phase3()`: single XLK, `momentum_5d=2.5` → "XLK ^ +2.50% Leader UP"
+
+A 09:41 + 09:44 timestamp pontosan megegyezik az én pytest futtatásaimmal (`pytest tests/test_pipeline_e2e.py -v` és `pytest tests/ -q` a Task #H commit ELŐTT — a commit timestamp `bd54857` = 09:44:22).
+
+**Root cause**: a sink-audit (§8.1.6, §8.1.7, §8.1.8) a **file system pollution sink**-eket azonosította (`save_phase4_snapshot`, `write_shadow_snapshot`, `save_phase13_context`). Az **external side-effect sink**-eket (Telegram, Slack, IBKR, stb.) NEM auditálta. Ez egy 7. (telegram) sink osztály, amit kihagyott az audit scope.
+
+**Fix**:
+
+1. **`env_setup` fixture kibővítése** (`tests/test_pipeline_e2e.py`):
+```python
+monkeypatch.delenv("IFDS_TELEGRAM_BOT_TOKEN", raising=False)
+monkeypatch.delenv("IFDS_TELEGRAM_CHAT_ID", raising=False)
+```
+Ez gracefully blokkolja az ÖSSZES telegram send-et a runner.py `if not token or not chat_id: return False` guards-okon keresztül.
+
+2. **Defenzív `@patch` decoratorok** mindhárom telegram send entry point-ra:
+- `@patch("ifds.output.telegram.send_macro_snapshot", return_value=True)`
+- `@patch("ifds.output.telegram.send_trading_plan", return_value=True)`
+- `@patch("ifds.output.telegram.send_daily_report", return_value=True)`
+
+Mindkét meglévő e2e stack-be (`test_full_pipeline_flow`, `test_save_snapshot_is_mocked_in_e2e`) + a Task #H `test_phase13_context_save_is_mocked`-be (csak `send_macro_snapshot` a phase=(1,3) miatt).
+
+3. **Regressziós assert** a `test_phase13_context_save_is_mocked`-ben:
+```python
+assert mock_tg_macro.called, (
+    "send_macro_snapshot mock was not invoked — runner may have "
+    "bypassed the patch and sent a live Telegram MACRO SNAPSHOT "
+    "with mock fixture data (see 2026-05-20 09:41/09:44 incident)."
+)
+```
+
+4. **`.claude/rules/ifds-rules.md` "Cron env isolation" szabály kibővítve** a Side-effect env (Telegram, Slack, IBKR) §-szal és az incident dokumentálásával.
+
+**Belt-and-suspenders**: a két réteg (env clear + @patch) együtt biztosítja, hogy:
+- Ha valaki visszaállítja az env var-okat egy másik fixture-ben → @patch még védi
+- Ha valaki eltávolítja a @patch-ot → env var clear még védi
+- Mindkettő egyszerre engedett ki kellene, hogy aktív legyen a pollution
+
+**Verifikáció**:
+```
+$ IFDS_TELEGRAM_BOT_TOKEN=fake IFDS_TELEGRAM_CHAT_ID=fake \
+  pytest tests/test_pipeline_e2e.py -v
+8 passed   ✓ (mock + env clear mindkettő aktív)
+```
+
+**Permanent observation**: a sink-audit scope-ja kibővítendő minden olyan modulra, ami a `runner.py`-ból outbound network/messaging hívást tesz — nem csak file system writers. Audit-szabály frissítve.
+
+**Referencia**:
+- Detection: 2026-05-20 09:45 Tamás message — "ez így rendben van?"
+- Incident timing: 09:41 + 09:44 CEST (két pytest run a `bd54857` commit előtt)
+- Fix commit: lásd git log "fix(tests): patch Telegram sinks in e2e (Task #H follow-up)"
+- Source rule update: `.claude/rules/ifds-rules.md` "Cron env isolation" § 3
+
 ### 8.2 P2 — Operációs, Day 1 finding-ek
 
 #### 8.2.1 Pre-market submit + PreSubmitted státusz risk

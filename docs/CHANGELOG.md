@@ -4,6 +4,78 @@
 
 ---
 
+## Fázis 3 / W22 — Telegram pollution fix (Task #H follow-up, §8.1.9)
+
+> 2026-05-20 | INCIDENT — Tamás 2 ÉLŐ MACRO SNAPSHOT Telegram-ot kapott
+> mock fixture data-val 09:41 + 09:44 CEST. Aktív (nem proaktív) pollution.
+
+### Root cause
+
+A `tests/test_pipeline_e2e.py::env_setup` fixture API key-eket beállította,
+DE nem clear-elte az `IFDS_TELEGRAM_BOT_TOKEN` és `IFDS_TELEGRAM_CHAT_ID`
+env var-okat. A dev MacBook `.env`-jében valid creds → a Task #H új
+`test_phase13_context_save_is_mocked` teszt (`phase=(1, 3)`) triggerelte
+a runner.py:686 `send_macro_snapshot(ctx, ...)`-t a `_mock_phase1/2/3()`
+fixture data-val → live Telegram pollution.
+
+A sink-audit (§8.1.6/7/8) csak file system pollution-t auditált. **Az
+external side-effect sink-ek (Telegram, Slack, IBKR) NEM voltak audit
+scope-ban** — ez a 7. (telegram) sink osztály a kihagyott.
+
+### Fix (belt-and-suspenders)
+
+**Réteg 1: env clear** — `env_setup` fixture-be:
+```python
+monkeypatch.delenv("IFDS_TELEGRAM_BOT_TOKEN", raising=False)
+monkeypatch.delenv("IFDS_TELEGRAM_CHAT_ID", raising=False)
+```
+A runner.py `if not token or not chat_id: return False` guards bail-elnek.
+
+**Réteg 2: defenzív @patch decoratorok** — 3 telegram send entry point:
+- `@patch("ifds.output.telegram.send_macro_snapshot", return_value=True)`
+- `@patch("ifds.output.telegram.send_trading_plan", return_value=True)`
+- `@patch("ifds.output.telegram.send_daily_report", return_value=True)`
+
+Mindkét meglévő e2e stack-be (`test_full_pipeline_flow`,
+`test_save_snapshot_is_mocked_in_e2e`) + a Task #H
+`test_phase13_context_save_is_mocked`-be (csak `send_macro_snapshot`).
+
+**Regressziós assert** a Task #H tesztben:
+```python
+assert mock_tg_macro.called, "send_macro_snapshot mock was not invoked..."
+```
+
+### Verifikáció
+
+```
+$ IFDS_TELEGRAM_BOT_TOKEN=fake IFDS_TELEGRAM_CHAT_ID=fake \
+    pytest tests/test_pipeline_e2e.py -v
+8 passed   ✓ (mock + env clear mindkettő aktív)
+```
+
+### Tests
+
+- `env_setup` fixture: +2 `monkeypatch.delenv` (IFDS_TELEGRAM_BOT_TOKEN, _CHAT_ID)
+- `test_full_pipeline_flow`: +3 `@patch` decorator + 3 mock_param
+- `test_save_snapshot_is_mocked_in_e2e`: +3 `@patch` + 3 mock_param
+- `test_phase13_context_save_is_mocked`: +1 `@patch` + 1 mock_param + 1 assert
+- **1746 → 1746 passing** (0 új teszt, csak patch-stack erősítése)
+
+### Audit szabály frissítés
+
+`.claude/rules/ifds-rules.md` "Cron env isolation" szabály kibővítve:
+3. **Side-effect env-ek** — `IFDS_TELEGRAM_BOT_TOKEN`, `IFDS_TELEGRAM_CHAT_ID`
+   explicit delenv kötelező.
+
+### Refs
+
+- `docs/master-reference/04-risks-and-open-questions.md` §8.1.9
+- `.claude/rules/ifds-rules.md` "Cron env isolation" § 3
+- Detection: 2026-05-20 09:45 user message — incident timing 09:41 + 09:44
+- Predecessor: `bd54857` (Task #H — ahonnan a regression származott)
+
+---
+
 ## Fázis 3 / W22 — save_phase13_context e2e patch (Task #H, 1746 tests)
 
 > 2026-05-20 | Proaktív sink-audit lezárás — `04-risks` §8.1.9 audit szabály

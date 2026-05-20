@@ -378,8 +378,23 @@ a pytest pre-flight ELŐTT. Minden test config fixture-nek KÖTELEZŐEN explicit
 az összes viselkedés-módosító env var-t:
 1. Sync fixture-ökben: `monkeypatch.setenv("IFDS_ASYNC_ENABLED", "false")`
 2. Async fixture-ökben: `monkeypatch.delenv("IFDS_UW_API_KEY", raising=False)` ha a teszt nem számít UW client-re
+3. **Side-effect env-ek** (külső szolgáltatást hívnak, ha set-ek):
+   - `monkeypatch.delenv("IFDS_TELEGRAM_BOT_TOKEN", raising=False)` — a runner.py:680-720
+     `send_macro_snapshot`/`send_trading_plan`/`send_daily_report` hívások a `_mock_phase1/2/3()`
+     fixture data-val ÉLŐ Telegram üzenetet küldenek a `.env` token+chat_id alapján.
+   - `monkeypatch.delenv("IFDS_TELEGRAM_CHAT_ID", raising=False)` — ugyanezen ok miatt.
 
-ÚJ fixture írásakor mindig ellenőrizd: milyen env var-ok változtatják meg a kódútat?
+ÚJ fixture írásakor mindig ellenőrizd: milyen env var-ok változtatják meg a kódútat? Külön
+figyelemmel a kifelé-hívó env-ekre (Telegram, Slack, IBKR, stb.) — `delenv` nélkül a teszt
+külső pollution-t okozhat.
+
+**Példa-sértés (2026-05-20 09:41+09:44)**: a `tests/test_pipeline_e2e.py::env_setup` fixture
+NEM clear-elte az `IFDS_TELEGRAM_*` env var-okat. A Task #H `bd54857` által hozzáadott
+`test_phase13_context_save_is_mocked` teszt (phase=(1, 3) → runner.py:686
+`send_macro_snapshot(ctx, ...)`) **két ÉLŐ MACRO SNAPSHOT** üzenetet küldött Tamásnak a
+`_mock_phase1/2/3()` fixture data-val (BMI=45.0%, Screened=3000, Passed=2, XLK only).
+Fix: `env_setup` extended + 3 defensive `@patch` decorator (`send_macro_snapshot`,
+`send_trading_plan`, `send_daily_report`).
 
 ---
 
