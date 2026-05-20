@@ -278,15 +278,26 @@ def submit_swing_market_only(
             continue
 
         # Single market BUY (no bracket).
-        # Explicit tif='GTC' + outsideRth=True override the paper-account
-        # order preset (Workstation Configuration → Order Presets → Stocks →
-        # Default TIF = DAY), which otherwise triggers Error 10349 + Cancel
-        # on the new swing market-only path (legacy bracket masked this via
-        # OCA parent silent-fill behavior). See 2026-05-20 Day 3 incident.
+        # Explicit tif='DAY' set short-circuits the IBKR paper-account preset
+        # lookup (Workstation Configuration → Order Presets → Stocks → Default
+        # TIF), which otherwise triggers "Error 10349, Order TIF was set to
+        # DAY based on order preset" + a hard Cancel on the swing market-only
+        # path. The legacy bracket builder (lib/orders.py) set tif='DAY'
+        # explicitly, but the swing rewrite (`e887749`/`5dfab55`) omitted it.
+        #
+        # Note: tif='GTC' was tried first (16:05 Day 3) and silently failed
+        # — GTC is only valid for limit orders; with MarketOrder the IBKR
+        # paper account marked the trade PreSubmitted then cancelled it
+        # after disconnect, creating a state/IBKR divergence. tif='DAY'
+        # is the correct/native MarketOrder TIF.
+        #
+        # outsideRth=True keeps the order alive across the RTH boundary
+        # if it doesn't fill immediately (defensive — at 15:31 CEST the
+        # NYSE has been open ~1 min, the order should fill within seconds).
         order = MarketOrder(action='BUY', totalQuantity=t['total_qty'])
         order.account = account
         order.orderRef = f"IFDS_SWING_{sym}"
-        order.tif = 'GTC'
+        order.tif = 'DAY'
         order.outsideRth = True
         trade = ib.placeOrder(contract, order)
         ib.sleep(1.5)
