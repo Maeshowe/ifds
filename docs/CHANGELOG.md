@@ -4,6 +4,62 @@
 
 ---
 
+## Fázis 3 / W22 — UW shadow log e2e mock fix (1745 tests, second sink)
+
+> 2026-05-20 | Chat 1 napi review §8.1.7 — `d3fce73` második előfordulása
+
+### Root cause: második unmocked production sink a runner.py-ban
+
+A Day 2 (2026-05-19) `state/uw_shadow/2026-05-19.json` Mac Mini-n reggel
+~90+ ticker várt érték helyett **1 ticker AAPL** combined_score=78.0,
+gex_value=500.0 (a `_mock_phase4()` fixture szignatúrája). `captured_at:
+14:37:19+00:00` = 16:37 CEST megegyezik a manuális `deploy_daily.sh
+--phases 1-3` pytest pre-flight ablakával.
+
+Ugyanaz a class of bug, mint a `d3fce73` (2026-05-08) Phase 4 snapshot
+fix-elte volt — csak más sink-en. A `write_shadow_snapshot` a "Day 63
+outcome §3.2" miatt KÉSŐBB lett hozzáadva a `runner.py`-hoz, de a teszt
+patch-stack-et nem frissítették vele.
+
+### Fix
+
+- `tests/test_pipeline_e2e.py::test_full_pipeline_flow`:
+  `@patch("ifds.data.uw_shadow.write_shadow_snapshot", return_value=None)`
+- `tests/test_pipeline_e2e.py::TestSnapshotIsolation::
+  test_save_snapshot_is_mocked_in_e2e`: ugyanaz a patch + új
+  `assert mock_write_shadow.called` regressziós assert
+- `.claude/rules/ifds-rules.md` "Test environment higiénia" szabály
+  bővítve a `write_shadow_snapshot`-tal és a második előfordulás
+  dokumentálva
+
+### Day 90 audit hatás (KOMPROMITTÁLT)
+
+A 2026-05-19-i shadow log **ireverzibilis loss** — a 14:30 cron által
+írt ~90-ticker UW dark pool / GEX shadow data egyetlen AAPL mock rekorddá
+zsugorodott. A Day 90 (~2026-08-26) UW Bayesian recalibration kihagyja
+2026-05-19-et. A `state/phase4_snapshots/2026-05-19.json.gz` (11 KB,
+14:34-i mtime) intakt — `save_phase4_snapshot` mock helyesen működött.
+
+### Verifikáció
+
+Fix előtt: `pytest tests/test_pipeline_e2e.py` → `state/uw_shadow/
+2026-05-20.json` AAPL mock létrejön. Fix után: NEM keletkezik.
+
+### Tesztek
+
+- `test_full_pipeline_flow`: +1 mock decorator (`mock_write_shadow`)
+- `test_save_snapshot_is_mocked_in_e2e`: +1 mock decorator + +1 assert
+- **1745 → 1745 passing** (decoratorok, nem új teszt, 0 regression)
+
+### Refs
+
+- `docs/master-reference/04-risks-and-open-questions.md` §0.1 + §8.1.7
+- `.claude/rules/ifds-rules.md` "Test environment higiénia" § Második
+  előfordulás
+- Predecessor: commit `d3fce73` (2026-05-08, Phase 4 snapshot)
+
+---
+
 ## Fázis 3 / W22 — pt_monitor "replay" pollution fix (1745 tests)
 
 > 2026-05-20 | Day 2 swing pivot — Task #G (P0 §0.1 / §8.1.6 resolution)

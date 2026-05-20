@@ -197,6 +197,8 @@ def _mock_client_class(*args, **kwargs):
 class TestEndToEnd:
     """Full pipeline with all phases mocked."""
 
+    @patch("ifds.data.uw_shadow.write_shadow_snapshot",
+           return_value=None)
     @patch("ifds.data.phase4_snapshot.save_phase4_snapshot",
            return_value=None)
     @patch("ifds.output.execution_plan.write_trade_plan", return_value="/tmp/trade.csv")
@@ -215,6 +217,7 @@ class TestEndToEnd:
     def test_full_pipeline_flow(self, mock_p0, mock_p1, mock_p2, mock_p3,
                                  mock_p4, mock_p5, mock_p6, mock_output,
                                  mock_scan, mock_trade, mock_save_snapshot,
+                                 mock_write_shadow,
                                  env_setup, tmp_path, monkeypatch):
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
 
@@ -258,13 +261,22 @@ class TestEndToEnd:
 
 
 class TestSnapshotIsolation:
-    """Regression: e2e tests must not write to production state/phase4_snapshots/.
+    """Regression: e2e tests must not write to production state/ sinks.
 
-    See 2026-05-08-snapshot-regression-fix.md — the unmocked save_phase4_snapshot
-    in test_full_pipeline_flow overwrote production snapshots from Apr 10
-    onwards (single AAPL ticker, score=78.0, dark_pool_pct=0.0).
+    See:
+    - 2026-05-08-snapshot-regression-fix.md — the unmocked
+      ``save_phase4_snapshot`` in ``test_full_pipeline_flow`` overwrote
+      production snapshots from Apr 10 onwards (single AAPL ticker,
+      score=78.0, dark_pool_pct=0.0).  Fix: commit ``d3fce73``.
+    - docs/tasks/2026-05-19-pt-monitor-replay-diagnosis.md — Day 2
+      (2026-05-19) ``state/uw_shadow/2026-05-19.json`` was overwritten
+      by the same ``_mock_phase4()`` AAPL fixture via the pipeline's
+      ``write_shadow_snapshot`` sink at line 665 of runner.py.  The
+      ``write_shadow_snapshot`` patch below closes that gap.
     """
 
+    @patch("ifds.data.uw_shadow.write_shadow_snapshot",
+           return_value=None)
     @patch("ifds.data.phase4_snapshot.save_phase4_snapshot",
            return_value=None)
     @patch("ifds.output.execution_plan.write_trade_plan", return_value="/tmp/t.csv")
@@ -283,9 +295,10 @@ class TestSnapshotIsolation:
     def test_save_snapshot_is_mocked_in_e2e(
         self, mock_p0, mock_p1, mock_p2, mock_p3, mock_p4, mock_p5, mock_p6,
         mock_output, mock_scan, mock_trade, mock_save_snapshot,
+        mock_write_shadow,
         env_setup, tmp_path, monkeypatch,
     ):
-        """save_phase4_snapshot must be called via the mock, never the real fn."""
+        """Both save_phase4_snapshot and write_shadow_snapshot must be mocked."""
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
         result = run_pipeline()
         assert result.success is True
@@ -294,6 +307,10 @@ class TestSnapshotIsolation:
         assert mock_save_snapshot.called, (
             "save_phase4_snapshot mock was not invoked — runner may have "
             "bypassed the patch and written to production state/."
+        )
+        assert mock_write_shadow.called, (
+            "write_shadow_snapshot mock was not invoked — runner may have "
+            "bypassed the patch and written to production state/uw_shadow/."
         )
 
 

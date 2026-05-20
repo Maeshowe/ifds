@@ -148,6 +148,7 @@ downstream kódban nem volt assertion ami tört volna.
    entrypoint-ot) közvetlenül futtatja, KÖTELESEN mockolja az összes
    I/O sink-et** — különösen:
    - `save_phase4_snapshot` (`ifds.data.phase4_snapshot`)
+   - `write_shadow_snapshot` (`ifds.data.uw_shadow`)
    - `save_phase13_context` (`ifds.pipeline.context_persistence`)
    - `save_mid_bundle_snapshot` (`ifds.data.mid_bundle_snapshot`)
    - `write_execution_plan`, `write_full_scan_matrix`, `write_trade_plan`
@@ -191,6 +192,35 @@ regressziós teszt.
   content mindig single AAPL combined_score=78.0
 - Future audit: keresd más hasonló pattern-eket (patch-eletlen runner.*
   hívások a tests/-ben)
+
+**Második előfordulás (2026-05-19):**
+
+A `d3fce73` fix csak a `save_phase4_snapshot` sink-et patch-elte. A
+`write_shadow_snapshot` (`ifds.data.uw_shadow`, runner.py line 665, a
+"Day 63 outcome §3.2, 2026-05-26" óta hozzáadott shadow log writer)
+**szintén patch-eletlen** maradt. Day 2 (2026-05-19) manuális
+`deploy_daily.sh --phases 1-3` pytest pre-flight overwrote a
+`state/uw_shadow/2026-05-19.json`-t a 14:30 cron által írt ~90-ticker
+adatból egyetlen AAPL combined_score=78.0 rekordra (`captured_at:
+14:37:19+00:00` = 16:37 CEST, pontosan a manuális deploy ablakban).
+
+Fix: a `tests/test_pipeline_e2e.py`-ben mind a `test_full_pipeline_flow`,
+mind a `TestSnapshotIsolation::test_save_snapshot_is_mocked_in_e2e`
+decorátor-stack-jébe hozzáadva:
+
+```python
+@patch("ifds.data.uw_shadow.write_shadow_snapshot", return_value=None)
+```
+
++ asserciós védelem: `assert mock_write_shadow.called`. Day 90
+(~2026-08-26) UW Bayesian recalibration audit a 2026-05-19-i shadow
+log-ot **KIHAGYJA** (ireverzibilis loss; az egész napi UW dark pool
+signal calibration adata 1 mock-AAPL rekorddá zsugorodott).
+
+**Tanulság**: minden új sink, ami `runner.py`-be kerül, mindkét e2e
+test patch-stack-be adandó. A "test mocked itself out" assert pattern
+NEM véd új sink hozzáadása ellen — csak a meglévő patch-eknek a
+refactorolás során való elcsúszása ellen.
 
 ---
 

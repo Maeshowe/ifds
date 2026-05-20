@@ -31,6 +31,8 @@
 
 **Mérséklő tényező visszaigazolva**: ahogy a Day 1 review feltételezte, **nincs live impact** — a "SELL parancsok" puszta log-szöveg-pollution, nem IBKR API hívás. A test fixture-ök `MagicMock(IB)`-et használtak.
 
+**Másodlagos finding ugyanabból a 16:37 ablakból**: lásd §8.1.7 — a `state/uw_shadow/2026-05-19.json` is overwritten lett ugyanazzal a `_mock_phase4()` AAPL fixture-rel. Ugyanaz a class of bug (unmocked production sink a `tests/test_pipeline_e2e.py::test_full_pipeline_flow`-ban), mint a `d3fce73` Phase 4 snapshot fix-elte volt — csak más fájlon. Külön fix-elve commit-tal.
+
 ### 0.2 ⚠️ `pt_submit` előzetes kísérlet 14:34:13 CEST + Error 10349 TIF (P0)
 
 **Mi**: A `pt_submit_2026-05-18.log` szerint **két submit attempt** futott:
@@ -399,6 +401,35 @@ A Day 1 GO-LIVE (2026-05-18) első operációs futamból **9 új tétel rögzít
 - `tests/test_log_setup_isolation.py` (5 új teszt): a redirect viselkedés minden ágát védi.
 
 **Hatás**: minden PT script (10+ darab) automatikusan védett pytest-bind pollution-tól. Produkciós cron viselkedés bit-for-bit változatlan.
+
+#### 8.1.7 ✅ UW shadow log overwrite Day 2 — write_shadow_snapshot unmocked (RESOLVED 2026-05-20)
+
+**Státusz**: ✅ RESOLVED — `tests/test_pipeline_e2e.py` decorátor-stack kibővítve `@patch("ifds.data.uw_shadow.write_shadow_snapshot")`-tal, +1 új assert a regressziós teszt-ben. A `d3fce73` fix második előfordulása.
+
+**Mi**: Day 2 (2026-05-19) `state/uw_shadow/2026-05-19.json` reggel ~90+ ticker várt, de a fájl csak **1 ticker** (AAPL, combined_score=78.0, gex_value=500.0) — pontosan a `tests/test_pipeline_e2e.py::_mock_phase4()` fixture szignatúrája. `captured_at: 14:37:19+00:00` (= 16:37 CEST) megegyezik a manuális `deploy_daily.sh --phases 1-3` futtatás időpontjával.
+
+**Root cause** (azonos a `d3fce73`-mal): a `runner.py` line 665 `write_shadow_snapshot(shadow_dir, trading_date, shadow_snapshot)` hívása **patch-eletlen** maradt a `tests/test_pipeline_e2e.py`-ben. A `test_full_pipeline_flow` mockolja a Phase 4 `run_phase4`-et `_mock_phase4()`-re (AAPL combined_score=78.0), majd a runner.py shadow log writer-e a mock-olt `ctx.stock_analyses`-t kiírja a **produkciós** `state/uw_shadow/YYYY-MM-DD.json`-ba.
+
+A `d3fce73` (2026-05-08) csak a `save_phase4_snapshot` sink-et patch-elte. A `write_shadow_snapshot` a "Day 63 outcome §3.2" miatt KÉSŐBB lett hozzáadva a runner-hez (2026-05-26 koncepció szerint), de a teszt patch-stack-et nem frissítették vele.
+
+**Fix**:
+1. `tests/test_pipeline_e2e.py::test_full_pipeline_flow`: `@patch("ifds.data.uw_shadow.write_shadow_snapshot", return_value=None)` decorator hozzáadva
+2. `tests/test_pipeline_e2e.py::TestSnapshotIsolation::test_save_snapshot_is_mocked_in_e2e`: ugyanaz a patch + új `assert mock_write_shadow.called` regressziós assert
+3. `.claude/rules/ifds-rules.md` "Test environment higiénia" szabály bővítve a `write_shadow_snapshot`-tal és a második előfordulás dokumentálva
+
+**Verifikáció**: fix után `python -m pytest tests/test_pipeline_e2e.py -q` futtatás után `state/uw_shadow/YYYY-MM-DD.json` NEM keletkezik (fix előtt: AAPL mock létrejött).
+
+**Day 90 audit hatás** (KOMPROMITTÁLT, IREVERZIBILIS):
+
+A 2026-05-19-i shadow log permanently lost — a 14:30 CEST cron által írt ~90-ticker tartalmat a 16:37-i pytest pollution overwrote, és csak a Phase 4 snapshot (`state/phase4_snapshots/2026-05-19.json.gz`, 11 KB, 14:34-i mtime) maradt meg a teljes phase4-context-ből. A Day 90 (~2026-08-26) UW Bayesian recalibration **kihagyja** 2026-05-19-et, mert a shadow log kontextus (`m_gex_would_have_been`, `dp_score_would_have_been`, `gex_analyses` snapshot) nem rekonstruálható retrospektíven csak a Phase 4 snapshot-ból.
+
+**Lessons learned**: minden új sink, ami `runner.py`-be kerül, mindkét e2e patch-stack-be adandó (`test_full_pipeline_flow` + `TestSnapshotIsolation`). A "mock-was-called" assert pattern csak a MEGLÉVŐ patch-ek refactor során elcsúszása ellen véd, NEM új sink hozzáadása ellen. Audit-szabály: minden `runner.py` PR-nél `grep "from ifds\.\(data\|pipeline\|output\)\." src/ifds/pipeline/runner.py` outputot diff-elni a `@patch` decorator-okkal a `test_pipeline_e2e.py`-ban.
+
+**Referencia**:
+- Detection: 2026-05-20 napi review (Chat 1 UW shadow log gyanú)
+- Fix commit: lásd git log "fix(tests): patch write_shadow_snapshot in e2e"
+- Source rule: `.claude/rules/ifds-rules.md` "Test environment higiénia" § "Második előfordulás"
+- Future audit: Day 90 calibration **SKIP 2026-05-19** (single-ticker AAPL mock)
 
 ### 8.2 P2 — Operációs, Day 1 finding-ek
 
