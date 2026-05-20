@@ -63,6 +63,50 @@ Mindkettő Phase 0-1-et sikeresen lefutott (1711 pytest passed, BMI=52,7% YELLOW
 2. Optimalizálja a `sec_edgar.py:_http_get_json` rate-limit logikát
 3. Csökkentse a Phase 2 work futures concurrency-jét
 
+### 0.4 🚨 Day 3 IBKR Error 354 — new-ticker market data block (P1, OPEN)
+
+**Időpont**: 2026-05-20 (Day 3 swing pivot) 15:31 CEST cron-driven submit + 16:05/16:20 CEST manual retry-k.
+
+**Forrás**: `logs/pt_submit_2026-05-20.log` + `/tmp/ibkr_debug_submit.py` diagnostic.
+
+**Mi**: a `submit_orders.py` (Day 3 cron + 3 manual retry) **silenty failed** a 3 új ticker submit-ján (VLO 16, ON 27, CNC 95). A 4 régi ticker (LBRT/MASI/EC/PFGC) érintetlen az IBKR-ben. Igazi ok: **IBKR Error 354** — "trying to submit an order without having market data for this instrument. Restriction is specified in Precautionary Settings of Global Configuration/Presets."
+
+**Diagnosis paranormálitás**: a `submit_orders.py` status check 1.5s-cel a placeOrder után PreSubmitted-et lát (valid) → state-be írja a 3 position-t + Telegram heartbeat-et küld → DE az IBKR async cancel-li post-disconnect → state=7, IBKR=4 divergencia.
+
+**Hamis nyomok kizárva**: Error 10349 (TIF preset) csak warning, nem cancel reason. A 16:05-i `tif='GTC'` + 16:20-i `tif='DAY'` patch-ek mindkettő ugyanezt a 354-et okozta → kód-level fix önmagában NEM elég.
+
+**Day 1+2 vs Day 3 különbség**: a swing-pivot előtt `lib/orders.create_swing_bracket` MarketOrder-PARENT + OCA bracket-et küldött. A paper account a parent-et silenty fillelte Error 354 ellenére (bracket override quirk — `04-risks` §0.1 magyarázat: ott "phantom fill" mint operatív megfigyelés). A swing-pivot `submit_swing_market_only` bare MarketOrder bracket nélkül → nincs OCA override mechanizmus → Error 354 valódi cancel.
+
+**Workaround (alkalmazva Day 3-on)**:
+1. Tamás manuálisan adta fel a 3 BUY MKT order-t az IBKR TWS Workstation Order Entry-n. A GUI csak interaktív "no market data" warning-ot ad → Override + Submit → fillodott (actual fills: VLO@$258.55, ON@$109.48, CNC@$59.27).
+2. State revert (7→4) + manual append a 3 új SwingPosition-nel + entry_price update az actual IBKR fill árakra + stop/TP recompute (2.0×ATR / 1.5×ATR / 3.0×ATR Day 1 reconstruction pattern szerint).
+3. `reconcile_state.py` post-fix smoke: silent OK (state ≡ IBKR mind a 7 ticker-en).
+
+**Code commits a Day 3 incident során** (mind merged, NEM elégséges önmagukban a 354 ellen):
+- `3bf382b` — `submit_orders.py` `tif='GTC'` + `outsideRth=True` (helytelen — GTC invalid for MarketOrder)
+- `e3677f2` — `tif='DAY'` korrekció (still hits Error 354)
+
+**Permanent fix backlog**: lásd `docs/tasks/2026-05-21-ibkr-error354-market-data-fix.md`. Két opció:
+- **A)** IBKR Workstation **Global Configuration → Presets → Precautionary Settings → "Block submitting orders without market data" DISABLE**. Tamás manuálisan kell, hogy beállítsa. Globális hatás, nincs kód-változás.
+- **B)** Code patch: `ib.reqMktData(contract)` warm-up a `placeOrder` ELŐTT a `submit_swing_market_only`-ban. Risk: ha a paper account NEM ad streaming subscription-t, ez sem segít.
+
+**Strukturalis konzekvencia**: minden új-ticker entry (Day 4+ universe rotation alapján) ugyanúgy blokkolva lesz Error 354-gyel, amíg a (A) opció nem áll. **Tamás holnapi (Day 4, 2026-05-21) cron előtt teljesítse az (A) opciót**, máskülönben azonnali manual Workstation submit kell minden új ticker-re.
+
+**Hatás összegzés**:
+- ✅ Day 3 swing entry-k: VLO 16, ON 27, CNC 95 fillodtak (manual Workstation)
+- ✅ State ≡ IBKR (7 position match)
+- ⚠️ Permanent fix BACKLOG (Task #I, holnap reggel)
+- ⚠️ A cron-driven submit ma 15:31-kor csendben failed, NEM detektálódott time-wise (csak Telegram heartbeat 15:45-kor jelzett "STUCK")
+
+**Owner**: CC (W22 hotfix, 2026-05-21 reggel) + Tamás (IBKR Workstation manual setting).
+
+**Referencia**:
+- Task fájl: `docs/tasks/2026-05-21-ibkr-error354-market-data-fix.md`
+- Diagnostic script: `/tmp/ibkr_debug_submit.py` (1-share VLO test, captured Error 354)
+- Submit log: `logs/pt_submit_2026-05-20.log` (15:31 + 15:52 + 16:05 + 16:20 attempts)
+- Manual fills: VLO@$258.55 (-1.55% slip), ON@$109.48 (+3.26% slip), CNC@$59.27 (+0.20% slip)
+- State backup chain: `state/swing_positions.json.bak.*` (4 backup, audit trail)
+
 ---
 
 ## 1. P1 — Sürgős, Fázis 1 (W21-W22) deploy

@@ -1,6 +1,7 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-05-19 16:50 CEST — Day 2 stabil. Task #T (Telegram swing-aware, 5 réteg, 27 új teszt) + #D (state/IBKR reconcile, 7 teszt) + #E (Phase 1-3 freshness, 5 teszt) DEPLOYED. EC TP1 50% SELL filled 15:30. 4 nyitott pozíció: LBRT/MASI/EC-166/PFGC. 1740 passing. Holnap Task #G (pt_monitor replay diagnózis, P0, ~60 min). -->
+<!-- Utolsó frissítés: 2026-05-20 16:45 CEST — Day 3 swing pivot. 7 nyitott pozíció (4 régi: LBRT/MASI/EC/PFGC + 3 új Day 3: VLO 16@$258.55, ON 27@$109.48, CNC 95@$59.27 — manual IBKR Workstation submit Error 354 miatt). State≡IBKR reconciled. 5 új commit ma (aba9720 log_setup pytest redirect Task #G, 1eb9755 write_shadow_snapshot sink, bd54857 save_phase13_context sink Task #H, d930d14 Telegram pollution fix §8.1.9, 3bf382b+e3677f2 incomplete TIF patches). 1746 passing. Holnap Task #I — Error 354 permanent fix (Tamás IBKR Workstation Precautionary Settings disable). -->
+<!-- Korábbi: 2026-05-19 16:50 CEST — Day 2 stabil. Task #T (Telegram swing-aware, 5 réteg, 27 új teszt) + #D (state/IBKR reconcile, 7 teszt) + #E (Phase 1-3 freshness, 5 teszt) DEPLOYED. EC TP1 50% SELL filled 15:30. 4 nyitott pozíció: LBRT/MASI/EC-166/PFGC. 1740 passing. Holnap Task #G (pt_monitor replay diagnózis, P0, ~60 min). -->
 <!-- Korábbi: 2026-05-18 12:10 CEST — Fázis 3 deploy LIVE (1711 passing, Day 1 indul) -->
 <!-- Korábbi: 2026-05-18 CC Ülés C — Swing Execution + Exit DEPLOY (1705 passing) -->
 <!-- Korábbi: 2026-05-18 CC Ülés B — Swing Sizing Phase 6 DEPLOY (1672 passing) -->
