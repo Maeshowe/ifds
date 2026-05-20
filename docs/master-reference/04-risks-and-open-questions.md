@@ -431,6 +431,41 @@ A 2026-05-19-i shadow log permanently lost — a 14:30 CEST cron által írt ~90
 - Source rule: `.claude/rules/ifds-rules.md` "Test environment higiénia" § "Második előfordulás"
 - Future audit: Day 90 calibration **SKIP 2026-05-19** (single-ticker AAPL mock)
 
+#### 8.1.8 ✅ save_phase13_context e2e patch (proaktív, RESOLVED 2026-05-20)
+
+**Státusz**: ✅ RESOLVED — Task #H proaktív patch a 04-risks §8.1.6/§8.1.7 audit-szabály szerint. NEM aktív pollution incidens volt, csak strukturális risk-megelőzés.
+
+**Mi**: a `runner.py` sink-audit Day 2-én (2026-05-19) 5 sink-ből 4-et patch-eltnek talált a `tests/test_pipeline_e2e.py`-ben:
+
+| Sink | Patch előtt |
+|---|---|
+| `save_phase4_snapshot` | ✅ patch-elt (`d3fce73`) |
+| `write_shadow_snapshot` | ✅ patch-elt (`1eb9755`, §8.1.7) |
+| `write_full_scan_matrix` | ✅ patch-elt |
+| `write_trade_plan` + `write_execution_plan` | ✅ patch-elt |
+| `save_phase13_context` | ❌ **patch-eletlen** ← Task #H scope |
+
+**Strukturális risk**: ha bárki `pytest`-et futtat a Mac Mini-n a vasárnap 22:00 cron-ablak előtt (`--phases 1-3` formában), a pytest pre-flight a `state/phase13_ctx.json.gz`-t mock universe-szel felülírhatná. A Phase 4-6 cron a következő héten kompromittált context-tel dolgozna.
+
+**Mérséklő tényező** (miért nem aktív pollution incidens): a meglévő e2e tesztek mind `run_pipeline()`-t hívnak (default `phase=None`), ami NEM triggereli a `save_phase13_context`-et (`isinstance(phase, tuple)` False). Csak akkor lett volna pollution, ha bárki tuple-phase teszteket adott volna hozzá vagy a runner.py-t refaktorálnák.
+
+**Fix**:
+1. Defenzív `@patch("ifds.pipeline.context_persistence.save_phase13_context", return_value=None)` mindkét meglévő e2e stack-be (`test_full_pipeline_flow`, `test_save_snapshot_is_mocked_in_e2e`) — risk-prevention jövőbeli refactor ellen.
+2. Új dedikált teszt `TestSnapshotIsolation::test_phase13_context_save_is_mocked` — `run_pipeline(phase=(1, 3))` ténylegesen triggereli a save_phase13_context-et + `assert mock_save_phase13.called` regressziós védelem a patch wiring-ét bizonyítja.
+
+**Test deltas**: 1745 → 1746 passing (+1 új dedikált teszt; NEM +2 mint a task spec sugallt — a meglévő flow tesztekben nem értelmes az assert, lásd Task §7 finding).
+
+**Verifikáció**: pytest futtatás után `state/phase13_ctx.json.gz` mtime változatlan (May 19 16:40:48). Fix előtt egy hipotetikus tuple-phase tesztben a fájl felülíródott volna.
+
+**Sink audit lezárás**: a runner.py 6 sink mind a 6 patch-elt — strukturálisan teljes körű. A pytest pre-flight pollution kockázata a `runner.py` teljes scope-jában lezárt.
+
+**Out of scope (Fázis 4 backlog)**: a §5 task spec rögzített egy strukturálisan elegánsabb alternatívát ("Production path env var" — pl. `IFDS_STATE_DIR`-rel centralizált sink-isolation refactor). Effort: ~2-3 óra CC, közepes risk. Felvéve a backlog-ba, de a 6 targeted `@patch` a jelen audit-szabály szerint elég.
+
+**Referencia**:
+- Task fájl: `docs/tasks/2026-05-20-phase13-context-e2e-patch.md` §7
+- Audit szabály: `04-risks` §8.1.6 + §8.1.7
+- Predecessor commits: `d3fce73` (Phase 4 snapshot, 2026-05-08), `1eb9755` (UW shadow, 2026-05-20)
+
 ### 8.2 P2 — Operációs, Day 1 finding-ek
 
 #### 8.2.1 Pre-market submit + PreSubmitted státusz risk

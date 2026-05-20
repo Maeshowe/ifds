@@ -197,6 +197,8 @@ def _mock_client_class(*args, **kwargs):
 class TestEndToEnd:
     """Full pipeline with all phases mocked."""
 
+    @patch("ifds.pipeline.context_persistence.save_phase13_context",
+           return_value=None)
     @patch("ifds.data.uw_shadow.write_shadow_snapshot",
            return_value=None)
     @patch("ifds.data.phase4_snapshot.save_phase4_snapshot",
@@ -217,7 +219,7 @@ class TestEndToEnd:
     def test_full_pipeline_flow(self, mock_p0, mock_p1, mock_p2, mock_p3,
                                  mock_p4, mock_p5, mock_p6, mock_output,
                                  mock_scan, mock_trade, mock_save_snapshot,
-                                 mock_write_shadow,
+                                 mock_write_shadow, mock_save_phase13,
                                  env_setup, tmp_path, monkeypatch):
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
 
@@ -275,6 +277,8 @@ class TestSnapshotIsolation:
       ``write_shadow_snapshot`` patch below closes that gap.
     """
 
+    @patch("ifds.pipeline.context_persistence.save_phase13_context",
+           return_value=None)
     @patch("ifds.data.uw_shadow.write_shadow_snapshot",
            return_value=None)
     @patch("ifds.data.phase4_snapshot.save_phase4_snapshot",
@@ -295,7 +299,7 @@ class TestSnapshotIsolation:
     def test_save_snapshot_is_mocked_in_e2e(
         self, mock_p0, mock_p1, mock_p2, mock_p3, mock_p4, mock_p5, mock_p6,
         mock_output, mock_scan, mock_trade, mock_save_snapshot,
-        mock_write_shadow,
+        mock_write_shadow, mock_save_phase13,
         env_setup, tmp_path, monkeypatch,
     ):
         """Both save_phase4_snapshot and write_shadow_snapshot must be mocked."""
@@ -311,6 +315,37 @@ class TestSnapshotIsolation:
         assert mock_write_shadow.called, (
             "write_shadow_snapshot mock was not invoked — runner may have "
             "bypassed the patch and written to production state/uw_shadow/."
+        )
+
+    @patch("ifds.pipeline.context_persistence.save_phase13_context",
+           return_value=None)
+    @patch(_P3, return_value=_mock_phase3())
+    @patch(_P2, return_value=_mock_phase2())
+    @patch(_P1, return_value=_mock_phase1())
+    @patch(_P0, return_value=_mock_diagnostics_ok())
+    @patch("ifds.data.unusual_whales.UnusualWhalesClient", _mock_client_class)
+    @patch("ifds.data.polygon.PolygonClient", _mock_client_class)
+    @patch("ifds.data.fmp.FMPClient", _mock_client_class)
+    def test_phase13_context_save_is_mocked(
+        self, mock_p0, mock_p1, mock_p2, mock_p3, mock_save_phase13,
+        env_setup, tmp_path, monkeypatch,
+    ):
+        """save_phase13_context must be mocked when --phases 1-3 runs.
+
+        This is the only path that triggers the runner's save_phase13_context
+        call (line 285-287). The full-flow e2e tests use phase=None and never
+        reach this branch, so this dedicated test exercises the tuple-phase
+        path that the cron uses in production (deploy_daily.sh --phases 1-3).
+        Without the patch, pytest pre-flight in deploy_daily.sh would
+        overwrite state/phase13_ctx.json.gz with the mock universe — the
+        weekly rebalance source-of-truth would be compromised.
+        """
+        monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
+        result = run_pipeline(phase=(1, 3))
+        assert result.success is True
+        assert mock_save_phase13.called, (
+            "save_phase13_context mock was not invoked — runner may have "
+            "bypassed the patch and written to production state/phase13_ctx.json.gz."
         )
 
 

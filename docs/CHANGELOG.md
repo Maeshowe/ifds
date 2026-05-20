@@ -4,6 +4,74 @@
 
 ---
 
+## Fázis 3 / W22 — save_phase13_context e2e patch (Task #H, 1746 tests)
+
+> 2026-05-20 | Proaktív sink-audit lezárás — `04-risks` §8.1.9 audit szabály
+> alkalmazása az utolsó patch-eletlen runner.py sink-re.
+
+### Cél
+
+A 2026-05-19 Day 2 `runner.py` sink-audit 5 sink-ből 4-et patch-eltnek
+talált; a `save_phase13_context` patch-eletlen volt. Pytest pre-flight
+elméletileg felülírhatta volna `state/phase13_ctx.json.gz`-t (a heti
+rebalance source-of-truth-ot) — strukturális risk, nem aktív incidens.
+
+### Finding (kompakt)
+
+A meglévő `test_full_pipeline_flow` és `test_save_snapshot_is_mocked_in_e2e`
+mindkettő `run_pipeline()`-t hív (default `phase=None`). A `runner.py:285`
+`if isinstance(phase, tuple) and phase[1] <= 3:` guard miatt
+`save_phase13_context` **soha nem hívódik meg** ezekben a flow tesztekben.
+
+Ezért a task spec javasolt "`mock_save_phase13.called` assert mindkét
+e2e stack-ben" minta NEM működne (mindig False lenne).
+
+### Fix
+
+1. **Defenzív `@patch("ifds.pipeline.context_persistence.save_phase13_context")`**
+   hozzáadva mindkét meglévő e2e stack-hez — risk-prevention jövőbeli
+   refactor ellen.
+2. **Új dedikált teszt** `TestSnapshotIsolation::test_phase13_context_save_is_mocked`
+   — `run_pipeline(phase=(1, 3))` hívás triggereli a tuple-phase ágat;
+   `assert mock_save_phase13.called` regressziós védelem.
+
+### A 5 sink végső állapota
+
+| Sink | Patch commit |
+|---|---|
+| `save_phase4_snapshot` | ✅ `d3fce73` |
+| `write_shadow_snapshot` | ✅ `1eb9755` |
+| `write_full_scan_matrix` | ✅ korábbi |
+| `write_trade_plan` + `write_execution_plan` | ✅ korábbi |
+| `save_phase13_context` | ✅ ez a commit |
+
+6 sink, 6 patch — strukturálisan teljes körű. A pytest pre-flight pollution
+kockázata a `runner.py` teljes scope-jában lezárt.
+
+### Tesztek
+
+- `tests/test_pipeline_e2e.py`: +2 `@patch` decorator, +1 új dedikált teszt
+  (`test_phase13_context_save_is_mocked`)
+- **1745 → 1746 passing** (+1, NEM +2 mint a task spec sugallt)
+
+### Verifikáció
+
+```
+$ stat state/phase13_ctx.json.gz   # before tests
+May 19 16:40:48 2026, 2419 bytes
+$ pytest tests/test_pipeline_e2e.py
+8 passed
+$ stat state/phase13_ctx.json.gz   # after tests
+May 19 16:40:48 2026, 2419 bytes   ✓ unchanged
+```
+
+### Refs
+
+- `docs/tasks/2026-05-20-phase13-context-e2e-patch.md` §7 (végrehajtás)
+- `docs/master-reference/04-risks-and-open-questions.md` §8.1.6, §8.1.9
+
+---
+
 ## Fázis 3 / W22 — UW shadow log e2e mock fix (1745 tests, second sink)
 
 > 2026-05-20 | Chat 1 napi review §8.1.7 — `d3fce73` második előfordulása
