@@ -4,6 +4,125 @@
 
 ---
 
+## Fázis 3 / W22 — Submit autonomous retry orchestrator (Task #L, §0.5)
+
+> 2026-05-21 | Day 4 reggel — Day 3 (2026-05-20) Gateway-down submit
+> failure pattern autonóm módon kezelt
+
+### Probléma
+
+A 2026-05-20 Day 3-i 15:31 CEST `submit_orders.py` cron a Gateway-down
+ablakban (15:25-16:00) `lib/connection.py:connect()` 3× belső retry-jét
+~30 másodperc alatt kimerítette, majd `sys.exit(1)`. A Gateway felépült
+~16:00-kor, de a `submit_orders.py` NEM próbálkozott újra — manual
+operator intervention required.
+
+### Megoldás — `IBKRSubmitOrchestrator`
+
+**`scripts/paper_trading/lib/retry_orchestrator.py`** — új module:
+- `IBKRSubmitOrchestrator` dataclass — wrapper a submit_callable köré
+- 5 outer attempt × exponential backoff (15s → 30s → 60s → 120s → 240s
+  ≈ 7.75 min total wait window)
+- Optional `gateway_check` cheap probe minden attempt előtt
+- `retryable_exceptions` tuple — default `(IBKRConnectionExhausted,
+  ConnectionError)`; non-retryable hibák azonnal propagálnak
+- `telegram_notify` optional critical-alert callback exhausted esetén
+- `SubmitExhaustedError` exception — caller felelős `sys.exit(1)`-ért
+- `_sleep` injection point unit-teszt-barát módon
+
+**`scripts/paper_trading/lib/connection.py`** — kibővítés:
+- Új `IBKRConnectionExhausted` exception
+- `connect()` új `raise_on_exhaust: bool = False` kwarg — backwards-
+  compatible default (`sys.exit(1)`); ha `True`, raise az exception
+- Minden meglévő caller (monitor, close, eod, daily_metrics, …)
+  változatlan default-tal fut
+
+**`scripts/paper_trading/submit_orders.py`**:
+- `--resume` CLI flag — manuális retry mode Telegram-alert utáni
+  operator-trigger-hez (state-aware dedup automatikusan szűri a már
+  open tickereket)
+- `connect(..., raise_on_exhaust=True)` a swing branch-ben
+- `IBKRSubmitOrchestrator` wrap a `submit_swing_market_only` köré
+- `SubmitExhaustedError` catch → `sys.exit(1)` (Telegram alert már
+  küldve az orchestrator által)
+
+**`scripts/paper_trading/monitor_submit_heartbeat.py`**:
+- `STUCK_THRESHOLD_S` 300s → 900s (15 min)
+- Indoklás: az új orchestrator max ~12 perc outer-retry budget-tel
+  rendelkezik — a 900s threshold elkerüli a duplikált STUCK alert-et
+  miközben a normal recovery még folyamatban van
+- Override: `IFDS_HEARTBEAT_STUCK_S` env var
+
+### State safety
+
+Minden outer attempt-en a `submit_swing_market_only` belül friss
+`load_swing_positions()` + `get_existing_symbols(ib)` hívást indít.
+A Day 2 race-guard változatlan (`save_swing_positions` csak akkor,
+ha `submitted_tickers != []`).
+
+Nincs double-submit risk: ha az 1. outer attempt-en VLO fillodott
+de connection drop előtt, a 2. attempt a VLO-t `existing_swings`
+listán találja → skip. Csak a hiányzó tickerek mennek be.
+
+### Tests
+
+`tests/test_retry_orchestrator.py` — **9 új unit test**:
+1. `test_first_attempt_succeeds_no_retry` — happy path, no backoff
+2. `test_retries_until_success` — 2 fail + 1 success, [15s, 30s] backoffs
+3. `test_all_attempts_fail_raises_exhausted` — 5 fail, Telegram, [15,30,60,120]
+4. `test_value_error_propagates_no_retry` — non-retryable propagation
+5. `test_probe_returns_false_triggers_backoff_without_submit` — probe gating
+6. `test_probe_raises_treated_as_down` — probe exception → treated as down
+7. `test_backoff_seconds_doubles_per_attempt` — schedule sanity
+8. `test_kwargs_passed_unchanged_every_attempt` — state reload contract
+9. `test_telegram_send_failure_swallowed` — Telegram outage non-blocking
+
+**1747 → 1756 passing**, 0 regression.
+
+### Refs
+
+- `docs/tasks/2026-05-21-submit-retry-storm.md` (Status: DONE)
+- `docs/master-reference/04-risks-and-open-questions.md` §0.5
+- Day 3 incident: `logs/pt_submit_2026-05-20.log` (15:31 cron + manual retry chain)
+
+---
+
+## Fázis 3 / W22 — Sector metric clarity (Task #K, false-positive REJECT)
+
+> 2026-05-21 | Day 4 reggel — szemantikai tisztaság
+
+### Day 3 Log Review chat false-positive
+
+A `daily_metrics.swing_state.sector_max_pct: 20.63` mező post-hoc
+"15% cap megsértés"-ként eszkalálódott a Day 3-i daily review §0.6-ban.
+CC kvantitatív audit (2026-05-21): a sizing logika helyes, a spec cap
+30% (Day 63 decision §3.11 + eredeti swing-sizing task 11× explicit
+említés), és a "15%" érték SEMMILYEN design dokumentumban nem létezik.
+
+### Strukturális megelőzés
+
+`scripts/paper_trading/daily_metrics.py`:
+- Rename: `sector_max_pct` → `sector_observed_max_pct` (display, computed
+  daily max from current positions)
+- Új: `sector_cap_pct = swing_sector_cap_pct × 100` (explicit config
+  mirror, default 30.0 a Day 63 §3.11 szerint)
+- Docstring kibővítve a szemantika magyarázattal
+
+`tests/test_daily_metrics.py`: +1 regression `test_swing_state_includes_sector_cap_pct`
+(disambiguated keys jelen, deprecated key absent, config wiring 30.0).
+
+`tests/test_swing_metrics_telegram.py`: mock dict update.
+
+`docs/tasks/2026-05-21-sector-cap-hotfix.md`: WONTFIX → **REJECTED —
+false positive** + CC kvantitatív audit szöveg appended (workflow
+self-correction pattern permanent record).
+
+`docs/tasks/2026-05-21-sector-metric-clarity.md`: Status DONE.
+
+**1746 → 1747 passing**.
+
+---
+
 ## Fázis 3 / W22 — Telegram pollution fix (Task #H follow-up, §8.1.9)
 
 > 2026-05-20 | INCIDENT — Tamás 2 ÉLŐ MACRO SNAPSHOT Telegram-ot kapott

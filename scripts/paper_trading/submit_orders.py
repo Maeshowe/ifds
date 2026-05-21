@@ -253,7 +253,15 @@ def submit_swing_market_only(
     from ib_insync import MarketOrder
 
     heartbeat_touch("submit_attempt", label=today_str)
-    ib = connect(client_id=10, context_label="submit_orders.py (swing)")
+    # raise_on_exhaust=True so the outer orchestrator (lib.retry_orchestrator)
+    # can catch IBKRConnectionExhausted and retry on a later cycle instead of
+    # the legacy sys.exit(1) which made Day 3 Gateway-down requires manual
+    # operator re-trigger. See docs/tasks/2026-05-21-submit-retry-storm.md.
+    ib = connect(
+        client_id=10,
+        context_label="submit_orders.py (swing)",
+        raise_on_exhaust=True,
+    )
     account = get_account(ib)
 
     existing = get_existing_symbols(ib)
@@ -423,6 +431,16 @@ def main():
                         help='Override circuit breaker and submit orders anyway (use with caution)')
     parser.add_argument('--override-witching', action='store_true',
                         help='Submit orders on Witching day (use with caution)')
+    parser.add_argument(
+        '--resume',
+        action='store_true',
+        help=(
+            'Resume mode: ignore the heartbeat STUCK alert and re-attempt '
+            'submit. Operator triggers this after manual investigation of a '
+            'stuck submit. Existing positions are automatically skipped via '
+            'the state-aware deduplication.'
+        ),
+    )
     args = parser.parse_args()
 
     today_str = date.today().strftime('%Y-%m-%d')
@@ -564,9 +582,51 @@ def main():
         _swing_state_file = "state/swing_positions.json"
 
     if _swing_mode:
-        submit_swing_market_only(
-            tickers, args.dry_run, today_str, _cfg, _swing_state_file,
+        if args.resume:
+            logger.info(
+                "[RESUME] Manual resume mode — state-aware deduplication will "
+                "skip already-open positions. Backoff cycle starts fresh."
+            )
+        # Outer retry orchestrator: handles the Day 3 (2026-05-20) Gateway-down
+        # window by re-attempting submit_swing_market_only on later cycles.
+        # State (swing_positions + IBKR positions) is reloaded inside the
+        # submit callable on every attempt — no double-submit risk.
+        from lib.retry_orchestrator import (
+            IBKRSubmitOrchestrator, SubmitExhaustedError,
         )
+
+        def _gateway_probe() -> bool:
+            try:
+                from lib.connection import connect, disconnect
+                _probe_ib = connect(
+                    client_id=17,           # check_gateway clientId
+                    context_label="submit_orders.py gateway probe",
+                    raise_on_exhaust=True,
+                )
+                disconnect(_probe_ib)
+                return True
+            except Exception:
+                return False
+
+        orchestrator = IBKRSubmitOrchestrator(
+            submit_callable=submit_swing_market_only,
+            gateway_check=_gateway_probe,
+            telegram_notify=send_telegram,
+        )
+        try:
+            orchestrator.submit_with_retry(
+                tickers=tickers,
+                dry_run=args.dry_run,
+                today_str=today_str,
+                cfg=_cfg,
+                state_file=_swing_state_file,
+            )
+        except SubmitExhaustedError as exc:
+            logger.error(
+                f"[SUBMIT_EXHAUSTED] {exc}. "
+                f"Operator notified via Telegram. Exiting with code 1."
+            )
+            sys.exit(1)
         return
 
     # --- Live mode (legacy bracket) ---

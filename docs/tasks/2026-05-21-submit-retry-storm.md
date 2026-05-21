@@ -1,7 +1,9 @@
 # Task: Submit Orders — Autonomous Retry on IBKR Gateway Disconnect
 
-**Status:** OPEN
-**Updated:** 2026-05-21
+Status: DONE
+Updated: 2026-05-21
+Note: Implementálva (~2.5h CC). `lib/retry_orchestrator.py` IBKRSubmitOrchestrator class + `lib/connection.py` IBKRConnectionExhausted exception + `raise_on_exhaust` kwarg + submit_orders.py `--resume` flag + orchestrator integration + monitor_submit_heartbeat.py STUCK threshold 300s → 900s. **+9 új unit test** (test_retry_orchestrator.py: happy path, retry success, exhausted+Telegram, non-retryable propagate, gateway probe gating, backoff schedule, state reload, telegram failure non-blocking). 1747 → **1756 passing**, 0 regression. Day 3 (2026-05-20) Gateway-down forgatókönyv autonóm módon kezelt: 5 attempt × exponential backoff (15s → 240s) = ~7.75 min outer retry window.
+
 **Priority:** P0 (NEM hotfix — Day 5 vagy következő hét)
 **Created:** 2026-05-21
 **Owner:** Claude Code

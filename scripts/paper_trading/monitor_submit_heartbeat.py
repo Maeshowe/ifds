@@ -47,7 +47,17 @@ except ModuleNotFoundError:
     )
     logger = logging.getLogger("heartbeat_monitor")
 
-STUCK_THRESHOLD_S = float(os.getenv("IFDS_HEARTBEAT_STUCK_S", "300"))      # 5 min
+STUCK_THRESHOLD_S = float(os.getenv("IFDS_HEARTBEAT_STUCK_S", "900"))      # 15 min
+# Threshold accommodates the lib.retry_orchestrator outer-retry budget:
+# 5 attempts × exponential backoff (15s→30s→60s→120s→240s) → ~465s submit
+# + per-attempt submit work (~30s × 5 = 150s) → ~10-12 min realistic worst
+# case. The 900s (15 min) threshold gives a buffer before the heartbeat
+# fires a STUCK alert that duplicates the orchestrator's own Telegram
+# critical alert on exhaustion.
+# Day 3 (2026-05-20) the old 300s threshold tripped at 15:45 while the
+# orchestrator (post-fix) would still have been mid-retry — operator got
+# a misleading STUCK alert on top of normal recovery in progress.
+# Override: ``IFDS_HEARTBEAT_STUCK_S`` env var (e.g. 300 to revert).
 MISSING_THRESHOLD_S = float(os.getenv("IFDS_HEARTBEAT_MISSING_S", str(26 * 3600)))  # 26h
 
 

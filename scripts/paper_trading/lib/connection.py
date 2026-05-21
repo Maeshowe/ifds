@@ -26,6 +26,24 @@ CONNECT_RETRY_DELAY = float(os.getenv("IBKR_CONNECT_RETRY_DELAY", "5.0"))
 CONNECT_TIMEOUT = float(os.getenv("IBKR_CONNECT_TIMEOUT", "15.0"))
 
 
+class IBKRConnectionExhausted(Exception):
+    """Raised by ``connect(raise_on_exhaust=True)`` when all internal
+    retry attempts are exhausted.
+
+    The default behaviour of :func:`connect` is backwards-compatible:
+    ``sys.exit(1)`` after a Telegram alert. Callers that need to wrap
+    the connect call in an outer retry loop (e.g. the swing submit
+    orchestrator on Day 3-style Gateway-down windows) pass
+    ``raise_on_exhaust=True`` and catch this exception.
+
+    Refs: docs/tasks/2026-05-21-submit-retry-storm.md
+    """
+
+    def __init__(self, message: str, last_error: Exception | None = None):
+        super().__init__(message)
+        self.last_error = last_error
+
+
 def _send_telegram_alert(message: str) -> None:
     """Send Telegram alert on connection failure. Non-blocking.
 
@@ -66,12 +84,12 @@ def connect(
     retry_delay: float = CONNECT_RETRY_DELAY,
     timeout: float = CONNECT_TIMEOUT,
     context_label: str = "Paper trading script",
+    raise_on_exhaust: bool = False,
 ) -> IB:
     """Connect to IBKR Gateway with retry logic.
 
     Retries up to max_retries times with retry_delay seconds between attempts.
     Sends Telegram alert on all retries failing.
-    Exits with sys.exit(1) only after all retries exhausted.
 
     Args:
         host: Gateway host (default: 127.0.0.1)
@@ -80,12 +98,17 @@ def connect(
         max_retries: Number of connection attempts (default: 3)
         retry_delay: Seconds between retries (default: 5.0)
         timeout: Connection timeout in seconds (default: 15.0)
+        raise_on_exhaust: If True, raise IBKRConnectionExhausted after all
+            retries fail (caller responsible for outer retry / cleanup).
+            Default False preserves the legacy ``sys.exit(1)`` behaviour
+            used by the bulk of the paper-trading scripts.
 
     Returns:
         Connected IB instance.
 
     Raises:
-        SystemExit(1) if all retries fail.
+        SystemExit(1) if all retries fail and ``raise_on_exhaust=False``.
+        IBKRConnectionExhausted if all retries fail and ``raise_on_exhaust=True``.
     """
     last_error = None
 
@@ -134,6 +157,12 @@ def connect(
         _send_telegram_alert(error_msg)
     except Exception:
         pass  # Telegram failure must never prevent exit
+    if raise_on_exhaust:
+        raise IBKRConnectionExhausted(
+            f"All {max_retries} attempts failed (clientId={client_id}, "
+            f"host={host}:{port}): {last_error}",
+            last_error=last_error,
+        )
     sys.exit(1)
 
 

@@ -107,6 +107,7 @@ Mindkettő Phase 0-1-et sikeresen lefutott (1711 pytest passed, BMI=52,7% YELLOW
 - ✅ State ≡ IBKR (7 position match)
 - ⚠️ Permanent fix BACKLOG (Task #I, holnap reggel)
 - ⚠️ A cron-driven submit ma 15:31-kor csendben failed, NEM detektálódott time-wise (csak Telegram heartbeat 15:45-kor jelzett "STUCK")
+- ✅ **Follow-up (2026-05-21)**: a "csendes failure → manual intervention required" mintát az `IBKRSubmitOrchestrator` autonóm outer-retry framework lezárja (lásd §0.5).
 
 **Owner**: CC (W22 hotfix, 2026-05-21 reggel) + Tamás (IBKR Workstation manual setting).
 
@@ -116,6 +117,40 @@ Mindkettő Phase 0-1-et sikeresen lefutott (1711 pytest passed, BMI=52,7% YELLOW
 - Submit log: `logs/pt_submit_2026-05-20.log` (15:31 + 15:52 + 16:05 + 16:20 attempts)
 - Manual fills: VLO@$258.55 (-1.55% slip), ON@$109.48 (+3.26% slip), CNC@$59.27 (+0.20% slip)
 - State backup chain: `state/swing_positions.json.bak.*` (4 backup, audit trail)
+
+### 0.5 ✅ Day 3 submit retry storm — autonomous orchestrator deployed (RESOLVED 2026-05-21)
+
+**Státusz**: ✅ RESOLVED — Task #L (`docs/tasks/2026-05-21-submit-retry-storm.md`) végrehajtva. A 2026-05-20 Day 3-i 15:31 CEST cron submit_orders failure — amelyik a Gateway-down ablakban (15:25-16:00) `sys.exit(1)`-gyel megszakadt — most autonóm outer-retry orchestrator kezeli.
+
+**Mi**: a `submit_orders.py` jelenleg az IBKR connection elérhetetlenkor 3× belső retry-t csinált (`lib/connection.py:CONNECT_MAX_RETRIES=3`, 5s delay), majd `sys.exit(1)`. Ha a Gateway azon a 30 másodperces ablakon belül DOWN volt (Day 3-i 15:25-16:00 outage), nem volt további próbálkozás — manual operator intervention required.
+
+**Fix architektúra**:
+- **`scripts/paper_trading/lib/retry_orchestrator.py::IBKRSubmitOrchestrator`** — wrapper class outer-retry-jal. 5 attempt × exponential backoff (15s → 30s → 60s → 120s → 240s, total ~7.75 min). Minden attempt-nél: cheap gateway probe → ha down, backoff; ha alive, submit_callable hívás (ami belül `connect(raise_on_exhaust=True)`-tal csatlakozik).
+- **`lib/connection.py`** — új `IBKRConnectionExhausted` exception + `raise_on_exhaust` kwarg a `connect()` függvényen. Backwards-compatible: minden caller default behaviour `sys.exit(1)`; csak a submit_orders.py kapcsolja be `raise_on_exhaust=True`-ra.
+- **`submit_orders.py::main()`** — `--resume` CLI flag (manual retry trigger Telegram alert után) + orchestrator hívás + `SubmitExhaustedError` catch → `sys.exit(1)`.
+- **`monitor_submit_heartbeat.py`** — STUCK threshold 300s → 900s. Az orchestrator outer-retry budget (max ~12 perc) NEM trippeli a heartbeat duplikált STUCK alert-jét.
+
+**State-aware deduplication**: minden outer attempt-en a submit_callable belül friss `load_swing_positions()` + `get_existing_symbols(ib)` hívást indít (a meglévő `existing_swings` + `existing` szűrés alapján). Nincs double-submit risk — egy nehéz Gateway-down forgatókönyvben, ahol az 1-2 ticker fillodott egy belső attempt-en de a connection drop előtt, a következő outer attempt csak a hiányzó tickereket próbálja meg.
+
+**Telegram alerting kétoldalú**:
+- Inner connect failure (lib.connection): IBKR CONNECTION FAILED alert (mint eddig, változatlan)
+- Outer all-retries-exhausted (orchestrator): SUBMIT EXHAUSTED alert + manual resume hint (`submit_orders.py --resume`)
+
+A heartbeat 900s threshold csak akkor trippel, ha a teljes outer-retry budget se sikerül (~12 min) — ez a duplikált alert-prevencion belül.
+
+**Tests**: `tests/test_retry_orchestrator.py` 9 új unit teszt (happy path, retry success, exhausted+Telegram, non-retryable propagate, gateway probe gating, backoff schedule, state reload, telegram failure non-blocking). **1747 → 1756 passing, 0 regression**.
+
+**Hatás Day 4+ trading deploy-ra**:
+- Gateway-down 5-12 perces ablakok **autonóm módon kezelve** — operator NEM kap STUCK alert-et, csak ha az outer-retry is exhausted
+- Live trading deploy-nál (Day 126+) **éjjel-nappal manual intervention NEM szükséges** a típikus Gateway outage-okra
+- A failure mode tisztán dokumentált: SUBMIT EXHAUSTED Telegram → operator `--resume` parancs vagy infrastructure investigation
+
+**Referencia**:
+- Task fájl: `docs/tasks/2026-05-21-submit-retry-storm.md` (Status: DONE)
+- Új module: `scripts/paper_trading/lib/retry_orchestrator.py`
+- Új exception: `lib/connection.py::IBKRConnectionExhausted`
+- Tesztek: `tests/test_retry_orchestrator.py` (9 új)
+- Day 3 incident timeline: `logs/pt_submit_2026-05-20.log` (15:31 cron failure + 5 manual retry/diagnostic)
 
 ---
 
