@@ -19,6 +19,11 @@ freshness = [
     "pandas>=2.0",
     "pyarrow>=14.0",
 ]
+dev = [
+    "ruff>=0.15",
+    "black>=25.0",
+    "mypy>=2.0",
+]
 
 [build-system]
 requires = ["setuptools>=68.0"]
@@ -33,3 +38,70 @@ pythonpath = ["src"]
 filterwarnings = [
     "ignore:'asyncio.get_event_loop_policy' is deprecated:DeprecationWarning:eventkit",
 ]
+
+# -----------------------------------------------------------------------------
+# Linter / formatter / type-checker config — 2026-05-21 baseline
+# See docs/audit/2026-05-21-code-health-quick-scan.md for the gap analysis.
+# -----------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    ".venv",
+    "build",
+    "dist",
+    "docs",
+    "logs",
+    "state",
+    "output",
+    "src/conductor",  # legacy subsystem, not actively maintained
+]
+
+[tool.ruff.lint]
+# Default ruleset (E, F, W) + a few quality-of-life rules.
+# Strict rulesets (B, C90, N, ANN, ARG, SIM, …) intentionally deferred
+# until the pre-existing tech debt is paid down (see Phase 5 backlog).
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # line-too-long — black handles line wrapping
+    "E402",  # late imports legit in paper_trading scripts (lib path hack)
+    "E741",  # ambiguous variable names (l/I/O) — historical
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test files: allow unused mocks/fixtures from copy-paste patterns
+"tests/*" = ["F401", "F841", "F811"]
+# CLI entrypoints with main() argparse: late imports for circular-import avoidance
+"scripts/paper_trading/*" = ["E402"]
+# Long-running analysis scripts (operator tools, not production hot path)
+"scripts/analysis/*" = ["F401", "F841"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+extend-exclude = '''
+/(
+    \.venv
+  | build
+  | dist
+  | src/conductor
+)/
+'''
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+# Lenient default — the codebase has 153 pre-existing type errors
+# (see audit report §1.5). Strict mode will be opted-in per-module via
+# [[tool.mypy.overrides]] as the modules are hardened.
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unreachable = true
+no_implicit_optional = false  # historical pattern: many ``param: str = None``
+check_untyped_defs = false    # too noisy at baseline; opt-in per module
+
+# Per-module strict opt-in candidates (none yet — populate as hardened):
+# [[tool.mypy.overrides]]
+# module = "ifds.state.swing_positions"
+# disallow_untyped_defs = true
