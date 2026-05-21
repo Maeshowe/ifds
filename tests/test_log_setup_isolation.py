@@ -45,14 +45,13 @@ def _reset_logger_cache():
 
 def _import_setup_pt_logger():
     """Import setup_pt_logger from scripts.paper_trading.lib.log_setup."""
-    scripts_dir = os.path.join(
-        os.path.dirname(__file__), "..", "scripts", "paper_trading"
-    )
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts", "paper_trading")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     # Re-import to get latest module state
     sys.modules.pop("lib.log_setup", None)
     from lib.log_setup import setup_pt_logger
+
     return setup_pt_logger
 
 
@@ -90,9 +89,9 @@ def test_log_dir_honors_ifds_pt_log_dir_override(monkeypatch, tmp_path):
 
     for fh in file_handlers:
         path = Path(fh.baseFilename).resolve()
-        assert str(path).startswith(str(tmp_path.resolve())), (
-            f"FileHandler wrote to {path}, expected under {tmp_path}"
-        )
+        assert str(path).startswith(
+            str(tmp_path.resolve())
+        ), f"FileHandler wrote to {path}, expected under {tmp_path}"
 
 
 def test_log_dir_default_tmp_path_when_pytest_no_override(monkeypatch):
@@ -108,9 +107,9 @@ def test_log_dir_default_tmp_path_when_pytest_no_override(monkeypatch):
     expected_prefix = os.path.join(tempfile.gettempdir(), "ifds_pt_logs_test")
     for fh in file_handlers:
         path = Path(fh.baseFilename).resolve()
-        assert str(path).startswith(str(Path(expected_prefix).resolve())), (
-            f"FileHandler wrote to {path}, expected under {expected_prefix}"
-        )
+        assert str(path).startswith(
+            str(Path(expected_prefix).resolve())
+        ), f"FileHandler wrote to {path}, expected under {expected_prefix}"
 
 
 def test_resolve_log_dir_returns_original_outside_pytest(monkeypatch):
@@ -123,9 +122,7 @@ def test_resolve_log_dir_returns_original_outside_pytest(monkeypatch):
     monkeypatch.delenv("IFDS_PT_LOG_DIR", raising=False)
 
     sys.modules.pop("lib.log_setup", None)
-    scripts_dir = os.path.join(
-        os.path.dirname(__file__), "..", "scripts", "paper_trading"
-    )
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts", "paper_trading")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from lib.log_setup import _resolve_log_dir

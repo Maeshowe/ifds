@@ -1,4 +1,5 @@
 """Unit tests for ifds.scoring.contradiction_signal."""
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -11,7 +12,6 @@ from ifds.scoring.contradiction_signal import (
     RECENT_DOWNGRADES_THRESHOLD,
     compute_contradiction_signal,
 )
-
 
 # ---------------------------------------------------------------------------
 # Clean data — no flags
@@ -157,10 +157,8 @@ class TestRecentDowngrades:
             price=100.0,
             target_consensus=110.0,
             analyst_grades_recent=[
-                {"date": (today - timedelta(days=1)).isoformat(),
-                 "action": "downgraded"},
-                {"date": (today - timedelta(days=7)).isoformat(),
-                 "action": "down"},
+                {"date": (today - timedelta(days=1)).isoformat(), "action": "downgraded"},
+                {"date": (today - timedelta(days=7)).isoformat(), "action": "down"},
             ],
             today=today,
         )

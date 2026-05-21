@@ -51,9 +51,7 @@ def import_jsonl(conn: sqlite3.Connection, jsonl_path: str) -> int:
     date_str = Path(jsonl_path).stem.replace("pt_events_", "")
 
     # Skip if already imported
-    existing = conn.execute(
-        "SELECT COUNT(*) FROM events WHERE date=?", (date_str,)
-    ).fetchone()[0]
+    existing = conn.execute("SELECT COUNT(*) FROM events WHERE date=?", (date_str,)).fetchone()[0]
     if existing > 0:
         return 0
 

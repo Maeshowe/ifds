@@ -130,8 +130,11 @@ async def fetch_intraday_vwap(
     async def _fetch_one(ticker: str) -> None:
         try:
             bars = await polygon_client.get_aggregates(
-                ticker, date_str, date_str,
-                timespan="minute", multiplier=5,
+                ticker,
+                date_str,
+                date_str,
+                timespan="minute",
+                multiplier=5,
             )
             if bars:
                 vwap = calculate_vwap(bars)

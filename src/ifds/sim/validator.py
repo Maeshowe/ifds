@@ -13,10 +13,10 @@ from pathlib import Path
 from ifds.sim.broker_sim import compute_qty_split, simulate_bracket_order, simulate_swing_trade
 from ifds.sim.models import Trade, ValidationSummary
 
-
 # ============================================================================
 # CSV Loading
 # ============================================================================
+
 
 def load_execution_plans(output_dir: str = "output") -> list[Trade]:
     """Load all execution_plan_*.csv files and convert to Trade objects.
@@ -95,9 +95,7 @@ def _parse_run_date(run_id: str) -> date | None:
     match = re.match(r"run_(\d{8})_", run_id)
     if match:
         try:
-            return date(int(match.group(1)[:4]),
-                        int(match.group(1)[4:6]),
-                        int(match.group(1)[6:8]))
+            return date(int(match.group(1)[:4]), int(match.group(1)[4:6]), int(match.group(1)[6:8]))
         except ValueError:
             return None
     return None
@@ -107,11 +105,14 @@ def _parse_run_date(run_id: str) -> date | None:
 # Polygon Data Fetching (async with cache)
 # ============================================================================
 
-async def _fetch_bars_for_trades(trades: list[Trade],
-                                 polygon_api_key: str,
-                                 max_hold_days: int = 10,
-                                 fill_window_days: int = 1,
-                                 cache_dir: str | None = None) -> dict[str, dict[str, list[dict]]]:
+
+async def _fetch_bars_for_trades(
+    trades: list[Trade],
+    polygon_api_key: str,
+    max_hold_days: int = 10,
+    fill_window_days: int = 1,
+    cache_dir: str | None = None,
+) -> dict[str, dict[str, list[dict]]]:
     """Fetch post-plan OHLCV bars for all trades.
 
     Returns:
@@ -127,6 +128,7 @@ async def _fetch_bars_for_trades(trades: list[Trade],
         # Use trading calendar for precise range, cap at today to avoid stale cache
         try:
             from ifds.utils.trading_calendar import add_trading_days
+
             raw_to = add_trading_days(trade.run_date, max_hold_days + fill_window_days + 2)
         except Exception:
             # Fallback: calendar days + padding for weekends/holidays
@@ -142,6 +144,7 @@ async def _fetch_bars_for_trades(trades: list[Trade],
     cache = None
     if cache_dir:
         from ifds.data.cache import FileCache
+
         cache = FileCache(cache_dir)
 
     polygon = AsyncPolygonClient(
@@ -157,7 +160,7 @@ async def _fetch_bars_for_trades(trades: list[Trade],
     try:
         tasks = []
         task_keys = []
-        for (ticker, from_d, to_d) in requests:
+        for ticker, from_d, to_d in requests:
             tasks.append(polygon.get_aggregates(ticker, from_d, to_d))
             task_keys.append((ticker, from_d, to_d))
 
@@ -172,14 +175,16 @@ async def _fetch_bars_for_trades(trades: list[Trade],
                 # Polygon agg bars: {"t": timestamp_ms, "o", "h", "l", "c", "v", ...}
                 if "t" in bar:
                     bar_date = date.fromtimestamp(bar["t"] / 1000).isoformat()
-                    bars.append({
-                        "date": bar_date,
-                        "o": bar.get("o", 0),
-                        "h": bar.get("h", 0),
-                        "l": bar.get("l", 0),
-                        "c": bar.get("c", 0),
-                        "v": bar.get("v", 0),
-                    })
+                    bars.append(
+                        {
+                            "date": bar_date,
+                            "o": bar.get("o", 0),
+                            "h": bar.get("h", 0),
+                            "l": bar.get("l", 0),
+                            "c": bar.get("c", 0),
+                            "v": bar.get("v", 0),
+                        }
+                    )
                 elif "date" in bar:
                     bars.append(bar)
 
@@ -197,11 +202,14 @@ async def _fetch_bars_for_trades(trades: list[Trade],
 # Validation Orchestrator
 # ============================================================================
 
-def validate_execution_plans(output_dir: str = "output",
-                             polygon_api_key: str | None = None,
-                             max_hold_days: int = 10,
-                             fill_window_days: int = 1,
-                             cache_dir: str | None = None) -> tuple[list[Trade], ValidationSummary]:
+
+def validate_execution_plans(
+    output_dir: str = "output",
+    polygon_api_key: str | None = None,
+    max_hold_days: int = 10,
+    fill_window_days: int = 1,
+    cache_dir: str | None = None,
+) -> tuple[list[Trade], ValidationSummary]:
     """Run forward validation on all execution plan CSVs.
 
     1. Load execution_plan_*.csv from output_dir
@@ -230,9 +238,15 @@ def validate_execution_plans(output_dir: str = "output",
         return [], ValidationSummary()
 
     # 2. Fetch OHLCV data
-    bars_data = asyncio.run(_fetch_bars_for_trades(
-        trades, polygon_api_key, max_hold_days, fill_window_days, cache_dir,
-    ))
+    bars_data = asyncio.run(
+        _fetch_bars_for_trades(
+            trades,
+            polygon_api_key,
+            max_hold_days,
+            fill_window_days,
+            cache_dir,
+        )
+    )
 
     # 3. Simulate each trade
     for trade in trades:
@@ -247,13 +261,14 @@ def validate_execution_plans(output_dir: str = "output",
     return trades, summary
 
 
-def validate_trades_with_bars(trades: list[Trade],
-                              bars_by_ticker: dict[str, list[dict]],
-                              max_hold_days: int = 10,
-                              fill_window_days: int = 1,
-                              sim_mode: str = "bracket",
-                              swing_params: dict | None = None,
-                              ) -> tuple[list[Trade], ValidationSummary]:
+def validate_trades_with_bars(
+    trades: list[Trade],
+    bars_by_ticker: dict[str, list[dict]],
+    max_hold_days: int = 10,
+    fill_window_days: int = 1,
+    sim_mode: str = "bracket",
+    swing_params: dict | None = None,
+) -> tuple[list[Trade], ValidationSummary]:
     """Validate trades with pre-provided bars (for testing without Polygon).
 
     Args:
@@ -272,7 +287,8 @@ def validate_trades_with_bars(trades: list[Trade],
         if sim_mode == "swing":
             params = swing_params or {}
             simulate_swing_trade(
-                trade, bars,
+                trade,
+                bars,
                 max_hold_days=max_hold_days,
                 fill_window_days=fill_window_days,
                 **params,
@@ -287,6 +303,7 @@ def validate_trades_with_bars(trades: list[Trade],
 # ============================================================================
 # Summary Aggregation
 # ============================================================================
+
 
 def aggregate_summary(trades: list[Trade]) -> ValidationSummary:
     """Aggregate trade results into ValidationSummary."""
@@ -380,8 +397,7 @@ def aggregate_summary(trades: list[Trade]) -> ValidationSummary:
     for bucket, group in buckets.items():
         if group:
             wins = sum(1 for t in group if t.total_pnl > 0)
-            summary.win_rate_by_score_bucket[bucket] = round(
-                wins / len(group) * 100, 1)
+            summary.win_rate_by_score_bucket[bucket] = round(wins / len(group) * 100, 1)
 
     # Metadata
     run_dates = [t.run_date for t in trades if t.run_date]

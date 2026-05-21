@@ -18,6 +18,7 @@ stale sector context-tel megy.
 Usage:
     python scripts/check_phase13_freshness.py
 """
+
 from __future__ import annotations
 
 import os
@@ -31,11 +32,15 @@ load_dotenv()
 
 try:
     from lib.log_setup import setup_pt_logger
+
     logger = setup_pt_logger("phase13_freshness")
 except ModuleNotFoundError:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
-    logger = logging.getLogger('phase13_freshness')
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    )
+    logger = logging.getLogger("phase13_freshness")
 
 
 CONTEXT_PATH = Path("state/phase13_ctx.json.gz")
@@ -45,6 +50,7 @@ MAX_AGE_HOURS = 1.0
 # ---------------------------------------------------------------------------
 # Pure helper (testable without IO)
 # ---------------------------------------------------------------------------
+
 
 def classify_freshness(
     context_path: Path,
@@ -72,12 +78,14 @@ def classify_freshness(
 # Telegram helper
 # ---------------------------------------------------------------------------
 
+
 def send_telegram(message: str) -> None:
     """Send message via Telegram Bot API with CET timestamp header."""
     try:
         sys.path.insert(0, str(Path(__file__).parent / "paper_trading"))
         from lib.telegram_helper import telegram_header
         from lib.telegram_helper import send_telegram as _send
+
         _send(f"{telegram_header('PHASE13')}\n{message}")
     except Exception as exc:
         logger.error(f"Telegram send failed: {exc}")
@@ -86,6 +94,7 @@ def send_telegram(message: str) -> None:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> int:
     logger.info(f"Phase 1-3 freshness check — {datetime.now():%Y-%m-%d %H:%M:%S CEST}")

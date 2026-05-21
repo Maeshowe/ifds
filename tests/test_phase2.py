@@ -48,9 +48,17 @@ def logger(tmp_path):
     return EventLogger(log_dir=str(tmp_path), run_id="test-phase2")
 
 
-def _make_fmp_ticker(symbol, market_cap=5e9, price=50.0, volume=1e6,
-                     is_etf=False, sector="Technology",
-                     debt_equity=None, net_margin=None, interest_coverage=None):
+def _make_fmp_ticker(
+    symbol,
+    market_cap=5e9,
+    price=50.0,
+    volume=1e6,
+    is_etf=False,
+    sector="Technology",
+    debt_equity=None,
+    net_margin=None,
+    interest_coverage=None,
+):
     """Create a mock FMP screener result."""
     result = {
         "symbol": symbol,
@@ -133,14 +141,11 @@ class TestShortUniverseScreening:
         fmp = MagicMock()
         fmp.screener.return_value = [
             # True zombie: D/E > 3, negative margin, low IC
-            _make_fmp_ticker("ZOMBIE", debt_equity=5.0, net_margin=-0.15,
-                             interest_coverage=0.8),
+            _make_fmp_ticker("ZOMBIE", debt_equity=5.0, net_margin=-0.15, interest_coverage=0.8),
             # Not zombie: healthy company
-            _make_fmp_ticker("HEALTHY", debt_equity=0.5, net_margin=0.20,
-                             interest_coverage=10.0),
+            _make_fmp_ticker("HEALTHY", debt_equity=0.5, net_margin=0.20, interest_coverage=10.0),
             # Not zombie: low D/E
-            _make_fmp_ticker("LOWDE", debt_equity=1.0, net_margin=-0.10,
-                             interest_coverage=0.5),
+            _make_fmp_ticker("LOWDE", debt_equity=1.0, net_margin=-0.10, interest_coverage=0.5),
         ]
         tickers = _screen_short_universe(fmp, config, logger)
         assert len(tickers) == 1
@@ -150,8 +155,7 @@ class TestShortUniverseScreening:
     def test_requires_negative_margin(self, config, logger):
         fmp = MagicMock()
         fmp.screener.return_value = [
-            _make_fmp_ticker("HIGH_DE", debt_equity=5.0, net_margin=0.05,
-                             interest_coverage=0.8),
+            _make_fmp_ticker("HIGH_DE", debt_equity=5.0, net_margin=0.05, interest_coverage=0.8),
         ]
         tickers = _screen_short_universe(fmp, config, logger)
         assert len(tickers) == 0
@@ -224,7 +228,7 @@ class TestEarningsExclusionPass2:
         # Ticker-specific catches ALC (within 7-day window)
         fmp.get_next_earnings_date.side_effect = lambda t: {
             "ALC": "2026-02-24",  # today or within window
-            "GE": "2026-04-22",   # far out — not excluded
+            "GE": "2026-04-22",  # far out — not excluded
         }.get(t)
 
         with patch("ifds.phases.phase2_universe.date") as mock_date:
@@ -322,10 +326,7 @@ class TestEarningsExclusionPass2:
         assert len(filtered) == 1
 
         # Check summary log
-        summary_logs = [
-            e for e in logger.events
-            if "Earnings exclusion:" in e.get("message", "")
-        ]
+        summary_logs = [e for e in logger.events if "Earnings exclusion:" in e.get("message", "")]
         assert len(summary_logs) == 1
         data = summary_logs[0]["data"]
         assert data["total_excluded"] == 2
@@ -405,8 +406,7 @@ class TestPhase2Integration:
     def test_short_mode_flow(self, config, logger):
         fmp = MagicMock()
         fmp.screener.return_value = [
-            _make_fmp_ticker("ZOMBIE1", debt_equity=5.0, net_margin=-0.15,
-                             interest_coverage=0.8),
+            _make_fmp_ticker("ZOMBIE1", debt_equity=5.0, net_margin=-0.15, interest_coverage=0.8),
         ]
         fmp.get_earnings_calendar.return_value = []
         fmp.get_next_earnings_date.return_value = None
@@ -455,9 +455,7 @@ class TestSecFilingExclusion:
         ]
         mock_client = MagicMock()
         # AGNC flagged, others not
-        mock_client.has_upcoming_10q_or_10k.side_effect = (
-            lambda t, lookahead_days: t == "AGNC"
-        )
+        mock_client.has_upcoming_10q_or_10k.side_effect = lambda t, lookahead_days: t == "AGNC"
         with patch("ifds.phases.phase2_universe.SecEdgarClient", return_value=mock_client):
             filtered, excluded = _exclude_sec_filings(tickers, config, logger)
         symbols = [t.symbol for t in filtered]
@@ -475,8 +473,9 @@ class TestSecFilingExclusion:
         assert [t.symbol for t in filtered] == ["AAPL"]
         assert excluded == []
         # WARNING surfaced for observability
-        warnings = [e for e in logger.events
-                    if e["severity"] == "WARNING" and "SEC EDGAR" in e["message"]]
+        warnings = [
+            e for e in logger.events if e["severity"] == "WARNING" and "SEC EDGAR" in e["message"]
+        ]
         assert len(warnings) == 1
 
     def test_run_phase2_does_not_write_production_state(self, config, logger, tmp_path):
@@ -490,8 +489,9 @@ class TestSecFilingExclusion:
 
         mock_client = MagicMock()
         mock_client.has_upcoming_10q_or_10k.return_value = False
-        with patch("ifds.phases.phase2_universe.SecEdgarClient",
-                   return_value=mock_client) as mock_ctor:
+        with patch(
+            "ifds.phases.phase2_universe.SecEdgarClient", return_value=mock_client
+        ) as mock_ctor:
             run_phase2(config, logger, fmp, StrategyMode.LONG)
         # The Phase 2 helper instantiated SecEdgarClient with the tmp cache dir
         kwargs = mock_ctor.call_args.kwargs
@@ -505,9 +505,7 @@ class TestSecFilingExclusion:
         fmp.get_next_earnings_date.return_value = None
 
         mock_client = MagicMock()
-        mock_client.has_upcoming_10q_or_10k.side_effect = (
-            lambda t, lookahead_days: t == "AGNC"
-        )
+        mock_client.has_upcoming_10q_or_10k.side_effect = lambda t, lookahead_days: t == "AGNC"
         with patch("ifds.phases.phase2_universe.SecEdgarClient", return_value=mock_client):
             result = run_phase2(config, logger, fmp, StrategyMode.LONG)
         assert "AGNC" in result.sec_filing_excluded

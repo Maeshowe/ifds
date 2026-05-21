@@ -23,6 +23,7 @@ def logger(tmp_path):
 # _aggregate_dp_records() — shared pure function
 # ============================================================================
 
+
 class TestAggregateDpRecords:
     def test_bullish_signal(self):
         """dp_buys > dp_sells → BULLISH."""
@@ -79,8 +80,13 @@ class TestAggregateDpRecords:
     def test_dp_pct_from_volume_field(self):
         """dp_pct computed from record's volume field (total stock day volume)."""
         records = [
-            {"size": "100", "price": "10.0", "nbbo_ask": "10.5", "nbbo_bid": "9.5",
-             "volume": "10000"},
+            {
+                "size": "100",
+                "price": "10.0",
+                "nbbo_ask": "10.5",
+                "nbbo_bid": "9.5",
+                "volume": "10000",
+            },
         ]
         result = _aggregate_dp_records(records)
         assert result["total_volume"] == 10000
@@ -100,30 +106,35 @@ class TestAggregateDpRecords:
 # UWBatchDarkPoolProvider — sync batch provider
 # ============================================================================
 
+
 class TestUWBatchDarkPoolProvider:
     def _make_records(self, tickers_sizes):
         """Build mock records: [(ticker, size, executed_at), ...]"""
         records = []
         for ticker, size, ts in tickers_sizes:
-            records.append({
-                "ticker": ticker,
-                "size": str(size),
-                "price": "100.0",
-                "nbbo_ask": "100.05",
-                "nbbo_bid": "99.95",
-                "executed_at": ts,
-            })
+            records.append(
+                {
+                    "ticker": ticker,
+                    "size": str(size),
+                    "price": "100.0",
+                    "nbbo_ask": "100.05",
+                    "nbbo_bid": "99.95",
+                    "executed_at": ts,
+                }
+            )
         return records
 
     def test_prefetch_groups_by_ticker(self, logger):
         """3 tickers mixed → correct grouping."""
         client = MagicMock()
-        page1 = self._make_records([
-            ("AAPL", 100, "2026-02-09T10:00:00"),
-            ("NVDA", 200, "2026-02-09T10:01:00"),
-            ("AAPL", 150, "2026-02-09T10:02:00"),
-            ("TSLA", 300, "2026-02-09T10:03:00"),
-        ])
+        page1 = self._make_records(
+            [
+                ("AAPL", 100, "2026-02-09T10:00:00"),
+                ("NVDA", 200, "2026-02-09T10:01:00"),
+                ("AAPL", 150, "2026-02-09T10:02:00"),
+                ("TSLA", 300, "2026-02-09T10:03:00"),
+            ]
+        )
         client.get_dark_pool_recent.side_effect = [page1, []]
 
         provider = UWBatchDarkPoolProvider(client, logger=logger, max_pages=5, page_delay=0)
@@ -138,10 +149,12 @@ class TestUWBatchDarkPoolProvider:
     def test_get_dark_pool_from_cache(self, logger):
         """After prefetch, returns aggregated data for cached ticker."""
         client = MagicMock()
-        page1 = self._make_records([
-            ("SPY", 500, "2026-02-09T10:00:00"),
-            ("SPY", 300, "2026-02-09T10:01:00"),
-        ])
+        page1 = self._make_records(
+            [
+                ("SPY", 500, "2026-02-09T10:00:00"),
+                ("SPY", 300, "2026-02-09T10:01:00"),
+            ]
+        )
         client.get_dark_pool_recent.side_effect = [page1, []]
 
         provider = UWBatchDarkPoolProvider(client, logger=logger, max_pages=5, page_delay=0)
@@ -165,23 +178,31 @@ class TestUWBatchDarkPoolProvider:
     def test_pagination_uses_older_than(self, logger):
         """Verify older_than passed from last record's executed_at."""
         client = MagicMock()
-        page1 = self._make_records([
-            ("AAPL", 100, "2026-02-09T10:00:00"),
-        ])
-        page2 = self._make_records([
-            ("NVDA", 200, "2026-02-09T09:00:00"),
-        ])
+        page1 = self._make_records(
+            [
+                ("AAPL", 100, "2026-02-09T10:00:00"),
+            ]
+        )
+        page2 = self._make_records(
+            [
+                ("NVDA", 200, "2026-02-09T09:00:00"),
+            ]
+        )
         client.get_dark_pool_recent.side_effect = [page1, page2, []]
 
         provider = UWBatchDarkPoolProvider(client, logger=logger, max_pages=5, page_delay=0)
         provider.prefetch()
 
         calls = client.get_dark_pool_recent.call_args_list
-        assert calls[0].kwargs.get("older_than") is None or \
-               calls[0] == ((200,), {"limit": 200, "date": None, "older_than": None})
+        assert calls[0].kwargs.get("older_than") is None or calls[0] == (
+            (200,),
+            {"limit": 200, "date": None, "older_than": None},
+        )
         # Second call should use executed_at from last record of page1
-        assert calls[1].kwargs.get("older_than") == "2026-02-09T10:00:00" or \
-               calls[1][1].get("older_than") == "2026-02-09T10:00:00"
+        assert (
+            calls[1].kwargs.get("older_than") == "2026-02-09T10:00:00"
+            or calls[1][1].get("older_than") == "2026-02-09T10:00:00"
+        )
 
     def test_stops_on_empty_page(self, logger):
         """Empty response → stop pagination."""
@@ -243,18 +264,18 @@ class TestUWBatchDarkPoolProvider:
     def test_logs_data_prefetch_event(self, logger):
         """Prefetch should log DATA_PREFETCH event."""
         client = MagicMock()
-        page1 = self._make_records([
-            ("AAPL", 100, "ts1"),
-            ("NVDA", 200, "ts2"),
-        ])
+        page1 = self._make_records(
+            [
+                ("AAPL", 100, "ts1"),
+                ("NVDA", 200, "ts2"),
+            ]
+        )
         client.get_dark_pool_recent.side_effect = [page1, []]
 
         provider = UWBatchDarkPoolProvider(client, logger=logger, max_pages=5, page_delay=0)
         provider.prefetch()
 
-        prefetch_events = [
-            e for e in logger.events if e["event_type"] == "DATA_PREFETCH"
-        ]
+        prefetch_events = [e for e in logger.events if e["event_type"] == "DATA_PREFETCH"]
         assert len(prefetch_events) == 1
         assert "2 trades" in prefetch_events[0]["message"]
         assert "2 tickers" in prefetch_events[0]["message"]
@@ -264,29 +285,34 @@ class TestUWBatchDarkPoolProvider:
 # AsyncUWBatchDarkPoolProvider — async batch provider
 # ============================================================================
 
+
 class TestAsyncUWBatchDarkPoolProvider:
     def _make_records(self, tickers_sizes):
         records = []
         for ticker, size, ts in tickers_sizes:
-            records.append({
-                "ticker": ticker,
-                "size": str(size),
-                "price": "100.0",
-                "nbbo_ask": "100.05",
-                "nbbo_bid": "99.95",
-                "executed_at": ts,
-            })
+            records.append(
+                {
+                    "ticker": ticker,
+                    "size": str(size),
+                    "price": "100.0",
+                    "nbbo_ask": "100.05",
+                    "nbbo_bid": "99.95",
+                    "executed_at": ts,
+                }
+            )
         return records
 
     @pytest.mark.asyncio
     async def test_prefetch_groups_by_ticker(self, logger):
         """Async: 3 tickers mixed → correct grouping."""
         client = AsyncMock()
-        page1 = self._make_records([
-            ("AAPL", 100, "ts1"),
-            ("NVDA", 200, "ts2"),
-            ("AAPL", 150, "ts3"),
-        ])
+        page1 = self._make_records(
+            [
+                ("AAPL", 100, "ts1"),
+                ("NVDA", 200, "ts2"),
+                ("AAPL", 150, "ts3"),
+            ]
+        )
         client.get_dark_pool_recent.side_effect = [page1, []]
 
         provider = AsyncUWBatchDarkPoolProvider(client, logger=logger, max_pages=5, page_delay=0)
@@ -299,10 +325,12 @@ class TestAsyncUWBatchDarkPoolProvider:
     async def test_get_dark_pool_from_cache(self, logger):
         """Async: returns aggregated data for cached ticker."""
         client = AsyncMock()
-        page1 = self._make_records([
-            ("SPY", 500, "ts1"),
-            ("SPY", 300, "ts2"),
-        ])
+        page1 = self._make_records(
+            [
+                ("SPY", 500, "ts1"),
+                ("SPY", 300, "ts2"),
+            ]
+        )
         client.get_dark_pool_recent.side_effect = [page1, []]
 
         provider = AsyncUWBatchDarkPoolProvider(client, logger=logger, max_pages=5, page_delay=0)
@@ -347,6 +375,7 @@ class TestAsyncUWBatchDarkPoolProvider:
 # ============================================================================
 # Regression: UWDarkPoolProvider still works after _aggregate_dp_records extraction
 # ============================================================================
+
 
 class TestUWDarkPoolProviderRefactored:
     def test_returns_bullish_signal(self):

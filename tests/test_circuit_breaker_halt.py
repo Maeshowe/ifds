@@ -27,16 +27,30 @@ def _isolate_submit_env():
 def _setup_circuit_breaker(tmp_path, cum_pnl=-6000.0):
     """Create a cumulative_pnl.json that triggers the circuit breaker."""
     pnl_file = tmp_path / "cumulative_pnl.json"
-    pnl_file.write_text(json.dumps({
-        'cumulative_pnl': cum_pnl,
-        'trading_days': 5,
-    }))
+    pnl_file.write_text(
+        json.dumps(
+            {
+                "cumulative_pnl": cum_pnl,
+                "trading_days": 5,
+            }
+        )
+    )
     return str(pnl_file)
 
 
-MOCK_TICKERS = [{'symbol': 'AAPL', 'limit_price': 150.0, 'total_qty': 10,
-                 'qty_tp1': 3, 'qty_tp2': 7, 'direction': 'LONG',
-                 'stop_loss': 145.0, 'take_profit_1': 155.0, 'take_profit_2': 160.0}]
+MOCK_TICKERS = [
+    {
+        "symbol": "AAPL",
+        "limit_price": 150.0,
+        "total_qty": 10,
+        "qty_tp1": 3,
+        "qty_tp2": 7,
+        "direction": "LONG",
+        "stop_loss": 145.0,
+        "take_profit_1": 155.0,
+        "take_profit_2": 160.0,
+    }
+]
 
 
 class TestCircuitBreakerHalt:
@@ -50,11 +64,14 @@ class TestCircuitBreakerHalt:
 
         with patch.dict("sys.modules", {"dotenv": MagicMock()}):
             import scripts.paper_trading.submit_orders as submit
+
             submit.CUMULATIVE_PNL_FILE = pnl_file
 
-            with patch.object(submit, 'send_telegram'), \
-                 patch.object(submit, 'load_execution_plan', return_value=MOCK_TICKERS), \
-                 patch('sys.argv', ['submit_orders.py', '--file', str(csv_file)]):
+            with (
+                patch.object(submit, "send_telegram"),
+                patch.object(submit, "load_execution_plan", return_value=MOCK_TICKERS),
+                patch("sys.argv", ["submit_orders.py", "--file", str(csv_file)]),
+            ):
                 with pytest.raises(SystemExit) as exc_info:
                     submit.main()
                 assert exc_info.value.code == 1
@@ -67,12 +84,23 @@ class TestCircuitBreakerHalt:
 
         with patch.dict("sys.modules", {"dotenv": MagicMock()}):
             import scripts.paper_trading.submit_orders as submit
+
             submit.CUMULATIVE_PNL_FILE = pnl_file
 
-            with patch.object(submit, 'send_telegram'), \
-                 patch.object(submit, 'load_execution_plan', return_value=MOCK_TICKERS), \
-                 patch('sys.argv', ['submit_orders.py', '--dry-run',
-                                    '--override-circuit-breaker', '--file', str(csv_file)]):
+            with (
+                patch.object(submit, "send_telegram"),
+                patch.object(submit, "load_execution_plan", return_value=MOCK_TICKERS),
+                patch(
+                    "sys.argv",
+                    [
+                        "submit_orders.py",
+                        "--dry-run",
+                        "--override-circuit-breaker",
+                        "--file",
+                        str(csv_file),
+                    ],
+                ),
+            ):
                 # Should NOT raise SystemExit — dry-run finishes normally
                 submit.main()
 
@@ -86,11 +114,16 @@ class TestCircuitBreakerHalt:
 
         with patch.dict("sys.modules", {"dotenv": MagicMock()}):
             import scripts.paper_trading.submit_orders as submit
+
             submit.CUMULATIVE_PNL_FILE = pnl_file
 
-            with patch.object(submit, 'send_telegram', side_effect=lambda msg: telegram_messages.append(msg)), \
-                 patch.object(submit, 'load_execution_plan', return_value=MOCK_TICKERS), \
-                 patch('sys.argv', ['submit_orders.py', '--file', str(csv_file)]):
+            with (
+                patch.object(
+                    submit, "send_telegram", side_effect=lambda msg: telegram_messages.append(msg)
+                ),
+                patch.object(submit, "load_execution_plan", return_value=MOCK_TICKERS),
+                patch("sys.argv", ["submit_orders.py", "--file", str(csv_file)]),
+            ):
                 with pytest.raises(SystemExit):
                     submit.main()
 

@@ -13,16 +13,16 @@ Conditions evaluated (any one triggers the flag):
 
 Defensive: missing data ⇒ no flag (`is_contradicted=False`, `reasons=[]`).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 
-
 # Thresholds — also exported in ContradictionResult.detail['thresholds'] for audit
-CONSENSUS_OVERSHOOT_THRESHOLD = 0.02   # 2% above consensus target
-EARNINGS_BEAT_RATIO_THRESHOLD = 0.5    # <50% beats (e.g. 0/4 or 1/4)
-RECENT_DOWNGRADES_THRESHOLD = 2        # 2+ downgrades inside the window
+CONSENSUS_OVERSHOOT_THRESHOLD = 0.02  # 2% above consensus target
+EARNINGS_BEAT_RATIO_THRESHOLD = 0.5  # <50% beats (e.g. 0/4 or 1/4)
+RECENT_DOWNGRADES_THRESHOLD = 2  # 2+ downgrades inside the window
 RECENT_DOWNGRADES_WINDOW_DAYS = 30
 
 

@@ -19,6 +19,7 @@ Usage:
     python scripts/analysis/scoring_validation.py
     python scripts/analysis/scoring_validation.py --fetch-spy  # refresh SPY cache
 """
+
 from __future__ import annotations
 
 import argparse
@@ -41,8 +42,11 @@ try:
     import numpy as np
     from scipy import stats
 except ImportError as e:
-    print(f"ERROR: missing analysis dependency ({e}). "
-          f"Install: pip install matplotlib scipy numpy", file=sys.stderr)
+    print(
+        f"ERROR: missing analysis dependency ({e}). "
+        f"Install: pip install matplotlib scipy numpy",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 # ---------------------------------------------------------------------------
@@ -63,8 +67,12 @@ SPY_CACHE = OUT_DIR / "spy_returns.json"
 # group sub-scores into "flow-ish" / "tech-ish" / "funda-ish" buckets to see
 # which bucket correlates with trade P&L.
 FLOW_FIELDS = [
-    "rvol_score", "dp_pct_score", "pcr_score", "otm_score",
-    "block_trade_score", "buy_pressure_score",
+    "rvol_score",
+    "dp_pct_score",
+    "pcr_score",
+    "otm_score",
+    "block_trade_score",
+    "buy_pressure_score",
 ]
 TECH_FIELDS = ["rsi_score", "sma50_bonus", "rs_spy_score"]
 FUNDA_FIELD = "funda_score"
@@ -170,6 +178,7 @@ def fetch_and_cache_spy_returns(dates: list[str]) -> dict[str, float]:
         return {}
 
     from datetime import date as _date, timedelta
+
     if not dates:
         return {}
     # Pad start by 5 calendar days so we have a prior close to compute
@@ -270,16 +279,18 @@ def score_quintiles(trades: list[Trade]) -> list[dict]:
         pnls = [t.pnl for t in bucket]
         pcts = [t.pnl_pct for t in bucket]
         wins = sum(1 for t in bucket if t.pnl > 0)
-        out.append({
-            "quintile": q + 1,
-            "n": len(bucket),
-            "score_range": f"{bucket[0].score:.1f}–{bucket[-1].score:.1f}",
-            "avg_pnl": mean(pnls) if pnls else 0,
-            "median_pnl": median(pnls) if pnls else 0,
-            "avg_pnl_pct": mean(pcts) if pcts else 0,
-            "win_rate": wins / len(bucket) * 100 if bucket else 0,
-            "total_pnl": sum(pnls),
-        })
+        out.append(
+            {
+                "quintile": q + 1,
+                "n": len(bucket),
+                "score_range": f"{bucket[0].score:.1f}–{bucket[-1].score:.1f}",
+                "avg_pnl": mean(pnls) if pnls else 0,
+                "median_pnl": median(pnls) if pnls else 0,
+                "avg_pnl_pct": mean(pcts) if pcts else 0,
+                "win_rate": wins / len(bucket) * 100 if bucket else 0,
+                "total_pnl": sum(pnls),
+            }
+        )
     return out
 
 
@@ -292,15 +303,17 @@ def exit_type_breakdown(trades: list[Trade]) -> list[dict]:
         pnls = [t.pnl for t in bucket]
         pcts = [t.pnl_pct for t in bucket]
         wins = sum(1 for t in bucket if t.pnl > 0)
-        out.append({
-            "exit_type": exit_type,
-            "n": len(bucket),
-            "avg_pnl": mean(pnls) if pnls else 0,
-            "median_pnl": median(pnls) if pnls else 0,
-            "avg_pnl_pct": mean(pcts) if pcts else 0,
-            "win_rate": wins / len(bucket) * 100 if bucket else 0,
-            "total_pnl": sum(pnls),
-        })
+        out.append(
+            {
+                "exit_type": exit_type,
+                "n": len(bucket),
+                "avg_pnl": mean(pnls) if pnls else 0,
+                "median_pnl": median(pnls) if pnls else 0,
+                "avg_pnl_pct": mean(pcts) if pcts else 0,
+                "win_rate": wins / len(bucket) * 100 if bucket else 0,
+                "total_pnl": sum(pnls),
+            }
+        )
     return out
 
 
@@ -313,13 +326,15 @@ def win_rate_by_bucket(trades: list[Trade], bounds: list[float]) -> list[dict]:
         if not bucket:
             continue
         wins = sum(1 for t in bucket if t.pnl > 0)
-        out.append({
-            "range": f"{lo:.0f}–{hi:.0f}",
-            "n": len(bucket),
-            "win_rate": wins / len(bucket) * 100,
-            "avg_pnl": mean(t.pnl for t in bucket),
-            "avg_pnl_pct": mean(t.pnl_pct for t in bucket),
-        })
+        out.append(
+            {
+                "range": f"{lo:.0f}–{hi:.0f}",
+                "n": len(bucket),
+                "win_rate": wins / len(bucket) * 100,
+                "avg_pnl": mean(t.pnl for t in bucket),
+                "avg_pnl_pct": mean(t.pnl_pct for t in bucket),
+            }
+        )
     return out
 
 
@@ -328,8 +343,9 @@ def win_rate_by_bucket(trades: list[Trade], bounds: list[float]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def plot_scatter(xs: list[float], ys: list[float], xlabel: str, ylabel: str,
-                 title: str, path: Path) -> None:
+def plot_scatter(
+    xs: list[float], ys: list[float], xlabel: str, ylabel: str, title: str, path: Path
+) -> None:
     PLOTS_DIR.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.scatter(xs, ys, alpha=0.5, s=20)
@@ -338,8 +354,7 @@ def plot_scatter(xs: list[float], ys: list[float], xlabel: str, ylabel: str,
         # Linear fit
         coeffs = np.polyfit(xs, ys, 1)
         xfit = np.linspace(min(xs), max(xs), 100)
-        ax.plot(xfit, np.polyval(coeffs, xfit), "r--", linewidth=1,
-                label=f"slope={coeffs[0]:.3f}")
+        ax.plot(xfit, np.polyval(coeffs, xfit), "r--", linewidth=1, label=f"slope={coeffs[0]:.3f}")
         ax.legend()
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -395,22 +410,27 @@ def fmt_corr(r: float, p: float) -> str:
     return f"{r:+.3f}{stars} (p={p:.3f})"
 
 
-def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
-                    spy_returns: dict[str, float]) -> str:
+def generate_report(
+    trades: list[Trade], snapshots: dict, cum_pnl: dict, spy_returns: dict[str, float]
+) -> str:
     lines: list[str] = []
     lines.append("# IFDS Scoring Validation Report")
     lines.append("")
-    lines.append(f"Generated: {cum_pnl.get('trading_days', '?')} trading days | "
-                 f"{len(trades)} trades | "
-                 f"{len(snapshots)} Phase 4 snapshots | "
-                 f"SPY returns: {len(spy_returns)} days cached")
+    lines.append(
+        f"Generated: {cum_pnl.get('trading_days', '?')} trading days | "
+        f"{len(trades)} trades | "
+        f"{len(snapshots)} Phase 4 snapshots | "
+        f"SPY returns: {len(spy_returns)} days cached"
+    )
     lines.append("")
     lines.append("## Scope")
     lines.append("")
-    lines.append("Standalone read-only analysis. Joins Phase 4 per-ticker scores "
-                 "with actual IBKR trade results to answer: **does the IFDS "
-                 "scoring system generate alpha, or is P&L a function of daily "
-                 "market direction only?**")
+    lines.append(
+        "Standalone read-only analysis. Joins Phase 4 per-ticker scores "
+        "with actual IBKR trade results to answer: **does the IFDS "
+        "scoring system generate alpha, or is P&L a function of daily "
+        "market direction only?**"
+    )
     lines.append("")
     lines.append("Significance legend: `*` = p<0.05, `**` = p<0.01")
     lines.append("")
@@ -429,8 +449,9 @@ def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
     lines.append(f"- Win rate: **{wins / len(trades) * 100:.1f}%**")
     lines.append(f"- Avg P&L per trade: **${mean(t.pnl for t in trades):+,.2f}**")
     lines.append(f"- Median P&L: **${median(t.pnl for t in trades):+,.2f}**")
-    lines.append(f"- Score range: {min(t.score for t in trades):.1f}–"
-                 f"{max(t.score for t in trades):.1f}")
+    lines.append(
+        f"- Score range: {min(t.score for t in trades):.1f}–" f"{max(t.score for t in trades):.1f}"
+    )
     lines.append("")
 
     # --- 1. Score → P&L correlation
@@ -443,8 +464,9 @@ def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
     lines.append(f"- Spearman (score vs P&L $): {fmt_corr(*spearman(scores, pnls))}")
     lines.append(f"- Pearson (score vs P&L %): {fmt_corr(*pearson(scores, pcts))}")
     lines.append("")
-    plot_scatter(scores, pnls, "Score", "P&L ($)",
-                 "Score vs P&L", PLOTS_DIR / "01_score_vs_pnl.png")
+    plot_scatter(
+        scores, pnls, "Score", "P&L ($)", "Score vs P&L", PLOTS_DIR / "01_score_vs_pnl.png"
+    )
     lines.append("![Score vs P&L](plots/01_score_vs_pnl.png)")
     lines.append("")
 
@@ -465,11 +487,21 @@ def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
         ]
         for q in quintiles
     ]
-    lines.append(md_table(
-        ["Quintile", "Score range", "N", "Avg P&L", "Median P&L",
-         "Avg %", "Win rate", "Total P&L"],
-        rows,
-    ))
+    lines.append(
+        md_table(
+            [
+                "Quintile",
+                "Score range",
+                "N",
+                "Avg P&L",
+                "Median P&L",
+                "Avg %",
+                "Win rate",
+                "Total P&L",
+            ],
+            rows,
+        )
+    )
     lines.append("")
     plot_quintile_bars(quintiles, PLOTS_DIR / "02_quintile_bars.png")
     lines.append("![Quintile P&L](plots/02_quintile_bars.png)")
@@ -479,9 +511,11 @@ def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
     bot_q = quintiles[0] if quintiles else {}
     if top_q and bot_q:
         delta = top_q["avg_pnl"] - bot_q["avg_pnl"]
-        lines.append(f"**Top–bottom spread**: ${delta:+,.2f} "
-                     f"(Q5 avg ${top_q['avg_pnl']:+,.2f} vs "
-                     f"Q1 avg ${bot_q['avg_pnl']:+,.2f})")
+        lines.append(
+            f"**Top–bottom spread**: ${delta:+,.2f} "
+            f"(Q5 avg ${top_q['avg_pnl']:+,.2f} vs "
+            f"Q1 avg ${bot_q['avg_pnl']:+,.2f})"
+        )
         lines.append("")
 
     # --- 3. Win rate by score bucket (task spec: 89–91, 91–93, 93+)
@@ -490,22 +524,31 @@ def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
     buckets = win_rate_by_bucket(trades, [89, 91, 93, 999])
     if buckets:
         rows = [
-            [b["range"], str(b["n"]), f"{b['win_rate']:.1f}%",
-             f"${b['avg_pnl']:+,.2f}", f"{b['avg_pnl_pct']:+.2f}%"]
+            [
+                b["range"],
+                str(b["n"]),
+                f"{b['win_rate']:.1f}%",
+                f"${b['avg_pnl']:+,.2f}",
+                f"{b['avg_pnl_pct']:+.2f}%",
+            ]
             for b in buckets
         ]
-        lines.append(md_table(
-            ["Score range", "N", "Win rate", "Avg P&L", "Avg %"],
-            rows,
-        ))
+        lines.append(
+            md_table(
+                ["Score range", "N", "Win rate", "Avg P&L", "Avg %"],
+                rows,
+            )
+        )
         lines.append("")
 
     # --- 4. Score components (reconstructed from Phase 4 snapshot)
     enriched = [t for t in trades if t.flow_subscore is not None]
     lines.append("## 4. Score Component Impact")
     lines.append("")
-    lines.append(f"Snapshot join: **{len(enriched)} / {len(trades)}** trades "
-                 f"enriched with Phase 4 sub-scores.")
+    lines.append(
+        f"Snapshot join: **{len(enriched)} / {len(trades)}** trades "
+        f"enriched with Phase 4 sub-scores."
+    )
     lines.append("")
     lines.append("Sub-score buckets reconstructed from snapshot fields:")
     lines.append(f"- **flow**: {', '.join(FLOW_FIELDS)}")
@@ -521,15 +564,30 @@ def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
         lines.append(f"- Pearson (tech vs P&L): {fmt_corr(*pearson(techs, epnls))}")
         lines.append(f"- Pearson (funda vs P&L): {fmt_corr(*pearson(fundas, epnls))}")
         lines.append("")
-        plot_scatter(flows, epnls, "Flow subscore", "P&L ($)",
-                     "Flow subscore vs P&L",
-                     PLOTS_DIR / "03a_flow_vs_pnl.png")
-        plot_scatter(techs, epnls, "Tech subscore", "P&L ($)",
-                     "Tech subscore vs P&L",
-                     PLOTS_DIR / "03b_tech_vs_pnl.png")
-        plot_scatter(fundas, epnls, "Funda subscore", "P&L ($)",
-                     "Funda subscore vs P&L",
-                     PLOTS_DIR / "03c_funda_vs_pnl.png")
+        plot_scatter(
+            flows,
+            epnls,
+            "Flow subscore",
+            "P&L ($)",
+            "Flow subscore vs P&L",
+            PLOTS_DIR / "03a_flow_vs_pnl.png",
+        )
+        plot_scatter(
+            techs,
+            epnls,
+            "Tech subscore",
+            "P&L ($)",
+            "Tech subscore vs P&L",
+            PLOTS_DIR / "03b_tech_vs_pnl.png",
+        )
+        plot_scatter(
+            fundas,
+            epnls,
+            "Funda subscore",
+            "P&L ($)",
+            "Funda subscore vs P&L",
+            PLOTS_DIR / "03c_funda_vs_pnl.png",
+        )
         lines.append("![Flow](plots/03a_flow_vs_pnl.png)")
         lines.append("![Tech](plots/03b_tech_vs_pnl.png)")
         lines.append("![Funda](plots/03c_funda_vs_pnl.png)")
@@ -540,30 +598,34 @@ def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
     lines.append("")
     with_spy = [t for t in trades if t.excess_return_pct is not None]
     if not with_spy:
-        lines.append("⚠️  SPY returns cache is empty — cannot compute excess "
-                     "returns. Run with `--fetch-spy` (requires "
-                     "`IFDS_POLYGON_API_KEY`) to enable this section.")
+        lines.append(
+            "⚠️  SPY returns cache is empty — cannot compute excess "
+            "returns. Run with `--fetch-spy` (requires "
+            "`IFDS_POLYGON_API_KEY`) to enable this section."
+        )
         lines.append("")
     else:
         lines.append(f"SPY-joined: **{len(with_spy)} / {len(trades)}** trades.")
         lines.append("")
-        lines.append("Excess return = trade P&L % − SPY daily return % "
-                     "(beta assumption: 1.0)")
+        lines.append("Excess return = trade P&L % − SPY daily return % " "(beta assumption: 1.0)")
         lines.append("")
         scores_e = [t.score for t in with_spy]
         excess = [t.excess_return_pct for t in with_spy]
         raw = [t.pnl_pct for t in with_spy]
-        lines.append(f"- Pearson (score vs raw P&L%): "
-                     f"{fmt_corr(*pearson(scores_e, raw))}")
-        lines.append(f"- Pearson (score vs **excess**): "
-                     f"{fmt_corr(*pearson(scores_e, excess))}")
-        lines.append(f"- Spearman (score vs **excess**): "
-                     f"{fmt_corr(*spearman(scores_e, excess))}")
+        lines.append(f"- Pearson (score vs raw P&L%): " f"{fmt_corr(*pearson(scores_e, raw))}")
+        lines.append(f"- Pearson (score vs **excess**): " f"{fmt_corr(*pearson(scores_e, excess))}")
+        lines.append(
+            f"- Spearman (score vs **excess**): " f"{fmt_corr(*spearman(scores_e, excess))}"
+        )
         lines.append("")
-        plot_scatter(scores_e, excess,
-                     "Score", "Excess return % (vs SPY)",
-                     "Score vs market-neutral excess",
-                     PLOTS_DIR / "04_score_vs_excess.png")
+        plot_scatter(
+            scores_e,
+            excess,
+            "Score",
+            "Excess return % (vs SPY)",
+            "Score vs market-neutral excess",
+            PLOTS_DIR / "04_score_vs_excess.png",
+        )
         lines.append("![Score vs excess](plots/04_score_vs_excess.png)")
         lines.append("")
         # Interpretation hint
@@ -571,15 +633,21 @@ def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
         ex_r, _ = pearson(scores_e, excess)
         if raw_r == raw_r and ex_r == ex_r:
             if abs(ex_r) > 0.1:
-                lines.append("→ Score correlates with market-neutral excess return. "
-                             "**Evidence of alpha.**")
+                lines.append(
+                    "→ Score correlates with market-neutral excess return. "
+                    "**Evidence of alpha.**"
+                )
             elif abs(raw_r) > 0.1 and abs(ex_r) < 0.05:
-                lines.append("→ Score correlates with raw P&L but the correlation "
-                             "**disappears after SPY removal**. The scoring is "
-                             "mirroring market direction, not generating alpha.")
+                lines.append(
+                    "→ Score correlates with raw P&L but the correlation "
+                    "**disappears after SPY removal**. The scoring is "
+                    "mirroring market direction, not generating alpha."
+                )
             else:
-                lines.append("→ Score does not meaningfully correlate with P&L "
-                             "before or after SPY removal — inconclusive or no edge.")
+                lines.append(
+                    "→ Score does not meaningfully correlate with P&L "
+                    "before or after SPY removal — inconclusive or no edge."
+                )
             lines.append("")
 
     # --- 6. Exit type breakdown
@@ -588,7 +656,8 @@ def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
     exits = exit_type_breakdown(trades)
     rows = [
         [
-            e["exit_type"], str(e["n"]),
+            e["exit_type"],
+            str(e["n"]),
             f"${e['avg_pnl']:+,.2f}",
             f"${e['median_pnl']:+,.2f}",
             f"{e['avg_pnl_pct']:+.2f}%",
@@ -596,22 +665,29 @@ def generate_report(trades: list[Trade], snapshots: dict, cum_pnl: dict,
         ]
         for e in exits
     ]
-    lines.append(md_table(
-        ["Exit type", "N", "Avg P&L", "Median P&L", "Avg %", "Total P&L"],
-        rows,
-    ))
+    lines.append(
+        md_table(
+            ["Exit type", "N", "Avg P&L", "Median P&L", "Avg %", "Total P&L"],
+            rows,
+        )
+    )
     lines.append("")
 
     # --- Summary
     lines.append("## Summary")
     lines.append("")
-    lines.append(f"- Sample size: **{len(trades)} trades** over "
-                 f"{len(set(t.date for t in trades))} trading days")
-    lines.append(f"- Total P&L: **${total_pnl:+,.2f}** "
-                 f"({total_pnl / 100_000 * 100:+.2f}% of $100k)")
+    lines.append(
+        f"- Sample size: **{len(trades)} trades** over "
+        f"{len(set(t.date for t in trades))} trading days"
+    )
+    lines.append(
+        f"- Total P&L: **${total_pnl:+,.2f}** " f"({total_pnl / 100_000 * 100:+.2f}% of $100k)"
+    )
     lines.append(f"- Win rate: **{wins / len(trades) * 100:.1f}%**")
     if quintiles:
-        lines.append(f"- Q5–Q1 spread: **${quintiles[-1]['avg_pnl'] - quintiles[0]['avg_pnl']:+,.2f}**")
+        lines.append(
+            f"- Q5–Q1 spread: **${quintiles[-1]['avg_pnl'] - quintiles[0]['avg_pnl']:+,.2f}**"
+        )
     lines.append("")
     lines.append("---")
     lines.append("*Generated by `scripts/analysis/scoring_validation.py`*")
@@ -629,15 +705,18 @@ def main() -> None:
         description="IFDS scoring validation & multiplier impact analysis"
     )
     parser.add_argument(
-        "--fetch-spy", action="store_true",
+        "--fetch-spy",
+        action="store_true",
         help="Fetch SPY daily returns via Polygon and update the cache",
     )
     parser.add_argument(
-        "--since", metavar="YYYY-MM-DD",
+        "--since",
+        metavar="YYYY-MM-DD",
         help="Filter trades to date >= value (e.g. BC23 post-deploy: 2026-04-13)",
     )
     parser.add_argument(
-        "--output", metavar="FILENAME",
+        "--output",
+        metavar="FILENAME",
         help="Override report filename (e.g. scoring-validation-bc23-w16.md)",
     )
     args = parser.parse_args()

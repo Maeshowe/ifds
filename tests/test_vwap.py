@@ -35,7 +35,7 @@ class TestCalculateVwap:
         """Bars with volume=0 are ignored."""
         bars = [
             {"h": 100.0, "l": 98.0, "c": 99.0, "v": 1000},  # tp = 99.0
-            {"h": 110.0, "l": 90.0, "c": 100.0, "v": 0},     # skipped
+            {"h": 110.0, "l": 90.0, "c": 100.0, "v": 0},  # skipped
         ]
         vwap = calculate_vwap(bars)
         assert vwap == 99.0  # Only first bar counts

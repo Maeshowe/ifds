@@ -18,6 +18,7 @@ Day 1 (2026-05-18) example that motivated this script:
 Usage:
     python scripts/paper_trading/reconcile_state.py
 """
+
 from __future__ import annotations
 
 import sys
@@ -29,14 +30,19 @@ load_dotenv()
 
 try:
     from lib.log_setup import setup_pt_logger
+
     logger = setup_pt_logger("reconcile")
 except ModuleNotFoundError:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
-    logger = logging.getLogger('reconcile')
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    )
+    logger = logging.getLogger("reconcile")
 
 try:
     from lib.event_logger import PTEventLogger
+
     evt = PTEventLogger()
 except ModuleNotFoundError:
     evt = None
@@ -51,16 +57,19 @@ PERMANENT_ORPHANS: frozenset[str] = frozenset({"AVDL.CVR"})
 # Telegram helper
 # ---------------------------------------------------------------------------
 
+
 def send_telegram(message: str) -> None:
     """Send message via Telegram Bot API with CET timestamp header."""
     from lib.telegram_helper import telegram_header
     from lib.telegram_helper import send_telegram as _send
+
     _send(f"{telegram_header('RECONCILE')}\n{message}")
 
 
 # ---------------------------------------------------------------------------
 # Pure helpers
 # ---------------------------------------------------------------------------
+
 
 def compute_divergence(
     state_tickers: set[str],
@@ -86,13 +95,9 @@ def format_divergence_telegram(
     """Render the WARNING Telegram body for a divergence."""
     lines = [f"⚠️ State/IBKR divergence — {today_str}", ""]
     if in_state_not_ibkr:
-        lines.append(
-            f"📋 State has, IBKR doesn't: {sorted(in_state_not_ibkr)}"
-        )
+        lines.append(f"📋 State has, IBKR doesn't: {sorted(in_state_not_ibkr)}")
     if in_ibkr_not_state:
-        lines.append(
-            f"💼 IBKR has, state doesn't: {sorted(in_ibkr_not_state)}"
-        )
+        lines.append(f"💼 IBKR has, state doesn't: {sorted(in_ibkr_not_state)}")
     lines.append("")
     lines.append("Action: review + decide reconstruction (A) vs nuke (C).")
     lines.append("AVDL.CVR permanent orphan excluded.")
@@ -103,19 +108,23 @@ def format_divergence_telegram(
 # IBKR + state loaders
 # ---------------------------------------------------------------------------
 
+
 def load_state_tickers() -> set[str]:
     """Load the set of tickers currently in ``state/swing_positions.json``."""
     try:
         from ifds.config.loader import Config
+
         cfg = Config()
         state_file = cfg.tuning.get(
-            "swing_positions_state_file", "state/swing_positions.json",
+            "swing_positions_state_file",
+            "state/swing_positions.json",
         )
     except Exception:
         state_file = "state/swing_positions.json"
 
     try:
         from ifds.state.swing_positions import load_swing_positions
+
         return {p.ticker for p in load_swing_positions(state_file)}
     except Exception as exc:
         logger.warning(f"Failed to load swing state: {exc}")
@@ -125,14 +134,11 @@ def load_state_tickers() -> set[str]:
 def load_ibkr_tickers() -> set[str]:
     """Connect to IBKR (clientId=99) and return the set of non-zero positions."""
     from lib.connection import connect, disconnect
+
     ib = connect(client_id=99, context_label="reconcile_state.py")
     try:
         ib.sleep(2)
-        return {
-            p.contract.symbol
-            for p in ib.positions()
-            if p.position != 0
-        }
+        return {p.contract.symbol for p in ib.positions() if p.position != 0}
     finally:
         disconnect(ib)
 
@@ -141,9 +147,11 @@ def load_ibkr_tickers() -> set[str]:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main() -> int:
     try:
         from lib.trading_day_guard import check_trading_day
+
         check_trading_day(logger)
     except ModuleNotFoundError:
         pass
@@ -166,14 +174,16 @@ def main() -> int:
     logger.info(f"IBKR tickers: {sorted(ibkr_tickers)}")
 
     in_state_not_ibkr, in_ibkr_not_state = compute_divergence(
-        state_tickers, ibkr_tickers,
+        state_tickers,
+        ibkr_tickers,
     )
 
     if not in_state_not_ibkr and not in_ibkr_not_state:
         logger.info("Reconciliation OK — state and IBKR match (silent exit).")
         if evt:
             evt.log(
-                "reconcile", "no_divergence",
+                "reconcile",
+                "no_divergence",
                 state_count=len(state_tickers),
                 ibkr_count=len(ibkr_tickers),
             )
@@ -184,7 +194,8 @@ def main() -> int:
     send_telegram(msg)
     if evt:
         evt.log(
-            "reconcile", "divergence_detected",
+            "reconcile",
+            "divergence_detected",
             in_state_not_ibkr=sorted(in_state_not_ibkr),
             in_ibkr_not_state=sorted(in_ibkr_not_state),
         )

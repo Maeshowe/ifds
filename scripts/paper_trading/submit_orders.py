@@ -6,6 +6,7 @@ Usage:
     python scripts/paper_trading/submit_orders.py --dry-run    # Parse only, no IBKR
     python scripts/paper_trading/submit_orders.py --test-connection  # Connection test
 """
+
 import argparse
 import csv
 import glob
@@ -28,9 +29,9 @@ CIRCUIT_BREAKER_USD = -5_000
 SCALE_OUT_PCT = 0.50  # BC23: equal bracket split (was 0.33)
 MIN_QUANTITY = 2
 
-EXECUTION_PLAN_DIR = 'output'
-LOG_DIR = 'scripts/paper_trading/logs'
-CUMULATIVE_PNL_FILE = 'scripts/paper_trading/logs/cumulative_pnl.json'
+EXECUTION_PLAN_DIR = "output"
+LOG_DIR = "scripts/paper_trading/logs"
+CUMULATIVE_PNL_FILE = "scripts/paper_trading/logs/cumulative_pnl.json"
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -38,14 +39,19 @@ CUMULATIVE_PNL_FILE = 'scripts/paper_trading/logs/cumulative_pnl.json'
 
 try:
     from lib.log_setup import setup_pt_logger
+
     logger = setup_pt_logger("submit")
 except ModuleNotFoundError:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
-    logger = logging.getLogger('submit')
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    )
+    logger = logging.getLogger("submit")
 
 try:
     from lib.event_logger import PTEventLogger
+
     evt = PTEventLogger()
 except ModuleNotFoundError:
     evt = None
@@ -59,6 +65,7 @@ def send_telegram(message):
     """Send message via Telegram Bot API with CET timestamp header."""
     from lib.telegram_helper import telegram_header
     from lib.telegram_helper import send_telegram as _send
+
     _send(f"{telegram_header('SUBMIT')}\n{message}")
 
 
@@ -69,8 +76,8 @@ def _build_ticker_table(tickers: list, submitted_tickers: list, existing: set | 
     lines.append(header)
     total_risk = 0.0
     for t in tickers:
-        sym = t['symbol']
-        risk = round((t['limit_price'] - t['stop_loss']) * t['total_qty'], 2)
+        sym = t["symbol"]
+        risk = round((t["limit_price"] - t["stop_loss"]) * t["total_qty"], 2)
         total_risk += risk
         status = ""
         if existing and sym in existing:
@@ -114,10 +121,10 @@ def find_latest_csv():
 def load_execution_plan(csv_path):
     """Load ticker data from execution plan CSV."""
     tickers = []
-    with open(csv_path, newline='') as f:
+    with open(csv_path, newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            total_qty = int(row['quantity'])
+            total_qty = int(row["quantity"])
             if total_qty < MIN_QUANTITY:
                 logger.info(f"  Skipping {row['instrument_id']}: qty {total_qty} < {MIN_QUANTITY}")
                 continue
@@ -128,19 +135,21 @@ def load_execution_plan(csv_path):
                 qty_tp2 = 1
                 qty_tp1 = total_qty - 1
 
-            tickers.append({
-                'symbol': row['instrument_id'],
-                'direction': row['direction'],
-                'limit_price': float(row['limit_price']),
-                'total_qty': total_qty,
-                'qty_tp1': qty_tp1,
-                'qty_tp2': qty_tp2,
-                'stop_loss': float(row['stop_loss']),
-                'take_profit_1': float(row['take_profit_1']),
-                'take_profit_2': float(row['take_profit_2']),
-                'score': float(row['score']),
-                'sector': row['sector'],
-            })
+            tickers.append(
+                {
+                    "symbol": row["instrument_id"],
+                    "direction": row["direction"],
+                    "limit_price": float(row["limit_price"]),
+                    "total_qty": total_qty,
+                    "qty_tp1": qty_tp1,
+                    "qty_tp2": qty_tp2,
+                    "stop_loss": float(row["stop_loss"]),
+                    "take_profit_1": float(row["take_profit_1"]),
+                    "take_profit_2": float(row["take_profit_2"]),
+                    "score": float(row["score"]),
+                    "sector": row["sector"],
+                }
+            )
     return tickers
 
 
@@ -156,7 +165,7 @@ def check_circuit_breaker():
     try:
         with open(CUMULATIVE_PNL_FILE) as f:
             data = json.load(f)
-        pnl = data.get('cumulative_pnl', 0.0)
+        pnl = data.get("cumulative_pnl", 0.0)
         return pnl, pnl <= CIRCUIT_BREAKER_USD
     except Exception:
         return 0.0, False
@@ -209,7 +218,7 @@ def submit_swing_market_only(
     def _atr_from_row(t):
         if stop_mult <= 0:
             return 0.0
-        return (t['limit_price'] - t['stop_loss']) / stop_mult
+        return (t["limit_price"] - t["stop_loss"]) / stop_mult
 
     existing_swings = {p.ticker: p for p in load_swing_positions(state_file)}
 
@@ -218,7 +227,7 @@ def submit_swing_market_only(
         submitted_tickers = []
         new_state: list[SwingPosition] = list(existing_swings.values())
         for t in tickers:
-            sym = t['symbol']
+            sym = t["symbol"]
             if sym in existing_swings:
                 logger.info(f"  Skipping {sym}: already in swing state")
                 continue
@@ -226,15 +235,15 @@ def submit_swing_market_only(
             pos = SwingPosition(
                 ticker=sym,
                 entry_date=today_str,
-                entry_price=t['limit_price'],
+                entry_price=t["limit_price"],
                 atr=atr,
-                stop_level=t['stop_loss'],
-                tp1_level=t['take_profit_1'],
-                tp2_level=t['take_profit_2'],
-                qty=t['total_qty'],
-                qty_remaining=t['total_qty'],
-                sector=t.get('sector', ''),
-                direction=t['direction'],
+                stop_level=t["stop_loss"],
+                tp1_level=t["take_profit_1"],
+                tp2_level=t["take_profit_2"],
+                qty=t["total_qty"],
+                qty_remaining=t["total_qty"],
+                sector=t.get("sector", ""),
+                direction=t["direction"],
             )
             new_state.append(pos)
             submitted_tickers.append(sym)
@@ -272,7 +281,7 @@ def submit_swing_market_only(
     new_state: list[SwingPosition] = list(existing_swings.values())
 
     for t in tickers:
-        sym = t['symbol']
+        sym = t["symbol"]
         if sym in existing or sym in existing_swings:
             logger.info(f"  Skipping {sym}: already has position or swing state")
             if evt:
@@ -280,6 +289,7 @@ def submit_swing_market_only(
             continue
 
         from lib.orders import validate_contract
+
         contract = validate_contract(ib, sym)
         if not contract:
             logger.warning(f"  Skipping {sym}: contract not found in IBKR")
@@ -302,10 +312,10 @@ def submit_swing_market_only(
         # outsideRth=True keeps the order alive across the RTH boundary
         # if it doesn't fill immediately (defensive — at 15:31 CEST the
         # NYSE has been open ~1 min, the order should fill within seconds).
-        order = MarketOrder(action='BUY', totalQuantity=t['total_qty'])
+        order = MarketOrder(action="BUY", totalQuantity=t["total_qty"])
         order.account = account
         order.orderRef = f"IFDS_SWING_{sym}"
-        order.tif = 'DAY'
+        order.tif = "DAY"
         order.outsideRth = True
         trade = ib.placeOrder(contract, order)
         ib.sleep(1.5)
@@ -326,15 +336,15 @@ def submit_swing_market_only(
         pos = SwingPosition(
             ticker=sym,
             entry_date=today_str,
-            entry_price=t['limit_price'],
+            entry_price=t["limit_price"],
             atr=atr,
-            stop_level=t['stop_loss'],
-            tp1_level=t['take_profit_1'],
-            tp2_level=t['take_profit_2'],
-            qty=t['total_qty'],
-            qty_remaining=t['total_qty'],
-            sector=t.get('sector', ''),
-            direction=t['direction'],
+            stop_level=t["stop_loss"],
+            tp1_level=t["take_profit_1"],
+            tp2_level=t["take_profit_2"],
+            qty=t["total_qty"],
+            qty_remaining=t["total_qty"],
+            sector=t.get("sector", ""),
+            direction=t["direction"],
         )
         new_state.append(pos)
         submitted_tickers.append(sym)
@@ -345,9 +355,14 @@ def submit_swing_market_only(
         )
         if evt:
             evt.log(
-                "submit", "swing_order_submitted", ticker=sym,
-                qty=t['total_qty'], entry=t['limit_price'],
-                stop=pos.stop_level, tp1=pos.tp1_level, tp2=pos.tp2_level,
+                "submit",
+                "swing_order_submitted",
+                ticker=sym,
+                qty=t["total_qty"],
+                entry=t["limit_price"],
+                stop=pos.stop_level,
+                tp1=pos.tp1_level,
+                tp2=pos.tp2_level,
                 atr=atr,
             )
 
@@ -378,7 +393,7 @@ def submit_swing_market_only(
             "",
         ]
         for sym in submitted_tickers:
-            t = next(t for t in tickers if t['symbol'] == sym)
+            t = next(t for t in tickers if t["symbol"] == sym)
             atr = _atr_from_row(t)
             lines.append(
                 f"{sym}  qty {t['total_qty']}  @${t['limit_price']:.2f}  "
@@ -387,10 +402,11 @@ def submit_swing_market_only(
         send_telegram("\n".join(lines))
     else:
         # Heartbeat — 0 new entry case (mind already-position)
-        existing_in_plan = [t['symbol'] for t in tickers if t['symbol'] in existing_swings]
+        existing_in_plan = [t["symbol"] for t in tickers if t["symbol"] in existing_swings]
         skipped_other = [
-            t['symbol'] for t in tickers
-            if t['symbol'] not in existing_swings and t['symbol'] not in submitted_tickers
+            t["symbol"]
+            for t in tickers
+            if t["symbol"] not in existing_swings and t["symbol"] not in submitted_tickers
         ]
         lines = [
             f"✓ IFDS Swing Submit — {today_str}",
@@ -405,7 +421,8 @@ def submit_swing_market_only(
 
     disconnect(ib)
     heartbeat_touch(
-        "submit_success", label=today_str,
+        "submit_success",
+        label=today_str,
         extra={"submitted_count": len(submitted_tickers), "mode": "swing"},
     )
 
@@ -418,42 +435,52 @@ def submit_swing_market_only(
 def main():
     try:
         from lib.trading_day_guard import check_trading_day
+
         check_trading_day(logger)
     except ModuleNotFoundError:
         pass
-    parser = argparse.ArgumentParser(description='IBKR Paper Trading — Submit Orders')
-    parser.add_argument('--dry-run', action='store_true',
-                        help='Parse CSV and show orders without connecting to IBKR')
-    parser.add_argument('--test-connection', action='store_true',
-                        help='Test IBKR connection only')
-    parser.add_argument('--file', help='Specific execution plan CSV path')
-    parser.add_argument('--override-circuit-breaker', action='store_true',
-                        help='Override circuit breaker and submit orders anyway (use with caution)')
-    parser.add_argument('--override-witching', action='store_true',
-                        help='Submit orders on Witching day (use with caution)')
+    parser = argparse.ArgumentParser(description="IBKR Paper Trading — Submit Orders")
     parser.add_argument(
-        '--resume',
-        action='store_true',
+        "--dry-run",
+        action="store_true",
+        help="Parse CSV and show orders without connecting to IBKR",
+    )
+    parser.add_argument("--test-connection", action="store_true", help="Test IBKR connection only")
+    parser.add_argument("--file", help="Specific execution plan CSV path")
+    parser.add_argument(
+        "--override-circuit-breaker",
+        action="store_true",
+        help="Override circuit breaker and submit orders anyway (use with caution)",
+    )
+    parser.add_argument(
+        "--override-witching",
+        action="store_true",
+        help="Submit orders on Witching day (use with caution)",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
         help=(
-            'Resume mode: ignore the heartbeat STUCK alert and re-attempt '
-            'submit. Operator triggers this after manual investigation of a '
-            'stuck submit. Existing positions are automatically skipped via '
-            'the state-aware deduplication.'
+            "Resume mode: ignore the heartbeat STUCK alert and re-attempt "
+            "submit. Operator triggers this after manual investigation of a "
+            "stuck submit. Existing positions are automatically skipped via "
+            "the state-aware deduplication."
         ),
     )
     args = parser.parse_args()
 
-    today_str = date.today().strftime('%Y-%m-%d')
+    today_str = date.today().strftime("%Y-%m-%d")
     logger.info(f"IFDS Paper Trading — {today_str}")
 
     # --- Test connection mode ---
     if args.test_connection:
         from lib.connection import connect, get_account, disconnect
+
         ib = connect(client_id=10)
         account = get_account(ib)
         summary = ib.accountSummary(account)
         for item in summary:
-            if item.tag in ('NetLiquidation', 'TotalCashValue', 'BuyingPower'):
+            if item.tag in ("NetLiquidation", "TotalCashValue", "BuyingPower"):
                 logger.info(f"  {item.tag}: ${float(item.value):,.2f}")
         disconnect(ib)
         return
@@ -473,7 +500,7 @@ def main():
     # --- Stale CSV guard: refuse to submit with execution plans older than today ---
     csv_stem = csv_path.stem  # e.g. "execution_plan_run_20260407_153012"
     csv_date_str = None
-    for part in csv_stem.split('_'):
+    for part in csv_stem.split("_"):
         if len(part) == 8 and part.isdigit():
             csv_date_str = part
             break
@@ -537,20 +564,26 @@ def main():
         skipped = []
 
         for t in tickers:
-            ticker_exposure = t['limit_price'] * t['total_qty']
+            ticker_exposure = t["limit_price"] * t["total_qty"]
             if exposure + ticker_exposure > MAX_DAILY_EXPOSURE:
-                skipped.append(t['symbol'])
-                logger.warning(f"[EXPOSURE LIMIT] Skipping {t['symbol']} — would exceed ${MAX_DAILY_EXPOSURE:,} daily limit")
+                skipped.append(t["symbol"])
+                logger.warning(
+                    f"[EXPOSURE LIMIT] Skipping {t['symbol']} — would exceed ${MAX_DAILY_EXPOSURE:,} daily limit"
+                )
                 continue
 
             exposure += ticker_exposure
             submitted += 1
-            submitted_tickers.append(t['symbol'])
-            logger.info(f"  {t['symbol']}: {t['direction']} {t['total_qty']} @ ${t['limit_price']} | SL ${t['stop_loss']}")
+            submitted_tickers.append(t["symbol"])
+            logger.info(
+                f"  {t['symbol']}: {t['direction']} {t['total_qty']} @ ${t['limit_price']} | SL ${t['stop_loss']}"
+            )
             logger.info(f"    Bracket A: {t['qty_tp1']} shares → TP1 ${t['take_profit_1']}")
             logger.info(f"    Bracket B: {t['qty_tp2']} shares → TP2 ${t['take_profit_2']}")
 
-        logger.info(f"Would submit: {submitted} tickers ({submitted * 2} brackets) | Exposure: ${exposure:,.0f}")
+        logger.info(
+            f"Would submit: {submitted} tickers ({submitted * 2} brackets) | Exposure: ${exposure:,.0f}"
+        )
         if skipped:
             logger.warning(f"Skipped (exposure limit): {', '.join(skipped)}")
 
@@ -572,10 +605,12 @@ def main():
     # path (3 IBKR orders per ticker) is taken only when the flag is False.
     try:
         from ifds.config.loader import Config as _IFDSConfig
+
         _cfg = _IFDSConfig()
         _swing_mode = bool(_cfg.tuning.get("swing_execution_enabled", False))
         _swing_state_file = _cfg.tuning.get(
-            "swing_positions_state_file", "state/swing_positions.json",
+            "swing_positions_state_file",
+            "state/swing_positions.json",
         )
     except Exception:
         _swing_mode = False
@@ -592,14 +627,16 @@ def main():
         # State (swing_positions + IBKR positions) is reloaded inside the
         # submit callable on every attempt — no double-submit risk.
         from lib.retry_orchestrator import (
-            IBKRSubmitOrchestrator, SubmitExhaustedError,
+            IBKRSubmitOrchestrator,
+            SubmitExhaustedError,
         )
 
         def _gateway_probe() -> bool:
             try:
                 from lib.connection import connect, disconnect
+
                 _probe_ib = connect(
-                    client_id=17,           # check_gateway clientId
+                    client_id=17,  # check_gateway clientId
                     context_label="submit_orders.py gateway probe",
                     raise_on_exhaust=True,
                 )
@@ -648,7 +685,7 @@ def main():
     skipped = []
 
     for t in tickers:
-        sym = t['symbol']
+        sym = t["symbol"]
 
         # Skip if already has position/orders
         if sym in existing:
@@ -658,10 +695,12 @@ def main():
             continue
 
         # Exposure check
-        ticker_exposure = t['limit_price'] * t['total_qty']
+        ticker_exposure = t["limit_price"] * t["total_qty"]
         if exposure + ticker_exposure > MAX_DAILY_EXPOSURE:
             skipped.append(sym)
-            logger.warning(f"[EXPOSURE LIMIT] Skipping {sym} — would exceed ${MAX_DAILY_EXPOSURE:,} daily limit")
+            logger.warning(
+                f"[EXPOSURE LIMIT] Skipping {sym} — would exceed ${MAX_DAILY_EXPOSURE:,} daily limit"
+            )
             continue
 
         # Validate contract
@@ -672,33 +711,53 @@ def main():
 
         # Create and submit Bracket A (TP1)
         bracket_a = create_day_bracket(
-            ib, contract, t['direction'], t['qty_tp1'],
-            t['limit_price'], t['take_profit_1'], t['stop_loss'],
-            account, tag_suffix=f"{sym}_A",
+            ib,
+            contract,
+            t["direction"],
+            t["qty_tp1"],
+            t["limit_price"],
+            t["take_profit_1"],
+            t["stop_loss"],
+            account,
+            tag_suffix=f"{sym}_A",
         )
         submit_bracket(ib, contract, bracket_a)
 
         # Create and submit Bracket B (TP2)
         bracket_b = create_day_bracket(
-            ib, contract, t['direction'], t['qty_tp2'],
-            t['limit_price'], t['take_profit_2'], t['stop_loss'],
-            account, tag_suffix=f"{sym}_B",
+            ib,
+            contract,
+            t["direction"],
+            t["qty_tp2"],
+            t["limit_price"],
+            t["take_profit_2"],
+            t["stop_loss"],
+            account,
+            tag_suffix=f"{sym}_B",
         )
         submit_bracket(ib, contract, bracket_b)
 
         if evt:
             evt.log(
-                "submit", "order_submitted", ticker=sym,
-                qty=t['total_qty'], limit=t['limit_price'],
-                sl=t['stop_loss'], tp1=t['take_profit_1'], tp2=t['take_profit_2'],
-                bracket_a_qty=t['qty_tp1'], bracket_b_qty=t['qty_tp2'],
+                "submit",
+                "order_submitted",
+                ticker=sym,
+                qty=t["total_qty"],
+                limit=t["limit_price"],
+                sl=t["stop_loss"],
+                tp1=t["take_profit_1"],
+                tp2=t["take_profit_2"],
+                bracket_a_qty=t["qty_tp1"],
+                bracket_b_qty=t["qty_tp2"],
             )
 
         exposure += ticker_exposure
         submitted += 1
         submitted_tickers.append(sym)
 
-        logger.info(f"  {sym}: {t['direction']} {t['total_qty']} @ ${t['limit_price']} | SL ${t['stop_loss']}")
+        logger.info(
+            f"  {sym}: {t['direction']} {t['total_qty']} @ ${t['limit_price']} | SL ${t['stop_loss']}"
+        )
         logger.info(f"    Bracket A: {t['qty_tp1']} shares → TP1 ${t['take_profit_1']}")
         logger.info(f"    Bracket B: {t['qty_tp2']} shares → TP2 ${t['take_profit_2']}")
 
@@ -716,17 +775,11 @@ def main():
             for t in ib.openTrades()
             if getattr(t.order, "orderRef", "").startswith("IFDS_")
         }
-        ib_position_syms = {
-            p.contract.symbol
-            for p in ib.positions()
-            if p.position != 0
-        }
+        ib_position_syms = {p.contract.symbol for p in ib.positions() if p.position != 0}
 
         missing_tickers = []
         for sym in submitted_tickers:
-            has_open_order = (
-                f"IFDS_{sym}_A" in ib_open_refs or f"IFDS_{sym}_B" in ib_open_refs
-            )
+            has_open_order = f"IFDS_{sym}_A" in ib_open_refs or f"IFDS_{sym}_B" in ib_open_refs
             has_position = sym in ib_position_syms
             if not has_open_order and not has_position:
                 missing_tickers.append(sym)
@@ -739,7 +792,8 @@ def main():
             )
             if evt:
                 evt.log(
-                    "submit", "post_submit_missing_orders",
+                    "submit",
+                    "post_submit_missing_orders",
                     missing=sorted(missing_tickers),
                     expected=len(submitted_tickers),
                 )
@@ -751,7 +805,9 @@ def main():
     except Exception as e:
         logger.warning(f"POST-SUBMIT VERIFICATION failed: {e}")
 
-    logger.info(f"Submitted: {submitted} tickers ({submitted * 2} brackets) | Exposure: ${exposure:,.0f}")
+    logger.info(
+        f"Submitted: {submitted} tickers ({submitted * 2} brackets) | Exposure: ${exposure:,.0f}"
+    )
     if skipped:
         logger.warning(f"Skipped (exposure limit): {', '.join(skipped)}")
 
@@ -759,7 +815,7 @@ def main():
     if submitted > 0:
         skipped_existing = [s for s in existing if s not in submitted_tickers] if existing else []
         table, total_risk = _build_ticker_table(
-            [t for t in tickers if t['symbol'] in submitted_tickers],
+            [t for t in tickers if t["symbol"] in submitted_tickers],
             submitted_tickers,
         )
         tg_lines = [
@@ -785,59 +841,57 @@ def main():
         instant_tp1_filled: set[str] = set()
         try:
             from ib_insync import ExecutionFilter
+
             todays_fills = ib.reqExecutions(
-                ExecutionFilter(time=date.today().strftime('%Y%m%d') + ' 00:00:00')
+                ExecutionFilter(time=date.today().strftime("%Y%m%d") + " 00:00:00")
             )
             for f in todays_fills:
-                order_ref = getattr(f.execution, 'orderRef', '') or ''
-                if order_ref.startswith('IFDS_') and (
-                    order_ref.endswith('_A_TP') or order_ref.endswith('_B_TP')
+                order_ref = getattr(f.execution, "orderRef", "") or ""
+                if order_ref.startswith("IFDS_") and (
+                    order_ref.endswith("_A_TP") or order_ref.endswith("_B_TP")
                 ):
                     # IFDS_{sym}_A_TP → sym
-                    sym = order_ref[len('IFDS_'):].rsplit('_', 2)[0]
+                    sym = order_ref[len("IFDS_") :].rsplit("_", 2)[0]
                     instant_tp1_filled.add(sym)
             if instant_tp1_filled:
                 logger.info(
-                    f"Instant TP1 fill detected on submit: "
-                    f"{sorted(instant_tp1_filled)}"
+                    f"Instant TP1 fill detected on submit: " f"{sorted(instant_tp1_filled)}"
                 )
         except Exception as e:
             logger.warning(f"Instant TP fill detection failed: {e}")
 
         monitor_state = {}
-        for t in [tk for tk in tickers if tk['symbol'] in submitted_tickers]:
-            sym = t['symbol']
+        for t in [tk for tk in tickers if tk["symbol"] in submitted_tickers]:
+            sym = t["symbol"]
             monitor_state[sym] = {
-                'entry_price': t['limit_price'],
-                'sl_distance': round(t['limit_price'] - t['stop_loss'], 4),
-                'tp1_price': t['take_profit_1'],
-                'tp2_price': t['take_profit_2'],
-                'stop_loss': t['stop_loss'],
-                'total_qty': t['total_qty'],
-                'qty_b': t['qty_tp2'],
-                'tp1_filled': sym in instant_tp1_filled,
-                'trail_active': False,
-                'trail_scope': None,
-                'trail_sl_current': None,
-                'trail_high': None,
-                'scenario_b_activated': False,
-                'scenario_b_eligible': True,
-                'breakeven_locked': False,
-
-                'avwap_state': 'IDLE',
-                'avwap_dipped': False,
-                'avwap_last': None,
-                'avwap_converted': False,
+                "entry_price": t["limit_price"],
+                "sl_distance": round(t["limit_price"] - t["stop_loss"], 4),
+                "tp1_price": t["take_profit_1"],
+                "tp2_price": t["take_profit_2"],
+                "stop_loss": t["stop_loss"],
+                "total_qty": t["total_qty"],
+                "qty_b": t["qty_tp2"],
+                "tp1_filled": sym in instant_tp1_filled,
+                "trail_active": False,
+                "trail_scope": None,
+                "trail_sl_current": None,
+                "trail_high": None,
+                "scenario_b_activated": False,
+                "scenario_b_eligible": True,
+                "breakeven_locked": False,
+                "avwap_state": "IDLE",
+                "avwap_dipped": False,
+                "avwap_last": None,
+                "avwap_converted": False,
             }
-        state_path = f'{LOG_DIR}/monitor_state_{today_str}.json'
-        with open(state_path, 'w') as f:
+        state_path = f"{LOG_DIR}/monitor_state_{today_str}.json"
+        with open(state_path, "w") as f:
             json.dump(monitor_state, f, indent=2)
-        logger.info(f'Monitor state written: {state_path} ({len(monitor_state)} tickers)')
+        logger.info(f"Monitor state written: {state_path} ({len(monitor_state)} tickers)")
 
     disconnect(ib)
-    heartbeat_touch("submit_success", label=today_str,
-                    extra={"submitted_count": submitted})
+    heartbeat_touch("submit_success", label=today_str, extra={"submitted_count": submitted})
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

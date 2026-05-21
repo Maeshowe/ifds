@@ -21,18 +21,18 @@ class OpenPosition:
     """A single open swing position."""
 
     ticker: str
-    entry_date: str                     # ISO format (YYYY-MM-DD)
+    entry_date: str  # ISO format (YYYY-MM-DD)
     entry_price: float
     total_qty: int
     remaining_qty: int
     tp1_triggered: bool = False
-    tp1_qty: int = 0                    # Qty that was exited at TP1
-    trail_qty: int = 0                  # Qty under trail stop
+    tp1_qty: int = 0  # Qty that was exited at TP1
+    trail_qty: int = 0  # Qty under trail stop
     sl_price: float = 0.0
     tp1_price: float = 0.0
-    trail_amount_usd: float = 0.0       # TRAIL order trailing amount ($)
+    trail_amount_usd: float = 0.0  # TRAIL order trailing amount ($)
     current_trail_stop: float = 0.0
-    hold_days: int = 0                  # Trading days since entry
+    hold_days: int = 0  # Trading days since entry
     max_hold_days: int = 5
     atr_at_entry: float = 0.0
     vwap_at_entry: float = 0.0
@@ -68,10 +68,7 @@ class PositionTracker:
         try:
             with open(path) as f:
                 data = json.load(f)
-            self.positions = [
-                OpenPosition(**rec)
-                for rec in data.get("positions", [])
-            ]
+            self.positions = [OpenPosition(**rec) for rec in data.get("positions", [])]
         except (json.JSONDecodeError, TypeError, KeyError):
             self.positions = []
 

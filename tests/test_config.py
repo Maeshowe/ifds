@@ -11,8 +11,14 @@ from ifds.config.validator import ConfigValidationError, validate_config
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
     """Ensure API key env vars are clean for each test."""
-    for key in ["IFDS_POLYGON_API_KEY", "IFDS_FMP_API_KEY", "IFDS_UW_API_KEY",
-                "IFDS_FRED_API_KEY", "IFDS_ACCOUNT_EQUITY", "IFDS_MAX_POSITIONS"]:
+    for key in [
+        "IFDS_POLYGON_API_KEY",
+        "IFDS_FMP_API_KEY",
+        "IFDS_UW_API_KEY",
+        "IFDS_FRED_API_KEY",
+        "IFDS_ACCOUNT_EQUITY",
+        "IFDS_MAX_POSITIONS",
+    ]:
         monkeypatch.delenv(key, raising=False)
 
 

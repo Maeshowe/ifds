@@ -36,15 +36,16 @@ def _pipeline_timestamp(label: str = "PIPELINE") -> str:
     now = datetime.now(_CET)
     return f"[{now.strftime('%Y-%m-%d %H:%M')} Budapest] {label}"
 
+
 # Breadth regime abbreviations (same as console.py)
 _BREADTH_SHORT = {
     "CONSOLIDATING": "CONSOL",
 }
 
 
-def send_daily_report(ctx: PipelineContext, config: Config,
-                      logger: EventLogger, duration: float,
-                      fmp=None) -> bool:
+def send_daily_report(
+    ctx: PipelineContext, config: Config, logger: EventLogger, duration: float, fmp=None
+) -> bool:
     """Send full pipeline daily report to Telegram.
 
     Mirrors console dashboard structure with HTML formatting.
@@ -65,8 +66,9 @@ def send_daily_report(ctx: PipelineContext, config: Config,
     timeout = config.runtime.get("telegram_timeout", 5)
 
     if not token or not chat_id:
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                   message="Telegram disabled (no credentials)")
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC, Severity.INFO, message="Telegram disabled (no credentials)"
+        )
         return False
 
     try:
@@ -76,18 +78,19 @@ def send_daily_report(ctx: PipelineContext, config: Config,
         if ok and part2:
             _send_message(token, chat_id, part2, timeout)
 
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                   message="Telegram daily report sent")
+        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, message="Telegram daily report sent")
         return ok
 
     except Exception as e:
-        logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
-                   message=f"Telegram daily report failed: {e}")
+        logger.log(
+            EventType.CONFIG_WARNING, Severity.WARNING, message=f"Telegram daily report failed: {e}"
+        )
         return False
 
 
-def send_macro_snapshot(ctx: PipelineContext, config: Config,
-                        logger: EventLogger, duration: float) -> bool:
+def send_macro_snapshot(
+    ctx: PipelineContext, config: Config, logger: EventLogger, duration: float
+) -> bool:
     """Send Phase 1-3 macro snapshot to Telegram.
 
     Contains: VIX, TNX, 2s10s, BMI, sectors, cross-asset regime.
@@ -111,18 +114,22 @@ def send_macro_snapshot(ctx: PipelineContext, config: Config,
         text += "\n\nHolnap 15:45: Phase 4-6 + MKT entry"
 
         ok = _send_message(token, chat_id, text, timeout)
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                   message="Telegram macro snapshot sent")
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC, Severity.INFO, message="Telegram macro snapshot sent"
+        )
         return ok
     except Exception as e:
-        logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
-                   message=f"Telegram macro snapshot failed: {e}")
+        logger.log(
+            EventType.CONFIG_WARNING,
+            Severity.WARNING,
+            message=f"Telegram macro snapshot failed: {e}",
+        )
         return False
 
 
-def send_trading_plan(ctx: PipelineContext, config: Config,
-                      logger: EventLogger, duration: float,
-                      fmp=None) -> bool:
+def send_trading_plan(
+    ctx: PipelineContext, config: Config, logger: EventLogger, duration: float, fmp=None
+) -> bool:
     """Send Phase 4-6 trading plan to Telegram.
 
     Contains: positions table, VWAP summary, sizing details.
@@ -161,17 +168,16 @@ def send_trading_plan(ctx: PipelineContext, config: Config,
         else:
             ok = _send_message(token, chat_id, text, timeout)
 
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                   message="Telegram trading plan sent")
+        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, message="Telegram trading plan sent")
         return ok
     except Exception as e:
-        logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
-                   message=f"Telegram trading plan failed: {e}")
+        logger.log(
+            EventType.CONFIG_WARNING, Severity.WARNING, message=f"Telegram trading plan failed: {e}"
+        )
         return False
 
 
-def send_failure_report(error: str, config: Config,
-                        logger: EventLogger, duration: float) -> bool:
+def send_failure_report(error: str, config: Config, logger: EventLogger, duration: float) -> bool:
     """Send pipeline failure notification to Telegram.
 
     Args:
@@ -199,13 +205,17 @@ def send_failure_report(error: str, config: Config,
         )
         ok = _send_message(token, chat_id, text, timeout)
 
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                   message="Telegram failure report sent")
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC, Severity.INFO, message="Telegram failure report sent"
+        )
         return ok
 
     except Exception as e:
-        logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
-                   message=f"Telegram failure report failed: {e}")
+        logger.log(
+            EventType.CONFIG_WARNING,
+            Severity.WARNING,
+            message=f"Telegram failure report failed: {e}",
+        )
         return False
 
 
@@ -213,13 +223,15 @@ def send_failure_report(error: str, config: Config,
 # Formatting
 # ============================================================================
 
+
 def _esc(text: str) -> str:
     """Escape HTML special characters for Telegram."""
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _format_success(ctx: PipelineContext, duration: float,
-                    config: Config, fmp=None) -> tuple[str, str]:
+def _format_success(
+    ctx: PipelineContext, duration: float, config: Config, fmp=None
+) -> tuple[str, str]:
     """Format the full pipeline report in HTML.
 
     Returns (part1, part2). part2 is empty string if message fits in one.
@@ -236,8 +248,7 @@ def _format_success(ctx: PipelineContext, duration: float,
     return lines_04, lines_56
 
 
-def _format_phases_0_to_4(ctx: PipelineContext, duration: float,
-                          config: Config) -> str:
+def _format_phases_0_to_4(ctx: PipelineContext, duration: float, config: Config) -> str:
     """Format Phase 0 through Phase 4."""
     lines: list[str] = []
 
@@ -262,7 +273,11 @@ def _format_phases_0_to_4(ctx: PipelineContext, duration: float,
             macro_line += f"  2s10s={m.yield_curve_2s10s:+.2f}% ({m.curve_status})"
         lines.append(macro_line)
         if hasattr(m, "cross_asset_regime") and m.cross_asset_regime != "NORMAL":
-            _ca_emojis = {"CAUTIOUS": "\u26a0\ufe0f", "RISK_OFF": "\U0001f534", "CRISIS": "\U0001f6a8"}
+            _ca_emojis = {
+                "CAUTIOUS": "\u26a0\ufe0f",
+                "RISK_OFF": "\U0001f534",
+                "CRISIS": "\U0001f6a8",
+            }
             lines.append(
                 f"{_ca_emojis.get(m.cross_asset_regime, '')} "
                 f"<b>Cross-Asset: {m.cross_asset_regime}</b> "
@@ -331,8 +346,7 @@ def _format_phases_0_to_4(ctx: PipelineContext, duration: float,
     return "\n".join(lines)
 
 
-def _format_phases_5_to_6(ctx: PipelineContext, config: Config,
-                          fmp=None) -> str:
+def _format_phases_5_to_6(ctx: PipelineContext, config: Config, fmp=None) -> str:
     """Format Phase 5 and Phase 6."""
     lines: list[str] = []
 
@@ -364,7 +378,9 @@ def _format_phases_5_to_6(ctx: PipelineContext, config: Config,
 
             regime_counts_obs: dict[str, int] = {}
             for o in ctx.mms_analyses:
-                regime_counts_obs[o.mm_regime.value] = regime_counts_obs.get(o.mm_regime.value, 0) + 1
+                regime_counts_obs[o.mm_regime.value] = (
+                    regime_counts_obs.get(o.mm_regime.value, 0) + 1
+                )
             parts = [f"{k}={v}" for k, v in sorted(regime_counts_obs.items())]
             label = "MMS" if mms_enabled else "MMS (collect-only)"
             lines.append(f"{label}: {' '.join(parts)}")
@@ -427,24 +443,25 @@ def _format_phases_5_to_6(ctx: PipelineContext, config: Config,
             if config.tuning.get("swing_execution_enabled", False):
                 try:
                     from ifds.state.swing_positions import load_swing_positions
+
                     state_file = config.tuning.get(
-                        "swing_positions_state_file", "state/swing_positions.json",
+                        "swing_positions_state_file",
+                        "state/swing_positions.json",
                     )
                     existing_swing_tickers = {p.ticker for p in load_swing_positions(state_file)}
                 except Exception:
                     existing_swing_tickers = None
 
-            lines.append(_format_exec_table(
-                positions, earnings_map=earnings_map,
-                existing_swing_tickers=existing_swing_tickers,
-            ))
+            lines.append(
+                _format_exec_table(
+                    positions,
+                    earnings_map=earnings_map,
+                    existing_swing_tickers=existing_swing_tickers,
+                )
+            )
             if existing_swing_tickers is not None:
-                new_count = sum(
-                    1 for p in positions if p.ticker not in existing_swing_tickers
-                )
-                open_count = sum(
-                    1 for p in positions if p.ticker in existing_swing_tickers
-                )
+                new_count = sum(1 for p in positions if p.ticker not in existing_swing_tickers)
+                open_count = sum(1 for p in positions if p.ticker in existing_swing_tickers)
                 lines.append(
                     f"\n15:31 submit várt: {new_count} new entry "
                     f"| {open_count} existing (skipped)"
@@ -535,9 +552,11 @@ def _format_sector_table(sector_scores: list, benchmark=None) -> str:
     return "<pre>" + "\n".join(rows) + "</pre>"
 
 
-def _format_exec_table(positions: list,
-                       earnings_map: dict[str, str | None] | None = None,
-                       existing_swing_tickers: set[str] | None = None) -> str:
+def _format_exec_table(
+    positions: list,
+    earnings_map: dict[str, str | None] | None = None,
+    existing_swing_tickers: set[str] | None = None,
+) -> str:
     """Format execution plan table as monospace <pre> block.
 
     Task #T §3.1: when ``existing_swing_tickers`` is provided, each row is
@@ -605,8 +624,8 @@ def _format_exec_table(positions: list,
 # HTTP helper
 # ============================================================================
 
-def _send_message(token: str, chat_id: str, text: str,
-                  timeout: int = 5) -> bool:
+
+def _send_message(token: str, chat_id: str, text: str, timeout: int = 5) -> bool:
     """Send a single Telegram message via Bot API."""
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {

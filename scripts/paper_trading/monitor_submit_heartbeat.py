@@ -18,6 +18,7 @@ itself self-report.
 
 Fázis 1 task: docs/tasks/2026-05-19-ibkr-gateway-monitoring.md §10 Fix C.
 """
+
 import os
 import sys
 import time
@@ -37,9 +38,11 @@ from lib.heartbeat import read as heartbeat_read
 
 try:
     from lib.log_setup import setup_pt_logger
+
     logger = setup_pt_logger("heartbeat_monitor")
 except ModuleNotFoundError:
     import logging
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
@@ -47,7 +50,7 @@ except ModuleNotFoundError:
     )
     logger = logging.getLogger("heartbeat_monitor")
 
-STUCK_THRESHOLD_S = float(os.getenv("IFDS_HEARTBEAT_STUCK_S", "900"))      # 15 min
+STUCK_THRESHOLD_S = float(os.getenv("IFDS_HEARTBEAT_STUCK_S", "900"))  # 15 min
 # Threshold accommodates the lib.retry_orchestrator outer-retry budget:
 # 5 attempts × exponential backoff (15s→30s→60s→120s→240s) → ~465s submit
 # + per-attempt submit work (~30s × 5 = 150s) → ~10-12 min realistic worst
@@ -66,16 +69,18 @@ def is_trading_day(today: date | None = None) -> bool:
     today = today or date.today()
     try:
         from ifds.utils.trading_calendar import is_trading_day as _is
+
         return _is(today)
     except Exception:
         return today.weekday() < 5
 
 
-def check_heartbeat(now_epoch: float | None = None,
-                    state_dir: Path | None = None,
-                    stuck_threshold_s: float = STUCK_THRESHOLD_S,
-                    missing_threshold_s: float = MISSING_THRESHOLD_S
-                    ) -> tuple[str, str]:
+def check_heartbeat(
+    now_epoch: float | None = None,
+    state_dir: Path | None = None,
+    stuck_threshold_s: float = STUCK_THRESHOLD_S,
+    missing_threshold_s: float = MISSING_THRESHOLD_S,
+) -> tuple[str, str]:
     """Pure verdict — decoupled from Telegram + trading-day for testability.
 
     Returns (verdict, message) where verdict is one of
@@ -91,9 +96,7 @@ def check_heartbeat(now_epoch: float | None = None,
         return "COLD_START", "No heartbeat history yet (first run?)"
 
     if attempt is None:
-        return "MISSING", (
-            "submit_orders DID NOT RUN: last_submit_attempt.json missing"
-        )
+        return "MISSING", ("submit_orders DID NOT RUN: last_submit_attempt.json missing")
 
     attempt_epoch = attempt.get("epoch", 0)
     attempt_age = now_epoch - attempt_epoch
@@ -129,6 +132,7 @@ def check_heartbeat(now_epoch: float | None = None,
 
 def _send_alert(message: str) -> None:
     from lib.connection import _send_telegram_alert
+
     _send_telegram_alert(message)
 
 

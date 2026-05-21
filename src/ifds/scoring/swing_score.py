@@ -19,6 +19,7 @@ The threshold S_j > 50 is the Bonferroni-significant minimum from the
 2026-05-08 strategic review §4 (the only two features that survived
 Bonferroni correction on the 60-trade sample).
 """
+
 from __future__ import annotations
 
 import json
@@ -180,9 +181,7 @@ def compute_swing_scores(
     Returns one :class:`SwingScoreResult` per input ticker in the same order.
     Mutates ``ewma_state`` (caller is responsible for ``.save()``).
     """
-    pcr_universe = [
-        t["pcr"] for t in tickers_data if t.get("pcr") is not None
-    ]
+    pcr_universe = [t["pcr"] for t in tickers_data if t.get("pcr") is not None]
     otm_universe = [
         t["otm_call_ratio"] for t in tickers_data if t.get("otm_call_ratio") is not None
     ]
@@ -196,7 +195,9 @@ def compute_swing_scores(
     for entry in tickers_data:
         ticker = entry["ticker"]
         pcr_value = entry.get("pcr") if entry.get("pcr") is not None else pcr_median
-        otm_value = entry.get("otm_call_ratio") if entry.get("otm_call_ratio") is not None else otm_median
+        otm_value = (
+            entry.get("otm_call_ratio") if entry.get("otm_call_ratio") is not None else otm_median
+        )
         sector_adj = float(entry.get("sector_adjustment") or 0.0)
 
         pcr_pct = compute_percentile_score(pcr_universe, pcr_value)

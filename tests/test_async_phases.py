@@ -54,27 +54,32 @@ def _make_bars(count=210, base_price=100, volume=1000):
 
 
 def _make_tickers(count=3, sector="Technology"):
-    return [Ticker(symbol=f"TICK{i}", sector=sector, market_cap=10e9,
-                   price=100.0, avg_volume=1e6) for i in range(count)]
+    return [
+        Ticker(symbol=f"TICK{i}", sector=sector, market_cap=10e9, price=100.0, avg_volume=1e6)
+        for i in range(count)
+    ]
 
 
 def _make_sector_scores():
-    return [SectorScore(
-        etf="XLK",
-        sector_name="Technology",
-        momentum_5d=2.0,
-        rank=1,
-        classification=MomentumClassification.LEADER,
-        score_adjustment=15,
-        trend=SectorTrend.UP,
-        sector_bmi_regime=SectorBMIRegime.NEUTRAL,
-        vetoed=False,
-    )]
+    return [
+        SectorScore(
+            etf="XLK",
+            sector_name="Technology",
+            momentum_5d=2.0,
+            rank=1,
+            classification=MomentumClassification.LEADER,
+            score_adjustment=15,
+            trend=SectorTrend.UP,
+            sector_bmi_regime=SectorBMIRegime.NEUTRAL,
+            vetoed=False,
+        )
+    ]
 
 
 # ============================================================================
 # Extracted pure-computation functions
 # ============================================================================
+
 
 class TestAnalyzeFlowFromData:
     """Test _analyze_flow_from_data with pre-fetched data."""
@@ -93,13 +98,14 @@ class TestAnalyzeFlowFromData:
         dp_data = {
             "dp_pct": 50.0,
             "signal": "BULLISH",
-            "dp_volume": 500,       # 500 / bars[-1].v(1000) * 100 = 50%
+            "dp_volume": 500,  # 500 / bars[-1].v(1000) * 100 = 50%
             "total_volume": 1000000,
         }
 
         result = _analyze_flow_from_data("TEST", bars, dp_data, config)
         assert result.dark_pool_pct == 50.0
         from ifds.models.market import DarkPoolSignal
+
         assert result.dark_pool_signal == DarkPoolSignal.BULLISH
 
     def test_none_dp_data(self, config):
@@ -146,6 +152,7 @@ class TestAnalyzeFundamentalFromData:
 # Async Phase 4
 # ============================================================================
 
+
 class TestPhase4Async:
     """Test the async Phase 4 code path."""
 
@@ -159,9 +166,11 @@ class TestPhase4Async:
         tickers = _make_tickers(2)
         sectors = _make_sector_scores()
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncFMPClient") as MockFMP, \
-             patch("ifds.data.async_clients.AsyncUWClient"):
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncFMPClient") as MockFMP,
+            patch("ifds.data.async_clients.AsyncUWClient"),
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_aggregates = AsyncMock(return_value=bars)
@@ -170,18 +179,28 @@ class TestPhase4Async:
             MockPoly.return_value = mock_poly
 
             mock_fmp = AsyncMock()
-            mock_fmp.get_financial_growth = AsyncMock(return_value={
-                "revenueGrowth": 0.15, "epsgrowth": 0.20,
-            })
-            mock_fmp.get_key_metrics = AsyncMock(return_value={
-                "roeTTM": 0.20, "debtToEquityTTM": 0.3,
-            })
+            mock_fmp.get_financial_growth = AsyncMock(
+                return_value={
+                    "revenueGrowth": 0.15,
+                    "epsgrowth": 0.20,
+                }
+            )
+            mock_fmp.get_key_metrics = AsyncMock(
+                return_value={
+                    "roeTTM": 0.20,
+                    "debtToEquityTTM": 0.3,
+                }
+            )
             mock_fmp.get_insider_trading = AsyncMock(return_value=[])
             mock_fmp.close = AsyncMock()
             MockFMP.return_value = mock_fmp
 
             result = await _run_phase4_async(
-                config, logger, tickers, sectors, StrategyMode.LONG,
+                config,
+                logger,
+                tickers,
+                sectors,
+                StrategyMode.LONG,
             )
 
             assert len(result.analyzed) == 2
@@ -199,8 +218,10 @@ class TestPhase4Async:
         tickers = _make_tickers(1)
         sectors = _make_sector_scores()
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncFMPClient") as MockFMP:
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncFMPClient") as MockFMP,
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_aggregates = AsyncMock(return_value=bars)
@@ -213,7 +234,11 @@ class TestPhase4Async:
             MockFMP.return_value = mock_fmp
 
             result = await _run_phase4_async(
-                config, logger, tickers, sectors, StrategyMode.LONG,
+                config,
+                logger,
+                tickers,
+                sectors,
+                StrategyMode.LONG,
             )
 
             assert result.tech_filter_count == 1
@@ -229,8 +254,10 @@ class TestPhase4Async:
         tickers = _make_tickers(1)
         sectors = _make_sector_scores()
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncFMPClient") as MockFMP:
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncFMPClient") as MockFMP,
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_aggregates = AsyncMock(return_value=bars)
@@ -243,7 +270,11 @@ class TestPhase4Async:
             MockFMP.return_value = mock_fmp
 
             result = await _run_phase4_async(
-                config, logger, tickers, sectors, StrategyMode.LONG,
+                config,
+                logger,
+                tickers,
+                sectors,
+                StrategyMode.LONG,
             )
 
             assert len(result.analyzed) == 0
@@ -258,9 +289,11 @@ class TestPhase4Async:
         tickers = _make_tickers(1)
         sectors = _make_sector_scores()
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncFMPClient") as MockFMP, \
-             patch("ifds.data.async_clients.AsyncUWClient"):
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncFMPClient") as MockFMP,
+            patch("ifds.data.async_clients.AsyncUWClient"),
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_aggregates = AsyncMock(return_value=bars)
@@ -280,7 +313,11 @@ class TestPhase4Async:
             MockFMP.return_value = mock_fmp
 
             result = await _run_phase4_async(
-                config, logger, tickers, sectors, StrategyMode.LONG,
+                config,
+                logger,
+                tickers,
+                sectors,
+                StrategyMode.LONG,
             )
 
             # Ticker should still be analyzed (with None growth/metrics)
@@ -294,6 +331,7 @@ class TestPhase4Async:
             # Verify exceptions were logged
             log_file = logger.log_file
             import json
+
             events = []
             with open(log_file) as f:
                 for line in f:
@@ -309,6 +347,7 @@ class TestPhase4Async:
 # Async Phase 5
 # ============================================================================
 
+
 class TestPhase5Async:
     """Test the async Phase 5 code path."""
 
@@ -316,16 +355,23 @@ class TestPhase5Async:
         """Create mock Phase 4 passed stocks."""
         analyses = []
         for i in range(count):
-            analyses.append(StockAnalysis(
-                ticker=f"TICK{i}",
-                sector="Technology",
-                technical=TechnicalAnalysis(price=100.0 + i, sma_200=90.0,
-                                            sma_20=95.0, rsi_14=55.0,
-                                            atr_14=2.0, trend_pass=True),
-                flow=FlowAnalysis(rvol_score=5),
-                fundamental=FundamentalScoring(funda_score=10),
-                combined_score=75.0 + i,
-            ))
+            analyses.append(
+                StockAnalysis(
+                    ticker=f"TICK{i}",
+                    sector="Technology",
+                    technical=TechnicalAnalysis(
+                        price=100.0 + i,
+                        sma_200=90.0,
+                        sma_20=95.0,
+                        rsi_14=55.0,
+                        atr_14=2.0,
+                        trend_pass=True,
+                    ),
+                    flow=FlowAnalysis(rvol_score=5),
+                    fundamental=FundamentalScoring(funda_score=10),
+                    combined_score=75.0 + i,
+                )
+            )
         return analyses
 
     @pytest.mark.asyncio
@@ -333,8 +379,10 @@ class TestPhase5Async:
         """Async Phase 5 processes GEX concurrently."""
         stocks = self._make_stock_analyses(3)
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncUWClient"):
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncUWClient"),
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_options_snapshot = AsyncMock(return_value=None)
@@ -342,7 +390,10 @@ class TestPhase5Async:
             MockPoly.return_value = mock_poly
 
             result = await _run_phase5_async(
-                config, logger, stocks, StrategyMode.LONG,
+                config,
+                logger,
+                stocks,
+                StrategyMode.LONG,
             )
 
             # All 3 should pass with POSITIVE default (no GEX data)
@@ -354,15 +405,19 @@ class TestPhase5Async:
         """Async Phase 5 correctly classifies GEX regimes."""
         stocks = self._make_stock_analyses(1)
 
-        mock_options = [{
-            "details": {"strike_price": 100, "contract_type": "call"},
-            "greeks": {"gamma": 0.05},
-            "open_interest": 1000,
-            "underlying_asset": {"price": 105},
-        }]
+        mock_options = [
+            {
+                "details": {"strike_price": 100, "contract_type": "call"},
+                "greeks": {"gamma": 0.05},
+                "open_interest": 1000,
+                "underlying_asset": {"price": 105},
+            }
+        ]
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncUWClient"):
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncUWClient"),
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_options_snapshot = AsyncMock(return_value=mock_options)
@@ -370,7 +425,10 @@ class TestPhase5Async:
             MockPoly.return_value = mock_poly
 
             result = await _run_phase5_async(
-                config, logger, stocks, StrategyMode.LONG,
+                config,
+                logger,
+                stocks,
+                StrategyMode.LONG,
             )
 
             assert len(result.analyzed) == 1
@@ -381,8 +439,10 @@ class TestPhase5Async:
         """Async Phase 5 closes clients even on success."""
         stocks = self._make_stock_analyses(1)
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncUWClient"):
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncUWClient"),
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_options_snapshot = AsyncMock(return_value=None)
@@ -390,7 +450,10 @@ class TestPhase5Async:
             MockPoly.return_value = mock_poly
 
             await _run_phase5_async(
-                config, logger, stocks, StrategyMode.LONG,
+                config,
+                logger,
+                stocks,
+                StrategyMode.LONG,
             )
 
             mock_poly.close.assert_awaited_once()

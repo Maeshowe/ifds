@@ -40,8 +40,9 @@ def _make_trade(
     )
 
 
-def _bars(prices: list[tuple[float, float, float, float]],
-          start: date = date(2026, 3, 2)) -> list[dict]:
+def _bars(
+    prices: list[tuple[float, float, float, float]], start: date = date(2026, 3, 2)
+) -> list[dict]:
     """Create bars from (open, high, low, close) tuples."""
     result = []
     for i, (o, h, l, c) in enumerate(prices):
@@ -78,11 +79,13 @@ class TestSwingTP1:
         trade = _make_trade(entry=100.0, sl=95.5, qty=100)
         # ATR ≈ (100-95.5)/1.5 = 3.0
         # TP1 = 100 + 0.75*3 = 102.25
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # D+1: fill (low=98 <= 100)
-            (100.0, 101.0, 99.5, 100.5),   # D+2: no TP1 (high=101 < 102.25)
-            (101.0, 103.0, 100.5, 102.0),  # D+3: TP1 hit (high=103 >= 102.25)
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # D+1: fill (low=98 <= 100)
+                (100.0, 101.0, 99.5, 100.5),  # D+2: no TP1 (high=101 < 102.25)
+                (101.0, 103.0, 100.5, 102.0),  # D+3: TP1 hit (high=103 >= 102.25)
+            ]
+        )
         result = simulate_swing_trade(trade, bars, max_hold_days=5, tp1_exit_pct=0.50)
 
         assert result.filled
@@ -93,10 +96,12 @@ class TestSwingTP1:
     def test_tp1_full_exit(self):
         """tp1_exit_pct=1.0 → full exit at TP1."""
         trade = _make_trade(entry=100.0, sl=95.5, qty=100)
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # fill
-            (101.0, 103.0, 100.5, 102.0),  # TP1 hit
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # fill
+                (101.0, 103.0, 100.5, 102.0),  # TP1 hit
+            ]
+        )
         result = simulate_swing_trade(trade, bars, max_hold_days=5, tp1_exit_pct=1.0)
 
         assert result.tp1_triggered
@@ -110,12 +115,14 @@ class TestSwingTrailStop:
         """TP1 → trail active → trail stop hit."""
         trade = _make_trade(entry=100.0, sl=95.5, qty=100)
         # ATR ≈ 3.0, TP1=102.25, trail_distance=3.0 (1.0×ATR)
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # D+1: fill
-            (101.0, 103.0, 100.5, 102.5),  # D+2: TP1 hit (high=103), trail_sl = 103-3=100
-            (102.0, 104.0, 101.0, 103.5),  # D+3: trail up, trail_sl = 104-3=101
-            (103.0, 103.5, 100.0, 100.5),  # D+4: trail_sl hit (low=100 <= 101)
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # D+1: fill
+                (101.0, 103.0, 100.5, 102.5),  # D+2: TP1 hit (high=103), trail_sl = 103-3=100
+                (102.0, 104.0, 101.0, 103.5),  # D+3: trail up, trail_sl = 104-3=101
+                (103.0, 103.5, 100.0, 100.5),  # D+4: trail_sl hit (low=100 <= 101)
+            ]
+        )
         result = simulate_swing_trade(trade, bars, max_hold_days=10, tp1_exit_pct=0.50)
 
         assert result.tp1_triggered
@@ -130,11 +137,13 @@ class TestSwingBreakeven:
         trade = _make_trade(entry=100.0, sl=95.5, qty=100)
         # ATR ≈ 3.0, BE threshold = 0.3×3 = 0.9
         # Need close > 100.9 to trigger breakeven
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # D+1: fill
-            (100.0, 101.5, 99.5, 101.0),   # D+2: close=101 > 100.9 → breakeven
-            (101.0, 101.5, 99.0, 99.5),    # D+3: low=99 but SL now = 100 → SL hit
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # D+1: fill
+                (100.0, 101.5, 99.5, 101.0),  # D+2: close=101 > 100.9 → breakeven
+                (101.0, 101.5, 99.0, 99.5),  # D+3: low=99 but SL now = 100 → SL hit
+            ]
+        )
         result = simulate_swing_trade(trade, bars, max_hold_days=10, tp1_exit_pct=0.50)
 
         assert result.filled
@@ -149,10 +158,12 @@ class TestSwingStopLoss:
     def test_stop_loss_before_tp1(self):
         """SL hit before TP1 → full exit at SL."""
         trade = _make_trade(entry=100.0, sl=95.5, qty=100)
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # D+1: fill
-            (99.0, 99.5, 95.0, 95.5),     # D+2: SL hit (low=95 <= 95.5)
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # D+1: fill
+                (99.0, 99.5, 95.0, 95.5),  # D+2: SL hit (low=95 <= 95.5)
+            ]
+        )
         result = simulate_swing_trade(trade, bars, max_hold_days=5, tp1_exit_pct=0.50)
 
         assert result.filled
@@ -166,10 +177,12 @@ class TestSwingSameDayAmbiguity:
         """Same-day TP1+SL → conservative: SL wins."""
         trade = _make_trade(entry=100.0, sl=95.5, qty=100)
         # ATR ≈ 3.0, TP1 = 102.25
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # D+1: fill
-            (100.0, 103.0, 95.0, 98.0),   # D+2: both TP1 (103>=102.25) AND SL (95<=95.5)
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # D+1: fill
+                (100.0, 103.0, 95.0, 98.0),  # D+2: both TP1 (103>=102.25) AND SL (95<=95.5)
+            ]
+        )
         result = simulate_swing_trade(trade, bars, max_hold_days=5, tp1_exit_pct=0.50)
 
         assert result.filled
@@ -183,11 +196,13 @@ class TestSwingMaxHold:
     def test_max_hold_moc_exit(self):
         """No TP1, no SL hit within max_hold → exit at close."""
         trade = _make_trade(entry=100.0, sl=95.5, qty=100)
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # D+1: fill
-            (100.0, 101.0, 99.0, 100.5),   # D+2: no exit
-            (100.5, 101.5, 99.5, 101.0),   # D+3: no exit → max_hold=2 → exit at close
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # D+1: fill
+                (100.0, 101.0, 99.0, 100.5),  # D+2: no exit
+                (100.5, 101.5, 99.5, 101.0),  # D+3: no exit → max_hold=2 → exit at close
+            ]
+        )
         result = simulate_swing_trade(trade, bars, max_hold_days=2, tp1_exit_pct=0.50)
 
         assert result.filled
@@ -203,11 +218,18 @@ class TestSwingPnL:
         """P&L accounts for both partial TP1 exit and trail exit."""
         trade = _make_trade(entry=100.0, sl=95.5, qty=100)
         # ATR=3, TP1=102.25, trail_dist=3
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # fill
-            (101.0, 103.0, 100.0, 102.5),  # TP1 hit: 50 shares × (102.25-100) = +112.5
-            (102.0, 102.5, 99.5, 100.0),   # trail_sl = max(100, 102.5-3)=100 → hit (low=99.5<=100)
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # fill
+                (101.0, 103.0, 100.0, 102.5),  # TP1 hit: 50 shares × (102.25-100) = +112.5
+                (
+                    102.0,
+                    102.5,
+                    99.5,
+                    100.0,
+                ),  # trail_sl = max(100, 102.5-3)=100 → hit (low=99.5<=100)
+            ]
+        )
         result = simulate_swing_trade(trade, bars, max_hold_days=10, tp1_exit_pct=0.50)
 
         assert result.tp1_triggered
@@ -221,10 +243,12 @@ class TestSwingPnL:
     def test_total_pnl_pct_based_on_full_position(self):
         """total_pnl_pct = total_pnl / (quantity × entry_price) × 100."""
         trade = _make_trade(entry=100.0, sl=95.5, qty=100)
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # fill
-            (99.0, 99.5, 95.0, 95.5),     # SL hit
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # fill
+                (99.0, 99.5, 95.0, 95.5),  # SL hit
+            ]
+        )
         result = simulate_swing_trade(trade, bars, max_hold_days=5)
 
         # SL at 95.5: 100 × (95.5 - 100) = -450
@@ -235,6 +259,7 @@ class TestSwingPnL:
 # ============================================================================
 # BC20A Phase_20A_5 — SimEngine Swing Extensions
 # ============================================================================
+
 
 class TestVwapEntryFilter:
 
@@ -278,30 +303,36 @@ class TestVolatileTrail:
         # ATR ≈ 3.0
         # Default trail: 1.0 × 3.0 = 3.0
         # Volatile trail: 0.75 × 3.0 = 2.25
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # fill
-            (101.0, 103.0, 100.5, 102.5),  # TP1 hit (103 >= 102.25)
-            (102.0, 102.5, 100.0, 100.5),  # With volatile trail: trail_sl = 103-2.25=100.75
-                                            # low=100 < 100.75 → trail hit
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # fill
+                (101.0, 103.0, 100.5, 102.5),  # TP1 hit (103 >= 102.25)
+                (102.0, 102.5, 100.0, 100.5),  # With volatile trail: trail_sl = 103-2.25=100.75
+                # low=100 < 100.75 → trail hit
+            ]
+        )
         # With volatile trail → should hit trail stop
-        result_vol = simulate_swing_trade(trade, bars, max_hold_days=10,
-                                           tp1_exit_pct=0.50, mms_regime="volatile")
+        result_vol = simulate_swing_trade(
+            trade, bars, max_hold_days=10, tp1_exit_pct=0.50, mms_regime="volatile"
+        )
         assert result_vol.tp1_triggered
 
         # With default trail → trail_sl = 103-3=100, low=100 → also hits
         trade2 = _make_trade(entry=100.0, sl=95.5, qty=100)
-        result_normal = simulate_swing_trade(trade2, bars, max_hold_days=10,
-                                              tp1_exit_pct=0.50, mms_regime="undetermined")
+        result_normal = simulate_swing_trade(
+            trade2, bars, max_hold_days=10, tp1_exit_pct=0.50, mms_regime="undetermined"
+        )
         # Both should trigger TP1, but volatile should have tighter trail
         assert result_vol.tp1_triggered and result_normal.tp1_triggered
 
     def test_non_volatile_uses_default_trail(self):
         """Non-VOLATILE MMS regime → uses default trail_atr_mult."""
         trade = _make_trade(entry=100.0, sl=95.5, qty=100)
-        bars = _bars([
-            (99.0, 100.5, 98.0, 100.0),   # fill
-            (100.0, 101.0, 99.5, 100.5),   # no TP1, no SL
-        ])
+        bars = _bars(
+            [
+                (99.0, 100.5, 98.0, 100.0),  # fill
+                (100.0, 101.0, 99.5, 100.5),  # no TP1, no SL
+            ]
+        )
         result = simulate_swing_trade(trade, bars, max_hold_days=5, mms_regime="neutral")
         assert result.filled  # Basic functionality works

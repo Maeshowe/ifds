@@ -23,9 +23,9 @@ def compute_qty_split(quantity: int) -> tuple[int, int]:
     return qty_tp1, qty_tp2
 
 
-def simulate_bracket_order(trade: Trade, daily_bars: list[dict],
-                           max_hold_days: int = 10,
-                           fill_window_days: int = 1) -> Trade:
+def simulate_bracket_order(
+    trade: Trade, daily_bars: list[dict], max_hold_days: int = 10, fill_window_days: int = 1
+) -> Trade:
     """Simulate a bracket order lifecycle.
 
     Args:
@@ -71,7 +71,7 @@ def simulate_bracket_order(trade: Trade, daily_bars: list[dict],
         return trade
 
     # 2. BRACKET SIMULATION — bars after fill day
-    bracket_bars = daily_bars[fill_bar_idx + 1:]
+    bracket_bars = daily_bars[fill_bar_idx + 1 :]
     if not bracket_bars:
         # Filled on last available bar — both legs open
         trade.leg1_exit_reason = "open"
@@ -81,12 +81,10 @@ def simulate_bracket_order(trade: Trade, daily_bars: list[dict],
     hold_bars = bracket_bars[:max_hold_days]
 
     # Simulate Leg 1: qty_tp1 -> TP1/SL
-    _simulate_leg(trade, hold_bars, is_long, leg=1,
-                  tp_price=trade.tp1, stop_price=trade.stop_loss)
+    _simulate_leg(trade, hold_bars, is_long, leg=1, tp_price=trade.tp1, stop_price=trade.stop_loss)
 
     # Simulate Leg 2: qty_tp2 -> TP2/SL
-    _simulate_leg(trade, hold_bars, is_long, leg=2,
-                  tp_price=trade.tp2, stop_price=trade.stop_loss)
+    _simulate_leg(trade, hold_bars, is_long, leg=2, tp_price=trade.tp2, stop_price=trade.stop_loss)
 
     # 3. P&L CALCULATION
     if trade.qty_tp1 > 0 and trade.leg1_exit_price > 0:
@@ -119,8 +117,9 @@ def simulate_bracket_order(trade: Trade, daily_bars: list[dict],
     return trade
 
 
-def _simulate_leg(trade: Trade, bars: list[dict], is_long: bool,
-                  leg: int, tp_price: float, stop_price: float) -> None:
+def _simulate_leg(
+    trade: Trade, bars: list[dict], is_long: bool, leg: int, tp_price: float, stop_price: float
+) -> None:
     """Simulate one leg of the bracket order.
 
     Modifies trade in place for the specified leg (1 or 2).
@@ -152,14 +151,12 @@ def _simulate_leg(trade: Trade, bars: list[dict], is_long: bool,
     # Expired: exit @ close of last bar
     if bars:
         last_bar = bars[-1]
-        _set_leg_exit(trade, leg, last_bar["c"],
-                      _parse_date(last_bar["date"]), "expired")
+        _set_leg_exit(trade, leg, last_bar["c"], _parse_date(last_bar["date"]), "expired")
     else:
         _set_leg_reason(trade, leg, "open")
 
 
-def _set_leg_exit(trade: Trade, leg: int, price: float,
-                  exit_date: date, reason: str) -> None:
+def _set_leg_exit(trade: Trade, leg: int, price: float, exit_date: date, reason: str) -> None:
     """Set exit price, date, and reason for a leg."""
     if leg == 1:
         trade.leg1_exit_price = price
@@ -189,6 +186,7 @@ def _parse_date(date_str: str | date) -> date:
 # ============================================================================
 # Swing Trade Simulation (BC20C)
 # ============================================================================
+
 
 def simulate_swing_trade(
     trade: Trade,
@@ -276,7 +274,9 @@ def simulate_swing_trade(
 
     # Set up swing state
     entry = trade.fill_price
-    tp1_price = round(entry + tp1_atr_mult * atr, 2) if is_long else round(entry - tp1_atr_mult * atr, 2)
+    tp1_price = (
+        round(entry + tp1_atr_mult * atr, 2) if is_long else round(entry - tp1_atr_mult * atr, 2)
+    )
     trail_distance = effective_trail_atr * atr
     breakeven_threshold = breakeven_atr_mult * atr
     current_sl = trade.stop_loss
@@ -289,7 +289,7 @@ def simulate_swing_trade(
     trade.tp1 = tp1_price
 
     # 2. DAY-BY-DAY SIMULATION
-    sim_bars = daily_bars[fill_bar_idx + 1:]
+    sim_bars = daily_bars[fill_bar_idx + 1 :]
     hold_bars = sim_bars[:max_hold_days]
 
     for day_idx, bar in enumerate(hold_bars):
@@ -313,7 +313,11 @@ def simulate_swing_trade(
 
         if sl_hit:
             # Full exit at SL
-            pnl = remaining_qty * (current_sl - entry) if is_long else remaining_qty * (entry - current_sl)
+            pnl = (
+                remaining_qty * (current_sl - entry)
+                if is_long
+                else remaining_qty * (entry - current_sl)
+            )
             total_pnl += pnl
             trade.trail_exit_price = current_sl
             trade.holding_days = holding_day
@@ -337,7 +341,9 @@ def simulate_swing_trade(
         if tp1_hit:
             # Partial exit at TP1
             partial_qty = round(trade.quantity * tp1_exit_pct)
-            partial_pnl = partial_qty * (tp1_price - entry) if is_long else partial_qty * (entry - tp1_price)
+            partial_pnl = (
+                partial_qty * (tp1_price - entry) if is_long else partial_qty * (entry - tp1_price)
+            )
             total_pnl += partial_pnl
             remaining_qty -= partial_qty
 
@@ -387,7 +393,11 @@ def simulate_swing_trade(
         last_bar = hold_bars[-1]
         exit_price = last_bar["c"]
         exit_date = _parse_date(last_bar["date"])
-        pnl = remaining_qty * (exit_price - entry) if is_long else remaining_qty * (entry - exit_price)
+        pnl = (
+            remaining_qty * (exit_price - entry)
+            if is_long
+            else remaining_qty * (entry - exit_price)
+        )
         total_pnl += pnl
         trade.trail_exit_price = exit_price
         trade.exit_type = "max_hold"

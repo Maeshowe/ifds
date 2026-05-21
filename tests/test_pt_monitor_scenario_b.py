@@ -52,9 +52,7 @@ def _mock_position(symbol: str, qty: int = 100):
 
 def _import_pt_monitor(tmp_path):
     """Import pt_monitor with STATE_DIR pointed at tmp_path."""
-    scripts_dir = os.path.join(
-        os.path.dirname(__file__), "..", "scripts", "paper_trading"
-    )
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts", "paper_trading")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
 
@@ -124,19 +122,16 @@ def test_scenario_b_activation_at_19_cet(tmp_path):
 
     # Price $44.20 > threshold $43.92 (43.70 * 1.005)
     # Mock time to be >= 19:00 CET (scenario_b_hour_utc)
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_last_price", return_value=44.20
-    ), patch.object(
-        mod, "cancel_all_sl_orders", return_value=2
-    ) as mock_cancel_all, patch.object(
-        mod, "get_scenario_b_hour_utc", return_value=17
-    ), patch(
-        "scripts.paper_trading.pt_monitor.datetime"
-    ) as mock_dt, patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_last_price", return_value=44.20),
+        patch.object(mod, "cancel_all_sl_orders", return_value=2) as mock_cancel_all,
+        patch.object(mod, "get_scenario_b_hour_utc", return_value=17),
+        patch("scripts.paper_trading.pt_monitor.datetime") as mock_dt,
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         # now_utc.hour = 18 >= scenario_b_hour_utc = 17
         mock_now = MagicMock()
         mock_now.hour = 18
@@ -164,15 +159,14 @@ def test_scenario_b_not_activated_before_19(tmp_path):
     mock_ib = MagicMock()
     mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_scenario_b_hour_utc", return_value=18
-    ), patch(
-        "scripts.paper_trading.pt_monitor.datetime"
-    ) as mock_dt, patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_scenario_b_hour_utc", return_value=18),
+        patch("scripts.paper_trading.pt_monitor.datetime") as mock_dt,
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         # now_utc.hour = 16 < scenario_b_hour_utc = 18
         mock_now = MagicMock()
         mock_now.hour = 16
@@ -194,17 +188,15 @@ def test_scenario_b_not_activated_if_not_profitable(tmp_path):
     mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     # Price $43.80 <= threshold $43.92
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_last_price", return_value=43.80
-    ), patch.object(
-        mod, "get_scenario_b_hour_utc", return_value=17
-    ), patch(
-        "scripts.paper_trading.pt_monitor.datetime"
-    ) as mock_dt, patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_last_price", return_value=43.80),
+        patch.object(mod, "get_scenario_b_hour_utc", return_value=17),
+        patch("scripts.paper_trading.pt_monitor.datetime") as mock_dt,
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mock_now = MagicMock()
         mock_now.hour = 18
         mock_dt.now.return_value = mock_now
@@ -231,12 +223,12 @@ def test_scenario_b_not_activated_if_scenario_a_active(tmp_path):
     mock_ib = MagicMock()
     mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "get_last_price", return_value=44.80), patch.object(
-        mod, "cancel_all_sl_orders"
-    ) as mock_cancel_all, patch.object(
-        mod, "send_telegram"
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "get_last_price", return_value=44.80),
+        patch.object(mod, "cancel_all_sl_orders") as mock_cancel_all,
+        patch.object(mod, "send_telegram"),
     ):
         mod.main()
 
@@ -264,11 +256,12 @@ def test_scenario_b_full_qty_sell(tmp_path):
     mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     # Price $43.40 <= trail_sl $43.50
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "get_last_price", return_value=43.40), patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "get_last_price", return_value=43.40),
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mod.main()
 
     mock_ib.placeOrder.assert_called_once()
@@ -294,22 +287,28 @@ def test_scenario_b_tp1_tp2_not_cancelled(tmp_path):
     mock_ib = MagicMock()
     mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
     # Set up open orders: A_SL, B_SL, A_TP, B_TP
-    a_sl = MagicMock(); a_sl.orderRef = "IFDS_SDRL_A_SL"; a_sl.orderId = 100
-    b_sl = MagicMock(); b_sl.orderRef = "IFDS_SDRL_B_SL"; b_sl.orderId = 101
-    a_tp = MagicMock(); a_tp.orderRef = "IFDS_SDRL_A_TP"; a_tp.orderId = 102
-    b_tp = MagicMock(); b_tp.orderRef = "IFDS_SDRL_B_TP"; b_tp.orderId = 103
+    a_sl = MagicMock()
+    a_sl.orderRef = "IFDS_SDRL_A_SL"
+    a_sl.orderId = 100
+    b_sl = MagicMock()
+    b_sl.orderRef = "IFDS_SDRL_B_SL"
+    b_sl.orderId = 101
+    a_tp = MagicMock()
+    a_tp.orderRef = "IFDS_SDRL_A_TP"
+    a_tp.orderId = 102
+    b_tp = MagicMock()
+    b_tp.orderRef = "IFDS_SDRL_B_TP"
+    b_tp.orderId = 103
     mock_ib.openOrders.return_value = [a_sl, b_sl, a_tp, b_tp]
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_last_price", return_value=44.20
-    ), patch.object(
-        mod, "get_scenario_b_hour_utc", return_value=17
-    ), patch(
-        "scripts.paper_trading.pt_monitor.datetime"
-    ) as mock_dt, patch.object(
-        mod, "send_telegram"
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_last_price", return_value=44.20),
+        patch.object(mod, "get_scenario_b_hour_utc", return_value=17),
+        patch("scripts.paper_trading.pt_monitor.datetime") as mock_dt,
+        patch.object(mod, "send_telegram"),
     ):
         mock_now = MagicMock()
         mock_now.hour = 18
@@ -333,20 +332,22 @@ def test_scenario_b_sl_orders_cancelled(tmp_path):
 
     mock_ib = MagicMock()
     mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
-    a_sl = MagicMock(); a_sl.orderRef = "IFDS_SDRL_A_SL"; a_sl.orderId = 100
-    b_sl = MagicMock(); b_sl.orderRef = "IFDS_SDRL_B_SL"; b_sl.orderId = 101
+    a_sl = MagicMock()
+    a_sl.orderRef = "IFDS_SDRL_A_SL"
+    a_sl.orderId = 100
+    b_sl = MagicMock()
+    b_sl.orderRef = "IFDS_SDRL_B_SL"
+    b_sl.orderId = 101
     mock_ib.openOrders.return_value = [a_sl, b_sl]
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_last_price", return_value=44.20
-    ), patch.object(
-        mod, "get_scenario_b_hour_utc", return_value=17
-    ), patch(
-        "scripts.paper_trading.pt_monitor.datetime"
-    ) as mock_dt, patch.object(
-        mod, "send_telegram"
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_last_price", return_value=44.20),
+        patch.object(mod, "get_scenario_b_hour_utc", return_value=17),
+        patch("scripts.paper_trading.pt_monitor.datetime") as mock_dt,
+        patch.object(mod, "send_telegram"),
     ):
         mock_now = MagicMock()
         mock_now.hour = 18
@@ -398,10 +399,11 @@ def test_scenario_b_trail_updates_upward(tmp_path):
 
     # sl_distance = 43.70 - 41.41 = 2.29
     # Price $45.00 -> new_sl = 45.00 - 2.29 = 42.71 > current 42.00
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "get_last_price", return_value=45.00), patch.object(
-        mod, "send_telegram"
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "get_last_price", return_value=45.00),
+        patch.object(mod, "send_telegram"),
     ):
         mod.main()
 
@@ -428,11 +430,12 @@ def test_scenario_b_trail_sl_not_lowered(tmp_path):
     mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     # Price $44.00 -> new_sl = 44.00 - 2.29 = 41.71 < current 42.71
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "get_last_price", return_value=44.00), patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "get_last_price", return_value=44.00),
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mod.main()
 
     state = mod.load_state(date.today().strftime("%Y-%m-%d"))
@@ -458,17 +461,15 @@ def test_scenario_b_loss_exit_at_minus_2_pct(tmp_path):
 
     # entry=43.70, threshold=43.70*0.98=42.826
     # Price $42.50 < 42.826 -> loss exit
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_last_price", return_value=42.50
-    ), patch.object(
-        mod, "get_scenario_b_hour_utc", return_value=17
-    ), patch(
-        "scripts.paper_trading.pt_monitor.datetime"
-    ) as mock_dt, patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_last_price", return_value=42.50),
+        patch.object(mod, "get_scenario_b_hour_utc", return_value=17),
+        patch("scripts.paper_trading.pt_monitor.datetime") as mock_dt,
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mock_now = MagicMock()
         mock_now.hour = 18
         mock_dt.now.return_value = mock_now
@@ -501,17 +502,15 @@ def test_scenario_b_no_action_between_thresholds(tmp_path):
 
     # entry=43.70, loss threshold=42.826, profit threshold=43.918
     # Price $43.00 is between thresholds -> no action
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_last_price", return_value=43.00
-    ), patch.object(
-        mod, "get_scenario_b_hour_utc", return_value=17
-    ), patch(
-        "scripts.paper_trading.pt_monitor.datetime"
-    ) as mock_dt, patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_last_price", return_value=43.00),
+        patch.object(mod, "get_scenario_b_hour_utc", return_value=17),
+        patch("scripts.paper_trading.pt_monitor.datetime") as mock_dt,
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mock_now = MagicMock()
         mock_now.hour = 18
         mock_dt.now.return_value = mock_now
@@ -533,22 +532,28 @@ def test_scenario_b_loss_exit_cancels_all_orders(tmp_path):
     mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
     mock_ib.managedAccounts.return_value = ["DUH118657"]
 
-    a_sl = MagicMock(); a_sl.orderRef = "IFDS_SDRL_A_SL"; a_sl.orderId = 100
-    b_sl = MagicMock(); b_sl.orderRef = "IFDS_SDRL_B_SL"; b_sl.orderId = 101
-    a_tp = MagicMock(); a_tp.orderRef = "IFDS_SDRL_A_TP"; a_tp.orderId = 102
-    b_tp = MagicMock(); b_tp.orderRef = "IFDS_SDRL_B_TP"; b_tp.orderId = 103
+    a_sl = MagicMock()
+    a_sl.orderRef = "IFDS_SDRL_A_SL"
+    a_sl.orderId = 100
+    b_sl = MagicMock()
+    b_sl.orderRef = "IFDS_SDRL_B_SL"
+    b_sl.orderId = 101
+    a_tp = MagicMock()
+    a_tp.orderRef = "IFDS_SDRL_A_TP"
+    a_tp.orderId = 102
+    b_tp = MagicMock()
+    b_tp.orderRef = "IFDS_SDRL_B_TP"
+    b_tp.orderId = 103
     mock_ib.openOrders.return_value = [a_sl, b_sl, a_tp, b_tp]
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_last_price", return_value=42.50
-    ), patch.object(
-        mod, "get_scenario_b_hour_utc", return_value=17
-    ), patch(
-        "scripts.paper_trading.pt_monitor.datetime"
-    ) as mock_dt, patch.object(
-        mod, "send_telegram"
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_last_price", return_value=42.50),
+        patch.object(mod, "get_scenario_b_hour_utc", return_value=17),
+        patch("scripts.paper_trading.pt_monitor.datetime") as mock_dt,
+        patch.object(mod, "send_telegram"),
     ):
         mock_now = MagicMock()
         mock_now.hour = 18
@@ -575,17 +580,15 @@ def test_scenario_b_loss_exit_at_exact_threshold(tmp_path):
     # entry=43.70, threshold=43.70*0.98=42.826
     # Price exactly $42.826 -> NOT below threshold
     threshold_price = round(43.70 * 0.98, 3)
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_last_price", return_value=threshold_price
-    ), patch.object(
-        mod, "get_scenario_b_hour_utc", return_value=17
-    ), patch(
-        "scripts.paper_trading.pt_monitor.datetime"
-    ) as mock_dt, patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_last_price", return_value=threshold_price),
+        patch.object(mod, "get_scenario_b_hour_utc", return_value=17),
+        patch("scripts.paper_trading.pt_monitor.datetime") as mock_dt,
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mock_now = MagicMock()
         mock_now.hour = 18
         mock_dt.now.return_value = mock_now
@@ -604,19 +607,16 @@ def test_scenario_b_profitable_path_unchanged(tmp_path):
     mock_ib.positions.return_value = [_mock_position("SDRL", 115)]
 
     # Price $44.20 > profit threshold $43.918 -> trail (not loss exit)
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_last_price", return_value=44.20
-    ), patch.object(
-        mod, "cancel_all_sl_orders", return_value=2
-    ), patch.object(
-        mod, "get_scenario_b_hour_utc", return_value=17
-    ), patch(
-        "scripts.paper_trading.pt_monitor.datetime"
-    ) as mock_dt, patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_last_price", return_value=44.20),
+        patch.object(mod, "cancel_all_sl_orders", return_value=2),
+        patch.object(mod, "get_scenario_b_hour_utc", return_value=17),
+        patch("scripts.paper_trading.pt_monitor.datetime") as mock_dt,
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mock_now = MagicMock()
         mock_now.hour = 18
         mock_dt.now.return_value = mock_now

@@ -83,14 +83,18 @@ def load_phase13_context(ctx: object, path: str = DEFAULT_PATH) -> bool:
         return False
 
     ctx.macro = _dict_to_macro(data["macro"]) if data.get("macro") else None
-    ctx.strategy_mode = StrategyMode(data["strategy_mode"]) if data.get("strategy_mode") else StrategyMode.LONG
+    ctx.strategy_mode = (
+        StrategyMode(data["strategy_mode"]) if data.get("strategy_mode") else StrategyMode.LONG
+    )
     ctx.bmi_regime = BMIRegime(data["bmi_regime"]) if data.get("bmi_regime") else None
     ctx.bmi_value = data.get("bmi_value")
     ctx.sector_bmi_values = data.get("sector_bmi_values", {})
     ctx.universe = [_dict_to_ticker(d) for d in data.get("universe", [])]
     ctx.sector_scores = [_dict_to_sector_score(d) for d in data.get("sector_scores", [])]
     ctx.vetoed_sectors = data.get("vetoed_sectors", [])
-    ctx.agg_benchmark = _dict_to_sector_score(data["agg_benchmark"]) if data.get("agg_benchmark") else None
+    ctx.agg_benchmark = (
+        _dict_to_sector_score(data["agg_benchmark"]) if data.get("agg_benchmark") else None
+    )
     ctx.uw_available = data.get("uw_available", False)
 
     return True
@@ -99,6 +103,7 @@ def load_phase13_context(ctx: object, path: str = DEFAULT_PATH) -> bool:
 # ------------------------------------------------------------------
 # Serialization helpers
 # ------------------------------------------------------------------
+
 
 def _macro_to_dict(m: MacroRegime) -> dict:
     return {

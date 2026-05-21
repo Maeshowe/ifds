@@ -10,6 +10,7 @@ Covers:
     intersects the screener result with the union membership set, swing
     fetch failure falls back to the raw screener.
 """
+
 from __future__ import annotations
 
 import json
@@ -27,7 +28,6 @@ from ifds.data.swing_universe import (
 )
 from ifds.events.logger import EventLogger
 from ifds.phases.phase2_universe import _screen_long_universe
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -100,22 +100,22 @@ class TestParser:
         # BRK.B / BRK-B both normalized to hyphen form
         html = (
             '<table class="wikitable" id="constituents">'
-            '<tr><th>Symbol</th></tr>'
-            '<tr><td>BRK.B</td></tr>'
-            '<tr><td>BF-A</td></tr>'
-            '</table>'
+            "<tr><th>Symbol</th></tr>"
+            "<tr><td>BRK.B</td></tr>"
+            "<tr><td>BF-A</td></tr>"
+            "</table>"
         )
         assert _parse_symbols(html) == ["BRK-B", "BF-A"]
 
     def test_filters_non_ticker_tokens(self):
         html = (
             '<table class="wikitable" id="constituents">'
-            '<tr><th>Symbol</th></tr>'
-            '<tr><td>AAPL</td></tr>'
-            '<tr><td>Not-A-Ticker-1234</td></tr>'
-            '<tr><td></td></tr>'
-            '<tr><td>MSFT</td></tr>'
-            '</table>'
+            "<tr><th>Symbol</th></tr>"
+            "<tr><td>AAPL</td></tr>"
+            "<tr><td>Not-A-Ticker-1234</td></tr>"
+            "<tr><td></td></tr>"
+            "<tr><td>MSFT</td></tr>"
+            "</table>"
         )
         assert _parse_symbols(html) == ["AAPL", "MSFT"]
 
@@ -128,10 +128,16 @@ class TestParser:
 class TestCacheLifecycle:
     def test_get_universe_writes_cache_on_first_call(self, tmp_path):
         source = SwingUniverseSource(cache_dir=tmp_path)
-        with patch("ifds.data.swing_universe.fetch_sp500_from_wikipedia",
-                   return_value=[f"X{i:04d}" for i in range(500)]), \
-             patch("ifds.data.swing_universe.fetch_russell1000_from_wikipedia",
-                   return_value=[f"X{i:04d}" for i in range(1000)]):
+        with (
+            patch(
+                "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+                return_value=[f"X{i:04d}" for i in range(500)],
+            ),
+            patch(
+                "ifds.data.swing_universe.fetch_russell1000_from_wikipedia",
+                return_value=[f"X{i:04d}" for i in range(1000)],
+            ),
+        ):
             symbols = source.get_universe()
         assert 950 <= len(symbols) <= 1100
         cache = json.loads((tmp_path / "universe.json").read_text())
@@ -154,26 +160,42 @@ class TestCacheLifecycle:
 
     def test_expired_cache_triggers_refetch(self, tmp_path):
         old_ts = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
-        (tmp_path / "universe.json").write_text(json.dumps({
-            "fetched_at": old_ts,
-            "count": 1000,
-            "symbols": [f"OLD{i:03d}" for i in range(1000)],
-        }))
+        (tmp_path / "universe.json").write_text(
+            json.dumps(
+                {
+                    "fetched_at": old_ts,
+                    "count": 1000,
+                    "symbols": [f"OLD{i:03d}" for i in range(1000)],
+                }
+            )
+        )
         source = SwingUniverseSource(cache_dir=tmp_path, cache_ttl_days=7)
-        with patch("ifds.data.swing_universe.fetch_sp500_from_wikipedia",
-                   return_value=[f"NEW{i:04d}" for i in range(500)]), \
-             patch("ifds.data.swing_universe.fetch_russell1000_from_wikipedia",
-                   return_value=[f"NEW{i:04d}" for i in range(1000)]):
+        with (
+            patch(
+                "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+                return_value=[f"NEW{i:04d}" for i in range(500)],
+            ),
+            patch(
+                "ifds.data.swing_universe.fetch_russell1000_from_wikipedia",
+                return_value=[f"NEW{i:04d}" for i in range(1000)],
+            ),
+        ):
             symbols = source.get_universe()
         assert symbols[0].startswith("NEW")  # not OLD
 
     def test_corrupt_cache_falls_through_to_fetch(self, tmp_path):
         (tmp_path / "universe.json").write_text("{ not valid json")
         source = SwingUniverseSource(cache_dir=tmp_path)
-        with patch("ifds.data.swing_universe.fetch_sp500_from_wikipedia",
-                   return_value=[f"X{i:04d}" for i in range(500)]), \
-             patch("ifds.data.swing_universe.fetch_russell1000_from_wikipedia",
-                   return_value=[f"X{i:04d}" for i in range(1000)]):
+        with (
+            patch(
+                "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+                return_value=[f"X{i:04d}" for i in range(500)],
+            ),
+            patch(
+                "ifds.data.swing_universe.fetch_russell1000_from_wikipedia",
+                return_value=[f"X{i:04d}" for i in range(1000)],
+            ),
+        ):
             symbols = source.get_universe()
         assert len(symbols) >= 950
 
@@ -195,15 +217,19 @@ class TestFailureModes:
             [{"symbol": f"X{i:04d}"} for i in range(500)],
             [{"symbol": f"X{i:04d}"} for i in range(1000)],
         ]
-        with patch("ifds.data.swing_universe.fetch_sp500_from_wikipedia",
-                   side_effect=RuntimeError("wiki down")):
+        with patch(
+            "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+            side_effect=RuntimeError("wiki down"),
+        ):
             symbols = source.get_universe(fmp_client=fmp)
         assert 950 <= len(symbols) <= 1100
 
     def test_wikipedia_fail_no_fmp_raises(self, tmp_path):
         source = SwingUniverseSource(cache_dir=tmp_path)
-        with patch("ifds.data.swing_universe.fetch_sp500_from_wikipedia",
-                   side_effect=RuntimeError("wiki down")):
+        with patch(
+            "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+            side_effect=RuntimeError("wiki down"),
+        ):
             with pytest.raises(RuntimeError, match="Wikipedia parse failed"):
                 source.get_universe(fmp_client=None)
 
@@ -237,11 +263,15 @@ class TestPhase2SwingIntegration:
         # Default `universe_source = "swing_sp500_r1000"` from defaults.py
         # Pre-warm a cache so the test does not hit the network.
         (tmp_path / "swing_universe").mkdir()
-        (tmp_path / "swing_universe" / "universe.json").write_text(json.dumps({
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
-            "count": 1000,
-            "symbols": ["AAPL", "MSFT"] + [f"X{i:04d}" for i in range(998)],
-        }))
+        (tmp_path / "swing_universe" / "universe.json").write_text(
+            json.dumps(
+                {
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "count": 1000,
+                    "symbols": ["AAPL", "MSFT"] + [f"X{i:04d}" for i in range(998)],
+                }
+            )
+        )
 
         fmp = MagicMock()
         # FMP returns AAPL, MSFT (in universe) + NOTINIDX (not in universe)
@@ -263,10 +293,13 @@ class TestPhase2SwingIntegration:
             self._make_fmp_dict("AAPL"),
             self._make_fmp_dict("NOTINIDX"),
         ]
-        with patch("ifds.data.swing_universe.fetch_sp500_from_wikipedia",
-                   side_effect=RuntimeError("wiki down")), \
-             patch("ifds.data.swing_universe.fetch_from_fmp_fallback",
-                   return_value=None):
+        with (
+            patch(
+                "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+                side_effect=RuntimeError("wiki down"),
+            ),
+            patch("ifds.data.swing_universe.fetch_from_fmp_fallback", return_value=None),
+        ):
             result = _screen_long_universe(fmp, config, logger)
         # Fallback to raw screener — both tickers pass
         assert {t.symbol for t in result} == {"AAPL", "NOTINIDX"}

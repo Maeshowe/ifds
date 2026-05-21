@@ -1,14 +1,23 @@
 """Tests for weekly_metrics.py — aggregation logic."""
+
 import json
 from pathlib import Path
 
 import pytest
 
 
-def _make_daily(date_str: str, pnl: float = 0.0, positions: int = 3,
-                commission: float = 15.0, spy_pct: float = 0.0,
-                tp1: int = 0, sl: int = 0, moc: int = 3,
-                loss_exit: int = 0, trail: int = 0) -> dict:
+def _make_daily(
+    date_str: str,
+    pnl: float = 0.0,
+    positions: int = 3,
+    commission: float = 15.0,
+    spy_pct: float = 0.0,
+    tp1: int = 0,
+    sl: int = 0,
+    moc: int = 3,
+    loss_exit: int = 0,
+    trail: int = 0,
+) -> dict:
     """Build a minimal daily metrics JSON matching the real schema."""
     return {
         "date": date_str,
@@ -34,8 +43,12 @@ def _make_daily(date_str: str, pnl: float = 0.0, positions: int = 3,
             "commission_total": commission,
         },
         "exits": {
-            "tp1": tp1, "tp2": 0, "sl": sl,
-            "loss_exit": loss_exit, "trail": trail, "moc": moc,
+            "tp1": tp1,
+            "tp2": 0,
+            "sl": sl,
+            "loss_exit": loss_exit,
+            "trail": trail,
+            "moc": moc,
         },
         "pnl": {
             "gross": pnl,
@@ -50,12 +63,41 @@ def _make_daily(date_str: str, pnl: float = 0.0, positions: int = 3,
             "excess_pct": pnl / 100_000 * 100 - spy_pct,
         },
         "trades": {
-            "best": {"ticker": "AAPL", "pnl": abs(pnl) / 2, "pnl_pct": 0.5, "exit_type": "TP1"} if pnl > 0 else None,
-            "worst": {"ticker": "MSFT", "pnl": -abs(pnl) / 2, "pnl_pct": -0.5, "exit_type": "SL"} if pnl < 0 else None,
+            "best": (
+                {"ticker": "AAPL", "pnl": abs(pnl) / 2, "pnl_pct": 0.5, "exit_type": "TP1"}
+                if pnl > 0
+                else None
+            ),
+            "worst": (
+                {"ticker": "MSFT", "pnl": -abs(pnl) / 2, "pnl_pct": -0.5, "exit_type": "SL"}
+                if pnl < 0
+                else None
+            ),
             "details": [
-                {"ticker": "AAPL", "score": 91.0, "entry": 150.0, "exit": 152.0, "pnl": pnl / 3, "exit_type": "TP1"},
-                {"ticker": "MSFT", "score": 92.0, "entry": 300.0, "exit": 298.0, "pnl": pnl / 3, "exit_type": "MOC"},
-                {"ticker": "GOOG", "score": 90.0, "entry": 170.0, "exit": 169.0, "pnl": pnl / 3, "exit_type": "MOC"},
+                {
+                    "ticker": "AAPL",
+                    "score": 91.0,
+                    "entry": 150.0,
+                    "exit": 152.0,
+                    "pnl": pnl / 3,
+                    "exit_type": "TP1",
+                },
+                {
+                    "ticker": "MSFT",
+                    "score": 92.0,
+                    "entry": 300.0,
+                    "exit": 298.0,
+                    "pnl": pnl / 3,
+                    "exit_type": "MOC",
+                },
+                {
+                    "ticker": "GOOG",
+                    "score": 90.0,
+                    "entry": 170.0,
+                    "exit": 169.0,
+                    "pnl": pnl / 3,
+                    "exit_type": "MOC",
+                },
             ],
         },
     }
@@ -82,6 +124,7 @@ class TestWeeklyAggregation:
             _write_daily(tmp_path, d)
 
         from datetime import date
+
         days = _load_week_metrics(date(2026, 4, 14))
         assert len(days) == 5
 
@@ -97,6 +140,7 @@ class TestWeeklyAggregation:
         monkeypatch.setattr("scripts.analysis.weekly_metrics.METRICS_DIR", tmp_path)
 
         from datetime import date
+
         days = _load_week_metrics(date(2026, 4, 14))
         assert days == []
 
@@ -111,6 +155,7 @@ class TestWeeklyAggregation:
             _write_daily(tmp_path, d)
 
         from datetime import date
+
         days = _load_week_metrics(date(2026, 4, 14))
         assert len(days) == 3
 

@@ -33,15 +33,17 @@ def load_all_snapshots():
 
 
 def aggregate(snaps):
-    stats = defaultdict(lambda: {
-        "days_seen": 0,
-        "sector": None,
-        "dp_days": 0,
-        "dp_pct_values": [],
-        "block_counts": [],
-        "pcr_days": 0,
-        "combined_scores": [],
-    })
+    stats = defaultdict(
+        lambda: {
+            "days_seen": 0,
+            "sector": None,
+            "dp_days": 0,
+            "dp_pct_values": [],
+            "block_counts": [],
+            "pcr_days": 0,
+            "combined_scores": [],
+        }
+    )
     for _, records in snaps:
         for r in records:
             t = r["ticker"]
@@ -91,8 +93,18 @@ def main():
     print(f"\n=== Persistence (days seen out of {total_days}) ===")
     bins = [1, 3, 5, 10, 15, 20, 25, 30, 35, total_days]
     bin_counts = bucket_counts(persistence, bins)
-    labels = ["1 day", "2-3", "4-5", "6-10", "11-15", "16-20", "21-25",
-              "26-30", "31-35", f"36-{total_days}"]
+    labels = [
+        "1 day",
+        "2-3",
+        "4-5",
+        "6-10",
+        "11-15",
+        "16-20",
+        "21-25",
+        "26-30",
+        "31-35",
+        f"36-{total_days}",
+    ]
     for lbl, c in zip(labels, bin_counts):
         pct = c / total_tickers * 100
         bar = "█" * int(pct / 2)
@@ -132,30 +144,39 @@ def main():
         scored.append((score, t, s, dp_c, opt_c))
     scored.sort(reverse=True)
 
-    print(f"  {'Ticker':>6}  {'Sector':<18}  {'Days':>4}  {'DP%':>5}  {'Opt%':>5}  {'AvgDP':>5}  {'AvgBlocks':>9}")
+    print(
+        f"  {'Ticker':>6}  {'Sector':<18}  {'Days':>4}  {'DP%':>5}  {'Opt%':>5}  {'AvgDP':>5}  {'AvgBlocks':>9}"
+    )
     for score, t, s, dp_c, opt_c in scored[:30]:
         avg_dp = statistics.mean(s["dp_pct_values"]) if s["dp_pct_values"] else 0
         avg_blk = statistics.mean(s["block_counts"]) if s["block_counts"] else 0
         sector = (s["sector"] or "?")[:18]
-        print(f"  {t:>6}  {sector:<18}  {s['days_seen']:>4}  "
-              f"{dp_c*100:>4.0f}%  {opt_c*100:>4.0f}%  {avg_dp:>4.0f}%  {avg_blk:>9.1f}")
+        print(
+            f"  {t:>6}  {sector:<18}  {s['days_seen']:>4}  "
+            f"{dp_c*100:>4.0f}%  {opt_c*100:>4.0f}%  {avg_dp:>4.0f}%  {avg_blk:>9.1f}"
+        )
 
     # Write markdown
     OUTPUT_MD.parent.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_MD, "w", encoding="utf-8") as f:
         f.write("# Ticker Universe Liquidity Audit v2 (Distribution-first)\n\n")
-        f.write(f"**Dataset:** {total_days} Phase 4 snapshots "
-                f"({snaps[0][0]} → {snaps[-1][0]}), ")
+        f.write(
+            f"**Dataset:** {total_days} Phase 4 snapshots " f"({snaps[0][0]} → {snaps[-1][0]}), "
+        )
         f.write(f"{sum(len(r) for _, r in snaps)} total records, ")
         f.write(f"{total_tickers} unique tickers.\n\n")
-        f.write(f"**Average passes per ticker:** "
-                f"{sum(len(r) for _, r in snaps) / total_tickers:.1f} "
-                f"(out of {total_days} possible days)\n\n")
+        f.write(
+            f"**Average passes per ticker:** "
+            f"{sum(len(r) for _, r in snaps) / total_tickers:.1f} "
+            f"(out of {total_days} possible days)\n\n"
+        )
 
         f.write("## Key finding\n\n")
-        f.write("The Phase 4 ticker universe is **highly rotational**: most tickers "
-                "appear only on a few days, not consistently across weeks. "
-                "This alone is worth discussing for the scoring design.\n\n")
+        f.write(
+            "The Phase 4 ticker universe is **highly rotational**: most tickers "
+            "appear only on a few days, not consistently across weeks. "
+            "This alone is worth discussing for the scoring design.\n\n"
+        )
 
         f.write("## Persistence histogram (days seen out of {})\n\n".format(total_days))
         f.write("| Days seen | Ticker count | % of universe |\n|---|---|---|\n")
@@ -163,8 +184,10 @@ def main():
             pct = c / total_tickers * 100
             f.write(f"| {lbl} | {c} | {pct:.1f}% |\n")
 
-        f.write("\n## DP Coverage — among persistent tickers (≥10 days seen, "
-                f"{len(persistent)} total)\n\n")
+        f.write(
+            "\n## DP Coverage — among persistent tickers (≥10 days seen, "
+            f"{len(persistent)} total)\n\n"
+        )
         f.write("| DP coverage bucket | Ticker count | % |\n|---|---|---|\n")
         counts = bucket_counts(dp_cov, cov_bins)
         for lbl, c in zip(cov_labels, counts):
@@ -179,33 +202,60 @@ def main():
             f.write(f"| {lbl} | {c} | {pct:.1f}% |\n")
 
         f.write("\n## Top 50 institutional-data tickers\n\n")
-        f.write("Ranked by `days_seen × dp_coverage × opt_coverage`. "
-                "These are the tickers where the Phase 4 pipeline "
-                "consistently produces both dark pool and options data.\n\n")
+        f.write(
+            "Ranked by `days_seen × dp_coverage × opt_coverage`. "
+            "These are the tickers where the Phase 4 pipeline "
+            "consistently produces both dark pool and options data.\n\n"
+        )
         f.write("| # | Ticker | Sector | Days | DP% | Opt% | Avg DP | Avg Blocks | Avg Score |\n")
         f.write("|---|--------|--------|------|-----|------|--------|------------|-----------|\n")
         for i, (score, t, s, dp_c, opt_c) in enumerate(scored[:50], 1):
             avg_dp = statistics.mean(s["dp_pct_values"]) if s["dp_pct_values"] else 0
             avg_blk = statistics.mean(s["block_counts"]) if s["block_counts"] else 0
             avg_cs = statistics.mean(s["combined_scores"]) if s["combined_scores"] else 0
-            f.write(f"| {i} | {t} | {s['sector']} | {s['days_seen']} | "
-                    f"{dp_c*100:.0f}% | {opt_c*100:.0f}% | "
-                    f"{avg_dp:.0f}% | {avg_blk:.1f} | {avg_cs:.1f} |\n")
+            f.write(
+                f"| {i} | {t} | {s['sector']} | {s['days_seen']} | "
+                f"{dp_c*100:.0f}% | {opt_c*100:.0f}% | "
+                f"{avg_dp:.0f}% | {avg_blk:.1f} | {avg_cs:.1f} |\n"
+            )
 
     # CSV
     with open(OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
-        w.writerow(["ticker", "sector", "days_seen", "dp_days", "dp_coverage",
-                    "pcr_days", "opt_coverage", "avg_dp_pct", "avg_block_count",
-                    "avg_combined_score", "composite_score"])
+        w.writerow(
+            [
+                "ticker",
+                "sector",
+                "days_seen",
+                "dp_days",
+                "dp_coverage",
+                "pcr_days",
+                "opt_coverage",
+                "avg_dp_pct",
+                "avg_block_count",
+                "avg_combined_score",
+                "composite_score",
+            ]
+        )
         for score, t, s, dp_c, opt_c in scored:
             avg_dp = statistics.mean(s["dp_pct_values"]) if s["dp_pct_values"] else 0
             avg_blk = statistics.mean(s["block_counts"]) if s["block_counts"] else 0
             avg_cs = statistics.mean(s["combined_scores"]) if s["combined_scores"] else 0
-            w.writerow([t, s["sector"], s["days_seen"], s["dp_days"],
-                        f"{dp_c:.3f}", s["pcr_days"], f"{opt_c:.3f}",
-                        f"{avg_dp:.2f}", f"{avg_blk:.1f}", f"{avg_cs:.1f}",
-                        f"{score:.2f}"])
+            w.writerow(
+                [
+                    t,
+                    s["sector"],
+                    s["days_seen"],
+                    s["dp_days"],
+                    f"{dp_c:.3f}",
+                    s["pcr_days"],
+                    f"{opt_c:.3f}",
+                    f"{avg_dp:.2f}",
+                    f"{avg_blk:.1f}",
+                    f"{avg_cs:.1f}",
+                    f"{score:.2f}",
+                ]
+            )
 
     print(f"\nReport: {OUTPUT_MD}")
     print(f"CSV:    {OUTPUT_CSV}")

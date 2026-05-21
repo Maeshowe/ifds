@@ -23,13 +23,13 @@ Module surface:
 * `load_shadow_snapshot`: reads a snapshot back (used by daily_metrics
   and for Day 90 retrospective audit scripts).
 """
+
 from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
 
 # ---------------------------------------------------------------------------
 # Pure helpers — duplicate the active scoring rules so the shadow snapshot
@@ -189,9 +189,7 @@ def summarize_shadow_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
         }
 
     dp_pcts = [t.get("dp_pct", 0.0) for t in tickers.values()]
-    penalty_count = sum(
-        1 for t in tickers.values() if (t.get("dp_score_would_have_been") or 0) < 0
-    )
+    penalty_count = sum(1 for t in tickers.values() if (t.get("dp_score_would_have_been") or 0) < 0)
 
     regime_dist: dict[str, int] = {}
     for t in tickers.values():

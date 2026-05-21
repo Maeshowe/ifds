@@ -17,6 +17,7 @@ Usage:
     python scripts/analysis/flow_decomposition.py
     python scripts/analysis/flow_decomposition.py --since 2026-04-13  # BC23 only
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,8 +39,10 @@ try:
     import numpy as np
     from scipy import stats
 except ImportError as e:
-    print(f"ERROR: missing analysis dependency ({e}). "
-          f"pip install matplotlib scipy numpy", file=sys.stderr)
+    print(
+        f"ERROR: missing analysis dependency ({e}). " f"pip install matplotlib scipy numpy",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -78,13 +81,15 @@ def load_trades(since: str | None = None) -> list[TradeJoin]:
                 if since and row["date"] < since:
                     continue
                 try:
-                    out.append(TradeJoin(
-                        date=row["date"],
-                        ticker=row["ticker"],
-                        pnl=float(row["pnl"]),
-                        pnl_pct=float(row["pnl_pct"]),
-                        exit_type=row["exit_type"],
-                    ))
+                    out.append(
+                        TradeJoin(
+                            date=row["date"],
+                            ticker=row["ticker"],
+                            pnl=float(row["pnl"]),
+                            pnl_pct=float(row["pnl_pct"]),
+                            exit_type=row["exit_type"],
+                        )
+                    )
                 except (KeyError, ValueError):
                     continue
     return out
@@ -123,8 +128,9 @@ def load_snapshot_components() -> dict[tuple[str, str], dict[str, float]]:
     return out
 
 
-def enrich_trades(trades: list[TradeJoin],
-                  snapshots: dict[tuple[str, str], dict[str, float]]) -> int:
+def enrich_trades(
+    trades: list[TradeJoin], snapshots: dict[tuple[str, str], dict[str, float]]
+) -> int:
     enriched = 0
     for t in trades:
         comps = snapshots.get((t.date, t.ticker))
@@ -164,13 +170,15 @@ def quintile_stats(trades: list[TradeJoin], component: str) -> list[dict]:
             continue
         pnls = [t.pnl for t in bucket]
         wins = sum(1 for t in bucket if t.pnl > 0)
-        out.append({
-            "quintile": q + 1,
-            "range": f"{bucket[0].components[component]:.1f}–{bucket[-1].components[component]:.1f}",
-            "n": len(bucket),
-            "avg_pnl": mean(pnls),
-            "win_rate": wins / len(bucket) * 100,
-        })
+        out.append(
+            {
+                "quintile": q + 1,
+                "range": f"{bucket[0].components[component]:.1f}–{bucket[-1].components[component]:.1f}",
+                "n": len(bucket),
+                "avg_pnl": mean(pnls),
+                "win_rate": wins / len(bucket) * 100,
+            }
+        )
     return out
 
 
@@ -189,8 +197,7 @@ def md_table(headers: list[str], rows: list[list[str]]) -> str:
     return "\n".join(lines)
 
 
-def plot_component_scatter(trades: list[TradeJoin], component: str,
-                           out_path: Path) -> None:
+def plot_component_scatter(trades: list[TradeJoin], component: str, out_path: Path) -> None:
     valid = [t for t in trades if component in t.components]
     if len(valid) < 3:
         return
@@ -203,8 +210,7 @@ def plot_component_scatter(trades: list[TradeJoin], component: str,
     if len(set(xs)) >= 2:
         coeffs = np.polyfit(xs, ys, 1)
         xfit = np.linspace(min(xs), max(xs), 100)
-        ax.plot(xfit, np.polyval(coeffs, xfit), "r--", linewidth=1,
-                label=f"slope={coeffs[0]:.2f}")
+        ax.plot(xfit, np.polyval(coeffs, xfit), "r--", linewidth=1, label=f"slope={coeffs[0]:.2f}")
         ax.legend()
     ax.set_xlabel(component)
     ax.set_ylabel("P&L ($)")
@@ -215,17 +221,17 @@ def plot_component_scatter(trades: list[TradeJoin], component: str,
     plt.close(fig)
 
 
-def generate_report(trades: list[TradeJoin], enriched: int,
-                    since: str | None) -> str:
+def generate_report(trades: list[TradeJoin], enriched: int, since: str | None) -> str:
     lines: list[str] = []
     lines.append("# IFDS Flow Sub-Component Decomposition")
     lines.append("")
     scope = f"since {since}" if since else "all available history"
-    lines.append(f"Scope: {scope} | Trades: {len(trades)} | "
-                 f"Enriched with snapshot: {enriched}")
+    lines.append(f"Scope: {scope} | Trades: {len(trades)} | " f"Enriched with snapshot: {enriched}")
     lines.append("")
-    lines.append("Each flow sub-component is correlated against realized P&L "
-                 "to identify which ones actually predict outcomes.")
+    lines.append(
+        "Each flow sub-component is correlated against realized P&L "
+        "to identify which ones actually predict outcomes."
+    )
     lines.append("")
     lines.append("Significance: `*` = p<0.05, `**` = p<0.01")
     lines.append("")
@@ -250,14 +256,21 @@ def generate_report(trades: list[TradeJoin], enriched: int,
         pr = pearson(xs, ys)
         sr = spearman(xs, ys)
         mean_x = mean(xs)
-        corr_rows.append([
-            c, str(len(valid)), fmt_corr(*pr), fmt_corr(*sr),
-            f"{mean_x:.2f}",
-        ])
-    lines.append(md_table(
-        ["Component", "N", "Pearson", "Spearman", "Avg score"],
-        corr_rows,
-    ))
+        corr_rows.append(
+            [
+                c,
+                str(len(valid)),
+                fmt_corr(*pr),
+                fmt_corr(*sr),
+                f"{mean_x:.2f}",
+            ]
+        )
+    lines.append(
+        md_table(
+            ["Component", "N", "Pearson", "Spearman", "Avg score"],
+            corr_rows,
+        )
+    )
     lines.append("")
 
     # --- Quintile analysis per component ---
@@ -270,14 +283,21 @@ def generate_report(trades: list[TradeJoin], enriched: int,
         lines.append(f"### {c}")
         lines.append("")
         rows = [
-            [f"Q{q['quintile']}", q["range"], str(q["n"]),
-             f"${q['avg_pnl']:+,.2f}", f"{q['win_rate']:.0f}%"]
+            [
+                f"Q{q['quintile']}",
+                q["range"],
+                str(q["n"]),
+                f"${q['avg_pnl']:+,.2f}",
+                f"{q['win_rate']:.0f}%",
+            ]
             for q in qs
         ]
-        lines.append(md_table(
-            ["Quintile", "Range", "N", "Avg P&L", "Win rate"],
-            rows,
-        ))
+        lines.append(
+            md_table(
+                ["Quintile", "Range", "N", "Avg P&L", "Win rate"],
+                rows,
+            )
+        )
         lines.append("")
         if qs:
             spread = qs[-1]["avg_pnl"] - qs[0]["avg_pnl"]
@@ -308,15 +328,15 @@ def generate_report(trades: list[TradeJoin], enriched: int,
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Flow sub-component decomposition analysis"
-    )
+    parser = argparse.ArgumentParser(description="Flow sub-component decomposition analysis")
     parser.add_argument(
-        "--since", metavar="YYYY-MM-DD",
+        "--since",
+        metavar="YYYY-MM-DD",
         help="Filter trades to date >= value",
     )
     parser.add_argument(
-        "--output", default="flow-decomposition.md",
+        "--output",
+        default="flow-decomposition.md",
         help="Output filename (relative to docs/analysis/)",
     )
     args = parser.parse_args()

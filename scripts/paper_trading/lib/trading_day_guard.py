@@ -24,6 +24,7 @@ def check_trading_day(logger=None) -> None:
         return  # Package not available — skip guard
 
     from datetime import date
+
     today = date.today()
 
     if not is_nyse_trading_day(today):

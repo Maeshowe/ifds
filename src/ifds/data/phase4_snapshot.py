@@ -12,8 +12,9 @@ from datetime import date
 from pathlib import Path
 
 
-def save_phase4_snapshot(passed_analyses: list,
-                         snapshot_dir: str = "state/phase4_snapshots") -> Path:
+def save_phase4_snapshot(
+    passed_analyses: list, snapshot_dir: str = "state/phase4_snapshots"
+) -> Path:
     """Save Phase 4 passed ticker data as daily snapshot.
 
     Args:
@@ -51,8 +52,7 @@ def save_phase4_snapshot(passed_analyses: list,
     return file_path
 
 
-def load_phase4_snapshot(date_str: str,
-                         snapshot_dir: str = "state/phase4_snapshots") -> list[dict]:
+def load_phase4_snapshot(date_str: str, snapshot_dir: str = "state/phase4_snapshots") -> list[dict]:
     """Load a single day's snapshot for re-scoring.
 
     Args:

@@ -44,8 +44,9 @@ class FileCache:
         except (json.JSONDecodeError, OSError):
             return None
 
-    def put(self, provider: str, endpoint: str, date_str: str, symbol: str,
-            data: dict | list | None) -> None:
+    def put(
+        self, provider: str, endpoint: str, date_str: str, symbol: str, data: dict | list | None
+    ) -> None:
         """Write data to cache. No-op if data is None or date is today."""
         if data is None:
             return

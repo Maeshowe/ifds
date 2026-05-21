@@ -41,12 +41,14 @@ class TestAsyncBaseClientRetry:
     async def test_retry_on_500_then_success(self):
         """Retry on 5xx, succeed on 2nd attempt."""
         client, mock_session = _setup_client(max_retries=3)
-        mock_session.get = MagicMock(side_effect=[
-            _make_response(500),
-            _make_response(200, {"ok": True}),
-        ])
+        mock_session.get = MagicMock(
+            side_effect=[
+                _make_response(500),
+                _make_response(200, {"ok": True}),
+            ]
+        )
 
-        with patch('asyncio.sleep', new_callable=AsyncMock):
+        with patch("asyncio.sleep", new_callable=AsyncMock):
             result = await client._get("/test")
         assert result == {"ok": True}
 
@@ -64,12 +66,14 @@ class TestAsyncBaseClientRetry:
     async def test_retry_on_429_rate_limit(self):
         """429 rate limit triggers retry."""
         client, mock_session = _setup_client(max_retries=3)
-        mock_session.get = MagicMock(side_effect=[
-            _make_response(429),
-            _make_response(200, {"data": "ok"}),
-        ])
+        mock_session.get = MagicMock(
+            side_effect=[
+                _make_response(429),
+                _make_response(200, {"data": "ok"}),
+            ]
+        )
 
-        with patch('asyncio.sleep', new_callable=AsyncMock):
+        with patch("asyncio.sleep", new_callable=AsyncMock):
             result = await client._get("/test")
         assert result == {"data": "ok"}
 
@@ -77,11 +81,9 @@ class TestAsyncBaseClientRetry:
     async def test_all_retries_exhausted_returns_none(self):
         """All retries fail → None, no exception."""
         client, mock_session = _setup_client(max_retries=2)
-        mock_session.get = MagicMock(
-            side_effect=aiohttp.ClientConnectionError("refused")
-        )
+        mock_session.get = MagicMock(side_effect=aiohttp.ClientConnectionError("refused"))
 
-        with patch('asyncio.sleep', new_callable=AsyncMock):
+        with patch("asyncio.sleep", new_callable=AsyncMock):
             result = await client._get("/test")
         assert result is None
 
@@ -91,7 +93,7 @@ class TestAsyncBaseClientRetry:
         client, mock_session = _setup_client(max_retries=2)
         mock_session.get = MagicMock(side_effect=asyncio.TimeoutError())
 
-        with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             result = await client._get("/test")
         assert result is None
         assert mock_sleep.call_count == 1

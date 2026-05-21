@@ -56,8 +56,7 @@ class TestIsWitchingDay:
         assert is_witching_day(date(2026, 3, 13)) is False
 
     def test_all_2026_witching_days(self):
-        for d in [date(2026, 3, 20), date(2026, 6, 19),
-                  date(2026, 9, 18), date(2026, 12, 18)]:
+        for d in [date(2026, 3, 20), date(2026, 6, 19), date(2026, 9, 18), date(2026, 12, 18)]:
             assert is_witching_day(d) is True, f"{d} should be a witching day"
 
     def test_default_date_none(self):

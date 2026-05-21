@@ -23,6 +23,7 @@ State file: scripts/paper_trading/logs/monitor_state_YYYY-MM-DD.json
 Usage:
     python scripts/paper_trading/pt_monitor.py
 """
+
 import json
 import os
 from datetime import date, datetime, timedelta, timezone
@@ -34,14 +35,19 @@ load_dotenv()
 
 try:
     from lib.log_setup import setup_pt_logger
+
     logger = setup_pt_logger("monitor")
 except ModuleNotFoundError:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
-    logger = logging.getLogger('monitor')
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    )
+    logger = logging.getLogger("monitor")
 
 try:
     from lib.event_logger import PTEventLogger
+
     evt = PTEventLogger()
 except ModuleNotFoundError:
     evt = None
@@ -53,6 +59,7 @@ def send_telegram(message: str) -> None:
     """Send message via Telegram Bot API with CET timestamp header."""
     from lib.telegram_helper import telegram_header
     from lib.telegram_helper import send_telegram as _send
+
     _send(f"{telegram_header('MONITOR')}\n{message}")
 
 
@@ -264,7 +271,8 @@ def run_eod_eval() -> None:
 
     cfg = Config()
     state_file = cfg.tuning.get(
-        "swing_positions_state_file", "state/swing_positions.json",
+        "swing_positions_state_file",
+        "state/swing_positions.json",
     )
     positions = load_swing_positions(state_file)
     if not positions:
@@ -272,7 +280,8 @@ def run_eod_eval() -> None:
         return
 
     api_key = cfg.runtime.get("polygon_api_key") or os.environ.get(
-        "IFDS_POLYGON_API_KEY", "",
+        "IFDS_POLYGON_API_KEY",
+        "",
     )
     if not api_key:
         logger.error("[SWING EOD] No POLYGON API key — cannot fetch today's bars.")
@@ -290,12 +299,14 @@ def run_eod_eval() -> None:
 
     equity = float(cfg.runtime.get("account_equity", 100_000.0))
     updated, exits = evaluate_all_positions(
-        positions, ohlc_map, date.today(), config=cfg.tuning, equity=equity,
+        positions,
+        ohlc_map,
+        date.today(),
+        config=cfg.tuning,
+        equity=equity,
     )
     save_swing_positions(state_file, updated)
-    logger.info(
-        f"[SWING EOD] Evaluated {len(positions)} positions — {len(exits)} exit flags set"
-    )
+    logger.info(f"[SWING EOD] Evaluated {len(positions)} positions — {len(exits)} exit flags set")
     for ticker, action in exits:
         logger.info(f"  {ticker}: {action}")
         if evt:
@@ -313,9 +324,13 @@ def run_eod_eval() -> None:
             spy_bar = fetch_today_ohlc_polygon("SPY", today_iso, poly)
             if spy_bar:
                 spy_close = spy_bar["close"]
-                spy_prev_bars = poly.get_aggregates("SPY",
+                spy_prev_bars = poly.get_aggregates(
+                    "SPY",
                     (date.today() - timedelta(days=10)).isoformat(),
-                    (date.today() - timedelta(days=1)).isoformat(), "day", 1)
+                    (date.today() - timedelta(days=1)).isoformat(),
+                    "day",
+                    1,
+                )
                 if spy_prev_bars:
                     prev_close = float(spy_prev_bars[-1].get("c", 0.0))
                     if prev_close > 0:
@@ -327,9 +342,13 @@ def run_eod_eval() -> None:
             vix_bars = poly.get_aggregates("I:VIX", today_iso, today_iso, "day", 1)
             if vix_bars:
                 market["vix_close"] = float(vix_bars[-1].get("c", 0.0))
-                vix_prev = poly.get_aggregates("I:VIX",
+                vix_prev = poly.get_aggregates(
+                    "I:VIX",
                     (date.today() - timedelta(days=10)).isoformat(),
-                    (date.today() - timedelta(days=1)).isoformat(), "day", 1)
+                    (date.today() - timedelta(days=1)).isoformat(),
+                    "day",
+                    1,
+                )
                 if vix_prev and market["vix_close"]:
                     prev_v = float(vix_prev[-1].get("c", 0.0))
                     if prev_v > 0:
@@ -339,8 +358,12 @@ def run_eod_eval() -> None:
 
         max_hold = int(cfg.tuning.get("swing_time_stop_trading_days", 5))
         tg_body = format_pt_monitor_eod_telegram(
-            updated, ohlc_map, exits, date.today(),
-            equity=equity, max_hold_days=max_hold,
+            updated,
+            ohlc_map,
+            exits,
+            date.today(),
+            equity=equity,
+            max_hold_days=max_hold,
             market=market or None,
         )
         send_telegram(tg_body)
@@ -355,9 +378,12 @@ def run_eod_eval() -> None:
 
 def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser(description="IFDS Paper Trading Monitor")
     parser.add_argument(
-        "--mode", choices=["scenario_a", "eod_eval"], default="scenario_a",
+        "--mode",
+        choices=["scenario_a", "eod_eval"],
+        default="scenario_a",
         help="scenario_a: legacy 5-min trail loop | eod_eval: Task #4 daily EOD eval",
     )
     args, _ = parser.parse_known_args()
@@ -368,6 +394,7 @@ def main() -> None:
 
     try:
         from lib.trading_day_guard import check_trading_day
+
         check_trading_day(logger)
     except ModuleNotFoundError:
         pass
@@ -423,13 +450,10 @@ def main() -> None:
 
         if new_phantoms:
             logger.warning(
-                f"Phantom tickers filtered out (no IBKR position): "
-                f"{sorted(new_phantoms)}"
+                f"Phantom tickers filtered out (no IBKR position): " f"{sorted(new_phantoms)}"
             )
             if evt:
-                evt.log(
-                    "monitor", "phantom_filtered", tickers=sorted(new_phantoms)
-                )
+                evt.log("monitor", "phantom_filtered", tickers=sorted(new_phantoms))
             try:
                 with open(phantom_log_path, "w") as f:
                     json.dump(sorted(already_logged | new_phantoms), f)
@@ -437,10 +461,7 @@ def main() -> None:
                 logger.warning(f"Could not persist phantom_logged file: {e}")
 
         if repeat_phantoms:
-            logger.debug(
-                f"Phantom tickers (already warned today): "
-                f"{sorted(repeat_phantoms)}"
-            )
+            logger.debug(f"Phantom tickers (already warned today): " f"{sorted(repeat_phantoms)}")
     if not active_tickers:
         logger.debug("All candidate tickers are phantom — nothing to monitor.")
         disconnect(ib)
@@ -464,9 +485,7 @@ def main() -> None:
 
                 current_price = get_last_price(ib, sym)
                 if current_price is None:
-                    logger.warning(
-                        f"{sym}: Cannot get price for trail init — skipping"
-                    )
+                    logger.warning(f"{sym}: Cannot get price for trail init — skipping")
                     continue
 
                 # Cancel Bracket B SL, keep TP2 limit
@@ -489,9 +508,13 @@ def main() -> None:
                 send_telegram(msg)
                 if evt:
                     evt.log(
-                        "monitor", "trail_activated_a", ticker=sym,
-                        trail_sl=initial_sl, price=current_price,
-                        entry_price=s["entry_price"], qty=s.get("qty_b"),
+                        "monitor",
+                        "trail_activated_a",
+                        ticker=sym,
+                        trail_sl=initial_sl,
+                        price=current_price,
+                        entry_price=s["entry_price"],
+                        qty=s.get("qty_b"),
                     )
 
                 # Scenario A active -> Scenario B no longer needed
@@ -507,6 +530,7 @@ def main() -> None:
             # Early close: Scenario B 1h before close (12:00 ET = 16:00 UTC)
             try:
                 from ifds.utils.calendar import is_early_close
+
                 if is_early_close():
                     scenario_b_hour = 16  # 12:00 ET = 16:00 UTC
                 else:
@@ -517,9 +541,7 @@ def main() -> None:
             if now_utc.hour >= scenario_b_hour:
                 current_price = get_last_price(ib, sym)
                 if current_price is None:
-                    logger.warning(
-                        f"{sym}: Cannot get price for Scenario B check"
-                    )
+                    logger.warning(f"{sym}: Cannot get price for Scenario B check")
                     continue
 
                 threshold = s["entry_price"] * 1.005
@@ -546,9 +568,13 @@ def main() -> None:
                     send_telegram(msg)
                     if evt:
                         evt.log(
-                            "monitor", "trail_activated_b", ticker=sym,
-                            trail_sl=trail_sl, price=current_price,
-                            entry_price=s["entry_price"], qty=s["total_qty"],
+                            "monitor",
+                            "trail_activated_b",
+                            ticker=sym,
+                            trail_sl=trail_sl,
+                            price=current_price,
+                            entry_price=s["entry_price"],
+                            qty=s["total_qty"],
                         )
                 elif current_price < s["entry_price"] * SCENARIO_B_LOSS_THRESHOLD:
                     # Loss-making exit: close position immediately
@@ -582,8 +608,12 @@ def main() -> None:
                     send_telegram(msg)
                     if evt:
                         evt.log(
-                            "monitor", "loss_exit", ticker=sym, qty=qty,
-                            exit_price=current_price, entry_price=s["entry_price"],
+                            "monitor",
+                            "loss_exit",
+                            ticker=sym,
+                            qty=qty,
+                            exit_price=current_price,
+                            entry_price=s["entry_price"],
                             pnl=round((current_price - s["entry_price"]) * qty, 2),
                             loss_pct=round(loss_pct, 2),
                         )
@@ -623,8 +653,11 @@ def main() -> None:
                     logger.info(msg)
                     if evt:
                         evt.log(
-                            "monitor", "breakeven_lock_applied", ticker=sym,
-                            old_sl=old_sl, new_sl=new_sl,
+                            "monitor",
+                            "breakeven_lock_applied",
+                            ticker=sym,
+                            old_sl=old_sl,
+                            new_sl=new_sl,
                             entry=s["entry_price"],
                             current_price=current_price_lock,
                             lock_type=lock_type,
@@ -657,8 +690,11 @@ def main() -> None:
                 )
                 if evt:
                     evt.log(
-                        "monitor", "trail_sl_update", ticker=sym,
-                        new_sl=new_sl, price=current_price,
+                        "monitor",
+                        "trail_sl_update",
+                        ticker=sym,
+                        new_sl=new_sl,
+                        price=current_price,
                     )
 
             # Trail SL hit
@@ -699,9 +735,13 @@ def main() -> None:
                 send_telegram(msg)
                 if evt:
                     evt.log(
-                        "monitor", "trail_hit", ticker=sym,
-                        exit_price=current_price, trail_sl=s["trail_sl_current"],
-                        qty=qty, scope=s["trail_scope"],
+                        "monitor",
+                        "trail_hit",
+                        ticker=sym,
+                        exit_price=current_price,
+                        trail_sl=s["trail_sl_current"],
+                        qty=qty,
+                        scope=s["trail_scope"],
                     )
 
     if state_changed:

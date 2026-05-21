@@ -27,8 +27,14 @@ class PolygonClient(BaseAPIClient):
 
     HEALTH_CHECK_ENDPOINT = "/v2/aggs/grouped/locale/us/market/stocks"
 
-    def __init__(self, api_key: str, timeout: int = 10, max_retries: int = 3,
-                 cache: FileCache | None = None, circuit_breaker=None):
+    def __init__(
+        self,
+        api_key: str,
+        timeout: int = 10,
+        max_retries: int = 3,
+        cache: FileCache | None = None,
+        circuit_breaker=None,
+    ):
         super().__init__(
             base_url="https://api.polygon.io",
             api_key=api_key,
@@ -51,8 +57,9 @@ class PolygonClient(BaseAPIClient):
         endpoint = f"{self.HEALTH_CHECK_ENDPOINT}/{yesterday}"
         return self.health_check(endpoint, is_critical=True)
 
-    def get_aggregates(self, ticker: str, from_date: str, to_date: str,
-                       timespan: str = "day", multiplier: int = 1) -> list[dict] | None:
+    def get_aggregates(
+        self, ticker: str, from_date: str, to_date: str, timespan: str = "day", multiplier: int = 1
+    ) -> list[dict] | None:
         """Get OHLCV aggregates for a ticker.
 
         Args:
@@ -72,8 +79,9 @@ class PolygonClient(BaseAPIClient):
                 return cached
 
         endpoint = f"/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{from_date}/{to_date}"
-        data = self._get(endpoint, params={"adjusted": "true", "sort": "asc"},
-                         headers=self._auth_headers())
+        data = self._get(
+            endpoint, params={"adjusted": "true", "sort": "asc"}, headers=self._auth_headers()
+        )
         if data and data.get("results"):
             result = data["results"]
             if self._cache:
@@ -94,8 +102,7 @@ class PolygonClient(BaseAPIClient):
                 return cached
 
         endpoint = f"/v3/snapshot/options/{underlying}"
-        data = self._get(endpoint, params={"limit": 250},
-                         headers=self._auth_headers())
+        data = self._get(endpoint, params={"limit": 250}, headers=self._auth_headers())
         if data and data.get("results"):
             result = data["results"]
             if self._cache:
@@ -120,8 +127,7 @@ class PolygonClient(BaseAPIClient):
                 return cached
 
         endpoint = f"{self.HEALTH_CHECK_ENDPOINT}/{date_str}"
-        data = self._get(endpoint, params={"adjusted": "true"},
-                         headers=self._auth_headers())
+        data = self._get(endpoint, params={"adjusted": "true"}, headers=self._auth_headers())
         if data and data.get("results"):
             result = data["results"]
             if self._cache:

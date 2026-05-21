@@ -7,6 +7,7 @@ following the same pattern as ``state/phase4_snapshots/`` (see
 Used by Phase 0 Diagnostics for shadow-mode data collection and by the
 offline ``scripts/analysis/mid_vs_ifds_sector_comparison.py`` script.
 """
+
 from __future__ import annotations
 
 import gzip
@@ -51,8 +52,7 @@ def save_bundle_snapshot(
             json.dump(bundle, f, ensure_ascii=False)
     except (OSError, IOError, TypeError, ValueError) as e:
         logger.warning(
-            f"Failed to save MID bundle snapshot to {out_path}: "
-            f"{type(e).__name__}: {e}"
+            f"Failed to save MID bundle snapshot to {out_path}: " f"{type(e).__name__}: {e}"
         )
         return None
 
@@ -84,8 +84,7 @@ def load_bundle_snapshot(
             data = json.load(f)
     except (OSError, IOError, json.JSONDecodeError) as e:
         logger.warning(
-            f"Failed to load MID bundle snapshot from {in_path}: "
-            f"{type(e).__name__}: {e}"
+            f"Failed to load MID bundle snapshot from {in_path}: " f"{type(e).__name__}: {e}"
         )
         return None
 

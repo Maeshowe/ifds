@@ -75,6 +75,7 @@ def _make_bars(closes, volume=1000):
 # SMA Tests
 # ============================================================================
 
+
 class TestSMA:
     def test_basic_calculation(self):
         assert _calculate_sma([10, 20, 30], 3) == 20.0
@@ -101,6 +102,7 @@ class TestSMA:
 # ============================================================================
 # RSI Tests
 # ============================================================================
+
 
 class TestRSI:
     def test_neutral_flat_market(self):
@@ -138,6 +140,7 @@ class TestRSI:
 # ============================================================================
 # ATR Tests
 # ============================================================================
+
 
 class TestATR:
     def test_basic_calculation(self):
@@ -180,6 +183,7 @@ class TestATR:
 # Trend Filter Tests
 # ============================================================================
 
+
 class TestTrendFilter:
     def test_long_above_sma200_passes(self):
         assert _check_trend_filter(150.0, 140.0, StrategyMode.LONG) is True
@@ -209,6 +213,7 @@ class TestTrendFilter:
 # ============================================================================
 # RSI Scoring Tests
 # ============================================================================
+
 
 class TestRSIScoring:
     def test_inner_zone_bonus(self, config):
@@ -248,6 +253,7 @@ class TestRSIScoring:
 # RVOL Scoring Tests
 # ============================================================================
 
+
 class TestRVOLScoring:
     def test_low_volume_penalty(self, config):
         score = _score_rvol(0.3, config)
@@ -281,6 +287,7 @@ class TestRVOLScoring:
 # ============================================================================
 # Flow Analysis & Squat Bar Tests
 # ============================================================================
+
 
 class TestFlowAnalysis:
     def test_squat_bar_detected(self, config):
@@ -346,6 +353,7 @@ class TestFlowAnalysis:
 # Fundamental Scoring Tests
 # ============================================================================
 
+
 class TestFundamentalScoring:
     def _mock_fmp(self, growth=None, metrics=None, insider=None):
         fmp = MagicMock()
@@ -406,6 +414,7 @@ class TestFundamentalScoring:
 # Insider Trading Tests
 # ============================================================================
 
+
 class TestInsiderTrading:
     def test_net_buys(self, config):
         insider_data = [
@@ -460,11 +469,13 @@ class TestInsiderTrading:
 # Combined Score Tests
 # ============================================================================
 
+
 class TestCombinedScore:
     def test_neutral_base_score(self, config):
         """All neutral → flow=50, funda=50, tech=0 → combined=35."""
-        tech = TechnicalAnalysis(price=100, sma_200=90, sma_20=95,
-                                 rsi_14=50, atr_14=2.0, trend_pass=True, rsi_score=0)
+        tech = TechnicalAnalysis(
+            price=100, sma_200=90, sma_20=95, rsi_14=50, atr_14=2.0, trend_pass=True, rsi_score=0
+        )
         flow = FlowAnalysis(rvol_score=0)
         funda = FundamentalScoring(funda_score=0, insider_multiplier=1.0)
 
@@ -473,8 +484,9 @@ class TestCombinedScore:
         assert combined == 35.0
 
     def test_sector_adjustment_added(self, config):
-        tech = TechnicalAnalysis(price=100, sma_200=90, sma_20=95,
-                                 rsi_14=50, atr_14=2.0, trend_pass=True, rsi_score=0)
+        tech = TechnicalAnalysis(
+            price=100, sma_200=90, sma_20=95, rsi_14=50, atr_14=2.0, trend_pass=True, rsi_score=0
+        )
         flow = FlowAnalysis(rvol_score=0)
         funda = FundamentalScoring(funda_score=0, insider_multiplier=1.0)
 
@@ -482,8 +494,9 @@ class TestCombinedScore:
         assert combined == 50.0  # 35 + 15
 
     def test_insider_multiplier_applied(self, config):
-        tech = TechnicalAnalysis(price=100, sma_200=90, sma_20=95,
-                                 rsi_14=50, atr_14=2.0, trend_pass=True, rsi_score=0)
+        tech = TechnicalAnalysis(
+            price=100, sma_200=90, sma_20=95, rsi_14=50, atr_14=2.0, trend_pass=True, rsi_score=0
+        )
         flow = FlowAnalysis(rvol_score=0)
         funda = FundamentalScoring(funda_score=0, insider_multiplier=1.25)
 
@@ -492,9 +505,17 @@ class TestCombinedScore:
 
     def test_weighted_scoring(self, config):
         """Verify weights: 0.6 flow + 0.1 funda + 0.3 tech (BC23)."""
-        tech = TechnicalAnalysis(price=100, sma_200=90, sma_20=95,
-                                 rsi_14=50, atr_14=2.0, trend_pass=True,
-                                 rsi_score=5, sma50_bonus=0, rs_spy_score=0)
+        tech = TechnicalAnalysis(
+            price=100,
+            sma_200=90,
+            sma_20=95,
+            rsi_14=50,
+            atr_14=2.0,
+            trend_pass=True,
+            rsi_score=5,
+            sma50_bonus=0,
+            rs_spy_score=0,
+        )
         flow = FlowAnalysis(rvol_score=15)
         funda = FundamentalScoring(funda_score=10, insider_multiplier=1.0)
 
@@ -507,6 +528,7 @@ class TestCombinedScore:
 # ============================================================================
 # Phase 4 Integration Tests
 # ============================================================================
+
 
 class TestPhase4Integration:
     def _make_polygon(self, bars):
@@ -524,16 +546,16 @@ class TestPhase4Integration:
 
     def _make_sector_scores(self):
         return [
-            SectorScore(etf="XLK", sector_name="Technology",
-                        classification=MomentumClassification.LEADER,
-                        score_adjustment=15),
+            SectorScore(
+                etf="XLK",
+                sector_name="Technology",
+                classification=MomentumClassification.LEADER,
+                score_adjustment=15,
+            ),
         ]
 
     def _make_universe(self, count=3):
-        return [
-            Ticker(symbol=f"TICK{i}", sector="Technology")
-            for i in range(count)
-        ]
+        return [Ticker(symbol=f"TICK{i}", sector="Technology") for i in range(count)]
 
     def test_full_flow(self, config, logger):
         # Create bars where price > SMA200 → passes trend filter
@@ -551,8 +573,7 @@ class TestPhase4Integration:
         tickers = self._make_universe(2)
         sectors = self._make_sector_scores()
 
-        result = run_phase4(config, logger, polygon, fmp, None,
-                            tickers, sectors, StrategyMode.LONG)
+        result = run_phase4(config, logger, polygon, fmp, None, tickers, sectors, StrategyMode.LONG)
 
         assert len(result.analyzed) == 2
         assert result.excluded_count + len(result.passed) == len(result.analyzed)
@@ -566,8 +587,7 @@ class TestPhase4Integration:
         fmp = self._make_fmp()
         tickers = self._make_universe(1)
 
-        result = run_phase4(config, logger, polygon, fmp, None,
-                            tickers, [], StrategyMode.LONG)
+        result = run_phase4(config, logger, polygon, fmp, None, tickers, [], StrategyMode.LONG)
 
         assert result.tech_filter_count == 1
         assert result.analyzed[0].exclusion_reason == "tech_filter"
@@ -585,16 +605,15 @@ class TestPhase4Integration:
         polygon.get_aggregates.return_value = bars
         # Options data with bullish PCR + OTM calls for high flow score
         polygon.get_options_snapshot.return_value = [
-            {"details": {"contract_type": "call", "strike_price": 200.0},
-             "day": {"volume": 5000}},
-            {"details": {"contract_type": "put", "strike_price": 100.0},
-             "day": {"volume": 500}},
+            {"details": {"contract_type": "call", "strike_price": 200.0}, "day": {"volume": 5000}},
+            {"details": {"contract_type": "put", "strike_price": 100.0}, "day": {"volume": 500}},
         ]
 
         # FMP returning all strong metrics + insider buys to push score high
         fmp = MagicMock()
         fmp.get_financial_growth.return_value = {
-            "revenueGrowth": 0.50, "epsgrowth": 0.50,
+            "revenueGrowth": 0.50,
+            "epsgrowth": 0.50,
         }
         fmp.get_key_metrics.return_value = {
             "roeTTM": 0.30,
@@ -604,19 +623,28 @@ class TestPhase4Integration:
             "revenuePerShareTTM": 30.0,
         }
         fmp.get_insider_trading.return_value = [
-            {"transactionDate": "2099-01-01", "acquistionOrDisposition": "A",
-             "reportingCik": f"CIK{i}", "securitiesTransacted": 5000, "price": 50.0}
+            {
+                "transactionDate": "2099-01-01",
+                "acquistionOrDisposition": "A",
+                "reportingCik": f"CIK{i}",
+                "securitiesTransacted": 5000,
+                "price": 50.0,
+            }
             for i in range(5)
         ]
 
         tickers = self._make_universe(1)
         # Large sector bonus to push above 90
-        sectors = [SectorScore(etf="XLK", sector_name="Technology",
-                               score_adjustment=15,
-                               classification=MomentumClassification.LEADER)]
+        sectors = [
+            SectorScore(
+                etf="XLK",
+                sector_name="Technology",
+                score_adjustment=15,
+                classification=MomentumClassification.LEADER,
+            )
+        ]
 
-        result = run_phase4(config, logger, polygon, fmp, None,
-                            tickers, sectors, StrategyMode.LONG)
+        result = run_phase4(config, logger, polygon, fmp, None, tickers, sectors, StrategyMode.LONG)
 
         # Score should be high enough to clip (>95)
         assert result.clipped_count > 0, "Expected at least one clipped ticker"
@@ -631,8 +659,7 @@ class TestPhase4Integration:
         fmp = self._make_fmp()
         tickers = self._make_universe(1)
 
-        result = run_phase4(config, logger, polygon, fmp, None,
-                            tickers, [], StrategyMode.LONG)
+        result = run_phase4(config, logger, polygon, fmp, None, tickers, [], StrategyMode.LONG)
 
         assert len(result.analyzed) == 0
 
@@ -642,7 +669,6 @@ class TestPhase4Integration:
         fmp = self._make_fmp()
         tickers = self._make_universe(1)
 
-        result = run_phase4(config, logger, polygon, fmp, None,
-                            tickers, [], StrategyMode.LONG)
+        result = run_phase4(config, logger, polygon, fmp, None, tickers, [], StrategyMode.LONG)
 
         assert len(result.analyzed) == 0

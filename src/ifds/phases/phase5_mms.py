@@ -26,10 +26,10 @@ from ifds.models.market import (
     StockAnalysis,
 )
 
-
 # ============================================================================
 # Feature Extraction
 # ============================================================================
+
 
 def _extract_features_from_bars(bars: list[dict], window: int = 63) -> dict:
     """Extract price-derived features from OHLCV bars.
@@ -124,8 +124,9 @@ def _compute_aggregate_iv(options_data: list[dict], current_price: float) -> flo
     return sum(atm_ivs) / len(atm_ivs) if atm_ivs else 0.0
 
 
-def _compute_iv_skew(options_data: list[dict], current_price: float,
-                     atm_band: float = 0.05) -> float:
+def _compute_iv_skew(
+    options_data: list[dict], current_price: float, atm_band: float = 0.05
+) -> float:
     """ATM IV Skew = mean(put IV) - mean(call IV) for ATM-ish options.
 
     ATM band: within atm_band (default 5%) of current_price.
@@ -165,6 +166,7 @@ def _compute_iv_skew(options_data: list[dict], current_price: float,
 # Z-Score Computation
 # ============================================================================
 
+
 def _mean(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
@@ -187,8 +189,9 @@ def _z_score(value: float, values: list[float], min_n: int) -> float | None:
     return (value - m) / s
 
 
-def _compute_z_scores(today_features: dict, historical_entries: list[dict],
-                      bar_features: dict, min_periods: int) -> dict[str, float | None]:
+def _compute_z_scores(
+    today_features: dict, historical_entries: list[dict], bar_features: dict, min_periods: int
+) -> dict[str, float | None]:
     """Compute z-scores for each MMS feature.
 
     Price features (efficiency, impact): use bar_features series (250 values available).
@@ -200,16 +203,19 @@ def _compute_z_scores(today_features: dict, historical_entries: list[dict],
     # Price-based z-scores from bars (always available from Day 1)
     eff_series = bar_features.get("efficiency_series", [])
     imp_series = bar_features.get("impact_series", [])
-    z["efficiency"] = _z_score(
-        today_features.get("efficiency", 0.0), eff_series, min_periods
-    )
-    z["impact"] = _z_score(
-        today_features.get("impact", 0.0), imp_series, min_periods
-    )
+    z["efficiency"] = _z_score(today_features.get("efficiency", 0.0), eff_series, min_periods)
+    z["impact"] = _z_score(today_features.get("impact", 0.0), imp_series, min_periods)
 
     # Microstructure z-scores from store
-    store_features = ["dark_share", "gex", "dex", "block_count", "iv_rank",
-                      "venue_entropy", "iv_skew"]
+    store_features = [
+        "dark_share",
+        "gex",
+        "dex",
+        "block_count",
+        "iv_rank",
+        "venue_entropy",
+        "iv_skew",
+    ]
     for feat in store_features:
         series = [e.get(feat) for e in historical_entries if e.get(feat) is not None]
         series = [float(v) for v in series]
@@ -239,8 +245,10 @@ def _compute_medians(bar_features: dict) -> dict[str, float]:
 # Factor Volatility (BC16)
 # ============================================================================
 
-def _compute_factor_volatility(historical_entries: list[dict],
-                                window: int = 20) -> dict[str, float | None]:
+
+def _compute_factor_volatility(
+    historical_entries: list[dict], window: int = 20
+) -> dict[str, float | None]:
     """Compute rolling σ for each microstructure feature over last `window` entries.
 
     Returns {feature: σ_value_or_None}. None if insufficient data.
@@ -249,8 +257,7 @@ def _compute_factor_volatility(historical_entries: list[dict],
     result = {}
 
     for feat in features:
-        series = [float(e[feat]) for e in historical_entries
-                  if e.get(feat) is not None]
+        series = [float(e[feat]) for e in historical_entries if e.get(feat) is not None]
         if len(series) >= window:
             recent = series[-window:]
             m = sum(recent) / len(recent)
@@ -262,8 +269,9 @@ def _compute_factor_volatility(historical_entries: list[dict],
     return result
 
 
-def _compute_median_rolling_sigmas(historical_entries: list[dict],
-                                    window: int = 20) -> dict[str, float]:
+def _compute_median_rolling_sigmas(
+    historical_entries: list[dict], window: int = 20
+) -> dict[str, float]:
     """Compute median of rolling σ for each feature across the full history.
 
     For each feature, computes rolling σ at every valid position,
@@ -274,15 +282,14 @@ def _compute_median_rolling_sigmas(historical_entries: list[dict],
     result = {}
 
     for feat in features:
-        series = [float(e[feat]) for e in historical_entries
-                  if e.get(feat) is not None]
+        series = [float(e[feat]) for e in historical_entries if e.get(feat) is not None]
         if len(series) < window * 2:
             result[feat] = 0.0
             continue
 
         rolling_sigmas = []
         for i in range(window, len(series) + 1):
-            segment = series[i - window:i]
+            segment = series[i - window : i]
             m = sum(segment) / len(segment)
             var = sum((v - m) ** 2 for v in segment) / (len(segment) - 1)
             rolling_sigmas.append(math.sqrt(var))
@@ -301,9 +308,9 @@ def _compute_median_rolling_sigmas(historical_entries: list[dict],
     return result
 
 
-def _compute_regime_confidence(factor_vol: dict[str, float | None],
-                                median_sigmas: dict[str, float],
-                                floor: float = 0.6) -> float:
+def _compute_regime_confidence(
+    factor_vol: dict[str, float | None], median_sigmas: dict[str, float], floor: float = 0.6
+) -> float:
     """Compute regime confidence based on GEX volatility stability.
 
     confidence = 1.0 - min(1.0, σ_20(gex) / median(σ_20(gex)))
@@ -324,8 +331,10 @@ def _compute_regime_confidence(factor_vol: dict[str, float | None],
 # Classification (priority-ordered rules)
 # ============================================================================
 
-def _determine_baseline_state(z_scores: dict, min_periods: int,
-                              historical_count: int) -> BaselineState:
+
+def _determine_baseline_state(
+    z_scores: dict, min_periods: int, historical_count: int
+) -> BaselineState:
     """Determine baseline maturity based on z-score availability."""
     if historical_count == 0:
         return BaselineState.EMPTY
@@ -341,12 +350,16 @@ def _determine_baseline_state(z_scores: dict, min_periods: int,
         return BaselineState.EMPTY
 
 
-def _classify_regime(z_scores: dict, raw_features: dict,
-                     medians: dict, daily_return: float,
-                     baseline_state: BaselineState,
-                     config_core: dict,
-                     factor_vol: dict | None = None,
-                     median_sigmas: dict | None = None) -> tuple[MMRegime, dict]:
+def _classify_regime(
+    z_scores: dict,
+    raw_features: dict,
+    medians: dict,
+    daily_return: float,
+    baseline_state: BaselineState,
+    config_core: dict,
+    factor_vol: dict | None = None,
+    median_sigmas: dict | None = None,
+) -> tuple[MMRegime, dict]:
     """Priority-ordered MMS classification.
 
     Rules (first match wins):
@@ -388,12 +401,17 @@ def _classify_regime(z_scores: dict, raw_features: dict,
         sigma_dex = factor_vol.get("dex")
         median_sigma_gex = median_sigmas.get("gex", 0)
         median_sigma_dex = median_sigmas.get("dex", 0)
-        if (sigma_gex is not None and sigma_dex is not None
-                and median_sigma_gex > 0 and median_sigma_dex > 0
-                and sigma_gex > 2 * median_sigma_gex
-                and sigma_dex > 2 * median_sigma_dex):
+        if (
+            sigma_gex is not None
+            and sigma_dex is not None
+            and median_sigma_gex > 0
+            and median_sigma_dex > 0
+            and sigma_gex > 2 * median_sigma_gex
+            and sigma_dex > 2 * median_sigma_dex
+        ):
             return MMRegime.VOLATILE, {
-                "sigma_gex": sigma_gex, "sigma_dex": sigma_dex,
+                "sigma_gex": sigma_gex,
+                "sigma_dex": sigma_dex,
                 "median_sigma_gex": median_sigma_gex,
                 "median_sigma_dex": median_sigma_dex,
             }
@@ -401,32 +419,44 @@ def _classify_regime(z_scores: dict, raw_features: dict,
     # Rule 1: Γ⁺ — z_gex > +threshold AND efficiency < median
     if z_gex is not None and z_gex > z_gex_th and efficiency < median_eff:
         return MMRegime.GAMMA_POSITIVE, {
-            "z_gex": z_gex, "efficiency": efficiency, "median_eff": median_eff,
+            "z_gex": z_gex,
+            "efficiency": efficiency,
+            "median_eff": median_eff,
         }
 
     # Rule 2: Γ⁻ — z_gex < -threshold AND impact > median
     if z_gex is not None and z_gex < -z_gex_th and impact > median_imp:
         return MMRegime.GAMMA_NEGATIVE, {
-            "z_gex": z_gex, "impact": impact, "median_imp": median_imp,
+            "z_gex": z_gex,
+            "impact": impact,
+            "median_imp": median_imp,
         }
 
     # Rule 3: DD — dark_share > 0.70 AND z_block > +1.0
     if dark_share > dark_dd and z_block is not None and z_block > z_block_th:
         return MMRegime.DARK_DOMINANT, {
-            "dark_share": dark_share, "z_block": z_block,
+            "dark_share": dark_share,
+            "z_block": z_block,
         }
 
     # Rule 4: ABS — z_dex < -1.0 AND return >= -0.5% AND dark_share > 0.50
-    if (z_dex is not None and z_dex < -z_dex_th
-            and daily_return >= return_abs and dark_share > dark_abs):
+    if (
+        z_dex is not None
+        and z_dex < -z_dex_th
+        and daily_return >= return_abs
+        and dark_share > dark_abs
+    ):
         return MMRegime.ABSORPTION, {
-            "z_dex": z_dex, "daily_return": daily_return, "dark_share": dark_share,
+            "z_dex": z_dex,
+            "daily_return": daily_return,
+            "dark_share": dark_share,
         }
 
     # Rule 5: DIST — z_dex > +1.0 AND return <= +0.5%
     if z_dex is not None and z_dex > z_dex_th and daily_return <= return_dist:
         return MMRegime.DISTRIBUTION, {
-            "z_dex": z_dex, "daily_return": daily_return,
+            "z_dex": z_dex,
+            "daily_return": daily_return,
         }
 
     # Rule 6: NEU — no rule matched
@@ -437,11 +467,15 @@ def _classify_regime(z_scores: dict, raw_features: dict,
 # Unusualness Score
 # ============================================================================
 
-def _compute_unusualness(z_scores: dict, excluded_features: list[str],
-                         feature_weights: dict,
-                         historical_raw_scores: list[float],
-                         factor_vol: dict | None = None,
-                         median_sigmas: dict | None = None) -> float:
+
+def _compute_unusualness(
+    z_scores: dict,
+    excluded_features: list[str],
+    feature_weights: dict,
+    historical_raw_scores: list[float],
+    factor_vol: dict | None = None,
+    median_sigmas: dict | None = None,
+) -> float:
     """Compute unusualness score U ∈ [0, 100].
 
     Without factor vol: S = Σ(w_k × |z_k|)
@@ -495,6 +529,7 @@ def _compute_unusualness(z_scores: dict, excluded_features: list[str],
 # ============================================================================
 # Crowdedness Shadow (BC18A)
 # ============================================================================
+
 
 def compute_crowding_score(
     dark_share: float,
@@ -629,8 +664,14 @@ def run_mms_analysis(
     medians = _compute_medians(bar_features)
     daily_return = bar_features.get("daily_return", 0.0)
     regime, conditions = _classify_regime(
-        z_scores, today_features, medians, daily_return, baseline_state, config_core,
-        factor_vol=factor_vol, median_sigmas=median_sigmas,
+        z_scores,
+        today_features,
+        medians,
+        daily_return,
+        baseline_state,
+        config_core,
+        factor_vol=factor_vol,
+        median_sigmas=median_sigmas,
     )
     result.mm_regime = regime
     result.triggering_conditions = conditions
@@ -649,8 +690,12 @@ def run_mms_analysis(
         raw_score += feature_weights.get(weight_key, 0.0) * abs(z)
 
     result.unusualness_score = _compute_unusualness(
-        z_scores, excluded_features, feature_weights, historical_raw_scores,
-        factor_vol=factor_vol, median_sigmas=median_sigmas,
+        z_scores,
+        excluded_features,
+        feature_weights,
+        historical_raw_scores,
+        factor_vol=factor_vol,
+        median_sigmas=median_sigmas,
     )
 
     # Top drivers: features with highest |z| contribution
@@ -677,14 +722,14 @@ def run_mms_analysis(
     # 7b. Crowdedness shadow score (BC18A)
     if config_tuning.get("crowdedness_shadow_enabled", False):
         # Compute median iv_skew from historical entries
-        iv_skew_series = [float(e["iv_skew"]) for e in historical
-                          if e.get("iv_skew") is not None]
+        iv_skew_series = [float(e["iv_skew"]) for e in historical if e.get("iv_skew") is not None]
         median_iv_skew_val = 0.0
         if iv_skew_series:
             sorted_ivs = sorted(iv_skew_series)
             n = len(sorted_ivs)
-            median_iv_skew_val = (sorted_ivs[n // 2] if n % 2 else
-                                  (sorted_ivs[n // 2 - 1] + sorted_ivs[n // 2]) / 2)
+            median_iv_skew_val = (
+                sorted_ivs[n // 2] if n % 2 else (sorted_ivs[n // 2 - 1] + sorted_ivs[n // 2]) / 2
+            )
 
         threshold = config_tuning.get("crowdedness_threshold", 0.55)
         result.crowding_score = compute_crowding_score(

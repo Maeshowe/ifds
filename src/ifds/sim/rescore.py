@@ -62,7 +62,7 @@ _DEFAULT_CONFIG: dict[str, Any] = {
     "max_positions": 8,
     "combined_score_minimum": 70,
     # Freshness
-    "freshness_mode": "linear",      # "linear" | "wow" | "none"
+    "freshness_mode": "linear",  # "linear" | "wow" | "none"
     "freshness_bonus": 1.5,
     "freshness_lookback_days": 90,
 }
@@ -71,6 +71,7 @@ _DEFAULT_CONFIG: dict[str, Any] = {
 # ------------------------------------------------------------------
 # Re-scored position result
 # ------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class RescoredPosition:
@@ -100,6 +101,7 @@ class RescoredPosition:
 # Scoring
 # ------------------------------------------------------------------
 
+
 def _build_config(overrides: dict[str, Any]) -> dict[str, Any]:
     """Merge overrides into default config (immutable — returns new dict)."""
     return {**_DEFAULT_CONFIG, **overrides}
@@ -115,9 +117,7 @@ def _rescore_combined_score(
                + sector_adj) × insider_multiplier
     """
     tech_score = (
-        stock.technical.rsi_score
-        + stock.technical.sma50_bonus
-        + stock.technical.rs_spy_score
+        stock.technical.rsi_score + stock.technical.sma50_bonus + stock.technical.rs_spy_score
     )
     flow_score = min(100, max(0, _BASE_SCORE + stock.flow.rvol_score))
     funda_score = _BASE_SCORE + stock.fundamental.funda_score
@@ -127,10 +127,7 @@ def _rescore_combined_score(
     w_tech = cfg["weight_technical"]
 
     combined = (
-        w_flow * flow_score
-        + w_funda * funda_score
-        + w_tech * tech_score
-        + stock.sector_adjustment
+        w_flow * flow_score + w_funda * funda_score + w_tech * tech_score + stock.sector_adjustment
     )
 
     combined *= stock.fundamental.insider_multiplier
@@ -141,6 +138,7 @@ def _rescore_combined_score(
 # ------------------------------------------------------------------
 # EWMA
 # ------------------------------------------------------------------
+
 
 def _ewma_score(
     current: float,
@@ -157,6 +155,7 @@ def _ewma_score(
 # ------------------------------------------------------------------
 # Sizing multipliers
 # ------------------------------------------------------------------
+
 
 def _calculate_m_target(
     price: float,
@@ -207,19 +206,13 @@ def _calculate_sizing(
 
     # --- Multipliers ---
     flow_score = _BASE_SCORE + stock.flow.rvol_score
-    m_flow = (
-        cfg["multiplier_flow_value"]
-        if flow_score > cfg["multiplier_flow_threshold"]
-        else 1.0
-    )
+    m_flow = cfg["multiplier_flow_value"] if flow_score > cfg["multiplier_flow_threshold"] else 1.0
 
     m_insider = stock.fundamental.insider_multiplier
 
     funda_score = _BASE_SCORE + stock.fundamental.funda_score
     m_funda = (
-        cfg["multiplier_funda_value"]
-        if funda_score < cfg["multiplier_funda_threshold"]
-        else 1.0
+        cfg["multiplier_funda_value"] if funda_score < cfg["multiplier_funda_threshold"] else 1.0
     )
 
     m_gex = gex_multiplier
@@ -282,6 +275,7 @@ def _calculate_sizing(
 # ------------------------------------------------------------------
 # Main entry point
 # ------------------------------------------------------------------
+
 
 def rescore_snapshot(
     snapshot_records: list[dict],
@@ -368,8 +362,10 @@ def rescore_snapshot(
 # Freshness helpers
 # ------------------------------------------------------------------
 
+
 def _parse_freshness_date(date_str: str | None) -> "date | None":
     from datetime import date as date_cls
+
     if date_str is None:
         return None
     return date_cls.fromisoformat(date_str)
@@ -401,8 +397,10 @@ def _apply_freshness(
 
     if mode == "wow":
         from ifds.sim.wow_freshness import wow_multiplier
+
         mult = wow_multiplier(
-            ticker, history,
+            ticker,
+            history,
             lookback_days=cfg.get("freshness_lookback_days", 90),
             reference_date=ref_date,
         )
@@ -412,11 +410,13 @@ def _apply_freshness(
     lookback = cfg.get("freshness_lookback_days", 90)
     bonus = cfg.get("freshness_bonus", 1.5)
     from datetime import date as date_cls, timedelta
+
     ref = ref_date or date_cls.today()
     cutoff = ref - timedelta(days=lookback)
 
     recent_tickers = {
-        r["ticker"] for r in history
+        r["ticker"]
+        for r in history
         if _parse_freshness_date(r["date"]) is not None
         and _parse_freshness_date(r["date"]) >= cutoff  # type: ignore[operator]
     }

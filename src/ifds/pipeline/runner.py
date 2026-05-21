@@ -19,6 +19,7 @@ from ifds.models.market import PipelineContext, StrategyMode
 @dataclass
 class PipelineResult:
     """Result of a pipeline run."""
+
     success: bool
     message: str
     phase_results: list = field(default_factory=list)
@@ -26,8 +27,9 @@ class PipelineResult:
     log_file: str | None = None
 
 
-def run_pipeline(phase: int | None = None, dry_run: bool = False,
-                 config_path: str | None = None) -> PipelineResult:
+def run_pipeline(
+    phase: int | None = None, dry_run: bool = False, config_path: str | None = None
+) -> PipelineResult:
     """Run the IFDS trading signal pipeline.
 
     Args:
@@ -52,6 +54,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
     cache = None
     if config.runtime.get("cache_enabled", False):
         from ifds.data.cache import FileCache
+
         cache = FileCache(cache_dir=config.runtime.get("cache_dir", "data/cache"))
 
     # --- Initialize per-provider circuit breakers ---
@@ -69,9 +72,12 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
 
     pipeline_t0 = time.monotonic()
 
-    logger.log(EventType.PIPELINE_START, Severity.INFO,
-               message=f"Pipeline started (run_id={run_id})",
-               data={"dry_run": dry_run, "single_phase": phase})
+    logger.log(
+        EventType.PIPELINE_START,
+        Severity.INFO,
+        message=f"Pipeline started (run_id={run_id})",
+        data={"dry_run": dry_run, "single_phase": phase},
+    )
 
     # --- Build pipeline context (Info #12: snapshot config) ---
     ctx = PipelineContext(
@@ -89,14 +95,20 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
         # --- Trading day guard ---
         from ifds.utils.calendar import is_nyse_trading_day, get_holiday_name
         from datetime import date as _date_cls
+
         _today = _date_cls.today()
-        if not is_nyse_trading_day(_today) and not dry_run and not os.environ.get("IFDS_SKIP_TRADING_DAY_GUARD"):
+        if (
+            not is_nyse_trading_day(_today)
+            and not dry_run
+            and not os.environ.get("IFDS_SKIP_TRADING_DAY_GUARD")
+        ):
             holiday = get_holiday_name(_today)
             msg = f"NYSE closed today{f' ({holiday})' if holiday else ''}. Pipeline skipped."
             logger.log(EventType.PIPELINE_COMPLETE, Severity.INFO, message=msg)
             print(f"\n[SKIP] {msg}")
             try:
                 from ifds.output.telegram import _send_message, _pipeline_timestamp
+
                 _token = config.runtime.get("telegram_bot_token")
                 _chat = config.runtime.get("telegram_chat_id")
                 if _token and _chat:
@@ -110,26 +122,38 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
 
         _t = time.monotonic()
         diag = run_phase0(config, logger)
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                   message=f"Phase 0 completed in {time.monotonic() - _t:.1f}s")
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.INFO,
+            message=f"Phase 0 completed in {time.monotonic() - _t:.1f}s",
+        )
         ctx.diagnostics = diag
         ctx.macro = diag.macro
         ctx.uw_available = diag.uw_available
 
         from ifds.output.console import (
-            print_diagnostics, print_phase1, print_phase2,
-            print_sector_table, print_scan_summary, print_gex_summary,
-            print_final_summary, print_pipeline_result,
+            print_diagnostics,
+            print_phase1,
+            print_phase2,
+            print_sector_table,
+            print_scan_summary,
+            print_gex_summary,
+            print_final_summary,
+            print_pipeline_result,
         )
         from ifds.state.history import BMIHistory, SectorHistory
+
         bmi_history = BMIHistory(state_dir=config.runtime.get("state_dir", "state"))
         sector_history = SectorHistory(state_dir=config.runtime.get("state_dir", "state"))
 
         print_diagnostics(diag)
 
         if not diag.pipeline_can_proceed:
-            logger.log(EventType.PIPELINE_END, Severity.ERROR,
-                       message=f"Pipeline halted: {diag.halt_reason}")
+            logger.log(
+                EventType.PIPELINE_END,
+                Severity.ERROR,
+                message=f"Pipeline halted: {diag.halt_reason}",
+            )
             return PipelineResult(
                 success=False,
                 message=f"HALT: {diag.halt_reason}",
@@ -138,8 +162,11 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
             )
 
         if dry_run:
-            logger.log(EventType.PIPELINE_END, Severity.INFO,
-                       message="Dry run complete — all checks passed.")
+            logger.log(
+                EventType.PIPELINE_END,
+                Severity.INFO,
+                message="Dry run complete — all checks passed.",
+            )
             return PipelineResult(
                 success=True,
                 message="Dry run complete — all diagnostics passed.",
@@ -152,6 +179,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
         _t = time.monotonic()
         if _should_run(phase, 1):
             from ifds.data.fmp import FMPClient as FMPClient1
+
             fmp1 = FMPClient1(
                 api_key=config.get_api_key("fmp"),
                 timeout=config.runtime["api_timeout_fmp"],
@@ -177,8 +205,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 circuit_breaker=cb_polygon,
             )
             try:
-                phase1 = run_phase1(config, logger, polygon,
-                                    sector_mapping=sector_mapping)
+                phase1 = run_phase1(config, logger, polygon, sector_mapping=sector_mapping)
                 ctx.phase1 = phase1
                 ctx.strategy_mode = phase1.strategy_mode
                 ctx.bmi_regime = phase1.bmi.bmi_regime
@@ -190,8 +217,11 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 print_phase1(phase1, prev_bmi=prev_bmi)
             finally:
                 polygon.close()
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                       message=f"Phase 1 completed in {time.monotonic() - _t:.1f}s")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.INFO,
+                message=f"Phase 1 completed in {time.monotonic() - _t:.1f}s",
+            )
 
         # === Phase 2: Universe Building ===
         _t = time.monotonic()
@@ -214,8 +244,11 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 print_phase2(phase2)
             finally:
                 fmp.close()
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                       message=f"Phase 2 completed in {time.monotonic() - _t:.1f}s")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.INFO,
+                message=f"Phase 2 completed in {time.monotonic() - _t:.1f}s",
+            )
 
         # === Phase 3: Sector Rotation ===
         _t = time.monotonic()
@@ -235,6 +268,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
             breadth_enabled = config.tuning.get("breadth_enabled", False)
             if breadth_enabled and ctx.grouped_daily_bars:
                 from ifds.data.fmp import FMPClient as FMPClient3
+
                 fmp3 = FMPClient3(
                     api_key=config.get_api_key("fmp"),
                     timeout=config.runtime["api_timeout_fmp"],
@@ -245,10 +279,16 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
 
             try:
                 strategy = ctx.strategy_mode or StrategyMode.LONG
-                phase3 = run_phase3(config, logger, polygon3, strategy, ctx.macro,
-                                     sector_bmi_values=ctx.sector_bmi_values or None,
-                                     grouped_daily_bars=ctx.grouped_daily_bars or None,
-                                     fmp=fmp3)
+                phase3 = run_phase3(
+                    config,
+                    logger,
+                    polygon3,
+                    strategy,
+                    ctx.macro,
+                    sector_bmi_values=ctx.sector_bmi_values or None,
+                    grouped_daily_bars=ctx.grouped_daily_bars or None,
+                    fmp=fmp3,
+                )
                 ctx.phase3 = phase3
                 ctx.sector_scores = phase3.sector_scores
                 ctx.vetoed_sectors = phase3.vetoed_sectors
@@ -260,49 +300,71 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
 
                 # AGG benchmark: fetch but do NOT include in scoring/veto
                 from ifds.phases.phase3_sectors import _fetch_sector_data, _calculate_sector_scores
-                agg_data = _fetch_sector_data(polygon3, config.tuning["sector_momentum_period"],
-                                              config.core["sma_short_period"],
-                                              etf_override={"AGG": "Bonds (Benchmark)"})
+
+                agg_data = _fetch_sector_data(
+                    polygon3,
+                    config.tuning["sector_momentum_period"],
+                    config.core["sma_short_period"],
+                    etf_override={"AGG": "Bonds (Benchmark)"},
+                )
                 agg_benchmark = None
                 if agg_data:
-                    agg_scores = _calculate_sector_scores(agg_data, config,
-                                                          name_override={"AGG": "Bonds (Benchmark)"})
+                    agg_scores = _calculate_sector_scores(
+                        agg_data, config, name_override={"AGG": "Bonds (Benchmark)"}
+                    )
                     agg_benchmark = agg_scores[0] if agg_scores else None
 
                 ctx.agg_benchmark = agg_benchmark
-                print_sector_table(phase3, prev_sectors=prev_sectors,
-                                   benchmark=agg_benchmark)
+                print_sector_table(phase3, prev_sectors=prev_sectors, benchmark=agg_benchmark)
             finally:
                 polygon3.close()
                 if fmp3:
                     fmp3.close()
                 # Memory cleanup: free grouped daily bars (BC14)
                 ctx.grouped_daily_bars = []
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                       message=f"Phase 3 completed in {time.monotonic() - _t:.1f}s")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.INFO,
+                message=f"Phase 3 completed in {time.monotonic() - _t:.1f}s",
+            )
 
         # --- Context persistence: save after Phase 3, load before Phase 4 ---
         if isinstance(phase, tuple) and phase[1] <= 3:
             from ifds.pipeline.context_persistence import save_phase13_context
+
             save_phase13_context(ctx)
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                       message="Phase 1-3 context saved to state/phase13_ctx.json.gz")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.INFO,
+                message="Phase 1-3 context saved to state/phase13_ctx.json.gz",
+            )
 
         if isinstance(phase, tuple) and phase[0] >= 4 and not ctx.universe:
             from ifds.pipeline.context_persistence import load_phase13_context
+
             if load_phase13_context(ctx):
-                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                           message="Phase 1-3 context loaded from state/phase13_ctx.json.gz")
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.INFO,
+                    message="Phase 1-3 context loaded from state/phase13_ctx.json.gz",
+                )
             else:
-                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING,
-                           message="Phase 1-3 context not found — Phase 4-6 may fail")
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.WARNING,
+                    message="Phase 1-3 context not found — Phase 4-6 may fail",
+                )
 
         # === Phase 4: Individual Stock Analysis ===
         _t = time.monotonic()
         if _should_run(phase, 4):
             if not ctx.universe:
-                logger.log(EventType.PHASE_SKIP, Severity.WARNING, phase=4,
-                           message="No tickers from Phase 2 — skipping Phase 4")
+                logger.log(
+                    EventType.PHASE_SKIP,
+                    Severity.WARNING,
+                    phase=4,
+                    message="No tickers from Phase 2 — skipping Phase 4",
+                )
             else:
                 from ifds.phases.phase4_stocks import run_phase4
                 from ifds.data.polygon import PolygonClient as PolygonClient4
@@ -333,6 +395,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 uw_client = None
                 if ctx.uw_available:
                     from ifds.data.unusual_whales import UnusualWhalesClient
+
                     uw_client = UnusualWhalesClient(
                         api_key=config.get_api_key("unusual_whales"),
                         timeout=config.runtime["api_timeout_uw"],
@@ -341,23 +404,34 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                         circuit_breaker=cb_uw,
                     )
                     from ifds.data.adapters import UWDarkPoolProvider
+
                     dp_provider = UWDarkPoolProvider(uw_client)
 
                 try:
                     strategy = ctx.strategy_mode or StrategyMode.LONG
                     phase4 = run_phase4(
-                        config, logger, polygon4, fmp4, dp_provider,
-                        ctx.universe, ctx.sector_scores, strategy,
+                        config,
+                        logger,
+                        polygon4,
+                        fmp4,
+                        dp_provider,
+                        ctx.universe,
+                        ctx.sector_scores,
+                        strategy,
                     )
                     ctx.phase4 = phase4
                     ctx.stock_analyses = phase4.passed
 
                     # Write full scan matrix CSV
                     from ifds.output.execution_plan import write_full_scan_matrix
+
                     write_full_scan_matrix(
-                        phase4.analyzed, ctx.sector_scores or [],
+                        phase4.analyzed,
+                        ctx.sector_scores or [],
                         (ctx.strategy_mode or StrategyMode.LONG).value,
-                        config.runtime["output_dir"], run_id, logger,
+                        config.runtime["output_dir"],
+                        run_id,
+                        logger,
                     )
                     print_scan_summary(phase4)
                 finally:
@@ -365,19 +439,28 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     fmp4.close()
                     if uw_client:
                         uw_client.close()
-                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                           message=f"Phase 4 completed in {time.monotonic() - _t:.1f}s")
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.INFO,
+                    message=f"Phase 4 completed in {time.monotonic() - _t:.1f}s",
+                )
 
         # === Phase 5: GEX Analysis ===
         _t = time.monotonic()
         if _should_run(phase, 5):
             if not ctx.stock_analyses:
-                logger.log(EventType.PHASE_SKIP, Severity.WARNING, phase=5,
-                           message="No stocks from Phase 4 — skipping Phase 5")
+                logger.log(
+                    EventType.PHASE_SKIP,
+                    Severity.WARNING,
+                    phase=5,
+                    message="No stocks from Phase 4 — skipping Phase 5",
+                )
             else:
                 from ifds.phases.phase5_gex import run_phase5
                 from ifds.data.adapters import (
-                    FallbackGEXProvider, UWGEXProvider, PolygonGEXProvider,
+                    FallbackGEXProvider,
+                    UWGEXProvider,
+                    PolygonGEXProvider,
                 )
                 from ifds.data.polygon import PolygonClient as PolygonClient5
 
@@ -394,6 +477,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 uw5 = None
                 if ctx.uw_available:
                     from ifds.data.unusual_whales import UnusualWhalesClient as UW5
+
                     uw5 = UW5(
                         api_key=config.get_api_key("unusual_whales"),
                         timeout=config.runtime["api_timeout_uw"],
@@ -416,7 +500,11 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     always_collect = config.tuning.get("mms_store_always_collect", True)
                     pass_polygon = polygon5 if (mms_on or always_collect) else None
                     phase5 = run_phase5(
-                        config, logger, gex_provider, ctx.stock_analyses, strategy,
+                        config,
+                        logger,
+                        gex_provider,
+                        ctx.stock_analyses,
+                        strategy,
                         polygon=pass_polygon,
                     )
                     ctx.phase5 = phase5
@@ -427,15 +515,22 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     polygon5.close()
                     if uw5 is not None:
                         uw5.close()
-                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                           message=f"Phase 5 completed in {time.monotonic() - _t:.1f}s")
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.INFO,
+                    message=f"Phase 5 completed in {time.monotonic() - _t:.1f}s",
+                )
 
         # === Phase 6: Position Sizing & Risk Management ===
         _t = time.monotonic()
         if _should_run(phase, 6):
             if not ctx.gex_analyses or not ctx.stock_analyses:
-                logger.log(EventType.PHASE_SKIP, Severity.WARNING, phase=6,
-                           message="No candidates from Phase 4/5 — skipping Phase 6")
+                logger.log(
+                    EventType.PHASE_SKIP,
+                    Severity.WARNING,
+                    phase=6,
+                    message="No candidates from Phase 4/5 — skipping Phase 6",
+                )
             else:
                 from ifds.phases.phase6_sizing import get_bmi_momentum_guard, run_phase6
                 from ifds.output.execution_plan import write_execution_plan
@@ -451,21 +546,27 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     # for BC23 deployments where max_positions=5.
                     if guard_active and reduced < original_max_positions:
                         min_days = config.tuning.get("bmi_momentum_days", 3)
-                        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
-                                   message=f"[BMI GUARD] BMI declining {min_days}+ days "
-                                           f"(delta={total_delta:+.1f}) → max_positions: "
-                                           f"{original_max_positions} → {reduced}",
-                                   data={"total_delta": total_delta, "reduced": reduced})
+                        logger.log(
+                            EventType.PHASE_DIAGNOSTIC,
+                            Severity.WARNING,
+                            phase=6,
+                            message=f"[BMI GUARD] BMI declining {min_days}+ days "
+                            f"(delta={total_delta:+.1f}) → max_positions: "
+                            f"{original_max_positions} → {reduced}",
+                            data={"total_delta": total_delta, "reduced": reduced},
+                        )
                         config.runtime["max_positions"] = reduced
                         bmi_guard_active = True
                         # Telegram alert
                         try:
                             from ifds.output.telegram import _send_message, _pipeline_timestamp
+
                             _token = config.runtime.get("telegram_bot_token")
                             _chat = config.runtime.get("telegram_chat_id")
                             if _token and _chat:
                                 _send_message(
-                                    _token, _chat,
+                                    _token,
+                                    _chat,
                                     f"{_pipeline_timestamp()}\n"
                                     f"⚠️ <b>BMI MOMENTUM GUARD aktív</b>\n"
                                     f"BMI {min_days}+ napja csökken (delta={total_delta:+.1f})\n"
@@ -477,12 +578,19 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     elif guard_active:
                         # Active by metric, but the tier doesn't shrink positions.
                         # Log for visibility, no Telegram noise.
-                        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
-                                   message=f"[BMI GUARD] declining streak detected "
-                                           f"(delta={total_delta:+.1f}, tier reduction={reduced}) "
-                                           f"but max_positions already {original_max_positions} — no-op",
-                                   data={"total_delta": total_delta, "reduced": reduced,
-                                         "original_max_positions": original_max_positions})
+                        logger.log(
+                            EventType.PHASE_DIAGNOSTIC,
+                            Severity.INFO,
+                            phase=6,
+                            message=f"[BMI GUARD] declining streak detected "
+                            f"(delta={total_delta:+.1f}, tier reduction={reduced}) "
+                            f"but max_positions already {original_max_positions} — no-op",
+                            data={
+                                "total_delta": total_delta,
+                                "reduced": reduced,
+                                "original_max_positions": original_max_positions,
+                            },
+                        )
 
                 # Cross-Asset Regime — position/score overrides (BC21)
                 original_min_score = config.tuning.get("combined_score_minimum", 70)
@@ -499,24 +607,36 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                         ca_min_score = None
 
                     if ca_max is not None:
-                        config.runtime["max_positions"] = min(config.runtime["max_positions"], ca_max)
+                        config.runtime["max_positions"] = min(
+                            config.runtime["max_positions"], ca_max
+                        )
                     if ca_min_score is not None:
                         config.tuning["combined_score_minimum"] = ca_min_score
 
-                    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
-                               message=f"[CROSS-ASSET] {ca_regime}: "
-                                       f"max_positions={config.runtime['max_positions']}, "
-                                       f"min_score={config.tuning.get('combined_score_minimum', 70)}, "
-                                       f"VIX threshold={ctx.macro.vix_threshold_adjusted:.0f}")
+                    logger.log(
+                        EventType.PHASE_DIAGNOSTIC,
+                        Severity.WARNING,
+                        phase=6,
+                        message=f"[CROSS-ASSET] {ca_regime}: "
+                        f"max_positions={config.runtime['max_positions']}, "
+                        f"min_score={config.tuning.get('combined_score_minimum', 70)}, "
+                        f"VIX threshold={ctx.macro.vix_threshold_adjusted:.0f}",
+                    )
 
                     try:
                         from ifds.output.telegram import _send_message, _pipeline_timestamp
+
                         _token = config.runtime.get("telegram_bot_token")
                         _chat = config.runtime.get("telegram_chat_id")
-                        _emojis = {"CAUTIOUS": "\u26a0\ufe0f", "RISK_OFF": "\U0001f534", "CRISIS": "\U0001f6a8"}
+                        _emojis = {
+                            "CAUTIOUS": "\u26a0\ufe0f",
+                            "RISK_OFF": "\U0001f534",
+                            "CRISIS": "\U0001f6a8",
+                        }
                         if _token and _chat:
                             _send_message(
-                                _token, _chat,
+                                _token,
+                                _chat,
                                 f"{_pipeline_timestamp()}\n"
                                 f"{_emojis.get(ca_regime, '')} <b>CROSS-ASSET: {ca_regime}</b>\n"
                                 f"Votes: {ctx.macro.cross_asset_votes:.1f}\n"
@@ -530,21 +650,28 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
 
                 # Skip Day Shadow Guard — log only, does NOT block pipeline
                 from ifds.phases.phase6_sizing import check_skip_day_shadow
+
                 would_skip, skip_details = check_skip_day_shadow(ctx.macro, entries, config)
                 if would_skip:
-                    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
-                               message=f"[SKIP DAY SHADOW] Would skip today — "
-                                       f"VIX={skip_details['vix_value']:.1f} >= {skip_details['vix_threshold']}, "
-                                       f"BMI declining {skip_details['bmi_consecutive_decline']} days "
-                                       f">= {skip_details['bmi_min_days']}",
-                               data=skip_details)
+                    logger.log(
+                        EventType.PHASE_DIAGNOSTIC,
+                        Severity.WARNING,
+                        phase=6,
+                        message=f"[SKIP DAY SHADOW] Would skip today — "
+                        f"VIX={skip_details['vix_value']:.1f} >= {skip_details['vix_threshold']}, "
+                        f"BMI declining {skip_details['bmi_consecutive_decline']} days "
+                        f">= {skip_details['bmi_min_days']}",
+                        data=skip_details,
+                    )
                     try:
                         from ifds.output.telegram import _send_message, _pipeline_timestamp
+
                         _token = config.runtime.get("telegram_bot_token")
                         _chat = config.runtime.get("telegram_chat_id")
                         if _token and _chat:
                             _send_message(
-                                _token, _chat,
+                                _token,
+                                _chat,
                                 f"{_pipeline_timestamp()}\n"
                                 f"\U0001f47b <b>SKIP DAY SHADOW</b> — ha éles lenne, ma 0 pozíció\n"
                                 f"VIX={skip_details['vix_value']:.1f} (küszöb: {skip_details['vix_threshold']})\n"
@@ -558,14 +685,21 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 try:
                     import json as _json
                     from datetime import date as _date
-                    _shadow_file = config.runtime.get("skip_day_shadow_file",
-                                                       "state/skip_day_shadow.jsonl")
+
+                    _shadow_file = config.runtime.get(
+                        "skip_day_shadow_file", "state/skip_day_shadow.jsonl"
+                    )
                     with open(_shadow_file, "a") as _f:
-                        _f.write(_json.dumps({
-                            "date": _date.today().isoformat(),
-                            "would_skip": would_skip,
-                            **skip_details,
-                        }) + "\n")
+                        _f.write(
+                            _json.dumps(
+                                {
+                                    "date": _date.today().isoformat(),
+                                    "would_skip": would_skip,
+                                    **skip_details,
+                                }
+                            )
+                            + "\n"
+                        )
                 except OSError:
                     pass
 
@@ -576,18 +710,20 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 open_positions = []
                 if config.tuning.get("swing_execution_enabled", False):
                     from ifds.state.swing_positions import (
-                        load_swing_positions, to_position_sizing_stub,
+                        load_swing_positions,
+                        to_position_sizing_stub,
                     )
+
                     state_file = config.tuning.get(
-                        "swing_positions_state_file", "state/swing_positions.json",
+                        "swing_positions_state_file",
+                        "state/swing_positions.json",
                     )
                     open_swings = load_swing_positions(state_file)
-                    open_positions = [
-                        to_position_sizing_stub(p) for p in open_swings
-                    ]
+                    open_positions = [to_position_sizing_stub(p) for p in open_swings]
 
                 phase6 = run_phase6(
-                    config, logger,
+                    config,
+                    logger,
                     ctx.stock_analyses,
                     ctx.gex_analyses,
                     ctx.macro,
@@ -614,9 +750,13 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
 
                     # Write trade plan CSV
                     from ifds.output.execution_plan import write_trade_plan
+
                     write_trade_plan(
-                        phase6.positions, ctx.stock_analyses,
-                        config.runtime["output_dir"], run_id, logger,
+                        phase6.positions,
+                        ctx.stock_analyses,
+                        config.runtime["output_dir"],
+                        run_id,
+                        logger,
                     )
 
                 # Restore original max_positions and min_score after guard overrides
@@ -624,25 +764,37 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 config.tuning["combined_score_minimum"] = original_min_score
 
                 print_final_summary(phase6, ctx)
-                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                           message=f"Phase 6 completed in {time.monotonic() - _t:.1f}s")
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.INFO,
+                    message=f"Phase 6 completed in {time.monotonic() - _t:.1f}s",
+                )
 
         duration = time.monotonic() - pipeline_t0
-        logger.log(EventType.PIPELINE_END, Severity.INFO,
-                   message=f"Pipeline run complete in {duration:.1f}s.")
+        logger.log(
+            EventType.PIPELINE_END,
+            Severity.INFO,
+            message=f"Pipeline run complete in {duration:.1f}s.",
+        )
 
         # Phase 4 Snapshot (BC19 — SIM-L2 data prep)
         if config.runtime.get("phase4_snapshot_enabled", True) and ctx.stock_analyses:
             try:
                 from ifds.data.phase4_snapshot import save_phase4_snapshot
-                snap_dir = config.runtime.get("phase4_snapshot_dir",
-                                              "state/phase4_snapshots")
+
+                snap_dir = config.runtime.get("phase4_snapshot_dir", "state/phase4_snapshots")
                 snap_path = save_phase4_snapshot(ctx.stock_analyses, snap_dir)
-                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                           message=f"Phase 4 snapshot saved: {snap_path}")
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.INFO,
+                    message=f"Phase 4 snapshot saved: {snap_path}",
+                )
             except Exception as e:
-                logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
-                           message=f"Phase 4 snapshot error: {e}")
+                logger.log(
+                    EventType.CONFIG_WARNING,
+                    Severity.WARNING,
+                    message=f"Phase 4 snapshot error: {e}",
+                )
 
         # UW Dark Pool / GEX Shadow Log (Day 63 outcome §3.2, 2026-05-26).
         # Captures raw UW data + would-have-been scoring while uw_*_enabled=False,
@@ -650,10 +802,11 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
         if config.tuning.get("uw_shadow_logging_enabled", False) and ctx.stock_analyses:
             try:
                 from ifds.data.uw_shadow import (
-                    build_shadow_snapshot, write_shadow_snapshot,
+                    build_shadow_snapshot,
+                    write_shadow_snapshot,
                 )
-                shadow_dir = Path(config.tuning.get("uw_shadow_dir",
-                                                    "state/uw_shadow"))
+
+                shadow_dir = Path(config.tuning.get("uw_shadow_dir", "state/uw_shadow"))
                 trading_date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
                 shadow_snapshot = build_shadow_snapshot(
                     trading_date=trading_date_str,
@@ -667,12 +820,16 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                     trading_date=trading_date_str,
                     snapshot=shadow_snapshot,
                 )
-                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO,
-                           message=f"UW shadow log saved: {shadow_path} "
-                                   f"({len(shadow_snapshot['tickers'])} tickers)")
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.INFO,
+                    message=f"UW shadow log saved: {shadow_path} "
+                    f"({len(shadow_snapshot['tickers'])} tickers)",
+                )
             except Exception as e:
-                logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
-                           message=f"UW shadow log error: {e}")
+                logger.log(
+                    EventType.CONFIG_WARNING, Severity.WARNING, message=f"UW shadow log error: {e}"
+                )
 
         log_file = str(logger.log_file)
         print_pipeline_result(ctx, log_file, config=config)
@@ -684,11 +841,13 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
 
                 if isinstance(phase, tuple) and phase == (1, 3):
                     from ifds.output.telegram import send_macro_snapshot
+
                     send_macro_snapshot(ctx, config, logger, duration)
 
                 elif isinstance(phase, tuple) and phase[0] >= 4:
                     from ifds.output.telegram import send_trading_plan
                     from ifds.data.fmp import FMPClient as FMPTelegram
+
                     fmp_tg = FMPTelegram(
                         api_key=config.get_api_key("fmp"),
                         timeout=config.runtime["api_timeout_fmp"],
@@ -704,6 +863,7 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                 elif phase is None:
                     from ifds.output.telegram import send_daily_report
                     from ifds.data.fmp import FMPClient as FMPTelegram
+
                     fmp_tg = FMPTelegram(
                         api_key=config.get_api_key("fmp"),
                         timeout=config.runtime["api_timeout_fmp"],
@@ -717,8 +877,9 @@ def run_pipeline(phase: int | None = None, dry_run: bool = False,
                         fmp_tg.close()
 
             except Exception as e:
-                logger.log(EventType.CONFIG_WARNING, Severity.WARNING,
-                           message=f"Telegram error: {e}")
+                logger.log(
+                    EventType.CONFIG_WARNING, Severity.WARNING, message=f"Telegram error: {e}"
+                )
 
         return PipelineResult(
             success=True,

@@ -14,7 +14,6 @@ import pytest
 
 from ifds.phases.phase5_mms import compute_crowding_score
 
-
 # ---------------------------------------------------------------------------
 # Good Crowding scenarios
 # ---------------------------------------------------------------------------
@@ -25,7 +24,7 @@ def test_good_crowding_accumulation():
     score = compute_crowding_score(
         dark_share=0.65,
         z_block=2.0,
-        z_dex=-1.0,       # institutions buying (negative dex = good)
+        z_dex=-1.0,  # institutions buying (negative dex = good)
         iv_skew=0.02,
         median_iv_skew=0.05,
         daily_return=0.015,  # +1.5% return
@@ -57,7 +56,7 @@ def test_bad_crowding_distribution():
     score = compute_crowding_score(
         dark_share=0.65,
         z_block=2.0,
-        z_dex=1.5,         # institutions selling (positive dex = bad)
+        z_dex=1.5,  # institutions selling (positive dex = bad)
         iv_skew=0.10,
         median_iv_skew=0.03,
         daily_return=-0.02,  # falling price
@@ -86,7 +85,7 @@ def test_bad_crowding_fear():
 def test_below_threshold_returns_zero():
     """dark_share below threshold → 0.0 (not crowded)."""
     score = compute_crowding_score(
-        dark_share=0.40,    # below 0.55
+        dark_share=0.40,  # below 0.55
         z_block=3.0,
         z_dex=-1.0,
         iv_skew=0.02,
@@ -100,7 +99,7 @@ def test_low_block_returns_zero():
     """z_block below 0.5 → 0.0 (not enough institutional blocks)."""
     score = compute_crowding_score(
         dark_share=0.70,
-        z_block=0.3,        # below 0.5
+        z_block=0.3,  # below 0.5
         z_dex=-1.0,
         iv_skew=0.02,
         median_iv_skew=0.05,
@@ -170,5 +169,6 @@ def test_score_clamped_negative():
 def test_crowdedness_config_keys():
     """Crowdedness config keys exist with correct defaults."""
     from ifds.config.defaults import TUNING
+
     assert TUNING["crowdedness_shadow_enabled"] is True
     assert TUNING["crowdedness_threshold"] == 0.55

@@ -17,14 +17,23 @@ from ifds.sim.validator import (
     _parse_run_date,
 )
 
-
 # ============================================================================
 # Helpers
 # ============================================================================
 
-def _make_trade(ticker="AAPL", entry=100.0, stop=95.0, tp1=108.0, tp2=115.0,
-                qty=100, score=85.0, gex_regime="positive",
-                run_date=None, direction="BUY") -> Trade:
+
+def _make_trade(
+    ticker="AAPL",
+    entry=100.0,
+    stop=95.0,
+    tp1=108.0,
+    tp2=115.0,
+    qty=100,
+    score=85.0,
+    gex_regime="positive",
+    run_date=None,
+    direction="BUY",
+) -> Trade:
     """Create a test trade with sensible defaults."""
     if run_date is None:
         run_date = date(2026, 2, 1)
@@ -47,8 +56,9 @@ def _make_trade(ticker="AAPL", entry=100.0, stop=95.0, tp1=108.0, tp2=115.0,
     )
 
 
-def _make_bars(days=10, start_date=None, base_price=100.0,
-               daily_range=3.0, trend=0.0) -> list[dict]:
+def _make_bars(
+    days=10, start_date=None, base_price=100.0, daily_range=3.0, trend=0.0
+) -> list[dict]:
     """Create mock daily OHLCV bars.
 
     Args:
@@ -69,49 +79,66 @@ def _make_bars(days=10, start_date=None, base_price=100.0,
         if d.weekday() >= 5:
             continue
         c = price + trend * i
-        bars.append({
-            "date": d.isoformat(),
-            "o": c - 0.5,
-            "h": c + daily_range / 2,
-            "l": c - daily_range / 2,
-            "c": c,
-            "v": 1000000,
-        })
+        bars.append(
+            {
+                "date": d.isoformat(),
+                "o": c - 0.5,
+                "h": c + daily_range / 2,
+                "l": c - daily_range / 2,
+                "c": c,
+                "v": 1000000,
+            }
+        )
     return bars
 
 
-def _write_test_csv(tmp_path, run_id="run_20260201_120000_abc123",
-                    rows=None) -> str:
+def _write_test_csv(tmp_path, run_id="run_20260201_120000_abc123", rows=None) -> str:
     """Write a test execution_plan CSV."""
     file_path = tmp_path / f"execution_plan_{run_id}.csv"
 
     if rows is None:
-        rows = [{
-            "instrument_id": "AAPL",
-            "direction": "BUY",
-            "order_type": "LIMIT",
-            "limit_price": "100.00",
-            "quantity": "100",
-            "stop_loss": "95.00",
-            "take_profit_1": "108.00",
-            "take_profit_2": "115.00",
-            "risk_usd": "500.00",
-            "score": "85.50",
-            "gex_regime": "positive",
-            "sector": "Technology",
-            "multiplier_total": "1.2000",
-            "mult_vix": "1.0000",
-            "mult_utility": "1.1000",
-            "sector_bmi": "45.00",
-            "sector_regime": "neutral",
-            "is_mean_reversion": "False",
-        }]
+        rows = [
+            {
+                "instrument_id": "AAPL",
+                "direction": "BUY",
+                "order_type": "LIMIT",
+                "limit_price": "100.00",
+                "quantity": "100",
+                "stop_loss": "95.00",
+                "take_profit_1": "108.00",
+                "take_profit_2": "115.00",
+                "risk_usd": "500.00",
+                "score": "85.50",
+                "gex_regime": "positive",
+                "sector": "Technology",
+                "multiplier_total": "1.2000",
+                "mult_vix": "1.0000",
+                "mult_utility": "1.1000",
+                "sector_bmi": "45.00",
+                "sector_regime": "neutral",
+                "is_mean_reversion": "False",
+            }
+        ]
 
     fieldnames = [
-        "instrument_id", "direction", "order_type", "limit_price",
-        "quantity", "stop_loss", "take_profit_1", "take_profit_2",
-        "risk_usd", "score", "gex_regime", "sector", "multiplier_total",
-        "mult_vix", "mult_utility", "sector_bmi", "sector_regime", "is_mean_reversion",
+        "instrument_id",
+        "direction",
+        "order_type",
+        "limit_price",
+        "quantity",
+        "stop_loss",
+        "take_profit_1",
+        "take_profit_2",
+        "risk_usd",
+        "score",
+        "gex_regime",
+        "sector",
+        "multiplier_total",
+        "mult_vix",
+        "mult_utility",
+        "sector_bmi",
+        "sector_regime",
+        "is_mean_reversion",
     ]
 
     with open(file_path, "w", newline="") as f:
@@ -126,6 +153,7 @@ def _write_test_csv(tmp_path, run_id="run_20260201_120000_abc123",
 # ============================================================================
 # test_bracket_fill_on_day1
 # ============================================================================
+
 
 class TestBracketFill:
     def test_bracket_fill_on_day1(self):
@@ -157,6 +185,7 @@ class TestBracketFill:
 # test_tp1_hit_before_stop / test_stop_hit_before_tp1
 # ============================================================================
 
+
 class TestLegExits:
     def test_tp1_hit_before_stop(self):
         """High >= TP1 before stop -> leg1 win."""
@@ -166,7 +195,14 @@ class TestLegExits:
         bars = [
             {"date": "2026-02-02", "o": 99.5, "h": 101.0, "l": 98.5, "c": 100.0, "v": 1e6},  # Fill
             {"date": "2026-02-03", "o": 101.0, "h": 103.0, "l": 100.0, "c": 102.0, "v": 1e6},
-            {"date": "2026-02-04", "o": 102.0, "h": 106.0, "l": 101.0, "c": 105.5, "v": 1e6},  # TP1 hit
+            {
+                "date": "2026-02-04",
+                "o": 102.0,
+                "h": 106.0,
+                "l": 101.0,
+                "c": 105.5,
+                "v": 1e6,
+            },  # TP1 hit
         ]
 
         result = simulate_bracket_order(trade, bars)
@@ -181,7 +217,14 @@ class TestLegExits:
         trade = _make_trade(entry=100.0, stop=95.0, tp1=108.0, tp2=115.0)
         bars = [
             {"date": "2026-02-02", "o": 99.5, "h": 101.0, "l": 98.5, "c": 100.0, "v": 1e6},  # Fill
-            {"date": "2026-02-03", "o": 99.0, "h": 100.0, "l": 94.0, "c": 95.0, "v": 1e6},   # Stop hit
+            {
+                "date": "2026-02-03",
+                "o": 99.0,
+                "h": 100.0,
+                "l": 94.0,
+                "c": 95.0,
+                "v": 1e6,
+            },  # Stop hit
         ]
 
         result = simulate_bracket_order(trade, bars)
@@ -195,6 +238,7 @@ class TestLegExits:
 # ============================================================================
 # test_same_day_tp_and_stop
 # ============================================================================
+
 
 class TestSameDayAmbiguity:
     def test_same_day_tp_and_stop(self):
@@ -217,6 +261,7 @@ class TestSameDayAmbiguity:
 # test_expired_no_exit
 # ============================================================================
 
+
 class TestExpired:
     def test_expired_no_exit(self):
         """10 days, neither TP nor stop hit -> expired @ close of last day."""
@@ -230,10 +275,16 @@ class TestExpired:
             d = date(2026, 2, 3) + timedelta(days=i)
             if d.weekday() >= 5:
                 continue
-            bars.append({
-                "date": d.isoformat(),
-                "o": 100.0, "h": 102.0, "l": 98.0, "c": 101.0, "v": 1e6,
-            })
+            bars.append(
+                {
+                    "date": d.isoformat(),
+                    "o": 100.0,
+                    "h": 102.0,
+                    "l": 98.0,
+                    "c": 101.0,
+                    "v": 1e6,
+                }
+            )
 
         result = simulate_bracket_order(trade, bars, max_hold_days=10)
 
@@ -248,6 +299,7 @@ class TestExpired:
 # ============================================================================
 # test_leg1_tp1_leg2_stop — mixed P&L
 # ============================================================================
+
 
 class TestMixedPnL:
     def test_leg1_tp1_leg2_stop(self):
@@ -279,6 +331,7 @@ class TestMixedPnL:
 # test_qty_split_33_66
 # ============================================================================
 
+
 class TestQtySplit:
     def test_qty_split_33_66(self):
         """qty_tp1 + qty_tp2 == quantity, with 33/66 split."""
@@ -302,38 +355,65 @@ class TestQtySplit:
 # test_multiple_csv_loading
 # ============================================================================
 
+
 class TestCSVLoading:
     def test_multiple_csv_loading(self, tmp_path):
         """Multiple execution_plan CSVs are loaded and merged."""
         # Plan 1: Feb 1
-        _write_test_csv(tmp_path, run_id="run_20260201_120000_abc123",
-                        rows=[{
-                            "instrument_id": "AAPL", "direction": "BUY",
-                            "order_type": "LIMIT", "limit_price": "100.00",
-                            "quantity": "50", "stop_loss": "95.00",
-                            "take_profit_1": "108.00", "take_profit_2": "115.00",
-                            "risk_usd": "250.00", "score": "85.00",
-                            "gex_regime": "positive", "sector": "Technology",
-                            "multiplier_total": "1.2000",
-                            "mult_vix": "1.0", "mult_utility": "1.1",
-                            "sector_bmi": "45.00", "sector_regime": "neutral",
-                            "is_mean_reversion": "False",
-                        }])
+        _write_test_csv(
+            tmp_path,
+            run_id="run_20260201_120000_abc123",
+            rows=[
+                {
+                    "instrument_id": "AAPL",
+                    "direction": "BUY",
+                    "order_type": "LIMIT",
+                    "limit_price": "100.00",
+                    "quantity": "50",
+                    "stop_loss": "95.00",
+                    "take_profit_1": "108.00",
+                    "take_profit_2": "115.00",
+                    "risk_usd": "250.00",
+                    "score": "85.00",
+                    "gex_regime": "positive",
+                    "sector": "Technology",
+                    "multiplier_total": "1.2000",
+                    "mult_vix": "1.0",
+                    "mult_utility": "1.1",
+                    "sector_bmi": "45.00",
+                    "sector_regime": "neutral",
+                    "is_mean_reversion": "False",
+                }
+            ],
+        )
 
         # Plan 2: Feb 3
-        _write_test_csv(tmp_path, run_id="run_20260203_120000_def456",
-                        rows=[{
-                            "instrument_id": "MSFT", "direction": "BUY",
-                            "order_type": "LIMIT", "limit_price": "350.00",
-                            "quantity": "20", "stop_loss": "340.00",
-                            "take_profit_1": "365.00", "take_profit_2": "380.00",
-                            "risk_usd": "200.00", "score": "78.00",
-                            "gex_regime": "high_vol", "sector": "Technology",
-                            "multiplier_total": "0.9000",
-                            "mult_vix": "0.8", "mult_utility": "1.0",
-                            "sector_bmi": "50.00", "sector_regime": "neutral",
-                            "is_mean_reversion": "False",
-                        }])
+        _write_test_csv(
+            tmp_path,
+            run_id="run_20260203_120000_def456",
+            rows=[
+                {
+                    "instrument_id": "MSFT",
+                    "direction": "BUY",
+                    "order_type": "LIMIT",
+                    "limit_price": "350.00",
+                    "quantity": "20",
+                    "stop_loss": "340.00",
+                    "take_profit_1": "365.00",
+                    "take_profit_2": "380.00",
+                    "risk_usd": "200.00",
+                    "score": "78.00",
+                    "gex_regime": "high_vol",
+                    "sector": "Technology",
+                    "multiplier_total": "0.9000",
+                    "mult_vix": "0.8",
+                    "mult_utility": "1.0",
+                    "sector_bmi": "50.00",
+                    "sector_regime": "neutral",
+                    "is_mean_reversion": "False",
+                }
+            ],
+        )
 
         trades = load_execution_plans(str(tmp_path))
         assert len(trades) == 2
@@ -365,6 +445,7 @@ class TestCSVLoading:
 # ============================================================================
 # test_validation_summary_aggregation
 # ============================================================================
+
 
 class TestValidationSummaryAggregation:
     def test_summary_correct(self):
@@ -445,6 +526,7 @@ class TestValidationSummaryAggregation:
 # test_pnl_by_gex_regime
 # ============================================================================
 
+
 class TestPnlByGexRegime:
     def test_gex_regime_breakdown(self):
         """GEX regime breakdown correctly groups trades."""
@@ -479,6 +561,7 @@ class TestPnlByGexRegime:
 # test_score_bucket_win_rate
 # ============================================================================
 
+
 class TestScoreBucketWinRate:
     def test_score_buckets(self):
         """Score buckets correctly classify and compute win rates."""
@@ -505,13 +588,14 @@ class TestScoreBucketWinRate:
         summary = aggregate_summary([t1, t2, t3, t4])
 
         assert summary.win_rate_by_score_bucket["90+"] == 100.0  # 1/1
-        assert summary.win_rate_by_score_bucket["80-90"] == 0.0   # 0/1
-        assert summary.win_rate_by_score_bucket["70-80"] == 50.0   # 1/2
+        assert summary.win_rate_by_score_bucket["80-90"] == 0.0  # 0/1
+        assert summary.win_rate_by_score_bucket["70-80"] == 50.0  # 1/2
 
 
 # ============================================================================
 # test_report_output
 # ============================================================================
+
 
 class TestReportOutput:
     def test_write_trades_csv(self, tmp_path):
@@ -538,8 +622,11 @@ class TestReportOutput:
     def test_write_summary_json(self, tmp_path):
         """Validation summary JSON is written correctly."""
         summary = ValidationSummary(
-            total_trades=10, filled_trades=8, unfilled_trades=2,
-            total_pnl=1500.0, avg_pnl_per_trade=187.5,
+            total_trades=10,
+            filled_trades=8,
+            unfilled_trades=2,
+            total_pnl=1500.0,
+            avg_pnl_per_trade=187.5,
             plan_count=3,
         )
 
@@ -556,6 +643,7 @@ class TestReportOutput:
 # ============================================================================
 # test_validate_trades_with_bars (integration without Polygon)
 # ============================================================================
+
 
 class TestValidateWithBars:
     def test_full_flow(self):
@@ -597,6 +685,7 @@ class TestValidateWithBars:
 # ============================================================================
 # test_parse_run_date
 # ============================================================================
+
 
 class TestParseRunDate:
     def test_valid_run_id(self):

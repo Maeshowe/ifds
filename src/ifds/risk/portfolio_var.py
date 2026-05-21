@@ -72,7 +72,7 @@ def calculate_portfolio_var(
         return 0.0, 0.0
 
     # Independent positions: VaR_portfolio = sqrt(sum(VaR_i^2))
-    portfolio_var = math.sqrt(sum(v ** 2 for v in per_position_vars))
+    portfolio_var = math.sqrt(sum(v**2 for v in per_position_vars))
     var_pct = (portfolio_var / total_value * 100) if total_value > 0 else 0.0
 
     return round(portfolio_var, 2), round(var_pct, 4)

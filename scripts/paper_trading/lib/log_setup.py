@@ -20,7 +20,6 @@ import os
 import tempfile
 from datetime import date
 
-
 _DEFAULT_LOG_DIR = "logs"
 
 

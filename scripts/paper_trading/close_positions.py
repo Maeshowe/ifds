@@ -11,6 +11,7 @@ Usage:
     python scripts/paper_trading/close_positions.py --mode=time_stop
     python scripts/paper_trading/close_positions.py            # default: moc (legacy)
 """
+
 import argparse
 import sys
 from datetime import date
@@ -25,11 +26,15 @@ load_dotenv()
 
 try:
     from lib.log_setup import setup_pt_logger
+
     logger = setup_pt_logger("close")
 except ModuleNotFoundError:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
-    logger = logging.getLogger('close')
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    )
+    logger = logging.getLogger("close")
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -39,6 +44,7 @@ MAX_ORDER_SIZE = 500  # IBKR precautionary size limit (Global Configuration/Pres
 
 try:
     from lib.event_logger import PTEventLogger
+
     evt = PTEventLogger()
 except ModuleNotFoundError:
     evt = None
@@ -52,6 +58,7 @@ def send_telegram(message):
     """Send message via Telegram Bot API with CET timestamp header."""
     from lib.telegram_helper import telegram_header
     from lib.telegram_helper import send_telegram as _send
+
     _send(f"{telegram_header('CLOSE')}\n{message}")
 
 
@@ -76,9 +83,9 @@ def get_net_open_qty(symbol: str, con_id: int, gross_qty: int, todays_fills) -> 
         if fill.contract.conId != con_id:
             continue
         shares = int(fill.execution.shares)
-        if fill.execution.side == 'BOT':
+        if fill.execution.side == "BOT":
             total_bought += shares
-        elif fill.execution.side == 'SLD':
+        elif fill.execution.side == "SLD":
             total_sold += shares
 
     if total_bought == 0 and total_sold == 0:
@@ -109,8 +116,11 @@ def run_swing_eod_flags(state_file: str, today_str: str) -> None:
     and updates state (TP1 → partial; others → remove).
     """
     from ifds.state.swing_positions import (
-        ACTION_TP1, EOD_ACTIONS_NEXT_DAY,
-        apply_executed_exit, load_swing_positions, save_swing_positions,
+        ACTION_TP1,
+        EOD_ACTIONS_NEXT_DAY,
+        apply_executed_exit,
+        load_swing_positions,
+        save_swing_positions,
     )
     from lib.connection import connect, get_account, disconnect
     from ib_insync import MarketOrder, Stock
@@ -130,6 +140,7 @@ def run_swing_eod_flags(state_file: str, today_str: str) -> None:
 
     for pos in actionable:
         from ifds.state.swing_positions import compute_sell_qty
+
         qty = compute_sell_qty(pos, pos.next_action, tp1_sell_pct=tp1_sell_pct)
         contract = Stock(pos.ticker, "SMART", "USD")
         ib.qualifyContracts(contract)
@@ -140,8 +151,7 @@ def run_swing_eod_flags(state_file: str, today_str: str) -> None:
         ib.sleep(1)
         logger.info(f"  {pos.ticker}: {pos.next_action} → SELL {qty} (MKT)")
         if evt:
-            evt.log("close", "swing_eod_exit", ticker=pos.ticker,
-                    action=pos.next_action, qty=qty)
+            evt.log("close", "swing_eod_exit", ticker=pos.ticker, action=pos.next_action, qty=qty)
         submitted.append((pos.ticker, pos.next_action, qty))
 
         if pos.next_action == ACTION_TP1:
@@ -164,7 +174,9 @@ def run_swing_eod_flags(state_file: str, today_str: str) -> None:
 def run_swing_time_stop(state_file: str, today_str: str) -> None:
     """21:40 CEST same-day TIME_STOP MOC SELL — Task #4."""
     from ifds.state.swing_positions import (
-        ACTION_TIME_STOP, load_swing_positions, save_swing_positions,
+        ACTION_TIME_STOP,
+        load_swing_positions,
+        save_swing_positions,
     )
     from lib.connection import connect, get_account, disconnect
     from lib.orders import create_moc_order
@@ -190,8 +202,7 @@ def run_swing_time_stop(state_file: str, today_str: str) -> None:
         ib.sleep(1)
         logger.info(f"  {pos.ticker}: TIME_STOP → MOC SELL {pos.qty_remaining}")
         if evt:
-            evt.log("close", "swing_time_stop_moc", ticker=pos.ticker,
-                    qty=pos.qty_remaining)
+            evt.log("close", "swing_time_stop_moc", ticker=pos.ticker, qty=pos.qty_remaining)
         submitted.append((pos.ticker, pos.qty_remaining))
 
     save_swing_positions(state_file, new_state)
@@ -209,25 +220,30 @@ def run_swing_time_stop(state_file: str, today_str: str) -> None:
 def main():
     parser = argparse.ArgumentParser(description="IFDS Paper Trading — Close Positions")
     parser.add_argument(
-        "--mode", choices=["moc", "eod_flags", "time_stop"], default="moc",
+        "--mode",
+        choices=["moc", "eod_flags", "time_stop"],
+        default="moc",
         help="moc: legacy 21:45 MOC close all | eod_flags: 15:30 next-day swing exits | time_stop: 21:40 same-day TIME_STOP MOC",
     )
     args, _ = parser.parse_known_args()
 
     try:
         from lib.trading_day_guard import check_trading_day
+
         check_trading_day(logger)
     except ModuleNotFoundError:
         pass
 
-    today_str = date.today().strftime('%Y-%m-%d')
+    today_str = date.today().strftime("%Y-%m-%d")
 
     if args.mode in ("eod_flags", "time_stop"):
         try:
             from ifds.config.loader import Config as _IFDSConfig
+
             _cfg = _IFDSConfig()
             state_file = _cfg.tuning.get(
-                "swing_positions_state_file", "state/swing_positions.json",
+                "swing_positions_state_file",
+                "state/swing_positions.json",
             )
         except Exception:
             state_file = "state/swing_positions.json"
@@ -241,9 +257,11 @@ def main():
     # Early close detection
     try:
         from ifds.utils.calendar import is_early_close, get_market_close_time_cet
+
         if is_early_close():
             from datetime import datetime as _dt
             from zoneinfo import ZoneInfo
+
             close_cet = get_market_close_time_cet()
             now_cet = _dt.now(ZoneInfo("Europe/Budapest")).time()
             if close_cet and now_cet > close_cet:
@@ -283,14 +301,15 @@ def main():
 
     # Fetch today's executions once for bracket fill detection (used by get_net_open_qty)
     todays_fills = ib.reqExecutions(
-        ExecutionFilter(time=date.today().strftime('%Y%m%d') + ' 00:00:00')
+        ExecutionFilter(time=date.today().strftime("%Y%m%d") + " 00:00:00")
     )
 
     # Get open positions (long and short, skip non-tradable)
-    positions = [p for p in ib.positions()
-                 if p.position != 0
-                 and '.CVR' not in p.contract.symbol
-                 and p.contract.secType == 'STK']
+    positions = [
+        p
+        for p in ib.positions()
+        if p.position != 0 and ".CVR" not in p.contract.symbol and p.contract.secType == "STK"
+    ]
 
     if not positions:
         logger.info("No positions to close")
@@ -319,10 +338,10 @@ def main():
                 evt.log("close", "qty_adjusted", ticker=sym, gross_qty=gross_qty, net_qty=net_qty)
 
         # Create fresh contract with SMART routing (avoids Error 10311)
-        contract = Stock(conId=con_id, exchange='SMART')
+        contract = Stock(conId=con_id, exchange="SMART")
         ib.qualifyContracts(contract)
 
-        action = 'SELL' if pos.position > 0 else 'BUY'
+        action = "SELL" if pos.position > 0 else "BUY"
         qty = net_qty
 
         if qty <= MAX_ORDER_SIZE:
@@ -344,7 +363,15 @@ def main():
                 moc_submitted.append((sym, leg_qty, action))
                 logger.info(f"{sym}: MOC {action} {leg_qty} shares (leg {leg}/{total_legs})")
                 if evt:
-                    evt.log("close", "moc_submitted", ticker=sym, qty=leg_qty, action=action, leg=leg, total_legs=total_legs)
+                    evt.log(
+                        "close",
+                        "moc_submitted",
+                        ticker=sym,
+                        qty=leg_qty,
+                        action=action,
+                        leg=leg,
+                        total_legs=total_legs,
+                    )
                 remaining -= leg_qty
                 leg += 1
 
@@ -360,8 +387,10 @@ def main():
                 ticker_totals[sym] = (0, action)
             ticker_totals[sym] = (ticker_totals[sym][0] + leg_qty, action)
 
-        lines = [f"🔔 PAPER TRADING MOC — {today_str}",
-                 f"Closing {len(ticker_totals)} positions at market close:"]
+        lines = [
+            f"🔔 PAPER TRADING MOC — {today_str}",
+            f"Closing {len(ticker_totals)} positions at market close:",
+        ]
         for sym, (total_qty, action) in ticker_totals.items():
             lines.append(f"{sym}: {action} {total_qty} shares")
         send_telegram("\n".join(lines))
@@ -369,5 +398,5 @@ def main():
     disconnect(ib)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

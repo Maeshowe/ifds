@@ -1,4 +1,5 @@
 """Tests for scripts/analysis/loss_exit_whipsaw_analysis.py."""
+
 from __future__ import annotations
 
 import csv
@@ -6,7 +7,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # compute_whipsaw_cost — pure logic
@@ -20,9 +20,7 @@ class TestComputeWhipsawCost:
         from scripts.analysis.loss_exit_whipsaw_analysis import compute_whipsaw_cost
 
         # Entry 100, qty 10, actual -20 (stop at 98), MOC 99 → counterfactual -10
-        result = compute_whipsaw_cost(
-            entry_price=100.0, qty=10, actual_pnl=-20.0, moc_close=99.0
-        )
+        result = compute_whipsaw_cost(entry_price=100.0, qty=10, actual_pnl=-20.0, moc_close=99.0)
         assert result == pytest.approx(-10.0)
 
     def test_positive_when_moc_worse_than_stop(self) -> None:
@@ -30,18 +28,14 @@ class TestComputeWhipsawCost:
         from scripts.analysis.loss_exit_whipsaw_analysis import compute_whipsaw_cost
 
         # Entry 100, qty 10, actual -20 (stop at 98), MOC 95 → counterfactual -50
-        result = compute_whipsaw_cost(
-            entry_price=100.0, qty=10, actual_pnl=-20.0, moc_close=95.0
-        )
+        result = compute_whipsaw_cost(entry_price=100.0, qty=10, actual_pnl=-20.0, moc_close=95.0)
         assert result == pytest.approx(30.0)
 
     def test_zero_when_moc_matches_stop(self) -> None:
         """MOC exactly equals stop fill price → whipsaw cost is 0."""
         from scripts.analysis.loss_exit_whipsaw_analysis import compute_whipsaw_cost
 
-        result = compute_whipsaw_cost(
-            entry_price=100.0, qty=10, actual_pnl=-20.0, moc_close=98.0
-        )
+        result = compute_whipsaw_cost(entry_price=100.0, qty=10, actual_pnl=-20.0, moc_close=98.0)
         assert result == pytest.approx(0.0)
 
 
@@ -55,9 +49,22 @@ class TestLoadLossExits:
     def _write_trades_csv(self, path: Path, rows: list[dict]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         fieldnames = [
-            "date", "ticker", "direction", "entry_price", "entry_qty",
-            "exit_price", "exit_qty", "exit_type", "pnl", "pnl_pct",
-            "commission", "score", "sector", "sl_price", "tp1_price", "tp2_price",
+            "date",
+            "ticker",
+            "direction",
+            "entry_price",
+            "entry_qty",
+            "exit_price",
+            "exit_qty",
+            "exit_type",
+            "pnl",
+            "pnl_pct",
+            "commission",
+            "score",
+            "sector",
+            "sl_price",
+            "tp1_price",
+            "tp2_price",
         ]
         with open(path, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=fieldnames)
@@ -68,11 +75,14 @@ class TestLoadLossExits:
     def test_filters_only_loss_exit_rows(self, tmp_path) -> None:
         from scripts.analysis.loss_exit_whipsaw_analysis import load_loss_exits
 
-        self._write_trades_csv(tmp_path / "trades_2026-04-20.csv", [
-            self._row("SKM", "LOSS_EXIT", -148.5),
-            self._row("AAPL", "TP1", 50.0),
-            self._row("MSFT", "MOC", -10.0),
-        ])
+        self._write_trades_csv(
+            tmp_path / "trades_2026-04-20.csv",
+            [
+                self._row("SKM", "LOSS_EXIT", -148.5),
+                self._row("AAPL", "TP1", 50.0),
+                self._row("MSFT", "MOC", -10.0),
+            ],
+        )
 
         out = load_loss_exits("2026-04-20", "2026-04-20", trades_dir=tmp_path)
         assert len(out) == 1
@@ -82,12 +92,18 @@ class TestLoadLossExits:
     def test_respects_date_window(self, tmp_path) -> None:
         from scripts.analysis.loss_exit_whipsaw_analysis import load_loss_exits
 
-        self._write_trades_csv(tmp_path / "trades_2026-04-20.csv", [
-            self._row("SKM", "LOSS_EXIT", -148.5),
-        ])
-        self._write_trades_csv(tmp_path / "trades_2026-04-12.csv", [
-            self._row("OLD", "LOSS_EXIT", -200.0),
-        ])
+        self._write_trades_csv(
+            tmp_path / "trades_2026-04-20.csv",
+            [
+                self._row("SKM", "LOSS_EXIT", -148.5),
+            ],
+        )
+        self._write_trades_csv(
+            tmp_path / "trades_2026-04-12.csv",
+            [
+                self._row("OLD", "LOSS_EXIT", -200.0),
+            ],
+        )
 
         out = load_loss_exits("2026-04-13", "2026-04-29", trades_dir=tmp_path)
         assert {e.ticker for e in out} == {"SKM"}
@@ -122,7 +138,8 @@ class TestAggregateSplitOrders:
 
     def test_merges_split_orders_into_single_row(self) -> None:
         from scripts.analysis.loss_exit_whipsaw_analysis import (
-            LossExit, aggregate_split_orders,
+            LossExit,
+            aggregate_split_orders,
         )
 
         # GME 2026-04-21: 4 split rows, total qty 514, total pnl -286.84
@@ -182,9 +199,7 @@ class TestCloseCache:
             called["flag"] = True
             raise AssertionError("PolygonClient should not be constructed on cache hit")
 
-        monkeypatch.setattr(
-            "ifds.data.polygon.PolygonClient", boom, raising=False
-        )
+        monkeypatch.setattr("ifds.data.polygon.PolygonClient", boom, raising=False)
 
         result = fetch_moc_close("NIO", "2026-04-28", cache)
         assert result == pytest.approx(6.37)

@@ -7,8 +7,9 @@ from enum import Enum
 
 class CBState(Enum):
     """Circuit breaker states."""
-    CLOSED = "closed"        # Normal operation
-    OPEN = "open"            # Halted — all calls rejected
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Halted — all calls rejected
     HALF_OPEN = "half_open"  # Cooldown expired — allow 1 probe call
 
 
@@ -30,8 +31,13 @@ class ProviderCircuitBreaker:
                 cb.record_failure()
     """
 
-    def __init__(self, provider: str, window_size: int = 50,
-                 threshold: float = 0.3, cooldown_seconds: float = 60.0):
+    def __init__(
+        self,
+        provider: str,
+        window_size: int = 50,
+        threshold: float = 0.3,
+        cooldown_seconds: float = 60.0,
+    ):
         self._provider = provider
         self._window_size = window_size
         self._threshold = threshold

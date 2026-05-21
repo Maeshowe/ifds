@@ -17,13 +17,12 @@ from ifds.sim.validator import (
     validate_trades_with_bars,
 )
 
-
 # ============================================================================
 # Parameter Override
 # ============================================================================
 
-def recalculate_bracket(trade: Trade, overrides: dict,
-                        original_sl_atr_mult: float = 1.5) -> Trade:
+
+def recalculate_bracket(trade: Trade, overrides: dict, original_sl_atr_mult: float = 1.5) -> Trade:
     """Recalculate TP/SL from implied ATR and new multipliers.
 
     The execution plan CSV contains entry_price and stop_loss. We infer ATR:
@@ -52,6 +51,7 @@ def recalculate_bracket(trade: Trade, overrides: dict,
 # YAML Config Loading
 # ============================================================================
 
+
 def load_variants_from_yaml(yaml_path: str) -> tuple[list[SimVariant], dict]:
     """Load variant definitions from YAML config file.
 
@@ -76,18 +76,21 @@ def load_variants_from_yaml(yaml_path: str) -> tuple[list[SimVariant], dict]:
 
     variants = []
     for v in data["variants"]:
-        variants.append(SimVariant(
-            name=v.get("name", "unnamed"),
-            description=v.get("description", ""),
-            overrides=v.get("overrides") or {},
-            mode=metadata["mode"],
-        ))
+        variants.append(
+            SimVariant(
+                name=v.get("name", "unnamed"),
+                description=v.get("description", ""),
+                overrides=v.get("overrides") or {},
+                mode=metadata["mode"],
+            )
+        )
     return variants, metadata
 
 
 # ============================================================================
 # Comparison Orchestrator
 # ============================================================================
+
 
 def run_comparison(
     variants: list[SimVariant],
@@ -124,8 +127,7 @@ def run_comparison(
         return ComparisonReport(baseline=variants[0])
 
     # 2. Fetch bars (once for all variants)
-    bars_by_ticker = _fetch_bars_once(base_trades, polygon_api_key,
-                                       max_hold_days, cache_dir)
+    bars_by_ticker = _fetch_bars_once(base_trades, polygon_api_key, max_hold_days, cache_dir)
 
     # 3. Run each variant
     for variant in variants:
@@ -142,14 +144,25 @@ def run_comparison(
         sim_mode = variant.overrides.get("sim_mode", "bracket")
         swing_params = {
             k: variant.overrides[k]
-            for k in ("tp1_atr_mult", "trail_atr_mult", "trail_atr_volatile", "breakeven_atr_mult", "tp1_exit_pct", "mms_regime")
+            for k in (
+                "tp1_atr_mult",
+                "trail_atr_mult",
+                "trail_atr_volatile",
+                "breakeven_atr_mult",
+                "tp1_exit_pct",
+                "mms_regime",
+            )
             if k in variant.overrides
         }
 
         # Simulate
         variant.trades, variant.summary = validate_trades_with_bars(
-            trades_copy, bars_by_ticker, hold, fill_window,
-            sim_mode=sim_mode, swing_params=swing_params or None,
+            trades_copy,
+            bars_by_ticker,
+            hold,
+            fill_window,
+            sim_mode=sim_mode,
+            swing_params=swing_params or None,
         )
 
     # 4. Compare
@@ -179,13 +192,24 @@ def run_comparison_with_bars(
         sim_mode = variant.overrides.get("sim_mode", "bracket")
         swing_params = {
             k: variant.overrides[k]
-            for k in ("tp1_atr_mult", "trail_atr_mult", "trail_atr_volatile", "breakeven_atr_mult", "tp1_exit_pct", "mms_regime")
+            for k in (
+                "tp1_atr_mult",
+                "trail_atr_mult",
+                "trail_atr_volatile",
+                "breakeven_atr_mult",
+                "tp1_exit_pct",
+                "mms_regime",
+            )
             if k in variant.overrides
         }
 
         variant.trades, variant.summary = validate_trades_with_bars(
-            trades_copy, bars_by_ticker, hold, fill_window,
-            sim_mode=sim_mode, swing_params=swing_params or None,
+            trades_copy,
+            bars_by_ticker,
+            hold,
+            fill_window,
+            sim_mode=sim_mode,
+            swing_params=swing_params or None,
         )
 
     return compare_variants(variants)
@@ -194,6 +218,7 @@ def run_comparison_with_bars(
 # ============================================================================
 # Mode 2: Re-Score Comparison
 # ============================================================================
+
 
 def run_mode2_comparison(
     variants: list[SimVariant],
@@ -293,7 +318,10 @@ def run_mode2_comparison(
     for v in variants:
         all_variant_trades.extend(v.trades)
     bars_by_ticker = _fetch_bars_once(
-        all_variant_trades, polygon_api_key, max_hold_days, cache_dir,
+        all_variant_trades,
+        polygon_api_key,
+        max_hold_days,
+        cache_dir,
     )
 
     # 4. Simulate for each variant
@@ -307,13 +335,24 @@ def run_mode2_comparison(
         sim_mode = variant.overrides.get("sim_mode", "bracket")
         swing_params = {
             k: variant.overrides[k]
-            for k in ("tp1_atr_mult", "trail_atr_mult", "trail_atr_volatile", "breakeven_atr_mult", "tp1_exit_pct", "mms_regime")
+            for k in (
+                "tp1_atr_mult",
+                "trail_atr_mult",
+                "trail_atr_volatile",
+                "breakeven_atr_mult",
+                "tp1_exit_pct",
+                "mms_regime",
+            )
             if k in variant.overrides
         }
 
         variant.trades, variant.summary = validate_trades_with_bars(
-            variant.trades, bars_by_ticker, hold, fill_window,
-            sim_mode=sim_mode, swing_params=swing_params or None,
+            variant.trades,
+            bars_by_ticker,
+            hold,
+            fill_window,
+            sim_mode=sim_mode,
+            swing_params=swing_params or None,
         )
 
     # 5. Compare
@@ -324,14 +363,15 @@ def run_mode2_comparison(
 # Internal helpers
 # ============================================================================
 
+
 def _deep_copy_trades(trades: list[Trade]) -> list[Trade]:
     """Deep copy trade list to avoid mutation between variants."""
     return [copy.deepcopy(t) for t in trades]
 
 
-def _fetch_bars_once(trades: list[Trade], polygon_api_key: str | None,
-                     max_hold_days: int, cache_dir: str | None
-                     ) -> dict[str, list[dict]]:
+def _fetch_bars_once(
+    trades: list[Trade], polygon_api_key: str | None, max_hold_days: int, cache_dir: str | None
+) -> dict[str, list[dict]]:
     """Fetch bars for all tickers once (shared across variants).
 
     Returns {ticker: [bar_dicts]} — flat mapping for validate_trades_with_bars.
@@ -344,9 +384,15 @@ def _fetch_bars_once(trades: list[Trade], polygon_api_key: str | None,
     from ifds.sim.validator import _fetch_bars_for_trades
 
     # Fetch the nested structure
-    nested = asyncio.run(_fetch_bars_for_trades(
-        trades, polygon_api_key, max_hold_days, 1, cache_dir,
-    ))
+    nested = asyncio.run(
+        _fetch_bars_for_trades(
+            trades,
+            polygon_api_key,
+            max_hold_days,
+            1,
+            cache_dir,
+        )
+    )
 
     # Flatten: {ticker: {from_date: bars}} -> {ticker: bars}
     # For each ticker, merge all date ranges (they should be the same per ticker)

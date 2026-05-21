@@ -15,21 +15,54 @@ from ifds.events.types import EventType, Severity
 from ifds.models.market import PositionSizing, SectorScore, StockAnalysis
 
 COLUMNS = [
-    "instrument_id", "direction", "order_type", "limit_price",
-    "quantity", "stop_loss", "take_profit_1", "take_profit_2",
-    "risk_usd", "score", "gex_regime", "sector", "multiplier_total",
-    "mult_vix", "mult_utility", "sector_bmi", "sector_regime", "is_mean_reversion",
-    "contradiction_flag", "contradiction_reasons",
+    "instrument_id",
+    "direction",
+    "order_type",
+    "limit_price",
+    "quantity",
+    "stop_loss",
+    "take_profit_1",
+    "take_profit_2",
+    "risk_usd",
+    "score",
+    "gex_regime",
+    "sector",
+    "multiplier_total",
+    "mult_vix",
+    "mult_utility",
+    "sector_bmi",
+    "sector_regime",
+    "is_mean_reversion",
+    "contradiction_flag",
+    "contradiction_reasons",
 ]
 
 SCAN_COLUMNS = [
-    "Ticker", "Status", "Reason", "Total_Score", "Flow_Score", "Funda_Score",
-    "Tech_Score", "Strategy", "Sector_ETF", "Sector_BMI", "Sector_Regime",
-    "Price", "ATR", "Sector_Name",
+    "Ticker",
+    "Status",
+    "Reason",
+    "Total_Score",
+    "Flow_Score",
+    "Funda_Score",
+    "Tech_Score",
+    "Strategy",
+    "Sector_ETF",
+    "Sector_BMI",
+    "Sector_Regime",
+    "Price",
+    "ATR",
+    "Sector_Name",
 ]
 
 TRADE_PLAN_COLUMNS = [
-    "Rank", "Ticker", "Score", "Flow", "Funda", "Tech", "Sector", "Flags",
+    "Rank",
+    "Ticker",
+    "Score",
+    "Flow",
+    "Funda",
+    "Tech",
+    "Sector",
+    "Flags",
 ]
 
 _BASE_SCORE = 50  # Neutral starting point for sub-dimension scores
@@ -41,10 +74,9 @@ _REASON_MAP = {
 }
 
 
-def write_execution_plan(positions: list[PositionSizing],
-                         output_dir: str,
-                         run_id: str,
-                         logger: EventLogger) -> str:
+def write_execution_plan(
+    positions: list[PositionSizing], output_dir: str, run_id: str, logger: EventLogger
+) -> str:
     """Write execution plan CSV.
 
     Args:
@@ -66,42 +98,50 @@ def write_execution_plan(positions: list[PositionSizing],
         writer.writeheader()
 
         for pos in positions:
-            writer.writerow({
-                "instrument_id": pos.ticker,
-                "direction": pos.direction,
-                "order_type": "LIMIT",
-                "limit_price": round(pos.entry_price, 2),
-                "quantity": pos.quantity,
-                "stop_loss": round(pos.stop_loss, 2),
-                "take_profit_1": round(pos.take_profit_1, 2),
-                "take_profit_2": round(pos.take_profit_2, 2),
-                "risk_usd": round(pos.risk_usd, 2),
-                "score": round(pos.combined_score, 2),
-                "gex_regime": pos.gex_regime,
-                "sector": pos.sector,
-                "multiplier_total": round(pos.multiplier_total, 4),
-                "mult_vix": round(pos.m_vix, 4),
-                "mult_utility": round(pos.m_utility, 4),
-                "sector_bmi": round(pos.sector_bmi, 2) if pos.sector_bmi is not None else "",
-                "sector_regime": pos.sector_regime,
-                "is_mean_reversion": pos.is_mean_reversion,
-                "contradiction_flag": int(pos.contradiction_flag),
-                "contradiction_reasons": ";".join(pos.contradiction_reasons),
-            })
+            writer.writerow(
+                {
+                    "instrument_id": pos.ticker,
+                    "direction": pos.direction,
+                    "order_type": "LIMIT",
+                    "limit_price": round(pos.entry_price, 2),
+                    "quantity": pos.quantity,
+                    "stop_loss": round(pos.stop_loss, 2),
+                    "take_profit_1": round(pos.take_profit_1, 2),
+                    "take_profit_2": round(pos.take_profit_2, 2),
+                    "risk_usd": round(pos.risk_usd, 2),
+                    "score": round(pos.combined_score, 2),
+                    "gex_regime": pos.gex_regime,
+                    "sector": pos.sector,
+                    "multiplier_total": round(pos.multiplier_total, 4),
+                    "mult_vix": round(pos.m_vix, 4),
+                    "mult_utility": round(pos.m_utility, 4),
+                    "sector_bmi": round(pos.sector_bmi, 2) if pos.sector_bmi is not None else "",
+                    "sector_regime": pos.sector_regime,
+                    "is_mean_reversion": pos.is_mean_reversion,
+                    "contradiction_flag": int(pos.contradiction_flag),
+                    "contradiction_reasons": ";".join(pos.contradiction_reasons),
+                }
+            )
 
-    logger.log(EventType.EXECUTION_PLAN, Severity.INFO, phase=6,
-               message=f"Execution plan written: {file_path}",
-               data={"path": str(file_path), "positions": len(positions)})
+    logger.log(
+        EventType.EXECUTION_PLAN,
+        Severity.INFO,
+        phase=6,
+        message=f"Execution plan written: {file_path}",
+        data={"path": str(file_path), "positions": len(positions)},
+    )
 
     return str(file_path)
 
 
-def write_full_scan_matrix(analyzed: list[StockAnalysis],
-                           sector_scores: list[SectorScore],
-                           strategy_mode: str,
-                           output_dir: str,
-                           run_id: str,
-                           logger: EventLogger) -> str:
+def write_full_scan_matrix(
+    analyzed: list[StockAnalysis],
+    sector_scores: list[SectorScore],
+    strategy_mode: str,
+    output_dir: str,
+    run_id: str,
+    logger: EventLogger,
+) -> str:
     """Write full scan matrix CSV — every analyzed ticker with status and reason.
 
     Args:
@@ -149,39 +189,53 @@ def write_full_scan_matrix(analyzed: list[StockAnalysis],
             # Sub-scores: base + adjustment (flow capped to [0, 100])
             flow_score = min(100, max(0, _BASE_SCORE + stock.flow.rvol_score))
             funda_score = _BASE_SCORE + stock.fundamental.funda_score
-            tech_score = stock.technical.rsi_score + stock.technical.sma50_bonus + stock.technical.rs_spy_score
+            tech_score = (
+                stock.technical.rsi_score
+                + stock.technical.sma50_bonus
+                + stock.technical.rs_spy_score
+            )
 
-            writer.writerow({
-                "Ticker": stock.ticker,
-                "Status": status,
-                "Reason": reason,
-                "Total_Score": round(stock.combined_score, 2),
-                "Flow_Score": flow_score,
-                "Funda_Score": funda_score,
-                "Tech_Score": tech_score,
-                "Strategy": strategy_mode,
-                "Sector_ETF": ss.etf if ss else "",
-                "Sector_BMI": round(ss.sector_bmi, 2) if ss and ss.sector_bmi is not None else "",
-                "Sector_Regime": ss.sector_bmi_regime.value if ss else "",
-                "Price": round(stock.technical.price, 2),
-                "ATR": round(stock.technical.atr_14, 2),
-                "Sector_Name": stock.sector,
-            })
+            writer.writerow(
+                {
+                    "Ticker": stock.ticker,
+                    "Status": status,
+                    "Reason": reason,
+                    "Total_Score": round(stock.combined_score, 2),
+                    "Flow_Score": flow_score,
+                    "Funda_Score": funda_score,
+                    "Tech_Score": tech_score,
+                    "Strategy": strategy_mode,
+                    "Sector_ETF": ss.etf if ss else "",
+                    "Sector_BMI": (
+                        round(ss.sector_bmi, 2) if ss and ss.sector_bmi is not None else ""
+                    ),
+                    "Sector_Regime": ss.sector_bmi_regime.value if ss else "",
+                    "Price": round(stock.technical.price, 2),
+                    "ATR": round(stock.technical.atr_14, 2),
+                    "Sector_Name": stock.sector,
+                }
+            )
 
     accepted = sum(1 for s in analyzed if not s.excluded)
     rejected = sum(1 for s in analyzed if s.excluded)
-    logger.log(EventType.EXECUTION_PLAN, Severity.INFO, phase=4,
-               message=f"Full scan matrix written: {file_path}",
-               data={"path": str(file_path), "accepted": accepted, "rejected": rejected})
+    logger.log(
+        EventType.EXECUTION_PLAN,
+        Severity.INFO,
+        phase=4,
+        message=f"Full scan matrix written: {file_path}",
+        data={"path": str(file_path), "accepted": accepted, "rejected": rejected},
+    )
 
     return str(file_path)
 
 
-def write_trade_plan(positions: list[PositionSizing],
-                     stock_analyses: list[StockAnalysis],
-                     output_dir: str,
-                     run_id: str,
-                     logger: EventLogger) -> str:
+def write_trade_plan(
+    positions: list[PositionSizing],
+    stock_analyses: list[StockAnalysis],
+    output_dir: str,
+    run_id: str,
+    logger: EventLogger,
+) -> str:
     """Write trade plan CSV — top 20 positions summary.
 
     Args:
@@ -214,7 +268,11 @@ def write_trade_plan(positions: list[PositionSizing],
             if stock:
                 flow = min(100, max(0, _BASE_SCORE + stock.flow.rvol_score))
                 funda = _BASE_SCORE + stock.fundamental.funda_score
-                tech = stock.technical.rsi_score + stock.technical.sma50_bonus + stock.technical.rs_spy_score
+                tech = (
+                    stock.technical.rsi_score
+                    + stock.technical.sma50_bonus
+                    + stock.technical.rs_spy_score
+                )
             else:
                 flow = funda = tech = _BASE_SCORE
 
@@ -224,19 +282,25 @@ def write_trade_plan(positions: list[PositionSizing],
             if pos.shark_detected:
                 flags.append("SHARK")
 
-            writer.writerow({
-                "Rank": rank,
-                "Ticker": pos.ticker,
-                "Score": round(pos.combined_score, 2),
-                "Flow": flow,
-                "Funda": funda,
-                "Tech": tech,
-                "Sector": pos.sector,
-                "Flags": ",".join(flags),
-            })
+            writer.writerow(
+                {
+                    "Rank": rank,
+                    "Ticker": pos.ticker,
+                    "Score": round(pos.combined_score, 2),
+                    "Flow": flow,
+                    "Funda": funda,
+                    "Tech": tech,
+                    "Sector": pos.sector,
+                    "Flags": ",".join(flags),
+                }
+            )
 
-    logger.log(EventType.EXECUTION_PLAN, Severity.INFO, phase=6,
-               message=f"Trade plan written: {file_path}",
-               data={"path": str(file_path), "positions": len(top_20)})
+    logger.log(
+        EventType.EXECUTION_PLAN,
+        Severity.INFO,
+        phase=6,
+        message=f"Trade plan written: {file_path}",
+        data={"path": str(file_path), "positions": len(top_20)},
+    )
 
     return str(file_path)

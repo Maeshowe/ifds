@@ -65,9 +65,12 @@ def _apply_swing_scoring(
     """
     from ifds.scoring.swing_score import SwingEwmaState, compute_swing_scores
 
-    state_path = Path(config.tuning.get(
-        "swing_ewma_state_file", "state/swing_ewma_state.json",
-    ))
+    state_path = Path(
+        config.tuning.get(
+            "swing_ewma_state_file",
+            "state/swing_ewma_state.json",
+        )
+    )
     span = int(config.tuning.get("swing_ewma_span", 5))
     threshold = float(config.tuning.get("swing_score_threshold", 50.0))
 
@@ -115,11 +118,17 @@ def _apply_swing_scoring(
     try:
         ewma_state.save()
     except OSError as exc:
-        logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=4,
-                   message=f"Swing EWMA state save failed: {exc}")
+        logger.log(
+            EventType.CONFIG_WARNING,
+            Severity.WARNING,
+            phase=4,
+            message=f"Swing EWMA state save failed: {exc}",
+        )
 
     logger.log(
-        EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.INFO,
+        phase=4,
         message=(
             f"Swing scoring: {len(candidates)} candidates → "
             f"{len(new_passed)} passed (threshold={threshold:.1f}, "
@@ -167,12 +176,16 @@ def _is_danger_zone(fundamental: FundamentalScoring, config: Config) -> bool:
     return danger_signals >= config.tuning.get("danger_zone_min_signals", 2)
 
 
-def run_phase4(config: Config, logger: EventLogger,
-               polygon: PolygonClient, fmp: FMPClient,
-               dp_provider: DarkPoolProvider | None,
-               tickers: list[Ticker],
-               sector_scores: list[SectorScore],
-               strategy_mode: StrategyMode) -> Phase4Result:
+def run_phase4(
+    config: Config,
+    logger: EventLogger,
+    polygon: PolygonClient,
+    fmp: FMPClient,
+    dp_provider: DarkPoolProvider | None,
+    tickers: list[Ticker],
+    sector_scores: list[SectorScore],
+    strategy_mode: StrategyMode,
+) -> Phase4Result:
     """Execute Phase 4: Individual Stock Analysis.
 
     Args:
@@ -189,17 +202,26 @@ def run_phase4(config: Config, logger: EventLogger,
         Phase4Result with analyzed stocks and filter results.
     """
     if config.runtime.get("async_enabled", False):
-        return asyncio.run(_run_phase4_async(
-            config, logger, tickers, sector_scores, strategy_mode,
-        ))
+        return asyncio.run(
+            _run_phase4_async(
+                config,
+                logger,
+                tickers,
+                sector_scores,
+                strategy_mode,
+            )
+        )
 
     start_time = time.monotonic()
     logger.phase_start(4, "Individual Stock Analysis", input_count=len(tickers))
 
     try:
         # Build sector name → score_adjustment map (exclude breadth adj — BC14)
-        sector_adj_map = {s.sector_name: s.score_adjustment - s.breadth_score_adj
-                          for s in sector_scores if not s.vetoed}
+        sector_adj_map = {
+            s.sector_name: s.score_adjustment - s.breadth_score_adj
+            for s in sector_scores
+            if not s.vetoed
+        }
 
         analyzed = []
         passed = []
@@ -225,9 +247,13 @@ def run_phase4(config: Config, logger: EventLogger,
         _probe = fmp.get_institutional_ownership("AAPL")
         if _probe is None:
             inst_ownership_available = False
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
-                       message="[INFO] Institutional ownership endpoint unavailable (404), "
-                               "feature disabled for this run")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.INFO,
+                phase=4,
+                message="[INFO] Institutional ownership endpoint unavailable (404), "
+                "feature disabled for this run",
+            )
 
         for ticker_obj in tickers:
             symbol = ticker_obj.symbol
@@ -241,21 +267,26 @@ def run_phase4(config: Config, logger: EventLogger,
                 continue  # Insufficient data
 
             # 2. Technical Analysis
-            technical = _analyze_technical(bars, strategy_mode, config,
-                                           spy_3m_return=spy_3m_return)
+            technical = _analyze_technical(bars, strategy_mode, config, spy_3m_return=spy_3m_return)
 
             # Tech filter: SMA200 trend
             if not technical.trend_pass:
                 tech_filter_count += 1
-                logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=4,
-                           message=f"{symbol} failed SMA200 trend filter",
-                           data={"ticker": symbol, "reason": "tech_filter"})
+                logger.log(
+                    EventType.TICKER_FILTERED,
+                    Severity.DEBUG,
+                    phase=4,
+                    message=f"{symbol} failed SMA200 trend filter",
+                    data={"ticker": symbol, "reason": "tech_filter"},
+                )
                 analysis = StockAnalysis(
-                    ticker=symbol, sector=ticker_obj.sector,
+                    ticker=symbol,
+                    sector=ticker_obj.sector,
                     technical=technical,
                     flow=FlowAnalysis(),
                     fundamental=FundamentalScoring(),
-                    excluded=True, exclusion_reason="tech_filter",
+                    excluded=True,
+                    exclusion_reason="tech_filter",
                 )
                 analyzed.append(analysis)
                 continue
@@ -264,35 +295,41 @@ def run_phase4(config: Config, logger: EventLogger,
             # Pass 1 (universe scoring) skips dp_provider to stay under the UW
             # rate limit; dark-pool enrichment runs in Pass 2 below for `passed`.
             options_data = polygon.get_options_snapshot(symbol)
-            flow = _analyze_flow(symbol, bars, None, config,
-                                 options_data=options_data)
+            flow = _analyze_flow(symbol, bars, None, config, options_data=options_data)
 
             # 4. Fundamental Scoring
-            fundamental = _analyze_fundamental(symbol, fmp, config,
-                                               skip_inst=not inst_ownership_available)
+            fundamental = _analyze_fundamental(
+                symbol, fmp, config, skip_inst=not inst_ownership_available
+            )
 
             # 4b. Danger Zone check (T3 — Bottom 10 filter)
             if _is_danger_zone(fundamental, config):
                 danger_zone_count += 1
-                logger.log(EventType.TICKER_FILTERED, Severity.INFO, phase=4,
-                           message=f"{symbol} filtered: danger zone "
-                                   f"(D/E={fundamental.debt_equity}, "
-                                   f"margin={fundamental.net_margin}, "
-                                   f"IC={fundamental.interest_coverage})",
-                           data={"ticker": symbol, "reason": "danger_zone"})
+                logger.log(
+                    EventType.TICKER_FILTERED,
+                    Severity.INFO,
+                    phase=4,
+                    message=f"{symbol} filtered: danger zone "
+                    f"(D/E={fundamental.debt_equity}, "
+                    f"margin={fundamental.net_margin}, "
+                    f"IC={fundamental.interest_coverage})",
+                    data={"ticker": symbol, "reason": "danger_zone"},
+                )
                 analysis = StockAnalysis(
-                    ticker=symbol, sector=ticker_obj.sector,
-                    technical=technical, flow=flow, fundamental=fundamental,
-                    excluded=True, exclusion_reason="danger_zone",
+                    ticker=symbol,
+                    sector=ticker_obj.sector,
+                    technical=technical,
+                    flow=flow,
+                    fundamental=fundamental,
+                    excluded=True,
+                    exclusion_reason="danger_zone",
                 )
                 analyzed.append(analysis)
                 continue
 
             # 5. Combined Score
             sector_adj = sector_adj_map.get(ticker_obj.sector, 0)
-            combined = _calculate_combined_score(
-                technical, flow, fundamental, sector_adj, config
-            )
+            combined = _calculate_combined_score(technical, flow, fundamental, sector_adj, config)
 
             # 5b. Analyst target + contradiction signal (sync path mirrors async)
             target_data = fmp.get_price_target_consensus(symbol)
@@ -313,6 +350,7 @@ def run_phase4(config: Config, logger: EventLogger,
             recent_grades = fmp.get_recent_grades(symbol)
 
             from ifds.scoring.contradiction_signal import compute_contradiction_signal
+
             contradiction = compute_contradiction_signal(
                 price=technical.price,
                 target_consensus=analyst_target,
@@ -322,9 +360,13 @@ def run_phase4(config: Config, logger: EventLogger,
             )
 
             analysis = StockAnalysis(
-                ticker=symbol, sector=ticker_obj.sector,
-                technical=technical, flow=flow, fundamental=fundamental,
-                combined_score=combined, sector_adjustment=sector_adj,
+                ticker=symbol,
+                sector=ticker_obj.sector,
+                technical=technical,
+                flow=flow,
+                fundamental=fundamental,
+                combined_score=combined,
+                sector_adjustment=sector_adj,
                 shark_detected=fundamental.shark_detected,
                 analyst_target=analyst_target,
                 contradiction_flag=contradiction.is_contradicted,
@@ -338,7 +380,9 @@ def run_phase4(config: Config, logger: EventLogger,
                 analysis.exclusion_reason = "clipping"
                 clipped_count += 1
                 logger.log(
-                    EventType.CLIPPING_SKIP, Severity.INFO, phase=4,
+                    EventType.CLIPPING_SKIP,
+                    Severity.INFO,
+                    phase=4,
                     ticker=symbol,
                     message=f"{symbol} score {combined:.1f} — crowded trade (skipping)",
                     data={"ticker": symbol, "score": combined},
@@ -350,7 +394,9 @@ def run_phase4(config: Config, logger: EventLogger,
             else:
                 passed.append(analysis)
                 logger.log(
-                    EventType.TICKER_SCORED, Severity.INFO, phase=4,
+                    EventType.TICKER_SCORED,
+                    Severity.INFO,
+                    phase=4,
                     ticker=symbol,
                     message=(
                         f"{symbol} → {combined:.1f} "
@@ -374,7 +420,9 @@ def run_phase4(config: Config, logger: EventLogger,
             t = dbg.technical
             tech_total = t.rsi_score + t.sma50_bonus + t.rs_spy_score
             logger.log(
-                EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=4,
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.DEBUG,
+                phase=4,
                 ticker=dbg.ticker,
                 message=(
                     f"{dbg.ticker} tech: SMA50={t.price}>{t.sma_50:.0f} "
@@ -382,9 +430,15 @@ def run_phase4(config: Config, logger: EventLogger,
                     f"RS_spy={'+' if t.rs_spy_score > 0 else ''}{t.rs_spy_score} "
                     f"= {tech_total}"
                 ),
-                data={"ticker": dbg.ticker, "sma50_bonus": t.sma50_bonus,
-                      "rsi_score": t.rsi_score, "rs_spy_score": t.rs_spy_score,
-                      "tech_total": tech_total, "price": t.price, "sma_50": t.sma_50},
+                data={
+                    "ticker": dbg.ticker,
+                    "sma50_bonus": t.sma50_bonus,
+                    "rsi_score": t.rsi_score,
+                    "rs_spy_score": t.rs_spy_score,
+                    "tech_total": tech_total,
+                    "price": t.price,
+                    "sma_50": t.sma_50,
+                },
             )
 
         excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
@@ -392,8 +446,7 @@ def run_phase4(config: Config, logger: EventLogger,
         # Pass 2: per-ticker dark-pool enrichment for `passed` only (sync path).
         # Same rationale as the async path: keep the main universe loop off UW.
         if dp_provider is not None and passed:
-            _enrich_passed_with_dp_sync(passed, dp_provider, config, logger,
-                                        sector_adj_map)
+            _enrich_passed_with_dp_sync(passed, dp_provider, config, logger, sector_adj_map)
             still_passing = []
             for stock in passed:
                 if stock.combined_score > clipping_threshold:
@@ -409,13 +462,14 @@ def run_phase4(config: Config, logger: EventLogger,
             dropped = len(passed) - len(still_passing)
             if dropped:
                 logger.log(
-                    EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.INFO,
+                    phase=4,
                     message=(
                         f"Dark-pool re-scoring dropped {dropped} ticker(s) "
                         f"from passed ({len(passed)} → {len(still_passing)})"
                     ),
-                    data={"dropped": dropped, "before": len(passed),
-                          "after": len(still_passing)},
+                    data={"dropped": dropped, "before": len(passed), "after": len(still_passing)},
                 )
             passed = still_passing
             excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
@@ -425,22 +479,21 @@ def run_phase4(config: Config, logger: EventLogger,
         # PCR/OTM-percentile + EWMA(5) + swing_score_threshold pipeline.
         if config.tuning.get("swing_scoring_enabled", False):
             passed, _recovered, _filtered = _apply_swing_scoring(
-                analyzed, config, logger,
+                analyzed,
+                config,
+                logger,
             )
             # Recompute exclusion buckets — legacy clipped/min_score may have
             # been recovered, the new bucket is "swing_score".
-            clipped_count = sum(
-                1 for a in analyzed if a.exclusion_reason == "clipping"
-            )
-            min_score_count = sum(
-                1 for a in analyzed if a.exclusion_reason == "min_score"
-            )
-            swing_score_count = sum(
-                1 for a in analyzed if a.exclusion_reason == "swing_score"
-            )
+            clipped_count = sum(1 for a in analyzed if a.exclusion_reason == "clipping")
+            min_score_count = sum(1 for a in analyzed if a.exclusion_reason == "min_score")
+            swing_score_count = sum(1 for a in analyzed if a.exclusion_reason == "swing_score")
             excluded_count = (
-                tech_filter_count + min_score_count + clipped_count
-                + danger_zone_count + swing_score_count
+                tech_filter_count
+                + min_score_count
+                + clipped_count
+                + danger_zone_count
+                + swing_score_count
             )
 
         result = Phase4Result(
@@ -455,7 +508,9 @@ def run_phase4(config: Config, logger: EventLogger,
         )
 
         logger.log(
-            EventType.PHASE_COMPLETE, Severity.INFO, phase=4,
+            EventType.PHASE_COMPLETE,
+            Severity.INFO,
+            phase=4,
             message=(
                 f"Analyzed {len(analyzed)} → Passed {len(passed)} "
                 f"(tech_filter={tech_filter_count}, min_score={min_score_count}, "
@@ -471,8 +526,9 @@ def run_phase4(config: Config, logger: EventLogger,
         )
 
         duration_ms = (time.monotonic() - start_time) * 1000
-        logger.phase_complete(4, "Individual Stock Analysis",
-                              output_count=len(passed), duration_ms=duration_ms)
+        logger.phase_complete(
+            4, "Individual Stock Analysis", output_count=len(passed), duration_ms=duration_ms
+        )
 
         return result
 
@@ -484,6 +540,7 @@ def run_phase4(config: Config, logger: EventLogger,
 # ============================================================================
 # Technical Indicators
 # ============================================================================
+
 
 def _calculate_sma(values: list[float], period: int) -> float:
     """Calculate Simple Moving Average over the last `period` values."""
@@ -554,8 +611,7 @@ def _calculate_atr(bars: list[dict], period: int = 14) -> float:
     return sum(true_ranges[-period:]) / period
 
 
-def _check_trend_filter(price: float, sma_200: float,
-                        strategy_mode: StrategyMode) -> bool:
+def _check_trend_filter(price: float, sma_200: float, strategy_mode: StrategyMode) -> bool:
     """Check if ticker passes SMA200 trend filter."""
     if sma_200 <= 0:
         return True  # No SMA → pass by default
@@ -582,9 +638,12 @@ def _score_rsi(rsi: float, config: Config) -> int:
     return 0
 
 
-def _analyze_technical(bars: list[dict], strategy_mode: StrategyMode,
-                       config: Config,
-                       spy_3m_return: float | None = None) -> TechnicalAnalysis:
+def _analyze_technical(
+    bars: list[dict],
+    strategy_mode: StrategyMode,
+    config: Config,
+    spy_3m_return: float | None = None,
+) -> TechnicalAnalysis:
     """Analyze all technical indicators for a ticker."""
     closes = [b["c"] for b in bars]
     current_price = closes[-1]
@@ -629,6 +688,7 @@ def _analyze_technical(bars: list[dict], strategy_mode: StrategyMode,
 # Flow Analysis
 # ============================================================================
 
+
 def _score_rvol(rvol: float, config: Config) -> int:
     """Score RVOL (Relative Volume) based on thresholds."""
     if rvol < config.tuning["rvol_low"]:
@@ -641,22 +701,27 @@ def _score_rvol(rvol: float, config: Config) -> int:
         return config.tuning["rvol_significant_bonus"]
 
 
-def _analyze_flow(ticker: str, bars: list[dict],
-                  dp_provider: DarkPoolProvider | None,
-                  config: Config,
-                  options_data: list[dict] | None = None) -> FlowAnalysis:
+def _analyze_flow(
+    ticker: str,
+    bars: list[dict],
+    dp_provider: DarkPoolProvider | None,
+    config: Config,
+    options_data: list[dict] | None = None,
+) -> FlowAnalysis:
     """Analyze flow metrics: RVOL, spread, squat bar, dark pool, options."""
     dp_data = None
     if dp_provider:
         dp_data = dp_provider.get_dark_pool(ticker)
-    return _analyze_flow_from_data(ticker, bars, dp_data, config,
-                                   options_data=options_data)
+    return _analyze_flow_from_data(ticker, bars, dp_data, config, options_data=options_data)
 
 
-def _analyze_flow_from_data(ticker: str, bars: list[dict],
-                            dp_data: dict | None,
-                            config: Config,
-                            options_data: list[dict] | None = None) -> FlowAnalysis:
+def _analyze_flow_from_data(
+    ticker: str,
+    bars: list[dict],
+    dp_data: dict | None,
+    config: Config,
+    options_data: list[dict] | None = None,
+) -> FlowAnalysis:
     """Analyze flow metrics from pre-fetched data (no API calls)."""
     # RVOL
     volumes = [b["v"] for b in bars]
@@ -674,8 +739,10 @@ def _analyze_flow_from_data(ticker: str, bars: list[dict],
     rvol_score = _score_rvol(rvol, config)
 
     # Squat bar detection
-    squat = (rvol > config.tuning["squat_bar_rvol_min"]
-             and spread_ratio < config.tuning["squat_bar_spread_ratio_max"])
+    squat = (
+        rvol > config.tuning["squat_bar_rvol_min"]
+        and spread_ratio < config.tuning["squat_bar_spread_ratio_max"]
+    )
     squat_bonus = config.tuning["squat_bar_bonus"] if squat else 0
 
     # Dark pool — recalculate dp_pct using Polygon daily volume
@@ -752,6 +819,7 @@ def _analyze_flow_from_data(ticker: str, bars: list[dict],
         # Front-month DTE filter with <5 contract fallback
         max_dte = config.tuning.get("gex_max_dte", 90)
         from datetime import date as _date
+
         today = _date.today()
         filtered_opts = []
         if max_dte > 0:
@@ -806,7 +874,13 @@ def _analyze_flow_from_data(ticker: str, bars: list[dict],
         volume_today=volume_today,
         volume_sma_20=round(volume_sma_20, 2),
         rvol=round(rvol, 3),
-        rvol_score=rvol_score + squat_bonus + pcr_score + otm_score + block_trade_score + dp_pct_score + buy_pressure_score,
+        rvol_score=rvol_score
+        + squat_bonus
+        + pcr_score
+        + otm_score
+        + block_trade_score
+        + dp_pct_score
+        + buy_pressure_score,
         spread_today=round(spread_today, 4),
         spread_sma_10=round(spread_sma_10, 4),
         spread_ratio=round(spread_ratio, 3),
@@ -836,8 +910,8 @@ def _analyze_flow_from_data(ticker: str, bars: list[dict],
 # Fundamental Scoring
 # ============================================================================
 
-def _calculate_insider_score(insider_data: list[dict] | None,
-                             config: Config) -> int:
+
+def _calculate_insider_score(insider_data: list[dict] | None, config: Config) -> int:
     """Calculate insider trading net score (buys - sells in last 30d)."""
     if not insider_data:
         return 0
@@ -886,27 +960,33 @@ def _detect_shark(insider_data: list[dict] | None, config: Config) -> bool:
         shares = trade.get("securitiesTransacted", 0) or 0
         price = trade.get("price", 0) or 0
         total_value += shares * price
-    return (len(unique_buyers) >= config.tuning["shark_min_unique_insiders"]
-            and total_value >= config.tuning["shark_min_total_value"])
+    return (
+        len(unique_buyers) >= config.tuning["shark_min_unique_insiders"]
+        and total_value >= config.tuning["shark_min_total_value"]
+    )
 
 
-def _analyze_fundamental(ticker: str, fmp: FMPClient,
-                         config: Config,
-                         skip_inst: bool = False) -> FundamentalScoring:
+def _analyze_fundamental(
+    ticker: str, fmp: FMPClient, config: Config, skip_inst: bool = False
+) -> FundamentalScoring:
     """Analyze fundamental metrics and insider activity."""
     growth = fmp.get_financial_growth(ticker)
     metrics = fmp.get_key_metrics(ticker)
     insider_data = fmp.get_insider_trading(ticker)
     inst_data = None if skip_inst else fmp.get_institutional_ownership(ticker)
-    return _analyze_fundamental_from_data(ticker, growth, metrics, insider_data, config,
-                                          inst_data=inst_data)
+    return _analyze_fundamental_from_data(
+        ticker, growth, metrics, insider_data, config, inst_data=inst_data
+    )
 
 
-def _analyze_fundamental_from_data(ticker: str, growth: dict | None,
-                                   metrics: dict | None,
-                                   insider_data: list[dict] | None,
-                                   config: Config,
-                                   inst_data: list[dict] | None = None) -> FundamentalScoring:
+def _analyze_fundamental_from_data(
+    ticker: str,
+    growth: dict | None,
+    metrics: dict | None,
+    insider_data: list[dict] | None,
+    config: Config,
+    inst_data: list[dict] | None = None,
+) -> FundamentalScoring:
     """Score fundamentals from pre-fetched data (no API calls)."""
     rev_growth = growth.get("revenueGrowth") if growth else None
     eps_growth = growth.get("epsgrowth") if growth else None
@@ -1019,11 +1099,14 @@ def _analyze_fundamental_from_data(ticker: str, growth: dict | None,
 # Combined Score
 # ============================================================================
 
-def _calculate_combined_score(technical: TechnicalAnalysis,
-                              flow: FlowAnalysis,
-                              fundamental: FundamentalScoring,
-                              sector_adj: int,
-                              config: Config) -> float:
+
+def _calculate_combined_score(
+    technical: TechnicalAnalysis,
+    flow: FlowAnalysis,
+    fundamental: FundamentalScoring,
+    sector_adj: int,
+    config: Config,
+) -> float:
     """Calculate weighted combined score.
 
     Formula: 0.40 * FlowScore + 0.30 * FundaScore + 0.30 * TechScore + SectorAdj
@@ -1039,12 +1122,7 @@ def _calculate_combined_score(technical: TechnicalAnalysis,
     w_funda = config.core["weight_fundamental"]
     w_tech = config.core["weight_technical"]
 
-    combined = (
-        w_flow * flow_score
-        + w_funda * funda_score
-        + w_tech * tech_score
-        + sector_adj
-    )
+    combined = w_flow * flow_score + w_funda * funda_score + w_tech * tech_score + sector_adj
 
     # Apply insider multiplier
     combined *= fundamental.insider_multiplier
@@ -1075,8 +1153,9 @@ def _recompute_dp_pct_score(dp_pct: float, config: Config) -> int:
     return 0
 
 
-def _apply_dp_enrichment(stock: StockAnalysis, dp_data: dict | None,
-                         config: Config, sector_adj: int) -> None:
+def _apply_dp_enrichment(
+    stock: StockAnalysis, dp_data: dict | None, config: Config, sector_adj: int
+) -> None:
     """Mutate stock.flow with new dp_pct + dp_pct_score and re-score combined.
 
     Uses the dp_data["total_volume"] field as the denominator (UW reports the
@@ -1105,7 +1184,11 @@ def _apply_dp_enrichment(stock: StockAnalysis, dp_data: dict | None,
 
     # Re-compute combined_score with the updated flow score
     stock.combined_score = _calculate_combined_score(
-        stock.technical, stock.flow, stock.fundamental, sector_adj, config,
+        stock.technical,
+        stock.flow,
+        stock.fundamental,
+        sector_adj,
+        config,
     )
 
 
@@ -1120,15 +1203,20 @@ def _enrich_passed_with_dp_sync(
     with inter-call delay (default 200 ms, see async docstring for rationale).
     """
     import time as _time
+
     delay_s = config.runtime.get("dp_enrichment_delay_s", 0.2)
     enriched = 0
     for stock in passed:
         try:
             dp_data = dp_provider.get_dark_pool(stock.ticker)
         except Exception as e:
-            logger.log(EventType.API_ERROR, Severity.WARNING, phase=4,
-                       ticker=stock.ticker,
-                       message=f"{stock.ticker} dp enrichment failed: {e}")
+            logger.log(
+                EventType.API_ERROR,
+                Severity.WARNING,
+                phase=4,
+                ticker=stock.ticker,
+                message=f"{stock.ticker} dp enrichment failed: {e}",
+            )
             dp_data = None
         if dp_data is not None:
             sector_adj = sector_adj_map.get(stock.sector, 0)
@@ -1138,7 +1226,9 @@ def _enrich_passed_with_dp_sync(
         if delay_s > 0:
             _time.sleep(delay_s)
     logger.log(
-        EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.INFO,
+        phase=4,
         message=f"Dark-pool Pass 2: enriched {enriched}/{len(passed)} passed tickers",
         data={"enriched": enriched, "passed": len(passed)},
     )
@@ -1164,9 +1254,13 @@ async def _enrich_passed_with_dp_async(
         try:
             dp_data = await dp_provider.get_dark_pool(stock.ticker)
         except Exception as e:
-            logger.log(EventType.API_ERROR, Severity.WARNING, phase=4,
-                       ticker=stock.ticker,
-                       message=f"{stock.ticker} dp enrichment failed: {e}")
+            logger.log(
+                EventType.API_ERROR,
+                Severity.WARNING,
+                phase=4,
+                ticker=stock.ticker,
+                message=f"{stock.ticker} dp enrichment failed: {e}",
+            )
             dp_data = None
         if dp_data is not None:
             sector_adj = sector_adj_map.get(stock.sector, 0)
@@ -1176,7 +1270,9 @@ async def _enrich_passed_with_dp_async(
 
     enriched = sum(1 for s in passed if s.flow.dark_pool_pct > 0)
     logger.log(
-        EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.INFO,
+        phase=4,
         message=f"Dark-pool Pass 2: enriched {enriched}/{len(passed)} passed tickers",
         data={"enriched": enriched, "passed": len(passed)},
     )
@@ -1186,10 +1282,14 @@ async def _enrich_passed_with_dp_async(
 # Async Phase 4 — concurrent ticker processing
 # ============================================================================
 
-async def _run_phase4_async(config: Config, logger: EventLogger,
-                            tickers: list[Ticker],
-                            sector_scores: list[SectorScore],
-                            strategy_mode: StrategyMode) -> Phase4Result:
+
+async def _run_phase4_async(
+    config: Config,
+    logger: EventLogger,
+    tickers: list[Ticker],
+    sector_scores: list[SectorScore],
+    strategy_mode: StrategyMode,
+) -> Phase4Result:
     """Async Phase 4: process tickers concurrently with semaphore rate limiting."""
     from ifds.data.async_clients import AsyncPolygonClient, AsyncFMPClient, AsyncUWClient
     from ifds.data.async_adapters import AsyncUWDarkPoolProvider
@@ -1229,8 +1329,11 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
         dp_provider = AsyncUWDarkPoolProvider(uw_client)
 
     # Exclude breadth adj from ticker-level score (BC14)
-    sector_adj_map = {s.sector_name: s.score_adjustment - s.breadth_score_adj
-                      for s in sector_scores if not s.vetoed}
+    sector_adj_map = {
+        s.sector_name: s.score_adjustment - s.breadth_score_adj
+        for s in sector_scores
+        if not s.vetoed
+    }
     min_score = config.tuning["combined_score_minimum"]
     clipping_threshold = config.core["clipping_threshold"]
 
@@ -1255,9 +1358,13 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
     _probe = await fmp.get_institutional_ownership("AAPL")
     if _probe is None:
         inst_ownership_available = False
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
-                   message="[INFO] Institutional ownership endpoint unavailable (404), "
-                           "feature disabled for this run")
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.INFO,
+            phase=4,
+            message="[INFO] Institutional ownership endpoint unavailable (404), "
+            "feature disabled for this run",
+        )
 
     async def _noop():
         return None
@@ -1276,16 +1383,17 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                 return None  # Insufficient data
 
             # Stage 2: Technical analysis (pure computation)
-            technical = _analyze_technical(bars, strategy_mode, config,
-                                           spy_3m_return=spy_3m_return)
+            technical = _analyze_technical(bars, strategy_mode, config, spy_3m_return=spy_3m_return)
 
             if not technical.trend_pass:
                 return StockAnalysis(
-                    ticker=symbol, sector=ticker_obj.sector,
+                    ticker=symbol,
+                    sector=ticker_obj.sector,
                     technical=technical,
                     flow=FlowAnalysis(),
                     fundamental=FundamentalScoring(),
-                    excluded=True, exclusion_reason="tech_filter",
+                    excluded=True,
+                    exclusion_reason="tech_filter",
                 )
 
             # Stage 3: Parallel FMP + Options + Inst + Target + Contradiction
@@ -1310,15 +1418,25 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
 
             # Unpack — treat exceptions as None, log failures
             _labels = (
-                "fmp_growth", "fmp_metrics", "fmp_insider", "dark_pool",
-                "options", "inst_ownership", "price_target",
-                "earnings_history", "recent_grades",
+                "fmp_growth",
+                "fmp_metrics",
+                "fmp_insider",
+                "dark_pool",
+                "options",
+                "inst_ownership",
+                "price_target",
+                "earnings_history",
+                "recent_grades",
             )
             for idx, label in enumerate(_labels):
                 if isinstance(results[idx], BaseException):
-                    logger.log(EventType.API_ERROR, Severity.WARNING, phase=4,
-                               ticker=symbol,
-                               message=f"{symbol} {label} fetch failed: {results[idx]}")
+                    logger.log(
+                        EventType.API_ERROR,
+                        Severity.WARNING,
+                        phase=4,
+                        ticker=symbol,
+                        message=f"{symbol} {label} fetch failed: {results[idx]}",
+                    )
             growth = results[0] if not isinstance(results[0], BaseException) else None
             metrics = results[1] if not isinstance(results[1], BaseException) else None
             insider_data = results[2] if not isinstance(results[2], BaseException) else None
@@ -1343,29 +1461,41 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                         target_high = None
 
             # Stage 4: Score with pre-fetched data (pure computation)
-            flow = _analyze_flow_from_data(symbol, bars, dp_data, config,
-                                           options_data=options_data)
+            flow = _analyze_flow_from_data(symbol, bars, dp_data, config, options_data=options_data)
             fundamental = _analyze_fundamental_from_data(
-                symbol, growth, metrics, insider_data, config,
+                symbol,
+                growth,
+                metrics,
+                insider_data,
+                config,
                 inst_data=inst_data,
             )
 
             # Stage 4b: Danger Zone check (T3 — Bottom 10 filter)
             if _is_danger_zone(fundamental, config):
                 return StockAnalysis(
-                    ticker=symbol, sector=ticker_obj.sector,
-                    technical=technical, flow=flow, fundamental=fundamental,
-                    excluded=True, exclusion_reason="danger_zone",
+                    ticker=symbol,
+                    sector=ticker_obj.sector,
+                    technical=technical,
+                    flow=flow,
+                    fundamental=fundamental,
+                    excluded=True,
+                    exclusion_reason="danger_zone",
                 )
 
             sector_adj = sector_adj_map.get(ticker_obj.sector, 0)
             combined = _calculate_combined_score(
-                technical, flow, fundamental, sector_adj, config,
+                technical,
+                flow,
+                fundamental,
+                sector_adj,
+                config,
             )
 
             # Contradiction signal (BC23 W18+, 2026-05-02): pure-function eval
             # of structured FMP fundamentals. Defensive — missing inputs ⇒ no flag.
             from ifds.scoring.contradiction_signal import compute_contradiction_signal
+
             contradiction = compute_contradiction_signal(
                 price=technical.price,
                 target_consensus=analyst_target,
@@ -1375,9 +1505,13 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             )
 
             return StockAnalysis(
-                ticker=symbol, sector=ticker_obj.sector,
-                technical=technical, flow=flow, fundamental=fundamental,
-                combined_score=combined, sector_adjustment=sector_adj,
+                ticker=symbol,
+                sector=ticker_obj.sector,
+                technical=technical,
+                flow=flow,
+                fundamental=fundamental,
+                combined_score=combined,
+                sector_adjustment=sector_adj,
                 shark_detected=fundamental.shark_detected,
                 analyst_target=analyst_target,
                 contradiction_flag=contradiction.is_contradicted,
@@ -1399,23 +1533,33 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
 
             if result.excluded and result.exclusion_reason == "tech_filter":
                 tech_filter_count += 1
-                logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=4,
-                           message=f"{result.ticker} failed SMA200 trend filter",
-                           data={"ticker": result.ticker, "reason": "tech_filter"})
+                logger.log(
+                    EventType.TICKER_FILTERED,
+                    Severity.DEBUG,
+                    phase=4,
+                    message=f"{result.ticker} failed SMA200 trend filter",
+                    data={"ticker": result.ticker, "reason": "tech_filter"},
+                )
             elif result.excluded and result.exclusion_reason == "danger_zone":
                 danger_zone_count += 1
-                logger.log(EventType.TICKER_FILTERED, Severity.INFO, phase=4,
-                           message=f"{result.ticker} filtered: danger zone "
-                                   f"(D/E={result.fundamental.debt_equity}, "
-                                   f"margin={result.fundamental.net_margin}, "
-                                   f"IC={result.fundamental.interest_coverage})",
-                           data={"ticker": result.ticker, "reason": "danger_zone"})
+                logger.log(
+                    EventType.TICKER_FILTERED,
+                    Severity.INFO,
+                    phase=4,
+                    message=f"{result.ticker} filtered: danger zone "
+                    f"(D/E={result.fundamental.debt_equity}, "
+                    f"margin={result.fundamental.net_margin}, "
+                    f"IC={result.fundamental.interest_coverage})",
+                    data={"ticker": result.ticker, "reason": "danger_zone"},
+                )
             elif result.combined_score > clipping_threshold:
                 result.excluded = True
                 result.exclusion_reason = "clipping"
                 clipped_count += 1
                 logger.log(
-                    EventType.CLIPPING_SKIP, Severity.INFO, phase=4,
+                    EventType.CLIPPING_SKIP,
+                    Severity.INFO,
+                    phase=4,
                     ticker=result.ticker,
                     message=f"{result.ticker} score {result.combined_score:.1f} — crowded trade (skipping)",
                     data={"ticker": result.ticker, "score": result.combined_score},
@@ -1427,7 +1571,9 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             else:
                 passed.append(result)
                 logger.log(
-                    EventType.TICKER_SCORED, Severity.INFO, phase=4,
+                    EventType.TICKER_SCORED,
+                    Severity.INFO,
+                    phase=4,
                     ticker=result.ticker,
                     message=(
                         f"{result.ticker} → {result.combined_score:.1f} "
@@ -1445,7 +1591,9 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             t = dbg.technical
             tech_total = t.rsi_score + t.sma50_bonus + t.rs_spy_score
             logger.log(
-                EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=4,
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.DEBUG,
+                phase=4,
                 ticker=dbg.ticker,
                 message=(
                     f"{dbg.ticker} tech: SMA50={t.price}>{t.sma_50:.0f} "
@@ -1453,9 +1601,15 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
                     f"RS_spy={'+' if t.rs_spy_score > 0 else ''}{t.rs_spy_score} "
                     f"= {tech_total}"
                 ),
-                data={"ticker": dbg.ticker, "sma50_bonus": t.sma50_bonus,
-                      "rsi_score": t.rsi_score, "rs_spy_score": t.rs_spy_score,
-                      "tech_total": tech_total, "price": t.price, "sma_50": t.sma_50},
+                data={
+                    "ticker": dbg.ticker,
+                    "sma50_bonus": t.sma50_bonus,
+                    "rsi_score": t.rsi_score,
+                    "rs_spy_score": t.rs_spy_score,
+                    "tech_total": tech_total,
+                    "price": t.price,
+                    "sma_50": t.sma_50,
+                },
             )
 
         excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
@@ -1467,7 +1621,11 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
         if dp_provider is not None and passed:
             sector_adj_map_pass2 = sector_adj_map
             await _enrich_passed_with_dp_async(
-                passed, dp_provider, config, logger, sector_adj_map_pass2,
+                passed,
+                dp_provider,
+                config,
+                logger,
+                sector_adj_map_pass2,
             )
 
             # Re-filter after re-scoring: dp penalty may drop tickers below
@@ -1488,13 +1646,14 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
             dropped = len(passed) - len(still_passing)
             if dropped:
                 logger.log(
-                    EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=4,
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.INFO,
+                    phase=4,
                     message=(
                         f"Dark-pool re-scoring dropped {dropped} ticker(s) "
                         f"from passed ({len(passed)} → {len(still_passing)})"
                     ),
-                    data={"dropped": dropped, "before": len(passed),
-                          "after": len(still_passing)},
+                    data={"dropped": dropped, "before": len(passed), "after": len(still_passing)},
                 )
             passed = still_passing
             excluded_count = tech_filter_count + min_score_count + clipped_count + danger_zone_count
@@ -1502,20 +1661,19 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
         # Swing scoring post-processor (Day 63 §3.13, 2026-05-18) — async path
         if config.tuning.get("swing_scoring_enabled", False):
             passed, _recovered, _filtered = _apply_swing_scoring(
-                analyzed, config, logger,
+                analyzed,
+                config,
+                logger,
             )
-            clipped_count = sum(
-                1 for a in analyzed if a.exclusion_reason == "clipping"
-            )
-            min_score_count = sum(
-                1 for a in analyzed if a.exclusion_reason == "min_score"
-            )
-            swing_score_count = sum(
-                1 for a in analyzed if a.exclusion_reason == "swing_score"
-            )
+            clipped_count = sum(1 for a in analyzed if a.exclusion_reason == "clipping")
+            min_score_count = sum(1 for a in analyzed if a.exclusion_reason == "min_score")
+            swing_score_count = sum(1 for a in analyzed if a.exclusion_reason == "swing_score")
             excluded_count = (
-                tech_filter_count + min_score_count + clipped_count
-                + danger_zone_count + swing_score_count
+                tech_filter_count
+                + min_score_count
+                + clipped_count
+                + danger_zone_count
+                + swing_score_count
             )
 
         phase4_result = Phase4Result(
@@ -1530,7 +1688,9 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
         )
 
         logger.log(
-            EventType.PHASE_COMPLETE, Severity.INFO, phase=4,
+            EventType.PHASE_COMPLETE,
+            Severity.INFO,
+            phase=4,
             message=(
                 f"Analyzed {len(analyzed)} → Passed {len(passed)} "
                 f"(tech_filter={tech_filter_count}, min_score={min_score_count}, "
@@ -1546,8 +1706,12 @@ async def _run_phase4_async(config: Config, logger: EventLogger,
         )
 
         duration_ms = (time.monotonic() - start_time) * 1000
-        logger.phase_complete(4, "Individual Stock Analysis (async)",
-                              output_count=len(passed), duration_ms=duration_ms)
+        logger.phase_complete(
+            4,
+            "Individual Stock Analysis (async)",
+            output_count=len(passed),
+            duration_ms=duration_ms,
+        )
 
         return phase4_result
 

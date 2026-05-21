@@ -28,9 +28,14 @@ class UnusualWhalesClient(BaseAPIClient):
 
     HEALTH_CHECK_ENDPOINT = "/api/darkpool/SPY"
 
-    def __init__(self, api_key: str | None = None, timeout: int = 10,
-                 max_retries: int = 3, cache: FileCache | None = None,
-                 circuit_breaker=None):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        timeout: int = 10,
+        max_retries: int = 3,
+        cache: FileCache | None = None,
+        circuit_breaker=None,
+    ):
         super().__init__(
             base_url="https://api.unusualwhales.com",
             api_key=api_key,
@@ -77,8 +82,7 @@ class UnusualWhalesClient(BaseAPIClient):
                 return cached
 
         endpoint = f"/api/darkpool/{ticker}"
-        data = self._get(endpoint, params={"limit": 500},
-                         headers=self._auth_headers())
+        data = self._get(endpoint, params={"limit": 500}, headers=self._auth_headers())
         result = None
         if data and isinstance(data, dict) and data.get("data"):
             result = data["data"]
@@ -88,8 +92,7 @@ class UnusualWhalesClient(BaseAPIClient):
         # Debug: log response shape when data arrived but result is None
         if data is not None and result is None:
             snippet = str(data)[:200]
-            print(f"  [DEBUG] DP {ticker}: unexpected response shape: {snippet}",
-                  file=sys.stderr)
+            print(f"  [DEBUG] DP {ticker}: unexpected response shape: {snippet}", file=sys.stderr)
 
         if result and self._cache:
             self._cache.put("uw", "darkpool", yesterday, ticker, result)
@@ -112,9 +115,9 @@ class UnusualWhalesClient(BaseAPIClient):
             return result
         return None
 
-    def get_dark_pool_recent(self, limit: int = 200,
-                             date: str | None = None,
-                             older_than: str | None = None) -> list[dict] | None:
+    def get_dark_pool_recent(
+        self, limit: int = 200, date: str | None = None, older_than: str | None = None
+    ) -> list[dict] | None:
         """Get recent dark pool trades across all tickers.
 
         Used for batch prefetch — replaces per-ticker calls.
@@ -135,8 +138,7 @@ class UnusualWhalesClient(BaseAPIClient):
             return data
         if data is not None:
             snippet = str(data)[:200]
-            print(f"  [DEBUG] DP recent: unexpected response shape: {snippet}",
-                  file=sys.stderr)
+            print(f"  [DEBUG] DP recent: unexpected response shape: {snippet}", file=sys.stderr)
         return None
 
     def get_greek_exposure_by_strike(self, ticker: str) -> list[dict] | None:

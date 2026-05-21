@@ -23,7 +23,7 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
 
     pnl = metrics.get("pnl", {})
     realized = float(pnl.get("net", pnl.get("gross", 0.0)))
-    unrealized = pnl.get("unrealized")          # eod_report may inject
+    unrealized = pnl.get("unrealized")  # eod_report may inject
     cum = float(pnl.get("cumulative", 0.0))
     closed_count = int(pnl.get("closed_trades_today", 0))
     cb_threshold = float(pnl.get("circuit_breaker_threshold", -5000.0))
@@ -76,9 +76,7 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
     # --- Open swing book + sectors ---
     if open_n > 0:
         lines.append("")
-        lines.append(
-            f"📒 Open book:       ${total_notional:,.0f}  ({notional_pct:.1f}%)"
-        )
+        lines.append(f"📒 Open book:       ${total_notional:,.0f}  ({notional_pct:.1f}%)")
         if sector_dist:
             sector_bits = []
             for sector, notional in sorted(sector_dist.items(), key=lambda kv: -kv[1]):
@@ -141,13 +139,11 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
     if cb_threshold < 0:
         # cum is signed; CB triggered when cum <= cb_threshold (a negative number).
         # Buffer = how much further cum can fall before CB fires.
-        buffer_usd = cum - cb_threshold       # positive if still safe
+        buffer_usd = cum - cb_threshold  # positive if still safe
         buffer_pct = (buffer_usd / abs(cb_threshold)) * 100 if cb_threshold != 0 else 0.0
         if cum <= cb_threshold:
             lines.append("")
-            lines.append(
-                f"🛑 CIRCUIT BREAKER:  ${cum:+,.0f} / ${cb_threshold:,.0f}  TRIGGERED"
-            )
+            lines.append(f"🛑 CIRCUIT BREAKER:  ${cum:+,.0f} / ${cb_threshold:,.0f}  TRIGGERED")
         else:
             lines.append("")
             lines.append(
@@ -180,8 +176,11 @@ def format_pt_monitor_eod_telegram(
     exits_map = {ticker: action for ticker, action in exits}
 
     icon_map = {
-        "TP1": "✅", "TP2": "✅",
-        "HARD_SL": "🛑", "MENTAL_SL": "🛑", "TRAIL_SL": "🛑",
+        "TP1": "✅",
+        "TP2": "✅",
+        "HARD_SL": "🛑",
+        "MENTAL_SL": "🛑",
+        "TRAIL_SL": "🛑",
         "TIME_STOP": "⏰",
         "HOLD": "⏸",
     }
@@ -200,9 +199,7 @@ def format_pt_monitor_eod_telegram(
     total_notional = sum(p.entry_price * p.qty_remaining for p in positions)
     notional_pct = (total_notional / equity * 100) if equity > 0 else 0.0
     lines.append("")
-    lines.append(
-        f"Open: {len(positions)} | Notional: ${total_notional:,.0f} ({notional_pct:.1f}%)"
-    )
+    lines.append(f"Open: {len(positions)} | Notional: ${total_notional:,.0f} ({notional_pct:.1f}%)")
     sector_totals: dict[str, float] = {}
     for p in positions:
         s = p.sector or "?"
@@ -232,9 +229,7 @@ def format_pt_monitor_eod_telegram(
         lines.append(f"  {p.ticker:<5} {close_str:>10}  {icon} {action} {pct_str}")
 
     # --- Time-stops countdown ---
-    has_time_stops = any(
-        max_hold_days - p.days_held <= 2 for p in positions
-    )
+    has_time_stops = any(max_hold_days - p.days_held <= 2 for p in positions)
     if has_time_stops:
         lines.append("")
         lines.append("Time-stops:")

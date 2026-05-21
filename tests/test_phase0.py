@@ -8,10 +8,15 @@ from pathlib import Path
 from ifds.config.loader import Config
 from ifds.events.logger import EventLogger
 from ifds.models.market import (
-    APIHealthResult, APIStatus, MarketVolatilityRegime,
+    APIHealthResult,
+    APIStatus,
+    MarketVolatilityRegime,
 )
 from ifds.phases.phase0_diagnostics import (
-    run_phase0, _classify_vix, _calculate_vix_multiplier, _fetch_vix,
+    run_phase0,
+    _classify_vix,
+    _calculate_vix_multiplier,
+    _fetch_vix,
 )
 
 
@@ -82,7 +87,9 @@ class TestPhase0Integration:
         mock_apis.return_value = [
             APIHealthResult("polygon", "/v2/aggs", APIStatus.OK, 100, is_critical=True),
             APIHealthResult("polygon", "/v3/options", APIStatus.OK, 200, is_critical=True),
-            APIHealthResult("unusual_whales", "/api/darkpool", APIStatus.OK, 150, is_critical=False),
+            APIHealthResult(
+                "unusual_whales", "/api/darkpool", APIStatus.OK, 150, is_critical=False
+            ),
             APIHealthResult("fmp", "/stable/screener", APIStatus.OK, 120, is_critical=True),
             APIHealthResult("fred", "/observations", APIStatus.OK, 80, is_critical=True),
         ]
@@ -102,7 +109,9 @@ class TestPhase0Integration:
     def test_critical_api_down_halts(self, mock_apis, config, logger):
         """Critical API down → pipeline HALT."""
         mock_apis.return_value = [
-            APIHealthResult("polygon", "/v2/aggs", APIStatus.DOWN, error="Timeout", is_critical=True),
+            APIHealthResult(
+                "polygon", "/v2/aggs", APIStatus.DOWN, error="Timeout", is_critical=True
+            ),
             APIHealthResult("fmp", "/stable/screener", APIStatus.OK, 120, is_critical=True),
             APIHealthResult("fred", "/observations", APIStatus.OK, 80, is_critical=True),
         ]
@@ -119,8 +128,13 @@ class TestPhase0Integration:
         mock_apis.return_value = [
             APIHealthResult("polygon", "/v2/aggs", APIStatus.OK, 100, is_critical=True),
             APIHealthResult("polygon", "/v3/options", APIStatus.OK, 200, is_critical=True),
-            APIHealthResult("unusual_whales", "/api/darkpool", APIStatus.DOWN,
-                          error="Timeout", is_critical=False),
+            APIHealthResult(
+                "unusual_whales",
+                "/api/darkpool",
+                APIStatus.DOWN,
+                error="Timeout",
+                is_critical=False,
+            ),
             APIHealthResult("fmp", "/stable/screener", APIStatus.OK, 120, is_critical=True),
             APIHealthResult("fred", "/observations", APIStatus.OK, 80, is_critical=True),
         ]
@@ -134,11 +148,15 @@ class TestPhase0Integration:
     def test_circuit_breaker_halts(self, config, logger, tmp_path):
         """Active circuit breaker → pipeline HALT."""
         cb_file = tmp_path / "cb.json"
-        cb_file.write_text(json.dumps({
-            "is_active": True,
-            "daily_drawdown_pct": 4.5,
-            "message": "Drawdown limit exceeded",
-        }))
+        cb_file.write_text(
+            json.dumps(
+                {
+                    "is_active": True,
+                    "daily_drawdown_pct": 4.5,
+                    "message": "Drawdown limit exceeded",
+                }
+            )
+        )
         config.runtime["circuit_breaker_state_file"] = str(cb_file)
 
         with patch("ifds.phases.phase0_diagnostics._check_all_apis") as mock_apis:

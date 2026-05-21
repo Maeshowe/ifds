@@ -10,124 +10,139 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
-
 # ============================================================================
 # Enums
 # ============================================================================
 
+
 class MarketVolatilityRegime(Enum):
     """VIX-based market volatility classification."""
-    LOW = "low"             # VIX <= 15
-    NORMAL = "normal"       # 15 < VIX <= 20
-    ELEVATED = "elevated"   # 20 < VIX <= 30
-    PANIC = "panic"         # 30 < VIX <= 50
-    EXTREME = "extreme"     # VIX > 50 — near-halt
+
+    LOW = "low"  # VIX <= 15
+    NORMAL = "normal"  # 15 < VIX <= 20
+    ELEVATED = "elevated"  # 20 < VIX <= 30
+    PANIC = "panic"  # 30 < VIX <= 50
+    EXTREME = "extreme"  # VIX > 50 — near-halt
 
 
 class BMIRegime(Enum):
     """Big Money Index regime classification."""
-    GREEN = "green"         # BMI <= 25% — aggressive long
-    YELLOW = "yellow"       # 25% < BMI < 80% — normal long
-    RED = "red"             # BMI >= 80% — short/defensive
+
+    GREEN = "green"  # BMI <= 25% — aggressive long
+    YELLOW = "yellow"  # 25% < BMI < 80% — normal long
+    RED = "red"  # BMI >= 80% — short/defensive
 
 
 class StrategyMode(Enum):
     """Pipeline strategy direction."""
+
     LONG = "long"
     SHORT = "short"
 
 
 class APIStatus(Enum):
     """Health check status for an API endpoint."""
+
     OK = "ok"
-    DEGRADED = "degraded"   # Slow but responding
-    DOWN = "down"           # Not responding after retries
-    SKIPPED = "skipped"     # Not checked (e.g., optional provider)
+    DEGRADED = "degraded"  # Slow but responding
+    DOWN = "down"  # Not responding after retries
+    SKIPPED = "skipped"  # Not checked (e.g., optional provider)
 
 
 class GEXRegime(Enum):
     """Gamma Exposure regime classification."""
-    POSITIVE = "positive"   # Low volatility, magnet effect
-    NEGATIVE = "negative"   # High volatility, unstable
-    HIGH_VOL = "high_vol"   # Transition zone
+
+    POSITIVE = "positive"  # Low volatility, magnet effect
+    NEGATIVE = "negative"  # High volatility, unstable
+    HIGH_VOL = "high_vol"  # Transition zone
 
 
 class SectorBMIRegime(Enum):
     """Sector-level BMI classification (per-sector thresholds)."""
-    OVERSOLD = "oversold"       # BMI < sector oversold threshold
-    NEUTRAL = "neutral"         # Between oversold and overbought
-    OVERBOUGHT = "overbought"   # BMI > sector overbought threshold
+
+    OVERSOLD = "oversold"  # BMI < sector oversold threshold
+    NEUTRAL = "neutral"  # Between oversold and overbought
+    OVERBOUGHT = "overbought"  # BMI > sector overbought threshold
 
 
 class MomentumClassification(Enum):
     """Sector momentum ranking classification."""
-    LEADER = "leader"       # Top N momentum → +15 bonus
-    NEUTRAL = "neutral"     # Middle tier → 0
-    LAGGARD = "laggard"     # Bottom N momentum → -20 penalty
+
+    LEADER = "leader"  # Top N momentum → +15 bonus
+    NEUTRAL = "neutral"  # Middle tier → 0
+    LAGGARD = "laggard"  # Bottom N momentum → -20 penalty
 
 
 class BreadthRegime(Enum):
     """Sector breadth health classification (BC14)."""
-    STRONG = "strong"               # b50 > 70 AND b200 > 70
-    EMERGING = "emerging"           # b50 > 70 AND b200 30-70
-    CONSOLIDATING = "consolidating" # b50 30-70 AND b200 > 70
-    NEUTRAL = "neutral"             # b50 30-70 AND b200 30-70
-    WEAKENING = "weakening"         # b50 < 30 AND b200 30-70
-    WEAK = "weak"                   # b50 < 30 AND b200 < 30
-    RECOVERY = "recovery"           # b50 > 50 AND b200 < 30
+
+    STRONG = "strong"  # b50 > 70 AND b200 > 70
+    EMERGING = "emerging"  # b50 > 70 AND b200 30-70
+    CONSOLIDATING = "consolidating"  # b50 30-70 AND b200 > 70
+    NEUTRAL = "neutral"  # b50 30-70 AND b200 30-70
+    WEAKENING = "weakening"  # b50 < 30 AND b200 30-70
+    WEAK = "weak"  # b50 < 30 AND b200 < 30
+    RECOVERY = "recovery"  # b50 > 50 AND b200 < 30
 
 
 class MMRegime(Enum):
     """MMS market microstructure regime (BC15)."""
-    GAMMA_POSITIVE = "gamma_positive"     # Γ⁺: volatility suppression
-    GAMMA_NEGATIVE = "gamma_negative"     # Γ⁻: liquidity vacuum
-    DARK_DOMINANT = "dark_dominant"        # DD: institutional accumulation
-    ABSORPTION = "absorption"             # ABS: passive absorption
-    DISTRIBUTION = "distribution"         # DIST: distribution into strength
-    NEUTRAL = "neutral"                   # NEU: no rule matched
-    UNDETERMINED = "undetermined"         # UND: insufficient baseline
-    VOLATILE = "volatile"                 # VOL: unstable microstructure (BC16)
+
+    GAMMA_POSITIVE = "gamma_positive"  # Γ⁺: volatility suppression
+    GAMMA_NEGATIVE = "gamma_negative"  # Γ⁻: liquidity vacuum
+    DARK_DOMINANT = "dark_dominant"  # DD: institutional accumulation
+    ABSORPTION = "absorption"  # ABS: passive absorption
+    DISTRIBUTION = "distribution"  # DIST: distribution into strength
+    NEUTRAL = "neutral"  # NEU: no rule matched
+    UNDETERMINED = "undetermined"  # UND: insufficient baseline
+    VOLATILE = "volatile"  # VOL: unstable microstructure (BC16)
 
 
 class BaselineState(Enum):
     """MMS feature store maturity (BC15)."""
-    EMPTY = "empty"         # No feature store history
-    PARTIAL = "partial"     # Some features have z-scores, some don't
-    COMPLETE = "complete"   # All features have ≥ min_periods history
+
+    EMPTY = "empty"  # No feature store history
+    PARTIAL = "partial"  # Some features have z-scores, some don't
+    COMPLETE = "complete"  # All features have ≥ min_periods history
 
 
 class SectorTrend(Enum):
     """Sector price trend relative to SMA20."""
-    UP = "up"       # Price > SMA20
-    DOWN = "down"   # Price <= SMA20
+
+    UP = "up"  # Price > SMA20
+    DOWN = "down"  # Price <= SMA20
 
 
 class DarkPoolSignal(Enum):
     """Dark Pool activity classification."""
-    BULLISH = "bullish"     # DP buys > DP sells
-    BEARISH = "bearish"     # DP sells > DP buys
-    NEUTRAL = "neutral"     # Equal or no data
+
+    BULLISH = "bullish"  # DP buys > DP sells
+    BEARISH = "bearish"  # DP sells > DP buys
+    NEUTRAL = "neutral"  # Equal or no data
 
 
 # ============================================================================
 # Phase 0: Diagnostics Models
 # ============================================================================
 
+
 @dataclass
 class APIHealthResult:
     """Result of a single API endpoint health check."""
-    provider: str           # "polygon", "unusual_whales", "fmp", "fred"
-    endpoint: str           # Specific endpoint tested
+
+    provider: str  # "polygon", "unusual_whales", "fmp", "fred"
+    endpoint: str  # Specific endpoint tested
     status: APIStatus
     response_time_ms: float | None = None
     error: str | None = None
-    is_critical: bool = True    # If True, failure → pipeline HALT
+    is_critical: bool = True  # If True, failure → pipeline HALT
     retries_used: int = 0
 
 
 @dataclass
 class CircuitBreakerState:
     """Circuit breaker state for drawdown protection."""
+
     is_active: bool
     daily_drawdown_pct: float = 0.0
     limit_pct: float = 3.0
@@ -139,24 +154,25 @@ class CircuitBreakerState:
 @dataclass
 class MacroRegime:
     """Macro environment assessment from FRED data."""
+
     # VIX
     vix_value: float
     vix_regime: MarketVolatilityRegime
-    vix_multiplier: float       # 1.0 if VIX <= 20, else max(0.25, 1-(VIX-20)*0.02)
+    vix_multiplier: float  # 1.0 if VIX <= 20, else max(0.25, 1-(VIX-20)*0.02)
 
     # TNX (10-Year Treasury Yield)
     tnx_value: float
     tnx_sma20: float
-    tnx_rate_sensitive: bool    # True if TNX > SMA20 * 1.05
+    tnx_rate_sensitive: bool  # True if TNX > SMA20 * 1.05
 
     # Yield Curve
-    yield_curve_2s10s: float | None = None   # T10Y2Y spread in pct points
-    curve_status: str = "UNKNOWN"            # NORMAL / FLATTENING / INVERTED
+    yield_curve_2s10s: float | None = None  # T10Y2Y spread in pct points
+    curve_status: str = "UNKNOWN"  # NORMAL / FLATTENING / INVERTED
 
     # Cross-Asset Regime (BC21)
-    cross_asset_regime: str = "NORMAL"       # NORMAL / CAUTIOUS / RISK_OFF / CRISIS
-    cross_asset_votes: float = 0.0           # 0–4 (ETF votes + yield curve)
-    vix_threshold_adjusted: float = 20.0     # VIX penalty start after cross-asset shift
+    cross_asset_regime: str = "NORMAL"  # NORMAL / CAUTIOUS / RISK_OFF / CRISIS
+    cross_asset_votes: float = 0.0  # 0–4 (ETF votes + yield curve)
+    vix_threshold_adjusted: float = 20.0  # VIX penalty start after cross-asset shift
 
     timestamp: datetime | None = None
 
@@ -164,6 +180,7 @@ class MacroRegime:
 @dataclass
 class DiagnosticsResult:
     """Combined result of Phase 0: System Diagnostics."""
+
     api_health: list[APIHealthResult] = field(default_factory=list)
     circuit_breaker: CircuitBreakerState | None = None
     macro: MacroRegime | None = None
@@ -186,24 +203,27 @@ class DiagnosticsResult:
 # Phase 1: BMI Market Regime Models
 # ============================================================================
 
+
 @dataclass
 class BMIData:
     """Big Money Index calculation result."""
-    bmi_value: float                    # Current BMI (SMA25 of daily ratios)
-    bmi_regime: BMIRegime               # GREEN / YELLOW / RED
-    daily_ratio: float                  # Most recent B/(B+S)*100
-    buy_count: int = 0                  # Today's big money buy signals
-    sell_count: int = 0                 # Today's big money sell signals
-    divergence_detected: bool = False   # Bearish divergence (SPY up, BMI down)
+
+    bmi_value: float  # Current BMI (SMA25 of daily ratios)
+    bmi_regime: BMIRegime  # GREEN / YELLOW / RED
+    daily_ratio: float  # Most recent B/(B+S)*100
+    buy_count: int = 0  # Today's big money buy signals
+    sell_count: int = 0  # Today's big money sell signals
+    divergence_detected: bool = False  # Bearish divergence (SPY up, BMI down)
     divergence_type: str | None = None  # "bearish" or None
 
 
 @dataclass
 class Phase1Result:
     """Output of Phase 1: Market Regime determination."""
+
     bmi: BMIData
-    strategy_mode: StrategyMode         # LONG or SHORT
-    ticker_count_for_bmi: int = 0       # How many tickers used for BMI calc
+    strategy_mode: StrategyMode  # LONG or SHORT
+    ticker_count_for_bmi: int = 0  # How many tickers used for BMI calc
     sector_bmi_values: dict[str, float] = field(default_factory=dict)  # ETF → BMI%
     grouped_daily_bars: list[dict] = field(default_factory=list)  # BC14: raw bars for breadth
 
@@ -212,9 +232,11 @@ class Phase1Result:
 # Phase 2: Universe Building Models
 # ============================================================================
 
+
 @dataclass
 class Ticker:
     """A screened stock from FMP with basic fundamentals."""
+
     symbol: str
     company_name: str = ""
     sector: str = ""
@@ -233,6 +255,7 @@ class Ticker:
 @dataclass
 class Phase2Result:
     """Output of Phase 2: Universe Building."""
+
     tickers: list[Ticker] = field(default_factory=list)
     total_screened: int = 0
     earnings_excluded: list[str] = field(default_factory=list)
@@ -246,46 +269,50 @@ class Phase2Result:
 # Phase 3: Sector Rotation Models
 # ============================================================================
 
+
 @dataclass
 class SectorBreadth:
     """Breadth analysis result for a single sector (BC14)."""
+
     etf: str
     constituent_count: int = 0
     pct_above_sma20: float = 0.0
     pct_above_sma50: float = 0.0
     pct_above_sma200: float = 0.0
-    breadth_score: float = 0.0           # 0.20*sma20 + 0.50*sma50 + 0.30*sma200
+    breadth_score: float = 0.0  # 0.20*sma20 + 0.50*sma50 + 0.30*sma200
     breadth_regime: BreadthRegime = BreadthRegime.NEUTRAL
-    breadth_momentum: float = 0.0        # pct_sma50 today - pct_sma50 5d ago
+    breadth_momentum: float = 0.0  # pct_sma50 today - pct_sma50 5d ago
     divergence_detected: bool = False
-    divergence_type: str | None = None   # "bullish" or "bearish"
+    divergence_type: str | None = None  # "bullish" or "bearish"
     score_adjustment: int = 0
 
 
 @dataclass
 class SectorScore:
     """Analysis result for a single sector ETF."""
-    etf: str                            # e.g. "XLK"
-    sector_name: str                    # e.g. "Technology"
-    momentum_5d: float = 0.0           # 5-day relative performance %
+
+    etf: str  # e.g. "XLK"
+    sector_name: str  # e.g. "Technology"
+    momentum_5d: float = 0.0  # 5-day relative performance %
     trend: SectorTrend = SectorTrend.UP
-    rank: int = 0                       # 1 = highest momentum
+    rank: int = 0  # 1 = highest momentum
     classification: MomentumClassification = MomentumClassification.NEUTRAL
-    sector_bmi: float | None = None     # Sector-level BMI (if calculated)
+    sector_bmi: float | None = None  # Sector-level BMI (if calculated)
     sector_bmi_regime: SectorBMIRegime = SectorBMIRegime.NEUTRAL
-    vetoed: bool = False                # True if sector is vetoed
+    vetoed: bool = False  # True if sector is vetoed
     veto_reason: str | None = None
-    score_adjustment: int = 0           # +15 Leader, -20 Laggard, etc.
+    score_adjustment: int = 0  # +15 Leader, -20 Laggard, etc.
     breadth: SectorBreadth | None = None  # BC14: breadth analysis
-    breadth_score_adj: int = 0            # BC14: breadth score adjustment
+    breadth_score_adj: int = 0  # BC14: breadth score adjustment
 
 
 @dataclass
 class Phase3Result:
     """Output of Phase 3: Sector Rotation."""
+
     sector_scores: list[SectorScore] = field(default_factory=list)
-    vetoed_sectors: list[str] = field(default_factory=list)   # ETF symbols
-    active_sectors: list[str] = field(default_factory=list)   # Non-vetoed ETFs
+    vetoed_sectors: list[str] = field(default_factory=list)  # ETF symbols
+    active_sectors: list[str] = field(default_factory=list)  # Non-vetoed ETFs
     rate_sensitive_penalty: bool = False  # True if TNX rate sensitivity active
 
 
@@ -293,81 +320,86 @@ class Phase3Result:
 # Phase 4: Individual Stock Analysis Models
 # ============================================================================
 
+
 @dataclass
 class TechnicalAnalysis:
     """Technical indicator results for a ticker."""
+
     price: float
     sma_200: float
     sma_20: float
     rsi_14: float
     atr_14: float
-    trend_pass: bool            # Price > SMA200 (LONG) or Price < SMA200 (SHORT)
-    rsi_score: int = 0          # RSI ideal zone: +30 inner, +15 outer, 0 outside
+    trend_pass: bool  # Price > SMA200 (LONG) or Price < SMA200 (SHORT)
+    rsi_score: int = 0  # RSI ideal zone: +30 inner, +15 outer, 0 outside
     sma_50: float = 0.0
-    sma50_bonus: int = 0        # +30 if price > SMA50
+    sma50_bonus: int = 0  # +30 if price > SMA50
     rs_vs_spy: float | None = None  # ticker - SPY 3-month return
-    rs_spy_score: int = 0       # +40 if outperforming SPY
+    rs_spy_score: int = 0  # +40 if outperforming SPY
 
 
 @dataclass
 class FlowAnalysis:
     """Flow (VPA + Dark Pool) analysis for a ticker."""
+
     volume_today: float = 0.0
     volume_sma_20: float = 0.0
-    rvol: float = 1.0                          # volume_today / volume_sma_20
-    rvol_score: int = 0                        # -10 to +15 (+ squat bar bonus)
-    spread_today: float = 0.0                  # High - Low
+    rvol: float = 1.0  # volume_today / volume_sma_20
+    rvol_score: int = 0  # -10 to +15 (+ squat bar bonus)
+    spread_today: float = 0.0  # High - Low
     spread_sma_10: float = 0.0
-    spread_ratio: float = 1.0                  # spread_today / spread_sma_10
-    squat_bar: bool = False                    # RVOL > 2.0 AND SpreadRatio < 0.9
-    squat_bar_bonus: int = 0                   # +10 if squat bar detected
-    dark_pool_pct: float = 0.0                 # DP volume / total volume
+    spread_ratio: float = 1.0  # spread_today / spread_sma_10
+    squat_bar: bool = False  # RVOL > 2.0 AND SpreadRatio < 0.9
+    squat_bar_bonus: int = 0  # +10 if squat bar detected
+    dark_pool_pct: float = 0.0  # DP volume / total volume
     dark_pool_signal: DarkPoolSignal | None = None
-    dp_pct_score: int = 0                        # +10 or +15 based on dp_pct
-    pcr: float | None = None                      # Put/Call Ratio
-    pcr_score: int = 0                            # +15 bullish, -10 bearish
-    otm_call_ratio: float | None = None           # OTM calls / total calls
-    otm_score: int = 0                            # +10 if > 40%
-    block_trade_count: int = 0                    # $500K+ trades
-    block_trade_score: int = 0                    # +10 or +15
-    vwap: float = 0.0                             # Volume-weighted average price
-    buy_pressure_score: int = 0                   # buy pressure + VWAP signal
-    venue_entropy: float = 0.0                    # Shannon entropy of DP venue distribution
+    dp_pct_score: int = 0  # +10 or +15 based on dp_pct
+    pcr: float | None = None  # Put/Call Ratio
+    pcr_score: int = 0  # +15 bullish, -10 bearish
+    otm_call_ratio: float | None = None  # OTM calls / total calls
+    otm_score: int = 0  # +10 if > 40%
+    block_trade_count: int = 0  # $500K+ trades
+    block_trade_score: int = 0  # +10 or +15
+    vwap: float = 0.0  # Volume-weighted average price
+    buy_pressure_score: int = 0  # buy pressure + VWAP signal
+    venue_entropy: float = 0.0  # Shannon entropy of DP venue distribution
 
     # Dollar-weighted dark pool metrics (BC24 foundation, 2026-04-17)
-    dp_volume_shares: int = 0                     # Absolute DP shares (dark_pool_pct denominator basis)
-    total_volume: int = 0                         # Total daily stock volume (liquidity context)
-    dp_volume_dollars: float = 0.0                # DP $ volume (sum of premium across records)
-    block_trade_dollars: float = 0.0              # $ volume of block trades ($500K+ notional)
+    dp_volume_shares: int = 0  # Absolute DP shares (dark_pool_pct denominator basis)
+    total_volume: int = 0  # Total daily stock volume (liquidity context)
+    dp_volume_dollars: float = 0.0  # DP $ volume (sum of premium across records)
+    block_trade_dollars: float = 0.0  # $ volume of block trades ($500K+ notional)
 
 
 @dataclass
 class FundamentalScoring:
     """Fundamental metrics and scores for a ticker."""
+
     revenue_growth_yoy: float | None = None
     eps_growth_yoy: float | None = None
     net_margin: float | None = None
     roe: float | None = None
     debt_equity: float | None = None
     interest_coverage: float | None = None
-    insider_score: int = 0              # Sum of (buys - sells) in last 30d
-    insider_multiplier: float = 1.0     # 0.75, 1.0, or 1.25
-    funda_score: int = 0                # Sum of all fundamental score components
-    shark_detected: bool = False        # Insider cluster buying detected
-    inst_ownership_trend: str = "unknown"   # "increasing", "decreasing", "stable", "unknown"
-    inst_ownership_score: int = 0           # +10 increasing, -5 decreasing
+    insider_score: int = 0  # Sum of (buys - sells) in last 30d
+    insider_multiplier: float = 1.0  # 0.75, 1.0, or 1.25
+    funda_score: int = 0  # Sum of all fundamental score components
+    shark_detected: bool = False  # Insider cluster buying detected
+    inst_ownership_trend: str = "unknown"  # "increasing", "decreasing", "stable", "unknown"
+    inst_ownership_score: int = 0  # +10 increasing, -5 decreasing
 
 
 @dataclass
 class StockAnalysis:
     """Complete analysis result for a single ticker."""
+
     ticker: str
     sector: str
     technical: TechnicalAnalysis
     flow: FlowAnalysis
     fundamental: FundamentalScoring
-    combined_score: float = 0.0         # Weighted: 0.4*flow + 0.3*funda + 0.3*tech + sector_adj
-    sector_adjustment: int = 0          # From Phase 3 (Leader +15, Laggard -20, etc.)
+    combined_score: float = 0.0  # Weighted: 0.4*flow + 0.3*funda + 0.3*tech + sector_adj
+    sector_adjustment: int = 0  # From Phase 3 (Leader +15, Laggard -20, etc.)
     excluded: bool = False
     exclusion_reason: str | None = None  # "tech_filter", "min_score", "clipping"
     shark_detected: bool = False
@@ -391,23 +423,26 @@ class StockAnalysis:
 @dataclass
 class Phase4Result:
     """Output of Phase 4: Individual Stock Analysis."""
+
     analyzed: list[StockAnalysis] = field(default_factory=list)
-    passed: list[StockAnalysis] = field(default_factory=list)   # score >= 70, not clipped
+    passed: list[StockAnalysis] = field(default_factory=list)  # score >= 70, not clipped
     excluded_count: int = 0
-    clipped_count: int = 0              # Crowded trades (base score before freshness)
-    clipping_threshold: int = 95         # Config value used for clipping
-    tech_filter_count: int = 0          # Failed SMA200 trend filter
-    min_score_count: int = 0            # Score < 70
-    danger_zone_count: int = 0          # Bottom 10 risk profile (BC18-prep)
+    clipped_count: int = 0  # Crowded trades (base score before freshness)
+    clipping_threshold: int = 95  # Config value used for clipping
+    tech_filter_count: int = 0  # Failed SMA200 trend filter
+    min_score_count: int = 0  # Score < 70
+    danger_zone_count: int = 0  # Bottom 10 risk profile (BC18-prep)
 
 
 # ============================================================================
 # Phase 5: GEX Analysis Models
 # ============================================================================
 
+
 @dataclass
 class GEXAnalysis:
     """GEX regime analysis for a ticker."""
+
     ticker: str
     net_gex: float = 0.0
     call_wall: float = 0.0
@@ -415,19 +450,20 @@ class GEXAnalysis:
     zero_gamma: float = 0.0
     current_price: float = 0.0
     gex_regime: GEXRegime = GEXRegime.POSITIVE
-    gex_multiplier: float = 1.0         # 1.0 / 0.5 / 0.6
-    excluded: bool = False              # True if NEGATIVE in LONG mode
+    gex_multiplier: float = 1.0  # 1.0 / 0.5 / 0.6
+    excluded: bool = False  # True if NEGATIVE in LONG mode
     exclusion_reason: str | None = None
-    data_source: str = ""               # "unusual_whales" or "polygon_calculated"
+    data_source: str = ""  # "unusual_whales" or "polygon_calculated"
 
 
 @dataclass
 class MMSAnalysis:
     """MMS analysis result for a single ticker (BC15)."""
+
     ticker: str
     mm_regime: MMRegime = MMRegime.UNDETERMINED
-    unusualness_score: float = 0.0               # U ∈ [0, 100]
-    regime_multiplier: float = 0.75              # Phase 6 sizing multiplier
+    unusualness_score: float = 0.0  # U ∈ [0, 100]
+    regime_multiplier: float = 0.75  # Phase 6 sizing multiplier
     baseline_state: BaselineState = BaselineState.EMPTY
     triggering_conditions: dict = field(default_factory=dict)
     top_drivers: list = field(default_factory=list)
@@ -442,17 +478,18 @@ class MMSAnalysis:
     excluded: bool = False
     exclusion_reason: str | None = None
     # Factor Volatility (BC16)
-    regime_confidence: float = 1.0                   # [0.0, 1.0] — confidence in regime stability
+    regime_confidence: float = 1.0  # [0.0, 1.0] — confidence in regime stability
     factor_volatility: dict = field(default_factory=dict)  # Per-feature σ_20 values
     # Day counter
-    baseline_days: int = 0                           # Number of historical entries in store
+    baseline_days: int = 0  # Number of historical entries in store
     # Crowdedness Shadow (BC18A)
-    crowding_score: float = 0.0                      # ∈ [-1.0, +1.0] — shadow mode
+    crowding_score: float = 0.0  # ∈ [-1.0, +1.0] — shadow mode
 
 
 @dataclass
 class Phase5Result:
     """Output of Phase 5: GEX Analysis."""
+
     analyzed: list[GEXAnalysis] = field(default_factory=list)
     passed: list[GEXAnalysis] = field(default_factory=list)
     excluded_count: int = 0
@@ -465,20 +502,22 @@ class Phase5Result:
 # Phase 6: Position Sizing Models
 # ============================================================================
 
+
 @dataclass
 class PositionSizing:
     """Position sizing result for a single ticker."""
+
     ticker: str
     sector: str
-    direction: str               # "BUY" or "SELL_SHORT"
+    direction: str  # "BUY" or "SELL_SHORT"
     entry_price: float
-    quantity: int                # floor(adjusted_risk / stop_distance)
+    quantity: int  # floor(adjusted_risk / stop_distance)
     stop_loss: float
     take_profit_1: float
     take_profit_2: float
     risk_usd: float
     combined_score: float
-    gex_regime: str              # GEXRegime.value
+    gex_regime: str  # GEXRegime.value
     multiplier_total: float
     m_flow: float = 1.0
     m_insider: float = 1.0
@@ -486,9 +525,9 @@ class PositionSizing:
     m_gex: float = 1.0
     m_vix: float = 1.0
     m_utility: float = 1.0
-    m_target: float = 1.0               # Analyst price target contradiction penalty (Phase 6)
-    m_contradiction: float = 1.0        # Structured FMP contradiction signal (Phase 6, 2026-05-02)
-    contradiction_flag: bool = False    # Mirror of stock.contradiction_flag for CSV/audit
+    m_target: float = 1.0  # Analyst price target contradiction penalty (Phase 6)
+    m_contradiction: float = 1.0  # Structured FMP contradiction signal (Phase 6, 2026-05-02)
+    contradiction_flag: bool = False  # Mirror of stock.contradiction_flag for CSV/audit
     contradiction_reasons: tuple[str, ...] = field(default_factory=tuple)
     scale_out_price: float = 0.0
     scale_out_pct: float = 0.33
@@ -499,13 +538,14 @@ class PositionSizing:
     sector_regime: str = ""
     is_mean_reversion: bool = False
     shark_detected: bool = False
-    mm_regime: str = ""                 # MMRegime.value (BC15)
-    unusualness_score: float = 0.0      # MMS U score (BC15)
+    mm_regime: str = ""  # MMRegime.value (BC15)
+    unusualness_score: float = 0.0  # MMS U score (BC15)
 
 
 @dataclass
 class Phase6Result:
     """Output of Phase 6: Position Sizing & Risk Management."""
+
     positions: list[PositionSizing] = field(default_factory=list)
     excluded_sector_limit: int = 0
     excluded_position_limit: int = 0
@@ -514,9 +554,9 @@ class Phase6Result:
     excluded_dedup: int = 0
     excluded_daily_trade_limit: int = 0
     excluded_notional_limit: int = 0
-    excluded_correlation_limit: int = 0   # Sector group correlation guard (BC21)
+    excluded_correlation_limit: int = 0  # Sector group correlation guard (BC21)
     freshness_applied_count: int = 0
-    portfolio_var_pct: float = 0.0        # Portfolio VaR as % of account (BC21)
+    portfolio_var_pct: float = 0.0  # Portfolio VaR as % of account (BC21)
     portfolio_var_usd: float = 0.0
     var_positions_removed: int = 0
     total_risk_usd: float = 0.0
@@ -527,12 +567,14 @@ class Phase6Result:
 # Pipeline Context (passed between phases)
 # ============================================================================
 
+
 @dataclass
 class PipelineContext:
     """Shared context passed through all pipeline phases.
 
     Each phase reads from and writes to this context.
     """
+
     # Phase 0 output
     diagnostics: DiagnosticsResult | None = None
     macro: MacroRegime | None = None

@@ -6,6 +6,7 @@ Covers:
   * Phase 6 M_GEX gating via ``uw_gex_sizing_enabled``.
   * ``src/ifds/data/uw_shadow.py`` snapshot build, write/load, and summary.
 """
+
 from __future__ import annotations
 
 import json
@@ -38,7 +39,6 @@ from ifds.phases.phase4_stocks import (
     _recompute_dp_pct_score as phase4_recompute_dp_pct_score,
 )
 from ifds.phases.phase6_sizing import _calculate_multiplier_total
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -225,10 +225,8 @@ class TestShadowSnapshotBuild:
             _make_stock("MSFT", dp_pct=5.0, combined_score=82.0),
         ]
         gexes = [
-            _make_gex("AAPL", regime=GEXRegime.POSITIVE, multiplier=1.0,
-                      net_gex=1.23e9),
-            _make_gex("MSFT", regime=GEXRegime.NEGATIVE, multiplier=0.5,
-                      net_gex=-2.1e8),
+            _make_gex("AAPL", regime=GEXRegime.POSITIVE, multiplier=1.0, net_gex=1.23e9),
+            _make_gex("MSFT", regime=GEXRegime.NEGATIVE, multiplier=0.5, net_gex=-2.1e8),
         ]
         positions = [_make_position("AAPL")]  # Only AAPL sized in Phase 6
 
@@ -327,12 +325,24 @@ class TestShadowSummary:
         snapshot = {
             "date": "2026-05-26",
             "tickers": {
-                "A": {"dp_pct": 14.2, "dp_score_would_have_been": -10,
-                      "gex_regime": "positive", "m_gex_would_have_been": 1.0},
-                "B": {"dp_pct": 22.0, "dp_score_would_have_been": -15,
-                      "gex_regime": "negative", "m_gex_would_have_been": 0.5},
-                "C": {"dp_pct": 5.0, "dp_score_would_have_been": 0,
-                      "gex_regime": "positive", "m_gex_would_have_been": 1.0},
+                "A": {
+                    "dp_pct": 14.2,
+                    "dp_score_would_have_been": -10,
+                    "gex_regime": "positive",
+                    "m_gex_would_have_been": 1.0,
+                },
+                "B": {
+                    "dp_pct": 22.0,
+                    "dp_score_would_have_been": -15,
+                    "gex_regime": "negative",
+                    "m_gex_would_have_been": 0.5,
+                },
+                "C": {
+                    "dp_pct": 5.0,
+                    "dp_score_would_have_been": 0,
+                    "gex_regime": "positive",
+                    "m_gex_would_have_been": 1.0,
+                },
             },
         }
         summary = summarize_shadow_snapshot(snapshot)
@@ -342,7 +352,8 @@ class TestShadowSummary:
         assert summary["would_have_been_penalty_count"] == 2
         assert summary["gex_regime_distribution"] == {"positive": 2, "negative": 1}
         assert summary["m_gex_avg_would_have_been"] == pytest.approx(
-            (1.0 + 0.5 + 1.0) / 3, abs=0.001,
+            (1.0 + 0.5 + 1.0) / 3,
+            abs=0.001,
         )
 
     def test_summary_empty_snapshot(self):

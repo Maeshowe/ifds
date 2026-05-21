@@ -14,10 +14,10 @@ import requests
 from ifds.data.circuit_breaker import CBState, ProviderCircuitBreaker
 from ifds.data.base import BaseAPIClient
 
-
 # ============================================================================
 # TestProviderCircuitBreaker — State Machine
 # ============================================================================
+
 
 class TestProviderCircuitBreaker:
     """Test the ProviderCircuitBreaker state machine."""
@@ -160,6 +160,7 @@ class TestProviderCircuitBreaker:
 # TestBaseClientCircuitBreaker — Integration
 # ============================================================================
 
+
 class TestBaseClientCircuitBreaker:
     """Test BaseAPIClient integration with circuit breaker."""
 
@@ -212,8 +213,7 @@ class TestBaseClientCircuitBreaker:
             circuit_breaker=cb,
         )
 
-        with patch.object(client._session, "get",
-                          side_effect=requests.exceptions.Timeout):
+        with patch.object(client._session, "get", side_effect=requests.exceptions.Timeout):
             result = client._get("/test")
 
         assert result is None

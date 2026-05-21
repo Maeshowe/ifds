@@ -37,6 +37,7 @@ def _env(key: str, default: str | None = None) -> str | None:
 # FMP API helpers
 # ---------------------------------------------------------------------------
 
+
 def _fmp_get(endpoint: str, params: dict, api_key: str) -> list | None:
     """GET from FMP stable API. Returns parsed JSON or None on error."""
     import requests
@@ -58,8 +59,7 @@ def _fmp_get(endpoint: str, params: dict, api_key: str) -> list | None:
 def fetch_transcript(symbol: str, api_key: str) -> str | None:
     """Fetch latest earnings transcript excerpt."""
     # Step 1: get transcript dates
-    dates = _fmp_get("/stable/earning-call-transcript-dates",
-                     {"symbol": symbol}, api_key)
+    dates = _fmp_get("/stable/earning-call-transcript-dates", {"symbol": symbol}, api_key)
     if not dates:
         return None
 
@@ -70,9 +70,11 @@ def fetch_transcript(symbol: str, api_key: str) -> str | None:
         return None
 
     # Step 2: get transcript content
-    transcripts = _fmp_get("/stable/earning-call-transcript",
-                           {"symbol": symbol, "year": year, "quarter": quarter},
-                           api_key)
+    transcripts = _fmp_get(
+        "/stable/earning-call-transcript",
+        {"symbol": symbol, "year": year, "quarter": quarter},
+        api_key,
+    )
     if not transcripts:
         return None
 
@@ -87,8 +89,7 @@ def fetch_transcript(symbol: str, api_key: str) -> str | None:
 
 def fetch_price_target(symbol: str, api_key: str) -> dict | None:
     """Fetch analyst price target consensus."""
-    data = _fmp_get("/stable/price-target-consensus",
-                    {"symbol": symbol}, api_key)
+    data = _fmp_get("/stable/price-target-consensus", {"symbol": symbol}, api_key)
     if data:
         return data[0]
     return None
@@ -96,8 +97,7 @@ def fetch_price_target(symbol: str, api_key: str) -> dict | None:
 
 def fetch_earnings_surprises(symbol: str, api_key: str) -> list:
     """Fetch last 4 quarters of earnings data with beat/miss calculation."""
-    data = _fmp_get("/stable/earnings",
-                    {"symbol": symbol}, api_key)
+    data = _fmp_get("/stable/earnings", {"symbol": symbol}, api_key)
     if not data:
         return []
 
@@ -106,15 +106,21 @@ def fetch_earnings_surprises(symbol: str, api_key: str) -> list:
         actual = item.get("epsActual")
         estimated = item.get("epsEstimated")
         surprise_pct = None
-        if isinstance(actual, (int, float)) and isinstance(estimated, (int, float)) and estimated != 0:
+        if (
+            isinstance(actual, (int, float))
+            and isinstance(estimated, (int, float))
+            and estimated != 0
+        ):
             surprise_pct = (actual - estimated) / abs(estimated) * 100
-        results.append({
-            "date": item.get("date", "?"),
-            "actualEarningResult": actual,
-            "estimatedEarning": estimated,
-            "surprisePct": surprise_pct,
-            "large_miss_flag": surprise_pct is not None and surprise_pct < -50,
-        })
+        results.append(
+            {
+                "date": item.get("date", "?"),
+                "actualEarningResult": actual,
+                "estimatedEarning": estimated,
+                "surprisePct": surprise_pct,
+                "large_miss_flag": surprise_pct is not None and surprise_pct < -50,
+            }
+        )
     return results
 
 
@@ -179,12 +185,22 @@ def fetch_news(symbol: str, api_key: str) -> list:
 # Anthropic API
 # ---------------------------------------------------------------------------
 
-def generate_brief(symbol: str, sector: str, score: float, price: float,
-                   stop_loss: float, take_profit: float,
-                   target: dict | None, surprises: list,
-                   transcript: str | None,
-                   profile: dict | None, grades_consensus: dict | None,
-                   recent_grades: list, news: list) -> str | None:
+
+def generate_brief(
+    symbol: str,
+    sector: str,
+    score: float,
+    price: float,
+    stop_loss: float,
+    take_profit: float,
+    target: dict | None,
+    surprises: list,
+    transcript: str | None,
+    profile: dict | None,
+    grades_consensus: dict | None,
+    recent_grades: list,
+    news: list,
+) -> str | None:
     """Generate intelligence brief using Anthropic Sonnet."""
     try:
         import anthropic
@@ -195,7 +211,7 @@ def generate_brief(symbol: str, sector: str, score: float, price: float,
     # --- Build data sections ---
     # Profile
     if profile:
-        mcap = profile.get('marketCap')
+        mcap = profile.get("marketCap")
         mcap_str = f"${mcap:,.0f}" if isinstance(mcap, (int, float)) else "N/A"
         profile_section = f"""Company: {profile.get('companyName', symbol)}
 Industry: {profile.get('industry', 'N/A')}
@@ -221,7 +237,9 @@ Market Cap: {mcap_str} | 52W Range: {profile.get('range52w', 'N/A')}"""
             pct_str = f" ({pct:+.1f}%)" if pct is not None else ""
             if s.get("large_miss_flag"):
                 has_large_gaap_miss = True
-                lines.append(f"  {dt}: Actual={actual}, Est={est} → MISS{pct_str} ⚠ LARGE GAAP MISS — adjusted EPS may differ")
+                lines.append(
+                    f"  {dt}: Actual={actual}, Est={est} → MISS{pct_str} ⚠ LARGE GAAP MISS — adjusted EPS may differ"
+                )
             else:
                 lines.append(f"  {dt}: Actual={actual}, Est={est} → {beat}{pct_str}")
         earnings_text = "\n".join(lines)
@@ -244,7 +262,9 @@ Market Cap: {mcap_str} | 52W Range: {profile.get('range52w', 'N/A')}"""
     if recent_grades:
         grade_lines = []
         for g in recent_grades:
-            grade_lines.append(f"  {g['date']}: {g['company']} — {g['action'].upper()} → {g['newGrade']} (was: {g['previousGrade']})")
+            grade_lines.append(
+                f"  {g['date']}: {g['company']} — {g['action'].upper()} → {g['newGrade']} (was: {g['previousGrade']})"
+            )
         grades_text = "\n".join(grade_lines)
     else:
         grades_text = "  No recent analyst actions."
@@ -259,7 +279,11 @@ Market Cap: {mcap_str} | 52W Range: {profile.get('range52w', 'N/A')}"""
         news_text = "  No recent news."
 
     # Transcript
-    transcript_section = f"\nLatest Earnings Transcript (excerpt):\n{transcript}" if transcript else "\nNo earnings transcript available."
+    transcript_section = (
+        f"\nLatest Earnings Transcript (excerpt):\n{transcript}"
+        if transcript
+        else "\nNo earnings transcript available."
+    )
 
     prompt = f"""You are a stock analyst. Generate a concise intelligence brief based ONLY on the data provided below.
 
@@ -313,6 +337,7 @@ CATALYST: [Upcoming events from the data: earnings dates, acquisitions, analyst 
 # CSV loading
 # ---------------------------------------------------------------------------
 
+
 def find_latest_csv(output_dir: str = "output") -> Path | None:
     """Find the most recent execution_plan CSV."""
     p = Path(output_dir)
@@ -326,15 +351,17 @@ def load_tickers(csv_path: Path) -> list[dict]:
     with open(csv_path, newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            tickers.append({
-                "symbol": row["instrument_id"],
-                "price": float(row["limit_price"]),
-                "score": float(row["score"]),
-                "sector": row["sector"],
-                "stop_loss": float(row["stop_loss"]),
-                "take_profit": float(row["take_profit_1"]),
-                "risk": float(row.get("risk_usd", 0)),
-            })
+            tickers.append(
+                {
+                    "symbol": row["instrument_id"],
+                    "price": float(row["limit_price"]),
+                    "score": float(row["score"]),
+                    "sector": row["sector"],
+                    "stop_loss": float(row["stop_loss"]),
+                    "take_profit": float(row["take_profit_1"]),
+                    "risk": float(row.get("risk_usd", 0)),
+                }
+            )
     return tickers
 
 
@@ -342,8 +369,10 @@ def load_tickers(csv_path: Path) -> list[dict]:
 # Output formatting
 # ---------------------------------------------------------------------------
 
-def format_cli_ticker(t: dict, target: dict | None, surprises: list,
-                      brief: str | None, profile: dict | None = None) -> str:
+
+def format_cli_ticker(
+    t: dict, target: dict | None, surprises: list, brief: str | None, profile: dict | None = None
+) -> str:
     """Format one ticker block for CLI."""
     sym = t["symbol"]
     name = profile.get("companyName", sym) if profile else sym
@@ -386,8 +415,9 @@ def format_cli_ticker(t: dict, target: dict | None, surprises: list,
     return "\n".join(lines)
 
 
-def format_telegram_ticker(t: dict, target: dict | None, surprises: list,
-                           brief: str | None, profile: dict | None = None) -> str:
+def format_telegram_ticker(
+    t: dict, target: dict | None, surprises: list, brief: str | None, profile: dict | None = None
+) -> str:
     """Format one ticker block for Telegram HTML."""
     sym = t["symbol"]
     name = profile.get("companyName", sym) if profile else sym
@@ -401,10 +431,13 @@ def format_telegram_ticker(t: dict, target: dict | None, surprises: list,
     tl = target.get("targetLow", "N/A") if target else "N/A"
     th = target.get("targetHigh", "N/A") if target else "N/A"
 
-    beats = sum(1 for s in surprises
-                if isinstance(s.get("actualEarningResult"), (int, float))
-                and isinstance(s.get("estimatedEarning"), (int, float))
-                and s["actualEarningResult"] >= s["estimatedEarning"])
+    beats = sum(
+        1
+        for s in surprises
+        if isinstance(s.get("actualEarningResult"), (int, float))
+        and isinstance(s.get("estimatedEarning"), (int, float))
+        and s["actualEarningResult"] >= s["estimatedEarning"]
+    )
     n = len(surprises)
     gaap_note = " *GAAP" if any(s.get("large_miss_flag") for s in surprises) else ""
     earnings_line = f"{beats}/{n} beat{gaap_note}" if n > 0 else "N/A"
@@ -426,6 +459,7 @@ def format_telegram_ticker(t: dict, target: dict | None, surprises: list,
 # Telegram
 # ---------------------------------------------------------------------------
 
+
 def send_telegram(text: str, token: str, chat_id: str) -> bool:
     """Send message via Telegram Bot API."""
     import requests
@@ -442,8 +476,9 @@ def send_telegram(text: str, token: str, chat_id: str) -> bool:
         return False
 
 
-def send_telegram_chunked(blocks: list[str], header: str,
-                          footer: str, token: str, chat_id: str) -> int:
+def send_telegram_chunked(
+    blocks: list[str], header: str, footer: str, token: str, chat_id: str
+) -> int:
     """Send blocks in chunks respecting Telegram's 4096 char limit."""
     messages = []
     current = header + "\n"
@@ -472,6 +507,7 @@ def send_telegram_chunked(blocks: list[str], header: str,
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     load_dotenv()
@@ -546,10 +582,19 @@ def main():
 
         # Anthropic brief
         brief = generate_brief(
-            sym, t["sector"], t["score"], t["price"],
-            t["stop_loss"], t["take_profit"],
-            target, surprises, transcript,
-            profile, grades_consensus, recent_grades, news,
+            sym,
+            t["sector"],
+            t["score"],
+            t["price"],
+            t["stop_loss"],
+            t["take_profit"],
+            target,
+            surprises,
+            transcript,
+            profile,
+            grades_consensus,
+            recent_grades,
+            news,
         )
         if brief:
             anthropic_calls += 1
@@ -579,8 +624,7 @@ def main():
         else:
             tg_header = f"<b>COMPANY INTELLIGENCE — {run_date_fmt}</b>"
             tg_footer = f"<i>{footer}</i>"
-            sent = send_telegram_chunked(tg_blocks, tg_header, tg_footer,
-                                         tg_token, tg_chat)
+            sent = send_telegram_chunked(tg_blocks, tg_header, tg_footer, tg_token, tg_chat)
             print(f"\nTelegram: {sent} messages sent")
 
 

@@ -15,19 +15,25 @@ def logger(tmp_path):
 
 def _make_position(ticker="AAPL", direction="BUY", score=80.0):
     return PositionSizing(
-        ticker=ticker, sector="Technology", direction=direction,
-        entry_price=150.0, quantity=100, stop_loss=145.5,
-        take_profit_1=156.0, take_profit_2=159.0,
-        risk_usd=500.0, combined_score=score,
-        gex_regime="POSITIVE", multiplier_total=1.0,
+        ticker=ticker,
+        sector="Technology",
+        direction=direction,
+        entry_price=150.0,
+        quantity=100,
+        stop_loss=145.5,
+        take_profit_1=156.0,
+        take_profit_2=159.0,
+        risk_usd=500.0,
+        combined_score=score,
+        gex_regime="POSITIVE",
+        multiplier_total=1.0,
     )
 
 
 class TestExecutionPlan:
     def test_csv_written_to_correct_path(self, tmp_path, logger):
         positions = [_make_position()]
-        path = write_execution_plan(positions, str(tmp_path / "out"),
-                                    "run_123", logger)
+        path = write_execution_plan(positions, str(tmp_path / "out"), "run_123", logger)
         assert "execution_plan_run_123.csv" in path
         assert (tmp_path / "out" / "execution_plan_run_123.csv").exists()
 

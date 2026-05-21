@@ -12,7 +12,8 @@ import pytest
 
 from ifds.config.loader import Config
 from ifds.data.adapters import (
-    PolygonGEXProvider, _find_zero_gamma,
+    PolygonGEXProvider,
+    _find_zero_gamma,
 )
 from ifds.events.logger import EventLogger
 from ifds.models.market import (
@@ -30,10 +31,10 @@ from ifds.phases.phase0_diagnostics import _classify_vix, _calculate_vix_multipl
 from ifds.phases.phase4_stocks import _analyze_fundamental_from_data
 from ifds.phases.phase6_sizing import _calculate_position
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def config(monkeypatch):
@@ -49,15 +50,20 @@ def logger(tmp_path):
     return EventLogger(log_dir=str(tmp_path), run_id="test-bc12")
 
 
-def _make_stock(ticker="AAPL", price=150.0, atr=3.0, combined=80.0,
-                flow_score=10, funda_score=15, rsi=55.0):
+def _make_stock(
+    ticker="AAPL", price=150.0, atr=3.0, combined=80.0, flow_score=10, funda_score=15, rsi=55.0
+):
     """Helper to create a StockAnalysis for testing."""
     return StockAnalysis(
         ticker=ticker,
         sector="Technology",
         technical=TechnicalAnalysis(
-            price=price, sma_200=140.0, sma_20=148.0,
-            rsi_14=rsi, atr_14=atr, trend_pass=True,
+            price=price,
+            sma_200=140.0,
+            sma_20=148.0,
+            rsi_14=rsi,
+            atr_14=atr,
+            trend_pass=True,
         ),
         flow=FlowAnalysis(rvol_score=flow_score),
         fundamental=FundamentalScoring(funda_score=funda_score),
@@ -77,8 +83,7 @@ def _make_macro(vix=18.0):
     )
 
 
-def _make_gex(ticker="AAPL", call_wall=160.0, put_wall=140.0,
-              zero_gamma=150.0, net_gex=1000.0):
+def _make_gex(ticker="AAPL", call_wall=160.0, put_wall=140.0, zero_gamma=150.0, net_gex=1000.0):
     """Helper to create a GEXAnalysis."""
     return GEXAnalysis(
         ticker=ticker,
@@ -96,6 +101,7 @@ def _make_gex(ticker="AAPL", call_wall=160.0, put_wall=140.0,
 # ============================================================================
 # TestZeroGammaInterpolation
 # ============================================================================
+
 
 class TestZeroGammaInterpolation:
     """Test linear interpolation in _find_zero_gamma()."""
@@ -132,6 +138,7 @@ class TestZeroGammaInterpolation:
 # ============================================================================
 # TestFrontMonthFilter
 # ============================================================================
+
 
 class TestFrontMonthFilter:
     """Test DTE filter in PolygonGEXProvider._calculate_gex()."""
@@ -208,6 +215,7 @@ class TestFrontMonthFilter:
 # TestCallWallATRFilter
 # ============================================================================
 
+
 class TestCallWallATRFilter:
     """Test call wall ATR distance filter in Phase 5."""
 
@@ -262,6 +270,7 @@ class TestCallWallATRFilter:
 # TestFatFingerProtection
 # ============================================================================
 
+
 class TestFatFingerProtection:
     """Test fat finger protection in Phase 6 _calculate_position."""
 
@@ -286,7 +295,7 @@ class TestFatFingerProtection:
 
     def test_nan_quantity_rejected(self, config):
         """NaN ATR → returns None (guard against math errors)."""
-        stock = _make_stock(price=150.0, atr=float('nan'), combined=80.0)
+        stock = _make_stock(price=150.0, atr=float("nan"), combined=80.0)
         gex = _make_gex(call_wall=0.0)
         macro = _make_macro()
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
@@ -295,7 +304,7 @@ class TestFatFingerProtection:
 
     def test_inf_price_rejected(self, config):
         """Inf price → returns None."""
-        stock = _make_stock(price=float('inf'), atr=3.0, combined=80.0)
+        stock = _make_stock(price=float("inf"), atr=3.0, combined=80.0)
         gex = _make_gex(call_wall=0.0)
         macro = _make_macro()
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
@@ -313,6 +322,7 @@ class TestFatFingerProtection:
 # ============================================================================
 # TestVIXExtreme
 # ============================================================================
+
 
 class TestVIXExtreme:
     """Test VIX EXTREME regime classification and multiplier."""
@@ -354,6 +364,7 @@ class TestVIXExtreme:
 # TestInstitutionalOwnership
 # ============================================================================
 
+
 class TestInstitutionalOwnership:
     """Test institutional ownership QoQ scoring in _analyze_fundamental_from_data."""
 
@@ -363,8 +374,9 @@ class TestInstitutionalOwnership:
             {"totalInvested": 1_050_000},  # recent
             {"totalInvested": 1_000_000},  # previous (5% increase)
         ]
-        result = _analyze_fundamental_from_data("TEST", None, None, None, config,
-                                                 inst_data=inst_data)
+        result = _analyze_fundamental_from_data(
+            "TEST", None, None, None, config, inst_data=inst_data
+        )
         assert result.inst_ownership_trend == "increasing"
         assert result.inst_ownership_score == 10
         assert result.funda_score >= 10  # At least the inst bonus
@@ -372,11 +384,12 @@ class TestInstitutionalOwnership:
     def test_decreasing_ownership_penalty(self, config):
         """QoQ decrease >2% → -5 funda penalty."""
         inst_data = [
-            {"totalInvested": 900_000},    # recent
+            {"totalInvested": 900_000},  # recent
             {"totalInvested": 1_000_000},  # previous (10% decrease)
         ]
-        result = _analyze_fundamental_from_data("TEST", None, None, None, config,
-                                                 inst_data=inst_data)
+        result = _analyze_fundamental_from_data(
+            "TEST", None, None, None, config, inst_data=inst_data
+        )
         assert result.inst_ownership_trend == "decreasing"
         assert result.inst_ownership_score == -5
 
@@ -386,23 +399,24 @@ class TestInstitutionalOwnership:
             {"totalInvested": 1_010_000},  # 1% increase
             {"totalInvested": 1_000_000},
         ]
-        result = _analyze_fundamental_from_data("TEST", None, None, None, config,
-                                                 inst_data=inst_data)
+        result = _analyze_fundamental_from_data(
+            "TEST", None, None, None, config, inst_data=inst_data
+        )
         assert result.inst_ownership_trend == "stable"
         assert result.inst_ownership_score == 0
 
     def test_insufficient_data_unknown(self, config):
         """Only 1 quarter → 'unknown', 0 score."""
         inst_data = [{"totalInvested": 1_000_000}]
-        result = _analyze_fundamental_from_data("TEST", None, None, None, config,
-                                                 inst_data=inst_data)
+        result = _analyze_fundamental_from_data(
+            "TEST", None, None, None, config, inst_data=inst_data
+        )
         assert result.inst_ownership_trend == "unknown"
         assert result.inst_ownership_score == 0
 
     def test_none_data_no_crash(self, config):
         """inst_data=None → no error."""
-        result = _analyze_fundamental_from_data("TEST", None, None, None, config,
-                                                 inst_data=None)
+        result = _analyze_fundamental_from_data("TEST", None, None, None, config, inst_data=None)
         assert result.inst_ownership_trend == "unknown"
         assert result.inst_ownership_score == 0
 
@@ -410,6 +424,7 @@ class TestInstitutionalOwnership:
 # ============================================================================
 # TestDTEFilterInPhase4Flow
 # ============================================================================
+
 
 class TestDTEFilterInPhase4Flow:
     """Test DTE filter applied to options flow scoring in Phase 4."""
@@ -425,18 +440,23 @@ class TestDTEFilterInPhase4Flow:
         bars = [{"c": 100.0, "h": 102.0, "l": 98.0, "v": 1_000_000}] * 50
         options = [
             # 5 near-term calls (≥5 threshold met after filter)
-            {"details": {"contract_type": "call", "strike_price": 100 + i,
-                         "expiration_date": near_exp},
-             "day": {"volume": 100}}
+            {
+                "details": {
+                    "contract_type": "call",
+                    "strike_price": 100 + i,
+                    "expiration_date": near_exp,
+                },
+                "day": {"volume": 100},
+            }
             for i in range(5)
         ] + [
             # Far-term puts (>90 DTE, excluded because ≥5 near-term remain)
-            {"details": {"contract_type": "put", "strike_price": 95,
-                         "expiration_date": far_exp},
-             "day": {"volume": 10000}},
+            {
+                "details": {"contract_type": "put", "strike_price": 95, "expiration_date": far_exp},
+                "day": {"volume": 10000},
+            },
         ]
-        result = _analyze_flow_from_data("TEST", bars, None, config,
-                                          options_data=options)
+        result = _analyze_flow_from_data("TEST", bars, None, config, options_data=options)
         # Only near-term options counted → PCR based on 0 puts / 500 calls ≈ 0
         if result.pcr is not None:
             assert result.pcr < 0.1  # Near-zero because far puts were excluded
@@ -445,6 +465,7 @@ class TestDTEFilterInPhase4Flow:
 # ============================================================================
 # TestIntegration
 # ============================================================================
+
 
 class TestIntegration:
     """Integration tests combining multiple BC12 features."""
@@ -459,8 +480,11 @@ class TestIntegration:
         # 5 near-term contracts at different strikes
         options = [
             {
-                "details": {"strike_price": 100 + i, "contract_type": "call",
-                            "expiration_date": near_exp},
+                "details": {
+                    "strike_price": 100 + i,
+                    "contract_type": "call",
+                    "expiration_date": near_exp,
+                },
                 "greeks": {"gamma": 0.05},
                 "open_interest": 1000,
                 "underlying_asset": {"price": 100},
@@ -468,8 +492,11 @@ class TestIntegration:
             for i in range(5)
         ] + [
             {
-                "details": {"strike_price": 200, "contract_type": "call",
-                            "expiration_date": far_exp},
+                "details": {
+                    "strike_price": 200,
+                    "contract_type": "call",
+                    "expiration_date": far_exp,
+                },
                 "greeks": {"gamma": 0.10},
                 "open_interest": 5000,
                 "underlying_asset": {"price": 100},

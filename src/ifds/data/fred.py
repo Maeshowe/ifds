@@ -32,11 +32,16 @@ class FREDClient(BaseAPIClient):
     # FRED series IDs
     VIX_SERIES = "VIXCLS"
     TNX_SERIES = "DGS10"
-    YIELD_CURVE_SERIES = "T10Y2Y"   # 10Y-2Y spread (percentage points)
+    YIELD_CURVE_SERIES = "T10Y2Y"  # 10Y-2Y spread (percentage points)
 
-    def __init__(self, api_key: str, timeout: int = 10,
-                 max_retries: int = 3, cache: FileCache | None = None,
-                 circuit_breaker=None):
+    def __init__(
+        self,
+        api_key: str,
+        timeout: int = 10,
+        max_retries: int = 3,
+        cache: FileCache | None = None,
+        circuit_breaker=None,
+    ):
         super().__init__(
             base_url="https://api.stlouisfed.org",
             api_key=api_key,

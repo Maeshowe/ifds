@@ -19,10 +19,10 @@ from ifds.events.logger import EventLogger
 from ifds.events.types import EventType, Severity
 from ifds.phases.phase0_diagnostics import _validate_vix
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def config(monkeypatch):
@@ -48,6 +48,7 @@ def logger(tmp_path):
 # ============================================================================
 # TestSignalDedup
 # ============================================================================
+
 
 class TestSignalDedup:
     """Test SHA256-based signal deduplication."""
@@ -136,6 +137,7 @@ class TestSignalDedup:
 # TestVIXSanityCheck
 # ============================================================================
 
+
 class TestVIXSanityCheck:
     """Test VIX range validation [5.0, 100.0]."""
 
@@ -179,6 +181,7 @@ class TestVIXSanityCheck:
 # TestGlobalGuardLogging
 # ============================================================================
 
+
 class TestGlobalGuardLogging:
     """Test GlobalGuard log format for exposure rejections."""
 
@@ -189,20 +192,33 @@ class TestGlobalGuardLogging:
 
         # Create positions that will exceed gross exposure
         positions = []
-        for i, ticker in enumerate(["AAPL", "MSFT", "GOOG", "AMZN", "META",
-                                     "TSLA", "NVDA", "AMD", "INTC", "NFLX"]):
-            positions.append(PositionSizing(
-                ticker=ticker, sector="Technology",
-                direction="BUY", entry_price=200.0,
-                quantity=1000,  # $200K exposure each
-                stop_loss=190.0, take_profit_1=210.0, take_profit_2=220.0,
-                risk_usd=400.0, combined_score=90.0 - i,
-                gex_regime="positive",
-                multiplier_total=1.0,
-                m_flow=1.0, m_insider=1.0, m_funda=1.0,
-                m_gex=1.0, m_vix=1.0, m_utility=1.0,
-                scale_out_price=205.0, scale_out_pct=50,
-            ))
+        for i, ticker in enumerate(
+            ["AAPL", "MSFT", "GOOG", "AMZN", "META", "TSLA", "NVDA", "AMD", "INTC", "NFLX"]
+        ):
+            positions.append(
+                PositionSizing(
+                    ticker=ticker,
+                    sector="Technology",
+                    direction="BUY",
+                    entry_price=200.0,
+                    quantity=1000,  # $200K exposure each
+                    stop_loss=190.0,
+                    take_profit_1=210.0,
+                    take_profit_2=220.0,
+                    risk_usd=400.0,
+                    combined_score=90.0 - i,
+                    gex_regime="positive",
+                    multiplier_total=1.0,
+                    m_flow=1.0,
+                    m_insider=1.0,
+                    m_funda=1.0,
+                    m_gex=1.0,
+                    m_vix=1.0,
+                    m_utility=1.0,
+                    scale_out_price=205.0,
+                    scale_out_pct=50,
+                )
+            )
 
         accepted, counts = _apply_position_limits(positions, config, logger)
 
@@ -219,18 +235,30 @@ class TestGlobalGuardLogging:
         from ifds.phases.phase6_sizing import _apply_position_limits
 
         # Single position with very high quantity
-        positions = [PositionSizing(
-            ticker="AAPL", sector="Technology",
-            direction="BUY", entry_price=200.0,
-            quantity=200,  # $40K exposure (max_single_ticker = $20K)
-            stop_loss=190.0, take_profit_1=210.0, take_profit_2=220.0,
-            risk_usd=400.0, combined_score=90.0,
-            gex_regime="positive",
-            multiplier_total=1.0,
-            m_flow=1.0, m_insider=1.0, m_funda=1.0,
-            m_gex=1.0, m_vix=1.0, m_utility=1.0,
-            scale_out_price=205.0, scale_out_pct=50,
-        )]
+        positions = [
+            PositionSizing(
+                ticker="AAPL",
+                sector="Technology",
+                direction="BUY",
+                entry_price=200.0,
+                quantity=200,  # $40K exposure (max_single_ticker = $20K)
+                stop_loss=190.0,
+                take_profit_1=210.0,
+                take_profit_2=220.0,
+                risk_usd=400.0,
+                combined_score=90.0,
+                gex_regime="positive",
+                multiplier_total=1.0,
+                m_flow=1.0,
+                m_insider=1.0,
+                m_funda=1.0,
+                m_gex=1.0,
+                m_vix=1.0,
+                m_utility=1.0,
+                scale_out_price=205.0,
+                scale_out_pct=50,
+            )
+        ]
 
         accepted, counts = _apply_position_limits(positions, config, logger)
 

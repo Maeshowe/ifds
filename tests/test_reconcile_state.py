@@ -19,7 +19,8 @@ def mod():
     """Load reconcile_state without executing main()."""
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "paper_trading"))
     spec = importlib.util.spec_from_file_location(
-        "reconcile_state", "scripts/paper_trading/reconcile_state.py",
+        "reconcile_state",
+        "scripts/paper_trading/reconcile_state.py",
     )
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
@@ -63,7 +64,9 @@ def test_reconcile_both_diverge(mod):
 def test_reconcile_telegram_format_state_side(mod):
     """Telegram body lists 'State has, IBKR doesn't' side."""
     body = mod.format_divergence_telegram(
-        {"MASI"}, set(), "2026-05-19",
+        {"MASI"},
+        set(),
+        "2026-05-19",
     )
     assert "MASI" in body
     assert "State has, IBKR doesn't" in body
@@ -73,7 +76,9 @@ def test_reconcile_telegram_format_state_side(mod):
 def test_reconcile_telegram_format_both_sides(mod):
     """Both sides in the message when both have diffs."""
     body = mod.format_divergence_telegram(
-        {"OLDSTATE"}, {"NEWIBKR"}, "2026-05-19",
+        {"OLDSTATE"},
+        {"NEWIBKR"},
+        "2026-05-19",
     )
     assert "OLDSTATE" in body and "NEWIBKR" in body
     assert "State has" in body and "IBKR has" in body

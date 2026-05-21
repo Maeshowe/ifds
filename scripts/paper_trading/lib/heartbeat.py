@@ -12,6 +12,7 @@ monitor still catches the regression.
 
 Fázis 1 task: docs/tasks/2026-05-19-ibkr-gateway-monitoring.md §10 Fix C.
 """
+
 import json
 import logging
 import os
@@ -33,9 +34,9 @@ def state_path(event: str, state_dir: Path | None = None) -> Path:
     return _resolve_dir(state_dir) / f"last_{event}.json"
 
 
-def touch(event: str, label: str | None = None,
-          state_dir: Path | None = None,
-          extra: dict | None = None) -> Path:
+def touch(
+    event: str, label: str | None = None, state_dir: Path | None = None, extra: dict | None = None
+) -> Path:
     """Write a heartbeat marker for `event` (e.g. 'submit_attempt').
 
     Uses UTC ISO 8601 timestamps and atomic write (tmp + rename).

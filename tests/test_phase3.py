@@ -181,7 +181,8 @@ class TestVetoMatrix:
 
     def test_leader_neutral_bmi_allowed(self, config, logger):
         score = SectorScore(
-            etf="XLK", sector_name="Technology",
+            etf="XLK",
+            sector_name="Technology",
             classification=MomentumClassification.LEADER,
             sector_bmi_regime=SectorBMIRegime.NEUTRAL,
             score_adjustment=15,
@@ -192,7 +193,8 @@ class TestVetoMatrix:
     def test_leader_overbought_allowed(self, config, logger):
         """Leaders pass even with OVERBOUGHT sector."""
         score = SectorScore(
-            etf="XLK", sector_name="Technology",
+            etf="XLK",
+            sector_name="Technology",
             classification=MomentumClassification.LEADER,
             sector_bmi_regime=SectorBMIRegime.OVERBOUGHT,
             score_adjustment=15,
@@ -202,7 +204,8 @@ class TestVetoMatrix:
 
     def test_leader_oversold_allowed(self, config, logger):
         score = SectorScore(
-            etf="XLK", sector_name="Technology",
+            etf="XLK",
+            sector_name="Technology",
             classification=MomentumClassification.LEADER,
             sector_bmi_regime=SectorBMIRegime.OVERSOLD,
             score_adjustment=15,
@@ -212,7 +215,8 @@ class TestVetoMatrix:
 
     def test_neutral_neutral_bmi_allowed(self, config, logger):
         score = SectorScore(
-            etf="XLI", sector_name="Industrials",
+            etf="XLI",
+            sector_name="Industrials",
             classification=MomentumClassification.NEUTRAL,
             sector_bmi_regime=SectorBMIRegime.NEUTRAL,
         )
@@ -221,7 +225,8 @@ class TestVetoMatrix:
 
     def test_neutral_oversold_allowed(self, config, logger):
         score = SectorScore(
-            etf="XLI", sector_name="Industrials",
+            etf="XLI",
+            sector_name="Industrials",
             classification=MomentumClassification.NEUTRAL,
             sector_bmi_regime=SectorBMIRegime.OVERSOLD,
         )
@@ -230,7 +235,8 @@ class TestVetoMatrix:
 
     def test_neutral_overbought_vetoed(self, config, logger):
         score = SectorScore(
-            etf="XLI", sector_name="Industrials",
+            etf="XLI",
+            sector_name="Industrials",
             classification=MomentumClassification.NEUTRAL,
             sector_bmi_regime=SectorBMIRegime.OVERBOUGHT,
         )
@@ -241,7 +247,8 @@ class TestVetoMatrix:
     def test_laggard_oversold_mean_reversion(self, config, logger):
         """Laggard + Oversold = allowed (Mean Reversion), -5 penalty."""
         score = SectorScore(
-            etf="XLU", sector_name="Utilities",
+            etf="XLU",
+            sector_name="Utilities",
             classification=MomentumClassification.LAGGARD,
             sector_bmi_regime=SectorBMIRegime.OVERSOLD,
             score_adjustment=-20,
@@ -252,7 +259,8 @@ class TestVetoMatrix:
 
     def test_laggard_neutral_bmi_vetoed(self, config, logger):
         score = SectorScore(
-            etf="XLU", sector_name="Utilities",
+            etf="XLU",
+            sector_name="Utilities",
             classification=MomentumClassification.LAGGARD,
             sector_bmi_regime=SectorBMIRegime.NEUTRAL,
         )
@@ -261,7 +269,8 @@ class TestVetoMatrix:
 
     def test_laggard_overbought_vetoed(self, config, logger):
         score = SectorScore(
-            etf="XLU", sector_name="Utilities",
+            etf="XLU",
+            sector_name="Utilities",
             classification=MomentumClassification.LAGGARD,
             sector_bmi_regime=SectorBMIRegime.OVERBOUGHT,
         )
@@ -270,7 +279,8 @@ class TestVetoMatrix:
 
     def test_veto_logs_event(self, config, logger):
         score = SectorScore(
-            etf="XLB", sector_name="Basic Materials",
+            etf="XLB",
+            sector_name="Basic Materials",
             classification=MomentumClassification.LAGGARD,
             sector_bmi_regime=SectorBMIRegime.NEUTRAL,
         )
@@ -283,7 +293,8 @@ class TestVetoMatrix:
 class TestRateSensitivity:
     def test_tech_penalized(self, config, logger):
         score = SectorScore(
-            etf="XLK", sector_name="Technology",
+            etf="XLK",
+            sector_name="Technology",
             score_adjustment=15,
         )
         _apply_rate_sensitivity([score], config, logger)
@@ -291,7 +302,8 @@ class TestRateSensitivity:
 
     def test_real_estate_penalized(self, config, logger):
         score = SectorScore(
-            etf="XLRE", sector_name="Real Estate",
+            etf="XLRE",
+            sector_name="Real Estate",
             score_adjustment=0,
         )
         _apply_rate_sensitivity([score], config, logger)
@@ -299,7 +311,8 @@ class TestRateSensitivity:
 
     def test_non_sensitive_sector_unchanged(self, config, logger):
         score = SectorScore(
-            etf="XLE", sector_name="Energy",
+            etf="XLE",
+            sector_name="Energy",
             score_adjustment=15,
         )
         _apply_rate_sensitivity([score], config, logger)
@@ -307,7 +320,8 @@ class TestRateSensitivity:
 
     def test_vetoed_sector_not_penalized(self, config, logger):
         score = SectorScore(
-            etf="XLK", sector_name="Technology",
+            etf="XLK",
+            sector_name="Technology",
             score_adjustment=0,
             vetoed=True,
         )
@@ -318,9 +332,11 @@ class TestRateSensitivity:
 class TestPhase3Integration:
     def test_full_flow(self, config, logger):
         polygon = MagicMock()
+
         # Return aggregates for all 11 ETFs
         def mock_aggregates(ticker, from_date, to_date):
             return [{"c": 95.0 + i} for i in range(25)]
+
         polygon.get_aggregates.side_effect = mock_aggregates
 
         result = run_phase3(config, logger, polygon, StrategyMode.LONG)
@@ -331,8 +347,10 @@ class TestPhase3Integration:
 
     def test_rate_sensitivity_with_macro(self, config, logger):
         polygon = MagicMock()
+
         def mock_aggregates(ticker, from_date, to_date):
             return [{"c": 100.0 + i * 0.5} for i in range(25)]
+
         polygon.get_aggregates.side_effect = mock_aggregates
 
         macro = MacroRegime(

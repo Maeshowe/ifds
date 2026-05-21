@@ -29,6 +29,7 @@ def _make_ratios(
 
     trend: "above" = latest above SMA20, "below" = latest below SMA20.
     """
+
     def _series(trend: str) -> list[float]:
         # SMA20 of flat series at 1.0 = 1.0
         # "below": last value < 1.0 → dip to 0.95

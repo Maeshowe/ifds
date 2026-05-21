@@ -49,8 +49,7 @@ def run_phase0(config: Config, logger: EventLogger) -> DiagnosticsResult:
     result.api_health = _check_all_apis(config, logger)
 
     critical_failures = [
-        h for h in result.api_health
-        if h.is_critical and h.status == APIStatus.DOWN
+        h for h in result.api_health if h.is_critical and h.status == APIStatus.DOWN
     ]
     result.all_critical_apis_ok = len(critical_failures) == 0
 
@@ -117,7 +116,9 @@ def _save_mid_bundle_if_configured(config: Config, logger: EventLogger) -> None:
     mid_key = config.get_api_key("mid")
     if not mid_key:
         logger.log(
-            EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=0,
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.DEBUG,
+            phase=0,
             message="MID_API_KEY not configured — skipping MID bundle snapshot",
         )
         return
@@ -133,7 +134,9 @@ def _save_mid_bundle_if_configured(config: Config, logger: EventLogger) -> None:
         bundle = client.get_bundle()
         if not bundle:
             logger.log(
-                EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=0,
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.WARNING,
+                phase=0,
                 message="MID bundle empty (unavailable or auth failure) — skipping snapshot",
             )
             return
@@ -141,13 +144,17 @@ def _save_mid_bundle_if_configured(config: Config, logger: EventLogger) -> None:
         saved_path = save_bundle_snapshot(bundle)
         if saved_path:
             logger.log(
-                EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=0,
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.INFO,
+                phase=0,
                 message=f"MID bundle saved: {saved_path}",
             )
     except Exception as e:
         # Defensive: any unexpected error must not break Phase 0
         logger.log(
-            EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=0,
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.WARNING,
+            phase=0,
             message=f"MID bundle snapshot failed (non-fatal): {type(e).__name__}: {e}",
         )
 
@@ -164,14 +171,20 @@ def _check_all_apis(config: Config, logger: EventLogger) -> list[APIHealthResult
     )
     health = polygon.check_health()
     results.append(health)
-    logger.api_health(health.provider, "aggregates", health.status.value,
-                      health.response_time_ms, health.error)
+    logger.api_health(
+        health.provider, "aggregates", health.status.value, health.response_time_ms, health.error
+    )
 
     # Polygon — Options (critical)
     health_opt = polygon.check_options_health()
     results.append(health_opt)
-    logger.api_health(health_opt.provider, "options", health_opt.status.value,
-                      health_opt.response_time_ms, health_opt.error)
+    logger.api_health(
+        health_opt.provider,
+        "options",
+        health_opt.status.value,
+        health_opt.response_time_ms,
+        health_opt.error,
+    )
 
     # Unusual Whales (non-critical, has fallback)
     uw = UnusualWhalesClient(
@@ -181,12 +194,18 @@ def _check_all_apis(config: Config, logger: EventLogger) -> list[APIHealthResult
     )
     health_uw = uw.check_health()
     results.append(health_uw)
-    logger.api_health(health_uw.provider, "darkpool/greeks", health_uw.status.value,
-                      health_uw.response_time_ms, health_uw.error)
+    logger.api_health(
+        health_uw.provider,
+        "darkpool/greeks",
+        health_uw.status.value,
+        health_uw.response_time_ms,
+        health_uw.error,
+    )
 
     if health_uw.status != APIStatus.OK:
-        logger.api_fallback("unusual_whales", "polygon",
-                            "UW unavailable — will use Polygon for GEX/Dark Pool")
+        logger.api_fallback(
+            "unusual_whales", "polygon", "UW unavailable — will use Polygon for GEX/Dark Pool"
+        )
 
     # FMP (critical)
     fmp = FMPClient(
@@ -196,8 +215,13 @@ def _check_all_apis(config: Config, logger: EventLogger) -> list[APIHealthResult
     )
     health_fmp = fmp.check_health()
     results.append(health_fmp)
-    logger.api_health(health_fmp.provider, "screener", health_fmp.status.value,
-                      health_fmp.response_time_ms, health_fmp.error)
+    logger.api_health(
+        health_fmp.provider,
+        "screener",
+        health_fmp.status.value,
+        health_fmp.response_time_ms,
+        health_fmp.error,
+    )
 
     # FRED (critical)
     fred = FREDClient(
@@ -207,8 +231,13 @@ def _check_all_apis(config: Config, logger: EventLogger) -> list[APIHealthResult
     )
     health_fred = fred.check_health()
     results.append(health_fred)
-    logger.api_health(health_fred.provider, "observations", health_fred.status.value,
-                      health_fred.response_time_ms, health_fred.error)
+    logger.api_health(
+        health_fred.provider,
+        "observations",
+        health_fred.status.value,
+        health_fred.response_time_ms,
+        health_fred.error,
+    )
 
     polygon.close()
     uw.close()
@@ -252,7 +281,7 @@ def _check_circuit_breaker(config: Config, logger: EventLogger) -> CircuitBreake
         Severity.WARNING if state.is_active else Severity.INFO,
         phase=0,
         message=f"Circuit breaker: {'ACTIVE' if state.is_active else 'OK'} "
-                f"(drawdown={state.daily_drawdown_pct:.1f}%, limit={limit:.1f}%)",
+        f"(drawdown={state.daily_drawdown_pct:.1f}%, limit={limit:.1f}%)",
         data={
             "is_active": state.is_active,
             "daily_drawdown_pct": state.daily_drawdown_pct,
@@ -263,9 +292,9 @@ def _check_circuit_breaker(config: Config, logger: EventLogger) -> CircuitBreake
     return state
 
 
-def _assess_macro_regime(config: Config, polygon: PolygonClient,
-                         fred: FREDClient,
-                         logger: EventLogger) -> MacroRegime:
+def _assess_macro_regime(
+    config: Config, polygon: PolygonClient, fred: FREDClient, logger: EventLogger
+) -> MacroRegime:
     """Assess macro environment using Polygon (primary) and FRED (fallback).
 
     VIX source chain: Polygon I:VIX → FRED VIXCLS → default 20.0
@@ -296,8 +325,7 @@ def _assess_macro_regime(config: Config, polygon: PolygonClient,
     if tnx_observations:
         # Filter out "." values (FRED uses "." for missing data)
         valid_obs = [
-            float(o["value"]) for o in tnx_observations
-            if o.get("value") and o["value"] != "."
+            float(o["value"]) for o in tnx_observations if o.get("value") and o["value"] != "."
         ]
         if valid_obs:
             tnx_value = valid_obs[0]  # Most recent (sorted desc)
@@ -321,12 +349,16 @@ def _assess_macro_regime(config: Config, polygon: PolygonClient,
                 curve_status = "FLATTENING"
             else:
                 curve_status = "NORMAL"
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=0,
-                       message=f"Yield Curve 2s10s: {yield_curve_2s10s:+.2f}% ({curve_status})",
-                       data={
-                           "yield_curve_2s10s": yield_curve_2s10s,
-                           "curve_status": curve_status,
-                       })
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.INFO,
+                phase=0,
+                message=f"Yield Curve 2s10s: {yield_curve_2s10s:+.2f}% ({curve_status})",
+                data={
+                    "yield_curve_2s10s": yield_curve_2s10s,
+                    "curve_status": curve_status,
+                },
+            )
 
     # --- Cross-Asset Regime (BC21) ---
     cross_asset_regime_str = "NORMAL"
@@ -341,18 +373,27 @@ def _assess_macro_regime(config: Config, polygon: PolygonClient,
             lookback = config.runtime.get("cross_asset_lookback_days", 30)
             ratios = _fetch_cross_asset_ratios(polygon, etfs, lookback, logger)
 
-            yield_for_voting = yield_curve_2s10s if config.tuning.get("yield_curve_enabled", True) else None
+            yield_for_voting = (
+                yield_curve_2s10s if config.tuning.get("yield_curve_enabled", True) else None
+            )
 
             ca_result = calculate_cross_asset_regime(
-                ratios, vix_value, yield_for_voting, config.tuning,
+                ratios,
+                vix_value,
+                yield_for_voting,
+                config.tuning,
             )
             cross_asset_regime_str = ca_result.regime.value
             cross_asset_votes = ca_result.votes
-            vix_threshold_adjusted = config.tuning["vix_penalty_start"] + ca_result.vix_threshold_delta
+            vix_threshold_adjusted = (
+                config.tuning["vix_penalty_start"] + ca_result.vix_threshold_delta
+            )
 
             if ca_result.regime.value != "NORMAL":
                 logger.log(
-                    EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=0,
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.WARNING,
+                    phase=0,
                     message=(
                         f"Cross-Asset Regime: {ca_result.regime.value} "
                         f"(votes={ca_result.votes:.1f}, "
@@ -363,8 +404,12 @@ def _assess_macro_regime(config: Config, polygon: PolygonClient,
                     data=ca_result.details,
                 )
         except Exception as e:
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=0,
-                       message=f"Cross-asset regime failed, defaulting NORMAL: {e}")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.WARNING,
+                phase=0,
+                message=f"Cross-asset regime failed, defaulting NORMAL: {e}",
+            )
 
     # Recalculate VIX multiplier with cross-asset adjusted threshold
     if vix_threshold_adjusted != config.tuning["vix_penalty_start"]:
@@ -386,7 +431,9 @@ def _assess_macro_regime(config: Config, polygon: PolygonClient,
     )
 
     logger.log(
-        EventType.MACRO_REGIME, Severity.INFO, phase=0,
+        EventType.MACRO_REGIME,
+        Severity.INFO,
+        phase=0,
         message=(
             f"Macro: VIX={vix_value:.1f} ({vix_regime.value}, source={vix_source}), "
             f"multiplier={vix_multiplier:.2f}, "
@@ -406,8 +453,7 @@ def _assess_macro_regime(config: Config, polygon: PolygonClient,
     return macro
 
 
-def _fetch_vix(polygon: PolygonClient, fred: FREDClient,
-               logger: EventLogger) -> tuple[float, str]:
+def _fetch_vix(polygon: PolygonClient, fred: FREDClient, logger: EventLogger) -> tuple[float, str]:
     """Fetch VIX with fallback chain: Polygon I:VIX → FRED VIXCLS → default.
 
     Returns:
@@ -419,27 +465,44 @@ def _fetch_vix(polygon: PolygonClient, fred: FREDClient,
         if vix is not None:
             vix, valid = _validate_vix(vix, "polygon", logger)
             if valid:
-                logger.log(EventType.MACRO_REGIME, Severity.INFO, phase=0,
-                           message=f"VIX={vix:.2f} (Polygon I:VIX)")
+                logger.log(
+                    EventType.MACRO_REGIME,
+                    Severity.INFO,
+                    phase=0,
+                    message=f"VIX={vix:.2f} (Polygon I:VIX)",
+                )
                 return vix, "polygon"
     except Exception as e:
-        logger.log(EventType.API_ERROR, Severity.WARNING, phase=0,
-                   message=f"Polygon VIX fetch failed: {e}")
+        logger.log(
+            EventType.API_ERROR, Severity.WARNING, phase=0, message=f"Polygon VIX fetch failed: {e}"
+        )
 
     # 2. Fallback: FRED VIXCLS (1-day delayed)
-    logger.log(EventType.MACRO_REGIME, Severity.INFO, phase=0,
-               message="Polygon VIX unavailable, falling back to FRED VIXCLS")
+    logger.log(
+        EventType.MACRO_REGIME,
+        Severity.INFO,
+        phase=0,
+        message="Polygon VIX unavailable, falling back to FRED VIXCLS",
+    )
     fred_vix = _get_latest_fred_value(fred, fred.VIX_SERIES)
     if fred_vix is not None:
         fred_vix, valid = _validate_vix(fred_vix, "fred", logger)
         if valid:
-            logger.log(EventType.MACRO_REGIME, Severity.INFO, phase=0,
-                       message=f"VIX={fred_vix:.2f} (FRED VIXCLS fallback)")
+            logger.log(
+                EventType.MACRO_REGIME,
+                Severity.INFO,
+                phase=0,
+                message=f"VIX={fred_vix:.2f} (FRED VIXCLS fallback)",
+            )
             return fred_vix, "fred"
 
     # 3. Default: conservative 20.0
-    logger.log(EventType.MACRO_REGIME, Severity.WARNING, phase=0,
-               message="VIX data unavailable from all sources, using default=20.0")
+    logger.log(
+        EventType.MACRO_REGIME,
+        Severity.WARNING,
+        phase=0,
+        message="VIX data unavailable from all sources, using default=20.0",
+    )
     return 20.0, "default"
 
 
@@ -448,9 +511,13 @@ def _validate_vix(vix: float, source: str, logger: EventLogger) -> tuple[float, 
     if 5.0 <= vix <= 100.0:
         return vix, True
 
-    logger.log(EventType.MACRO_REGIME, Severity.WARNING, phase=0,
-               message=f"VIX sanity check FAILED: {vix:.2f} from {source} "
-                       f"(outside [5.0, 100.0]) — using default 20.0")
+    logger.log(
+        EventType.MACRO_REGIME,
+        Severity.WARNING,
+        phase=0,
+        message=f"VIX sanity check FAILED: {vix:.2f} from {source} "
+        f"(outside [5.0, 100.0]) — using default 20.0",
+    )
     return 20.0, False
 
 
@@ -484,8 +551,9 @@ def _classify_vix(vix: float, config: Config) -> MarketVolatilityRegime:
         return MarketVolatilityRegime.LOW
 
 
-def _calculate_vix_multiplier(vix: float, config: Config,
-                              threshold_override: float | None = None) -> float:
+def _calculate_vix_multiplier(
+    vix: float, config: Config, threshold_override: float | None = None
+) -> float:
     """Calculate VIX risk multiplier.
 
     Formula: max(floor, 1.0 - (VIX - threshold) * rate)
@@ -498,7 +566,9 @@ def _calculate_vix_multiplier(vix: float, config: Config,
     extreme_threshold = config.tuning.get("vix_extreme_threshold", 50)
     if vix > extreme_threshold:
         return config.tuning.get("vix_extreme_multiplier", 0.10)
-    threshold = threshold_override if threshold_override is not None else config.tuning["vix_penalty_start"]
+    threshold = (
+        threshold_override if threshold_override is not None else config.tuning["vix_penalty_start"]
+    )
     if vix <= threshold:
         return 1.0
     rate = config.tuning["vix_penalty_rate"]
@@ -523,8 +593,12 @@ def _fetch_cross_asset_ratios(
             bars = polygon.get_daily_bars(etf, lookback_days)
             bars_by_etf[etf] = bars if bars else []
         except Exception as e:
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=0,
-                       message=f"Cross-asset: failed to fetch {etf}: {e}")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.WARNING,
+                phase=0,
+                message=f"Cross-asset: failed to fetch {etf}: {e}",
+            )
             bars_by_etf[etf] = []
 
     def _ratio(numerator: str, denominator: str) -> list[float]:
@@ -533,7 +607,10 @@ def _fetch_cross_asset_ratios(
         if not num_bars or not den_bars:
             return []
         # Align by date
-        den_by_date = {b["date"] if isinstance(b["date"], str) else b["date"].isoformat(): b["c"] for b in den_bars}
+        den_by_date = {
+            b["date"] if isinstance(b["date"], str) else b["date"].isoformat(): b["c"]
+            for b in den_bars
+        }
         ratios = []
         for b in num_bars:
             d = b["date"] if isinstance(b["date"], str) else b["date"].isoformat()

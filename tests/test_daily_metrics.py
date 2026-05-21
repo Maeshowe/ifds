@@ -1,10 +1,10 @@
 """Tests for daily_metrics.py — output schema and edge cases."""
+
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # VIX close backfill
@@ -36,12 +36,8 @@ class TestLoadPhase0Vix:
         from scripts.paper_trading.daily_metrics import _load_phase0_vix
 
         log = tmp_path / "ifds_run_20260428_141501.jsonl"
-        self._write_event(
-            log, event_type="MACRO_REGIME", phase=0, data={"vix_value": 17.0}
-        )
-        self._write_event(
-            log, event_type="MACRO_REGIME", phase=0, data={"vix_value": 18.5}
-        )
+        self._write_event(log, event_type="MACRO_REGIME", phase=0, data={"vix_value": 17.0})
+        self._write_event(log, event_type="MACRO_REGIME", phase=0, data={"vix_value": 18.5})
 
         assert _load_phase0_vix("2026-04-28", logs_dir=tmp_path) == pytest.approx(18.5)
 
@@ -58,9 +54,7 @@ class TestLoadPhase0Vix:
         with open(log, "w") as f:
             f.write("not-json\n")
             f.write(
-                json.dumps(
-                    {"event_type": "MACRO_REGIME", "phase": 0, "data": {"vix_value": 18.68}}
-                )
+                json.dumps({"event_type": "MACRO_REGIME", "phase": 0, "data": {"vix_value": 18.68}})
                 + "\n"
             )
 
@@ -76,9 +70,7 @@ class TestLoadPhase0Vix:
             phase=0,
             message="VIX=18.68 (Polygon I:VIX)",  # no data dict
         )
-        self._write_event(
-            log, event_type="API_HEALTH_CHECK", phase=0, data={"vix_value": 99.0}
-        )
+        self._write_event(log, event_type="API_HEALTH_CHECK", phase=0, data={"vix_value": 99.0})
 
         assert _load_phase0_vix("2026-04-28", logs_dir=tmp_path) is None
 
@@ -93,18 +85,10 @@ class TestVixCloseInOutput:
             "scripts.paper_trading.daily_metrics.CUM_PNL_FILE",
             tmp_path / "nonexistent_pnl.json",
         )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.METRICS_DIR", tmp_path
-        )
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.METRICS_DIR", tmp_path)
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
             lambda d: None,
@@ -135,18 +119,10 @@ class TestVixCloseInOutput:
             "scripts.paper_trading.daily_metrics.CUM_PNL_FILE",
             tmp_path / "nonexistent_pnl.json",
         )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.METRICS_DIR", tmp_path
-        )
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.METRICS_DIR", tmp_path)
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
             lambda d: None,
@@ -160,27 +136,17 @@ class TestVixCloseInOutput:
         assert metrics["market"]["vix_close"] == pytest.approx(18.5)
         assert metrics["market"]["vix_delta_pct"] == pytest.approx(-7.5)
 
-    def test_vix_close_falls_back_to_polygon_when_log_missing(
-        self, tmp_path, monkeypatch
-    ):
+    def test_vix_close_falls_back_to_polygon_when_log_missing(self, tmp_path, monkeypatch):
         from scripts.paper_trading.daily_metrics import build_daily_metrics
 
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics.CUM_PNL_FILE",
             tmp_path / "nonexistent_pnl.json",
         )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.METRICS_DIR", tmp_path
-        )
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.METRICS_DIR", tmp_path)
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
             lambda d: None,
@@ -198,9 +164,6 @@ class TestVixCloseInOutput:
         assert metrics["market"]["vix_close"] == pytest.approx(19.42)
 
 
-
-
-
 class TestBuildDailyMetrics:
     """Test the build_daily_metrics function directly."""
 
@@ -213,15 +176,9 @@ class TestBuildDailyMetrics:
             "scripts.paper_trading.daily_metrics.CUM_PNL_FILE",
             tmp_path / "nonexistent_pnl.json",
         )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path
-        )
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
             lambda d: None,
@@ -230,10 +187,18 @@ class TestBuildDailyMetrics:
         metrics = build_daily_metrics("2026-04-02")
 
         required_keys = {
-            "date", "day_number", "positions", "market", "scoring",
-            "execution", "exits", "pnl", "excess_return", "trades",
+            "date",
+            "day_number",
+            "positions",
+            "market",
+            "scoring",
+            "execution",
+            "exits",
+            "pnl",
+            "excess_return",
+            "trades",
             "uw_shadow_summary",  # Day 63 §3.2 — UW shadow log integration
-            "swing_state",        # Task #5 — swing portfolio snapshot
+            "swing_state",  # Task #5 — swing portfolio snapshot
         }
         assert required_keys == set(metrics.keys())
 
@@ -257,15 +222,9 @@ class TestBuildDailyMetrics:
             "scripts.paper_trading.daily_metrics.CUM_PNL_FILE",
             tmp_path / "nonexistent_pnl.json",
         )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path
-        )
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
             lambda d: None,
@@ -275,12 +234,10 @@ class TestBuildDailyMetrics:
         swing_state = metrics["swing_state"]
 
         # Both disambiguated keys must be present
-        assert "sector_observed_max_pct" in swing_state, (
-            "Display metric must be named sector_observed_max_pct"
-        )
-        assert "sector_cap_pct" in swing_state, (
-            "Config cap must be explicit as sector_cap_pct"
-        )
+        assert (
+            "sector_observed_max_pct" in swing_state
+        ), "Display metric must be named sector_observed_max_pct"
+        assert "sector_cap_pct" in swing_state, "Config cap must be explicit as sector_cap_pct"
 
         # The deprecated combined key must NOT be present (regression guard)
         assert "sector_max_pct" not in swing_state, (
@@ -291,8 +248,7 @@ class TestBuildDailyMetrics:
         # sector_cap_pct should reflect Day 63 decision §3.11 (30%) by default
         # — verifies the config wiring works end-to-end.
         assert swing_state["sector_cap_pct"] == 30.0, (
-            "Default swing_sector_cap_pct=0.30 must surface as 30.0 "
-            "(per Day 63 decision §3.11)"
+            "Default swing_sector_cap_pct=0.30 must surface as 30.0 " "(per Day 63 decision §3.11)"
         )
 
     def test_no_trades_produces_valid_output(self, tmp_path, monkeypatch):
@@ -303,15 +259,9 @@ class TestBuildDailyMetrics:
             "scripts.paper_trading.daily_metrics.CUM_PNL_FILE",
             tmp_path / "nonexistent.json",
         )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path
-        )
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path)
+        monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
             lambda d: None,

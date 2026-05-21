@@ -3,29 +3,60 @@
 import pytest
 
 from ifds.models.market import (
-    APIHealthResult, APIStatus, BMIData, BMIRegime,
-    CircuitBreakerState, DiagnosticsResult, GEXAnalysis, GEXRegime,
-    MacroRegime, MarketVolatilityRegime, MomentumClassification,
-    Phase1Result, Phase2Result, Phase3Result, Phase4Result, Phase5Result,
-    Phase6Result, PipelineContext, PositionSizing, SectorBMIRegime,
-    SectorScore, SectorTrend, StockAnalysis, StrategyMode, Ticker,
-    TechnicalAnalysis, FlowAnalysis, FundamentalScoring,
+    APIHealthResult,
+    APIStatus,
+    BMIData,
+    BMIRegime,
+    CircuitBreakerState,
+    DiagnosticsResult,
+    GEXAnalysis,
+    GEXRegime,
+    MacroRegime,
+    MarketVolatilityRegime,
+    MomentumClassification,
+    Phase1Result,
+    Phase2Result,
+    Phase3Result,
+    Phase4Result,
+    Phase5Result,
+    Phase6Result,
+    PipelineContext,
+    PositionSizing,
+    SectorBMIRegime,
+    SectorScore,
+    SectorTrend,
+    StockAnalysis,
+    StrategyMode,
+    Ticker,
+    TechnicalAnalysis,
+    FlowAnalysis,
+    FundamentalScoring,
 )
 from ifds.output.console import (
-    print_diagnostics, print_phase1, print_phase2,
-    print_sector_table, print_scan_summary, print_gex_summary,
-    print_final_summary, print_pipeline_result, print_phase_header,
-    _print_config_table, _sector_change_arrow,
+    print_diagnostics,
+    print_phase1,
+    print_phase2,
+    print_sector_table,
+    print_scan_summary,
+    print_gex_summary,
+    print_final_summary,
+    print_pipeline_result,
+    print_phase_header,
+    _print_config_table,
+    _sector_change_arrow,
 )
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def macro():
     return MacroRegime(
-        vix_value=17.5, vix_regime=MarketVolatilityRegime.NORMAL,
-        vix_multiplier=1.0, tnx_value=4.25, tnx_sma20=4.10,
+        vix_value=17.5,
+        vix_regime=MarketVolatilityRegime.NORMAL,
+        vix_multiplier=1.0,
+        tnx_value=4.25,
+        tnx_sma20=4.10,
         tnx_rate_sensitive=False,
     )
 
@@ -34,15 +65,27 @@ def macro():
 def diag(macro):
     return DiagnosticsResult(
         api_health=[
-            APIHealthResult(provider="polygon", endpoint="/v2/aggs",
-                            status=APIStatus.OK, response_time_ms=120.5,
-                            is_critical=True),
-            APIHealthResult(provider="fmp", endpoint="/v3/stock-screener",
-                            status=APIStatus.OK, response_time_ms=200.0,
-                            is_critical=True),
-            APIHealthResult(provider="unusual_whales", endpoint="/api/darkpool/SPY",
-                            status=APIStatus.SKIPPED, error="No API key",
-                            is_critical=False),
+            APIHealthResult(
+                provider="polygon",
+                endpoint="/v2/aggs",
+                status=APIStatus.OK,
+                response_time_ms=120.5,
+                is_critical=True,
+            ),
+            APIHealthResult(
+                provider="fmp",
+                endpoint="/v3/stock-screener",
+                status=APIStatus.OK,
+                response_time_ms=200.0,
+                is_critical=True,
+            ),
+            APIHealthResult(
+                provider="unusual_whales",
+                endpoint="/api/darkpool/SPY",
+                status=APIStatus.SKIPPED,
+                error="No API key",
+                is_critical=False,
+            ),
         ],
         circuit_breaker=CircuitBreakerState(is_active=False),
         macro=macro,
@@ -54,8 +97,13 @@ def diag(macro):
 @pytest.fixture
 def phase1():
     return Phase1Result(
-        bmi=BMIData(bmi_value=49.8, bmi_regime=BMIRegime.YELLOW,
-                    daily_ratio=52.0, buy_count=100, sell_count=95),
+        bmi=BMIData(
+            bmi_value=49.8,
+            bmi_regime=BMIRegime.YELLOW,
+            daily_ratio=52.0,
+            buy_count=100,
+            sell_count=95,
+        ),
         strategy_mode=StrategyMode.LONG,
         ticker_count_for_bmi=500,
     )
@@ -75,17 +123,30 @@ def phase2():
 def phase3():
     return Phase3Result(
         sector_scores=[
-            SectorScore(etf="XLK", sector_name="Technology",
-                        momentum_5d=2.5, trend=SectorTrend.UP,
-                        rank=1, classification=MomentumClassification.LEADER,
-                        sector_bmi=45.0, sector_bmi_regime=SectorBMIRegime.NEUTRAL,
-                        score_adjustment=15),
-            SectorScore(etf="XLE", sector_name="Energy",
-                        momentum_5d=-1.2, trend=SectorTrend.DOWN,
-                        rank=11, classification=MomentumClassification.LAGGARD,
-                        sector_bmi=22.0, sector_bmi_regime=SectorBMIRegime.OVERSOLD,
-                        vetoed=True, veto_reason="Laggard + OVERBOUGHT",
-                        score_adjustment=-20),
+            SectorScore(
+                etf="XLK",
+                sector_name="Technology",
+                momentum_5d=2.5,
+                trend=SectorTrend.UP,
+                rank=1,
+                classification=MomentumClassification.LEADER,
+                sector_bmi=45.0,
+                sector_bmi_regime=SectorBMIRegime.NEUTRAL,
+                score_adjustment=15,
+            ),
+            SectorScore(
+                etf="XLE",
+                sector_name="Energy",
+                momentum_5d=-1.2,
+                trend=SectorTrend.DOWN,
+                rank=11,
+                classification=MomentumClassification.LAGGARD,
+                sector_bmi=22.0,
+                sector_bmi_regime=SectorBMIRegime.OVERSOLD,
+                vetoed=True,
+                veto_reason="Laggard + OVERBOUGHT",
+                score_adjustment=-20,
+            ),
         ],
         vetoed_sectors=["XLE"],
         active_sectors=["XLK"],
@@ -140,12 +201,19 @@ def ctx(phase6):
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
+
 def _make_stock(ticker="AAPL", excluded=False):
     return StockAnalysis(
-        ticker=ticker, sector="Technology",
+        ticker=ticker,
+        sector="Technology",
         technical=TechnicalAnalysis(
-            price=150.0, sma_200=140.0, sma_20=148.0,
-            rsi_14=55.0, atr_14=3.0, trend_pass=True, rsi_score=5,
+            price=150.0,
+            sma_200=140.0,
+            sma_20=148.0,
+            rsi_14=55.0,
+            atr_14=3.0,
+            trend_pass=True,
+            rsi_score=5,
         ),
         flow=FlowAnalysis(rvol=1.5, rvol_score=10),
         fundamental=FundamentalScoring(funda_score=15),
@@ -157,16 +225,26 @@ def _make_stock(ticker="AAPL", excluded=False):
 
 def _make_position(ticker="AAPL", score=85.0):
     return PositionSizing(
-        ticker=ticker, sector="Technology", direction="BUY",
-        entry_price=150.0, quantity=10, stop_loss=145.0,
-        take_profit_1=160.0, take_profit_2=170.0,
-        risk_usd=50.0, combined_score=score, gex_regime="positive",
-        multiplier_total=1.2, m_vix=1.0, m_utility=1.1,
+        ticker=ticker,
+        sector="Technology",
+        direction="BUY",
+        entry_price=150.0,
+        quantity=10,
+        stop_loss=145.0,
+        take_profit_1=160.0,
+        take_profit_2=170.0,
+        risk_usd=50.0,
+        combined_score=score,
+        gex_regime="positive",
+        multiplier_total=1.2,
+        m_vix=1.0,
+        m_utility=1.1,
         is_fresh=ticker == "AAPL",
     )
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────
+
 
 class TestPrintPhaseHeader:
     def test_prints_header(self, capsys):
@@ -365,10 +443,14 @@ class TestSectorChangeArrow:
 class TestSectorTableBenchmark:
     def test_benchmark_row_shown(self, capsys, phase3):
         agg = SectorScore(
-            etf="AGG", sector_name="Bonds (Benchmark)",
-            momentum_5d=0.3, trend=SectorTrend.UP,
-            rank=99, classification=MomentumClassification.NEUTRAL,
-            sector_bmi=50.0, sector_bmi_regime=SectorBMIRegime.NEUTRAL,
+            etf="AGG",
+            sector_name="Bonds (Benchmark)",
+            momentum_5d=0.3,
+            trend=SectorTrend.UP,
+            rank=99,
+            classification=MomentumClassification.NEUTRAL,
+            sector_bmi=50.0,
+            sector_bmi_regime=SectorBMIRegime.NEUTRAL,
             score_adjustment=0,
         )
         print_sector_table(phase3, benchmark=agg)
@@ -379,10 +461,14 @@ class TestSectorTableBenchmark:
 
     def test_benchmark_not_scored(self, capsys, phase3):
         agg = SectorScore(
-            etf="AGG", sector_name="Bonds (Benchmark)",
-            momentum_5d=0.3, trend=SectorTrend.UP,
-            rank=99, classification=MomentumClassification.NEUTRAL,
-            sector_bmi=50.0, sector_bmi_regime=SectorBMIRegime.NEUTRAL,
+            etf="AGG",
+            sector_name="Bonds (Benchmark)",
+            momentum_5d=0.3,
+            trend=SectorTrend.UP,
+            rank=99,
+            classification=MomentumClassification.NEUTRAL,
+            sector_bmi=50.0,
+            sector_bmi_regime=SectorBMIRegime.NEUTRAL,
             score_adjustment=0,
         )
         print_sector_table(phase3, benchmark=agg)
@@ -408,6 +494,7 @@ class TestPrintConfigTable:
         monkeypatch.setenv("IFDS_FRED_API_KEY", "test")
         monkeypatch.setenv("IFDS_ASYNC_ENABLED", "true")
         from ifds.config.loader import Config
+
         config = Config()
         _print_config_table(config)
         out = capsys.readouterr().out
@@ -431,6 +518,7 @@ class TestPrintConfigTable:
         monkeypatch.setenv("IFDS_FMP_API_KEY", "test")
         monkeypatch.setenv("IFDS_FRED_API_KEY", "test")
         from ifds.config.loader import Config
+
         config = Config()
         _print_config_table(config)
         out = capsys.readouterr().out
@@ -442,6 +530,7 @@ class TestPrintConfigTable:
         monkeypatch.setenv("IFDS_FMP_API_KEY", "test")
         monkeypatch.setenv("IFDS_FRED_API_KEY", "test")
         from ifds.config.loader import Config
+
         config = Config()
         print_pipeline_result(ctx, config=config)
         out = capsys.readouterr().out

@@ -4,8 +4,10 @@ import pytest
 from unittest.mock import MagicMock
 
 from ifds.data.adapters import (
-    FallbackGEXProvider, FallbackDarkPoolProvider,
-    UWGEXProvider, PolygonGEXProvider,
+    FallbackGEXProvider,
+    FallbackDarkPoolProvider,
+    UWGEXProvider,
+    PolygonGEXProvider,
     UWDarkPoolProvider,
 )
 from ifds.events.logger import EventLogger
@@ -64,9 +66,7 @@ class TestFallbackGEXProvider:
         provider.get_gex("AAPL")
 
         # Check that a fallback event was logged
-        fallback_events = [
-            e for e in logger.events if e["event_type"] == "API_FALLBACK"
-        ]
+        fallback_events = [e for e in logger.events if e["event_type"] == "API_FALLBACK"]
         assert len(fallback_events) == 1
         assert fallback_events[0]["data"]["primary"] == "unusual_whales"
         assert fallback_events[0]["data"]["fallback"] == "polygon"
@@ -100,7 +100,9 @@ class TestFallbackDarkPoolProvider:
     def test_uses_primary_when_available(self, logger):
         primary = MagicMock()
         primary.get_dark_pool.return_value = {
-            "dp_volume": 1000000, "signal": "BULLISH", "source": "unusual_whales"
+            "dp_volume": 1000000,
+            "signal": "BULLISH",
+            "source": "unusual_whales",
         }
         primary.provider_name.return_value = "unusual_whales"
 
@@ -128,9 +130,7 @@ class TestFallbackDarkPoolProvider:
         provider = FallbackDarkPoolProvider(primary, logger=logger)
         provider.get_dark_pool("AAPL")
 
-        fallback_events = [
-            e for e in logger.events if e["event_type"] == "API_FALLBACK"
-        ]
+        fallback_events = [e for e in logger.events if e["event_type"] == "API_FALLBACK"]
         assert len(fallback_events) == 1
         assert fallback_events[0]["data"]["fallback"] == "none"
 
@@ -151,7 +151,7 @@ class TestUWGEXProvider:
         assert result is not None
         assert result["source"] == "unusual_whales"
         assert result["call_wall"] == 155  # max call_gamma
-        assert result["put_wall"] == 150   # max |put_gamma|
+        assert result["put_wall"] == 150  # max |put_gamma|
         assert "zero_gamma" in result
         assert "net_gex" in result
         assert len(result["gex_by_strike"]) == 3

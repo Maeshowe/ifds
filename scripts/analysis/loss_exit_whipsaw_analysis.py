@@ -32,6 +32,7 @@ Usage:
         --start 2026-04-13 --end 2026-04-29 \\
         --output docs/analysis/loss-exit-whipsaw-analysis.md
 """
+
 from __future__ import annotations
 
 import argparse
@@ -51,9 +52,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s [%(levelname)s] %(message)s",
-                    datefmt="%H:%M:%S")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+)
 logger = logging.getLogger("whipsaw")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -118,17 +119,19 @@ def load_loss_exits(start: str, end: str, trades_dir: Path = TRADES_DIR) -> list
                 if row.get("exit_type") != "LOSS_EXIT":
                     continue
                 try:
-                    out.append(LossExit(
-                        date=row["date"],
-                        ticker=row["ticker"],
-                        sector=row.get("sector", ""),
-                        score=float(row.get("score", 0) or 0),
-                        entry_price=float(row["entry_price"]),
-                        exit_price=float(row["exit_price"]),
-                        qty=int(row["exit_qty"]),
-                        actual_pnl=float(row["pnl"]),
-                        actual_pnl_pct=float(row["pnl_pct"]),
-                    ))
+                    out.append(
+                        LossExit(
+                            date=row["date"],
+                            ticker=row["ticker"],
+                            sector=row.get("sector", ""),
+                            score=float(row.get("score", 0) or 0),
+                            entry_price=float(row["entry_price"]),
+                            exit_price=float(row["exit_price"]),
+                            qty=int(row["exit_qty"]),
+                            actual_pnl=float(row["pnl"]),
+                            actual_pnl_pct=float(row["pnl_pct"]),
+                        )
+                    )
                 except (KeyError, ValueError):
                     continue
     return out
@@ -152,17 +155,19 @@ def aggregate_split_orders(events: list[LossExit]) -> list[LossExit]:
         # Weighted entry/exit by qty
         wavg_entry = sum(r.entry_price * r.qty for r in rows) / total_qty
         wavg_exit = sum(r.exit_price * r.qty for r in rows) / total_qty
-        merged.append(LossExit(
-            date=d,
-            ticker=t,
-            sector=rows[0].sector,
-            score=rows[0].score,
-            entry_price=round(wavg_entry, 4),
-            exit_price=round(wavg_exit, 4),
-            qty=total_qty,
-            actual_pnl=round(total_pnl, 2),
-            actual_pnl_pct=round(total_pnl / (wavg_entry * total_qty) * 100, 2),
-        ))
+        merged.append(
+            LossExit(
+                date=d,
+                ticker=t,
+                sector=rows[0].sector,
+                score=rows[0].score,
+                entry_price=round(wavg_entry, 4),
+                exit_price=round(wavg_exit, 4),
+                qty=total_qty,
+                actual_pnl=round(total_pnl, 2),
+                actual_pnl_pct=round(total_pnl / (wavg_entry * total_qty) * 100, 2),
+            )
+        )
     return sorted(merged, key=lambda e: (e.date, e.ticker))
 
 
@@ -249,9 +254,7 @@ def compute_whipsaw_cost(
     return actual_pnl - counterfactual_pnl
 
 
-def build_whipsaw_rows(
-    events: list[LossExit], cache: CloseCache
-) -> list[WhipsawRow]:
+def build_whipsaw_rows(events: list[LossExit], cache: CloseCache) -> list[WhipsawRow]:
     rows: list[WhipsawRow] = []
     for ev in events:
         moc = fetch_moc_close(ev.ticker, ev.date, cache)
@@ -308,19 +311,24 @@ def render_report(rows: list[WhipsawRow], start: str, end: str) -> str:
     out.append(f"- Events with MOC data: {len(valid)} / no data: {len(no_data)}")
     out.append(f"- Total actual P&L: **${total_actual:+,.2f}**")
     out.append(f"- Total counterfactual MOC P&L: ${total_counterfactual:+,.2f}")
-    out.append(f"- **Net whipsaw cost: ${total_whipsaw:+,.2f}** "
-               f"(negative = stop hurt, positive = stop saved)")
-    out.append(f"- Mean whipsaw / event: ${avg_whipsaw:+,.2f}, "
-               f"median ${med_whipsaw:+,.2f}")
+    out.append(
+        f"- **Net whipsaw cost: ${total_whipsaw:+,.2f}** "
+        f"(negative = stop hurt, positive = stop saved)"
+    )
+    out.append(f"- Mean whipsaw / event: ${avg_whipsaw:+,.2f}, " f"median ${med_whipsaw:+,.2f}")
     out.append(f"- Stop hurt: {n_hurt} | Stop saved: {n_saved} | Neutral: {n_neutral}")
     out.append("")
     out.append(f"### Verdict\n\n{verdict}\n")
 
     out.append("## Per-event detail\n")
-    out.append("| Date | Ticker | Sector | Score | Entry | Stop fill | MOC close | Qty | "
-               "Actual P&L | Counterfactual MOC P&L | Whipsaw | Verdict |")
-    out.append("|------|--------|--------|-------|-------|-----------|-----------|-----|"
-               "-----------|------------------------|---------|---------|")
+    out.append(
+        "| Date | Ticker | Sector | Score | Entry | Stop fill | MOC close | Qty | "
+        "Actual P&L | Counterfactual MOC P&L | Whipsaw | Verdict |"
+    )
+    out.append(
+        "|------|--------|--------|-------|-------|-----------|-----------|-----|"
+        "-----------|------------------------|---------|---------|"
+    )
     for r in rows:
         ev = r.loss_exit
         if r.moc_close is None:
@@ -346,8 +354,9 @@ def render_report(rows: list[WhipsawRow], start: str, end: str) -> str:
         out.append("## By ticker\n")
         out.append("| Ticker | Events | Σ actual P&L | Σ whipsaw cost | Avg whipsaw |")
         out.append("|--------|--------|--------------|----------------|-------------|")
-        for ticker, rs in sorted(by_ticker.items(),
-                                  key=lambda kv: sum(x.whipsaw_cost or 0 for x in kv[1])):
+        for ticker, rs in sorted(
+            by_ticker.items(), key=lambda kv: sum(x.whipsaw_cost or 0 for x in kv[1])
+        ):
             total_a = sum(r.loss_exit.actual_pnl for r in rs)
             total_w = sum(r.whipsaw_cost or 0 for r in rs)
             avg_w = total_w / len(rs)
@@ -358,7 +367,9 @@ def render_report(rows: list[WhipsawRow], start: str, end: str) -> str:
         out.append("")
 
     out.append("## Methodology\n")
-    out.append("- **MOC proxy:** Polygon daily close (`c` from /v2/aggs/ticker/{T}/range/1/day/{D}/{D}).")
+    out.append(
+        "- **MOC proxy:** Polygon daily close (`c` from /v2/aggs/ticker/{T}/range/1/day/{D}/{D})."
+    )
     out.append("  This is the official 16:00 ET close, which is a close (≤0.1%) approximation")
     out.append("  to a real `MarketOnClose` fill price.")
     out.append("- **Split orders merged:** when one logical position fired multiple LOSS_EXIT")
@@ -400,9 +411,7 @@ def main() -> None:
 
     raw_events = load_loss_exits(args.start, args.end)
     events = aggregate_split_orders(raw_events)
-    logger.info(
-        f"LOSS_EXIT rows: {len(raw_events)} → merged unique events: {len(events)}"
-    )
+    logger.info(f"LOSS_EXIT rows: {len(raw_events)} → merged unique events: {len(events)}")
 
     cache = CloseCache(Path(args.cache))
     rows = build_whipsaw_rows(events, cache)

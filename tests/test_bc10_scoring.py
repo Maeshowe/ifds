@@ -13,10 +13,10 @@ from ifds.phases.phase4_stocks import (
 from ifds.config.loader import Config
 from ifds.models.market import DarkPoolSignal
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def config(monkeypatch):
@@ -34,6 +34,7 @@ def config(monkeypatch):
 # ============================================================================
 # Helpers
 # ============================================================================
+
 
 def _make_bar(close, high=None, low=None, volume=1000, open_price=None, vw=None):
     """Create a mock OHLCV bar, optionally with VWAP (vw) field."""
@@ -58,7 +59,7 @@ def _make_dp_data(dp_volume=0, signal="BULLISH"):
     return {
         "dp_volume": dp_volume,
         "total_volume": 0,  # UW volume field — unreliable
-        "dp_pct": 0.0,       # This is the broken value we override
+        "dp_pct": 0.0,  # This is the broken value we override
         "dp_buys": dp_volume // 2,
         "dp_sells": dp_volume // 2,
         "signal": signal,
@@ -70,6 +71,7 @@ def _make_dp_data(dp_volume=0, signal="BULLISH"):
 # ============================================================================
 # TestDarkPoolPercentage — 6 tests
 # ============================================================================
+
 
 class TestDarkPoolPercentage:
     """dp_pct is recalculated using Polygon daily volume, not UW volume field.
@@ -159,17 +161,29 @@ class TestDarkPoolPass2Enrichment:
 
     def _make_stock(self, combined=87.0, flow_rvol_score=45, dp_pct_score=0):
         from ifds.models.market import (
-            StockAnalysis, TechnicalAnalysis, FlowAnalysis, FundamentalScoring,
+            StockAnalysis,
+            TechnicalAnalysis,
+            FlowAnalysis,
+            FundamentalScoring,
         )
+
         return StockAnalysis(
-            ticker="AAPL", sector="Technology",
+            ticker="AAPL",
+            sector="Technology",
             technical=TechnicalAnalysis(
-                price=100.0, sma_200=90.0, sma_20=98.0, rsi_14=55.0,
-                atr_14=2.0, trend_pass=True, rsi_score=15, sma50_bonus=30,
+                price=100.0,
+                sma_200=90.0,
+                sma_20=98.0,
+                rsi_14=55.0,
+                atr_14=2.0,
+                trend_pass=True,
+                rsi_score=15,
+                sma50_bonus=30,
                 rs_spy_score=0,
             ),
-            flow=FlowAnalysis(rvol_score=flow_rvol_score,
-                              dp_pct_score=dp_pct_score, dark_pool_pct=0.0),
+            flow=FlowAnalysis(
+                rvol_score=flow_rvol_score, dp_pct_score=dp_pct_score, dark_pool_pct=0.0
+            ),
             fundamental=FundamentalScoring(funda_score=15),
             combined_score=combined,
         )
@@ -177,6 +191,7 @@ class TestDarkPoolPass2Enrichment:
     def test_apply_dp_enrichment_high_dp_drops_combined_score(self, config):
         """20% dp_pct → -15 penalty applied, combined_score drops."""
         from ifds.phases.phase4_stocks import _apply_dp_enrichment
+
         stock = self._make_stock(combined=87.0)
         dp_data = {"dp_volume": 200_000, "total_volume": 1_000_000}
         _apply_dp_enrichment(stock, dp_data, config, sector_adj=0)
@@ -187,10 +202,15 @@ class TestDarkPoolPass2Enrichment:
     def test_apply_dp_enrichment_low_dp_yields_zero_penalty(self, config):
         """8% dp_pct → 0 penalty, no negative impact on combined_score."""
         from ifds.phases.phase4_stocks import _apply_dp_enrichment, _calculate_combined_score
+
         stock = self._make_stock()
         # Baseline: what combined_score would be without any enrichment
         baseline = _calculate_combined_score(
-            stock.technical, stock.flow, stock.fundamental, 0, config,
+            stock.technical,
+            stock.flow,
+            stock.fundamental,
+            0,
+            config,
         )
         dp_data = {"dp_volume": 80_000, "total_volume": 1_000_000}
         _apply_dp_enrichment(stock, dp_data, config, sector_adj=0)
@@ -202,17 +222,17 @@ class TestDarkPoolPass2Enrichment:
     def test_apply_dp_enrichment_no_data_skips(self, config):
         """dp_data=None → no mutation."""
         from ifds.phases.phase4_stocks import _apply_dp_enrichment
+
         stock = self._make_stock(combined=87.0)
-        before = (stock.flow.dark_pool_pct, stock.flow.dp_pct_score,
-                  stock.combined_score)
+        before = (stock.flow.dark_pool_pct, stock.flow.dp_pct_score, stock.combined_score)
         _apply_dp_enrichment(stock, None, config, sector_adj=0)
-        after = (stock.flow.dark_pool_pct, stock.flow.dp_pct_score,
-                 stock.combined_score)
+        after = (stock.flow.dark_pool_pct, stock.flow.dp_pct_score, stock.combined_score)
         assert before == after
 
     def test_apply_dp_enrichment_zero_total_volume_skips(self, config):
         """Empty UW response (total_volume=0) → no mutation."""
         from ifds.phases.phase4_stocks import _apply_dp_enrichment
+
         stock = self._make_stock(combined=87.0)
         before = (stock.flow.dark_pool_pct, stock.combined_score)
         dp_data = {"dp_volume": 0, "total_volume": 0}
@@ -224,6 +244,7 @@ class TestDarkPoolPass2Enrichment:
 # ============================================================================
 # TestBuyPressureVWAP — 7 tests
 # ============================================================================
+
 
 class TestBuyPressureVWAP:
     """Buy Pressure (close position in bar) + VWAP accumulation signal."""
@@ -308,6 +329,7 @@ class TestBuyPressureVWAP:
 # TestBC10Integration — 2 tests
 # ============================================================================
 
+
 class TestBC10Integration:
     """Integration tests combining dp_pct and buy pressure."""
 
@@ -317,18 +339,15 @@ class TestBC10Integration:
         dp_data["block_trade_count"] = 10  # >5 → +10
 
         options_data = [
-            {"details": {"contract_type": "call", "strike_price": 105.0},
-             "day": {"volume": 5000}},
-            {"details": {"contract_type": "put", "strike_price": 95.0},
-             "day": {"volume": 500}},
+            {"details": {"contract_type": "call", "strike_price": 105.0}, "day": {"volume": 5000}},
+            {"details": {"contract_type": "put", "strike_price": 95.0}, "day": {"volume": 500}},
         ]
 
         bars = _make_bars([100.0] * 29, volume=1_000_000)
         # Last bar: close near high + VWAP below close
         bars.append(_make_bar(109, high=110, low=100, volume=1_000_000, vw=102))
 
-        flow = _analyze_flow_from_data("TEST", bars, dp_data, config,
-                                       options_data=options_data)
+        flow = _analyze_flow_from_data("TEST", bars, dp_data, config, options_data=options_data)
 
         # dp_pct = 700K / 1M = 70% → dp_pct_score = -15 (>=18% high penalty,
         # sign-flipped 2026-05-08 from 60-trade audit)

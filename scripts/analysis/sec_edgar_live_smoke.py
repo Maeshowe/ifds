@@ -29,12 +29,17 @@ from ifds.data.sec_edgar import SecEdgarClient, SecEdgarError  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--universe", default="2026-05-15",
-                        help="Date string for state/universe_snapshots/{date}.json")
-    parser.add_argument("--sample", type=int, default=0,
-                        help="Limit to first N tickers (0 = full universe)")
-    parser.add_argument("--cache-dir", default="state/sec_cache_smoke",
-                        help="Isolated cache dir for the smoke run")
+    parser.add_argument(
+        "--universe",
+        default="2026-05-15",
+        help="Date string for state/universe_snapshots/{date}.json",
+    )
+    parser.add_argument(
+        "--sample", type=int, default=0, help="Limit to first N tickers (0 = full universe)"
+    )
+    parser.add_argument(
+        "--cache-dir", default="state/sec_cache_smoke", help="Isolated cache dir for the smoke run"
+    )
     args = parser.parse_args()
 
     snap_path = Path(f"state/universe_snapshots/{args.universe}.json")
@@ -43,7 +48,7 @@ def main() -> int:
         return 1
     tickers = [row["symbol"] for row in json.loads(snap_path.read_text())]
     if args.sample > 0:
-        tickers = tickers[:args.sample]
+        tickers = tickers[: args.sample]
     print(f"smoke set: {len(tickers)} tickers from {snap_path}")
 
     ua = os.environ.get("IFDS_SEC_EDGAR_USER_AGENT")
@@ -87,9 +92,11 @@ def main() -> int:
 
         if i % 25 == 0 or i == len(tickers):
             elapsed = time.monotonic() - t0
-            print(f"  [{i}/{len(tickers)}] success={success} not_found={not_found} "
-                  f"hard_err={hard_err} exc={exc_count} flagged={excluded} "
-                  f"elapsed={elapsed:.1f}s")
+            print(
+                f"  [{i}/{len(tickers)}] success={success} not_found={not_found} "
+                f"hard_err={hard_err} exc={exc_count} flagged={excluded} "
+                f"elapsed={elapsed:.1f}s"
+            )
 
     elapsed = time.monotonic() - t0
     total_checked = success + hard_err + exc_count  # not_found doesn't count

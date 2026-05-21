@@ -31,14 +31,14 @@ class CrossAssetResult:
     """Output of cross-asset regime calculation."""
 
     regime: CrossAssetRegime
-    votes: float                        # 0–4 (incl. yield curve half/full votes)
+    votes: float  # 0–4 (incl. yield curve half/full votes)
     hyg_ief_below_sma: bool
     rsp_spy_below_sma: bool
     iwm_spy_below_sma: bool
     yield_curve_inverted: bool
-    vix_threshold_delta: int            # -5 to 0
+    vix_threshold_delta: int  # -5 to 0
     max_positions_override: int | None  # None = no override
-    min_score_override: int | None      # None = no override
+    min_score_override: int | None  # None = no override
     details: dict = field(default_factory=dict)
 
 

@@ -50,15 +50,16 @@ def _make_grouped_bars(ticker_count=50, buy_volume=3000, sell_volume=3000):
         ticker = f"T{i:03d}"
         if i < ticker_count // 2:
             # Buy signal: close > open, high volume
-            bars.append({"T": ticker, "o": 100.0, "c": 105.0, "v": buy_volume,
-                         "h": 106.0, "l": 99.0})
+            bars.append(
+                {"T": ticker, "o": 100.0, "c": 105.0, "v": buy_volume, "h": 106.0, "l": 99.0}
+            )
         else:
             # Sell signal: close < open, high volume
-            bars.append({"T": ticker, "o": 105.0, "c": 100.0, "v": sell_volume,
-                         "h": 106.0, "l": 99.0})
+            bars.append(
+                {"T": ticker, "o": 105.0, "c": 100.0, "v": sell_volume, "h": 106.0, "l": 99.0}
+            )
     # SPY bar for divergence detection
-    bars.append({"T": "SPY", "o": 500.0, "c": 505.0, "v": 50000000,
-                 "h": 506.0, "l": 499.0})
+    bars.append({"T": "SPY", "o": 500.0, "c": 505.0, "v": 50000000, "h": 506.0, "l": 499.0})
     return bars
 
 
@@ -73,6 +74,7 @@ def _make_daily_bars_sequence(day_count=30, ticker_count=50):
 # ============================================================================
 # _fetch_daily_history_async
 # ============================================================================
+
 
 class TestFetchDailyHistoryAsync:
     """Test the async daily history fetcher."""
@@ -153,6 +155,7 @@ class TestFetchDailyHistoryAsync:
 # _run_phase1_async — full async path
 # ============================================================================
 
+
 class TestRunPhase1Async:
     """Test the full async Phase 1 execution."""
 
@@ -221,7 +224,9 @@ class TestRunPhase1Async:
             MockPoly.return_value = mock_poly
 
             result = await _run_phase1_async(
-                config, logger, sector_mapping=sector_mapping,
+                config,
+                logger,
+                sector_mapping=sector_mapping,
             )
 
             assert result.bmi is not None
@@ -288,6 +293,7 @@ class TestRunPhase1Async:
 # run_phase1() async dispatch
 # ============================================================================
 
+
 class TestPhase1AsyncDispatch:
     """Test that run_phase1() dispatches to async when enabled."""
 
@@ -295,9 +301,12 @@ class TestPhase1AsyncDispatch:
         """run_phase1() dispatches to _run_phase1_async when async_enabled=True."""
         bars = _make_grouped_bars()
 
-        with patch("ifds.phases.phase1_regime._run_phase1_async", new=MagicMock()) as mock_async, \
-             patch("ifds.phases.phase1_regime.asyncio") as mock_asyncio:
+        with (
+            patch("ifds.phases.phase1_regime._run_phase1_async", new=MagicMock()) as mock_async,
+            patch("ifds.phases.phase1_regime.asyncio") as mock_asyncio,
+        ):
             from ifds.models.market import BMIData, Phase1Result
+
             mock_result = Phase1Result(
                 bmi=BMIData(bmi_value=50.0, bmi_regime=BMIRegime.YELLOW, daily_ratio=50.0),
                 strategy_mode=StrategyMode.LONG,

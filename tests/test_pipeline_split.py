@@ -112,14 +112,17 @@ class TestContextPersistence:
             bmi_regime=BMIRegime.YELLOW,
             bmi_value=52.0,
             universe=[Ticker(symbol="AAPL", sector="Technology")],
-            sector_scores=[SectorScore(
-                etf="XLK", sector_name="Technology",
-                momentum_5d=1.5,
-                score_adjustment=15,
-                classification=MomentumClassification.LEADER,
-                sector_bmi=55.0,
-                sector_bmi_regime=SectorBMIRegime.NEUTRAL,
-            )],
+            sector_scores=[
+                SectorScore(
+                    etf="XLK",
+                    sector_name="Technology",
+                    momentum_5d=1.5,
+                    score_adjustment=15,
+                    classification=MomentumClassification.LEADER,
+                    sector_bmi=55.0,
+                    sector_bmi_regime=SectorBMIRegime.NEUTRAL,
+                )
+            ],
             vetoed_sectors=["Real Estate"],
             uw_available=True,
         )
@@ -168,14 +171,10 @@ class TestContextLoadCondition:
         phase = (4, 6)
         macro_set = True  # Phase 0 always runs
         universe_empty = True  # Phase 2 skipped
-        should_load = (
-            isinstance(phase, tuple) and phase[0] >= 4 and universe_empty
-        )
+        should_load = isinstance(phase, tuple) and phase[0] >= 4 and universe_empty
         assert should_load is True
         # Old buggy condition would fail:
-        old_condition = (
-            isinstance(phase, tuple) and phase[0] >= 4 and not macro_set
-        )
+        old_condition = isinstance(phase, tuple) and phase[0] >= 4 and not macro_set
         assert old_condition is False
 
     def test_full_pipeline_does_not_trigger_load(self):
@@ -183,16 +182,12 @@ class TestContextLoadCondition:
         no need to load saved context."""
         phase = (0, 6)
         universe_empty = False  # Phase 2 populated it
-        should_load = (
-            isinstance(phase, tuple) and phase[0] >= 4 and universe_empty
-        )
+        should_load = isinstance(phase, tuple) and phase[0] >= 4 and universe_empty
         assert should_load is False
 
     def test_phases_1_3_does_not_trigger_load(self):
         """In --phases 1-3 mode, phase[0] < 4 → no load."""
         phase = (1, 3)
         universe_empty = True  # No universe yet
-        should_load = (
-            isinstance(phase, tuple) and phase[0] >= 4 and universe_empty
-        )
+        should_load = isinstance(phase, tuple) and phase[0] >= 4 and universe_empty
         assert should_load is False

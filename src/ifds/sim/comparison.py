@@ -71,8 +71,9 @@ def _compute_delta(baseline: SimVariant, challenger: SimVariant) -> VariantDelta
     return delta
 
 
-def _pair_trade_pnls(baseline: SimVariant,
-                     challenger: SimVariant) -> tuple[list[float], list[float]]:
+def _pair_trade_pnls(
+    baseline: SimVariant, challenger: SimVariant
+) -> tuple[list[float], list[float]]:
     """Extract paired P&L values (same ticker, same date).
 
     Only includes trades where both variants had a fill.

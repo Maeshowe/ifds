@@ -11,6 +11,7 @@ already active. It applies a *soft floor* on the trail SL:
 Mathematical guarantee: ``max(x, y) >= x`` ⇒ the lock never produces a worse
 SL than the existing trail mechanism. The change is strictly risk-reducing.
 """
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -152,9 +153,7 @@ class TestBreakevenLockWindow:
 
         for hour in (0, 8, 16, 18, 20, 22):
             t = datetime(2026, 4, 28, hour, 2, 0, tzinfo=CET)
-            assert is_breakeven_lock_window(t) is False, (
-                f"hour {hour} should NOT be in the window"
-            )
+            assert is_breakeven_lock_window(t) is False, f"hour {hour} should NOT be in the window"
 
 
 # ---------------------------------------------------------------------------

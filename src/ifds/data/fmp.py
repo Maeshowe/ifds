@@ -30,8 +30,14 @@ class FMPClient(BaseAPIClient):
 
     HEALTH_CHECK_ENDPOINT = "/stable/company-screener"
 
-    def __init__(self, api_key: str, timeout: int = 10, max_retries: int = 3,
-                 cache: FileCache | None = None, circuit_breaker=None):
+    def __init__(
+        self,
+        api_key: str,
+        timeout: int = 10,
+        max_retries: int = 3,
+        cache: FileCache | None = None,
+        circuit_breaker=None,
+    ):
         super().__init__(
             base_url="https://financialmodelingprep.com",
             api_key=api_key,
@@ -63,8 +69,7 @@ class FMPClient(BaseAPIClient):
         debug_params = {k: v for k, v in query.items() if k != "apikey"}
         url = f"{self._base_url}{self.HEALTH_CHECK_ENDPOINT}?{urlencode(debug_params)}"
         print(f"  [FMP SCREENER] {url}", file=sys.stderr)
-        return self._get(self.HEALTH_CHECK_ENDPOINT, params=query,
-                         headers=self._auth_headers())
+        return self._get(self.HEALTH_CHECK_ENDPOINT, params=query, headers=self._auth_headers())
 
     def get_earnings_calendar(self, from_date: str, to_date: str) -> list[dict] | None:
         """Get earnings calendar for a date range.
@@ -80,8 +85,7 @@ class FMPClient(BaseAPIClient):
                 return cached
 
         params = {"apikey": self._api_key, "from": from_date, "to": to_date}
-        result = self._get("/stable/earnings-calendar", params=params,
-                           headers=self._auth_headers())
+        result = self._get("/stable/earnings-calendar", params=params, headers=self._auth_headers())
         if result and self._cache:
             self._cache.put("fmp", "earnings-calendar", cache_date, "ALL", result)
         return result
@@ -95,8 +99,9 @@ class FMPClient(BaseAPIClient):
                 return cached
 
         params = {"apikey": self._api_key, "symbol": ticker, "limit": 50}
-        result = self._get("/stable/insider-trading/search", params=params,
-                           headers=self._auth_headers())
+        result = self._get(
+            "/stable/insider-trading/search", params=params, headers=self._auth_headers()
+        )
         if result and self._cache:
             self._cache.put("fmp", "insider-trading", yesterday, ticker, result)
         return result
@@ -113,8 +118,7 @@ class FMPClient(BaseAPIClient):
                 return cached
 
         params = {"apikey": self._api_key, "symbol": ticker}
-        result = self._get("/stable/key-metrics", params=params,
-                           headers=self._auth_headers())
+        result = self._get("/stable/key-metrics", params=params, headers=self._auth_headers())
         if result and isinstance(result, list) and len(result) > 0:
             if self._cache:
                 self._cache.put("fmp", "key-metrics", yesterday, ticker, result[0])
@@ -142,8 +146,7 @@ class FMPClient(BaseAPIClient):
         if not result:
             return {}
 
-        mapping = {r["symbol"]: r["sector"] for r in result
-                   if r.get("symbol") and r.get("sector")}
+        mapping = {r["symbol"]: r["sector"] for r in result if r.get("symbol") and r.get("sector")}
 
         if mapping and self._cache:
             self._cache.put("fmp", "sector-mapping", yesterday, "ALL", mapping)
@@ -158,8 +161,9 @@ class FMPClient(BaseAPIClient):
                 return cached
 
         params = {"apikey": self._api_key, "symbol": ticker, "limit": 2}
-        result = self._get("/stable/institutional-ownership/latest", params=params,
-                           headers=self._auth_headers())
+        result = self._get(
+            "/stable/institutional-ownership/latest", params=params, headers=self._auth_headers()
+        )
         if result and self._cache:
             self._cache.put("fmp", "institutional-ownership", yesterday, ticker, result)
         return result
@@ -177,8 +181,7 @@ class FMPClient(BaseAPIClient):
                 return cached
 
         params = {"apikey": self._api_key, "symbol": etf_symbol}
-        result = self._get("/stable/etf/holdings", params=params,
-                           headers=self._auth_headers())
+        result = self._get("/stable/etf/holdings", params=params, headers=self._auth_headers())
         if result and self._cache:
             self._cache.put("fmp", "etf-holdings", yesterday, etf_symbol, result)
         return result
@@ -195,24 +198,21 @@ class FMPClient(BaseAPIClient):
         today = date.today().isoformat()
 
         params = {"apikey": self._api_key, "symbol": ticker}
-        result = self._get("/stable/earnings", params=params,
-                           headers=self._auth_headers())
+        result = self._get("/stable/earnings", params=params, headers=self._auth_headers())
 
         if not result or not isinstance(result, list):
             return None
 
         # Find the next upcoming earnings date (date >= today, epsActual is null)
         upcoming = [
-            entry for entry in result
+            entry
+            for entry in result
             if entry.get("date", "") >= today and entry.get("epsActual") is None
         ]
 
         if not upcoming:
             # Fallback: first entry with date >= today regardless of epsActual
-            upcoming = [
-                entry for entry in result
-                if entry.get("date", "") >= today
-            ]
+            upcoming = [entry for entry in result if entry.get("date", "") >= today]
 
         if not upcoming:
             return None
@@ -232,8 +232,9 @@ class FMPClient(BaseAPIClient):
                 return cached
 
         params = {"apikey": self._api_key, "symbol": ticker}
-        result = self._get("/stable/price-target-consensus", params=params,
-                           headers=self._auth_headers())
+        result = self._get(
+            "/stable/price-target-consensus", params=params, headers=self._auth_headers()
+        )
         if result and isinstance(result, list) and len(result) > 0:
             if self._cache:
                 self._cache.put("fmp", "price-target-consensus", yesterday, ticker, result[0])
@@ -257,15 +258,11 @@ class FMPClient(BaseAPIClient):
                 return cached[:n_quarters]
 
         params = {"apikey": self._api_key, "symbol": ticker}
-        result = self._get("/stable/earnings", params=params,
-                           headers=self._auth_headers())
+        result = self._get("/stable/earnings", params=params, headers=self._auth_headers())
         if not result or not isinstance(result, list):
             return None
 
-        actuals = [
-            entry for entry in result
-            if isinstance(entry.get("epsActual"), (int, float))
-        ]
+        actuals = [entry for entry in result if isinstance(entry.get("epsActual"), (int, float))]
         if self._cache:
             self._cache.put("fmp", "earnings-history", yesterday, ticker, actuals)
         return actuals[:n_quarters]
@@ -283,8 +280,7 @@ class FMPClient(BaseAPIClient):
                 return cached
 
         params = {"apikey": self._api_key, "symbol": ticker, "limit": limit}
-        result = self._get("/stable/grades", params=params,
-                           headers=self._auth_headers())
+        result = self._get("/stable/grades", params=params, headers=self._auth_headers())
         if not result or not isinstance(result, list):
             return None
         if self._cache:
@@ -303,8 +299,7 @@ class FMPClient(BaseAPIClient):
                 return cached
 
         params = {"apikey": self._api_key, "symbol": ticker, "limit": 1}
-        result = self._get("/stable/financial-growth", params=params,
-                           headers=self._auth_headers())
+        result = self._get("/stable/financial-growth", params=params, headers=self._auth_headers())
         if result and isinstance(result, list) and len(result) > 0:
             if self._cache:
                 self._cache.put("fmp", "financial-growth", yesterday, ticker, result[0])

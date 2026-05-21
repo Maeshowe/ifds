@@ -20,10 +20,10 @@ from ifds.models.market import (
     TechnicalAnalysis,
 )
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 def _make_stock(ticker="AAPL", score=85.0) -> StockAnalysis:
     """Create a test StockAnalysis."""
@@ -31,17 +31,29 @@ def _make_stock(ticker="AAPL", score=85.0) -> StockAnalysis:
         ticker=ticker,
         sector="Technology",
         technical=TechnicalAnalysis(
-            price=150.0, sma_200=140.0, sma_20=148.0,
-            rsi_14=55.0, atr_14=3.5, trend_pass=True,
-            rsi_score=30, sma_50=145.0, sma50_bonus=30,
-            rs_vs_spy=0.05, rs_spy_score=40,
+            price=150.0,
+            sma_200=140.0,
+            sma_20=148.0,
+            rsi_14=55.0,
+            atr_14=3.5,
+            trend_pass=True,
+            rsi_score=30,
+            sma_50=145.0,
+            sma50_bonus=30,
+            rs_vs_spy=0.05,
+            rs_spy_score=40,
         ),
         flow=FlowAnalysis(
-            rvol=1.5, rvol_score=10,
-            dark_pool_pct=35.0, dp_pct_score=10,
-            pcr=0.6, pcr_score=15,
-            otm_call_ratio=0.45, otm_score=10,
-            block_trade_count=3, block_trade_score=10,
+            rvol=1.5,
+            rvol_score=10,
+            dark_pool_pct=35.0,
+            dp_pct_score=10,
+            pcr=0.6,
+            pcr_score=15,
+            otm_call_ratio=0.45,
+            otm_score=10,
+            block_trade_count=3,
+            block_trade_score=10,
             buy_pressure_score=10,
         ),
         fundamental=FundamentalScoring(
@@ -65,6 +77,7 @@ def _make_stock(ticker="AAPL", score=85.0) -> StockAnalysis:
 # ============================================================================
 # TestSaveAndLoad
 # ============================================================================
+
 
 class TestSaveAndLoad:
 
@@ -206,6 +219,7 @@ class TestPipelineIntegration:
     def test_config_defaults(self):
         """Phase 4 snapshot config keys exist in defaults."""
         from ifds.config.defaults import RUNTIME
+
         assert "phase4_snapshot_enabled" in RUNTIME
         assert RUNTIME["phase4_snapshot_enabled"] is True
         assert "phase4_snapshot_dir" in RUNTIME

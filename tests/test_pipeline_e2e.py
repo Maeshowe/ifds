@@ -9,18 +9,29 @@ from unittest.mock import patch, MagicMock
 
 from ifds.config.loader import Config
 from ifds.models.market import (
-    APIHealthResult, APIStatus,
-    BMIData, BMIRegime,
+    APIHealthResult,
+    APIStatus,
+    BMIData,
+    BMIRegime,
     CircuitBreakerState,
     DiagnosticsResult,
     FlowAnalysis,
     FundamentalScoring,
-    GEXAnalysis, GEXRegime,
-    MacroRegime, MarketVolatilityRegime,
+    GEXAnalysis,
+    GEXRegime,
+    MacroRegime,
+    MarketVolatilityRegime,
     MomentumClassification,
-    Phase1Result, Phase2Result, Phase3Result, Phase4Result, Phase5Result,
-    Phase6Result, PositionSizing,
-    SectorScore, SectorTrend, SectorBMIRegime,
+    Phase1Result,
+    Phase2Result,
+    Phase3Result,
+    Phase4Result,
+    Phase5Result,
+    Phase6Result,
+    PositionSizing,
+    SectorScore,
+    SectorTrend,
+    SectorBMIRegime,
     StockAnalysis,
     StrategyMode,
     TechnicalAnalysis,
@@ -59,14 +70,18 @@ def _mock_diagnostics_ok():
     """Create a passing DiagnosticsResult."""
     return DiagnosticsResult(
         api_health=[
-            APIHealthResult(provider="polygon", endpoint="/test",
-                            status=APIStatus.OK, is_critical=True),
-            APIHealthResult(provider="fmp", endpoint="/test",
-                            status=APIStatus.OK, is_critical=True),
-            APIHealthResult(provider="fred", endpoint="/test",
-                            status=APIStatus.OK, is_critical=True),
-            APIHealthResult(provider="unusual_whales", endpoint="/test",
-                            status=APIStatus.OK, is_critical=False),
+            APIHealthResult(
+                provider="polygon", endpoint="/test", status=APIStatus.OK, is_critical=True
+            ),
+            APIHealthResult(
+                provider="fmp", endpoint="/test", status=APIStatus.OK, is_critical=True
+            ),
+            APIHealthResult(
+                provider="fred", endpoint="/test", status=APIStatus.OK, is_critical=True
+            ),
+            APIHealthResult(
+                provider="unusual_whales", endpoint="/test", status=APIStatus.OK, is_critical=False
+            ),
         ],
         circuit_breaker=CircuitBreakerState(is_active=False),
         macro=MacroRegime(
@@ -86,8 +101,9 @@ def _mock_diagnostics_halt():
     """Create a halting DiagnosticsResult."""
     return DiagnosticsResult(
         api_health=[
-            APIHealthResult(provider="polygon", endpoint="/test",
-                            status=APIStatus.DOWN, is_critical=True),
+            APIHealthResult(
+                provider="polygon", endpoint="/test", status=APIStatus.DOWN, is_critical=True
+            ),
         ],
         circuit_breaker=CircuitBreakerState(is_active=False),
         all_critical_apis_ok=False,
@@ -98,8 +114,7 @@ def _mock_diagnostics_halt():
 
 def _mock_phase1():
     return Phase1Result(
-        bmi=BMIData(bmi_value=45.0, bmi_regime=BMIRegime.YELLOW,
-                     daily_ratio=50.0),
+        bmi=BMIData(bmi_value=45.0, bmi_regime=BMIRegime.YELLOW, daily_ratio=50.0),
         strategy_mode=StrategyMode.LONG,
         ticker_count_for_bmi=100,
     )
@@ -108,10 +123,22 @@ def _mock_phase1():
 def _mock_phase2():
     return Phase2Result(
         tickers=[
-            Ticker(symbol="AAPL", sector="Technology", market_cap=3e12,
-                   price=180.0, avg_volume=50e6, has_options=True),
-            Ticker(symbol="MSFT", sector="Technology", market_cap=2.8e12,
-                   price=420.0, avg_volume=25e6, has_options=True),
+            Ticker(
+                symbol="AAPL",
+                sector="Technology",
+                market_cap=3e12,
+                price=180.0,
+                avg_volume=50e6,
+                has_options=True,
+            ),
+            Ticker(
+                symbol="MSFT",
+                sector="Technology",
+                market_cap=2.8e12,
+                price=420.0,
+                avg_volume=25e6,
+                has_options=True,
+            ),
         ],
         total_screened=3000,
         strategy_mode=StrategyMode.LONG,
@@ -121,11 +148,16 @@ def _mock_phase2():
 def _mock_phase3():
     return Phase3Result(
         sector_scores=[
-            SectorScore(etf="XLK", sector_name="Technology",
-                        momentum_5d=2.5, trend=SectorTrend.UP, rank=1,
-                        classification=MomentumClassification.LEADER,
-                        sector_bmi_regime=SectorBMIRegime.NEUTRAL,
-                        score_adjustment=15),
+            SectorScore(
+                etf="XLK",
+                sector_name="Technology",
+                momentum_5d=2.5,
+                trend=SectorTrend.UP,
+                rank=1,
+                classification=MomentumClassification.LEADER,
+                sector_bmi_regime=SectorBMIRegime.NEUTRAL,
+                score_adjustment=15,
+            ),
         ],
         vetoed_sectors=[],
         active_sectors=["XLK"],
@@ -136,10 +168,15 @@ def _mock_phase4():
     return Phase4Result(
         analyzed=[
             StockAnalysis(
-                ticker="AAPL", sector="Technology",
+                ticker="AAPL",
+                sector="Technology",
                 technical=TechnicalAnalysis(
-                    price=180.0, sma_200=160.0, sma_20=175.0,
-                    rsi_14=55.0, atr_14=3.5, trend_pass=True,
+                    price=180.0,
+                    sma_200=160.0,
+                    sma_20=175.0,
+                    rsi_14=55.0,
+                    atr_14=3.5,
+                    trend_pass=True,
                 ),
                 flow=FlowAnalysis(rvol=1.3, rvol_score=5),
                 fundamental=FundamentalScoring(funda_score=10),
@@ -148,10 +185,15 @@ def _mock_phase4():
         ],
         passed=[
             StockAnalysis(
-                ticker="AAPL", sector="Technology",
+                ticker="AAPL",
+                sector="Technology",
                 technical=TechnicalAnalysis(
-                    price=180.0, sma_200=160.0, sma_20=175.0,
-                    rsi_14=55.0, atr_14=3.5, trend_pass=True,
+                    price=180.0,
+                    sma_200=160.0,
+                    sma_20=175.0,
+                    rsi_14=55.0,
+                    atr_14=3.5,
+                    trend_pass=True,
                 ),
                 flow=FlowAnalysis(rvol=1.3, rvol_score=5),
                 fundamental=FundamentalScoring(funda_score=10),
@@ -166,14 +208,24 @@ def _mock_phase4():
 def _mock_phase5():
     return Phase5Result(
         analyzed=[
-            GEXAnalysis(ticker="AAPL", net_gex=500.0, zero_gamma=170.0,
-                        current_price=180.0, gex_regime=GEXRegime.POSITIVE,
-                        gex_multiplier=1.0),
+            GEXAnalysis(
+                ticker="AAPL",
+                net_gex=500.0,
+                zero_gamma=170.0,
+                current_price=180.0,
+                gex_regime=GEXRegime.POSITIVE,
+                gex_multiplier=1.0,
+            ),
         ],
         passed=[
-            GEXAnalysis(ticker="AAPL", net_gex=500.0, zero_gamma=170.0,
-                        current_price=180.0, gex_regime=GEXRegime.POSITIVE,
-                        gex_multiplier=1.0),
+            GEXAnalysis(
+                ticker="AAPL",
+                net_gex=500.0,
+                zero_gamma=170.0,
+                current_price=180.0,
+                gex_regime=GEXRegime.POSITIVE,
+                gex_multiplier=1.0,
+            ),
         ],
     )
 
@@ -182,11 +234,18 @@ def _mock_phase6():
     return Phase6Result(
         positions=[
             PositionSizing(
-                ticker="AAPL", sector="Technology", direction="BUY",
-                entry_price=180.0, quantity=111, stop_loss=175.5,
-                take_profit_1=186.0, take_profit_2=189.0,
-                risk_usd=500.0, combined_score=78.0,
-                gex_regime="POSITIVE", multiplier_total=1.0,
+                ticker="AAPL",
+                sector="Technology",
+                direction="BUY",
+                entry_price=180.0,
+                quantity=111,
+                stop_loss=175.5,
+                take_profit_1=186.0,
+                take_profit_2=189.0,
+                risk_usd=500.0,
+                combined_score=78.0,
+                gex_regime="POSITIVE",
+                multiplier_total=1.0,
             ),
         ],
         total_risk_usd=500.0,
@@ -217,12 +276,9 @@ class TestEndToEnd:
     @patch("ifds.output.telegram.send_daily_report", return_value=True)
     @patch("ifds.output.telegram.send_trading_plan", return_value=True)
     @patch("ifds.output.telegram.send_macro_snapshot", return_value=True)
-    @patch("ifds.pipeline.context_persistence.save_phase13_context",
-           return_value=None)
-    @patch("ifds.data.uw_shadow.write_shadow_snapshot",
-           return_value=None)
-    @patch("ifds.data.phase4_snapshot.save_phase4_snapshot",
-           return_value=None)
+    @patch("ifds.pipeline.context_persistence.save_phase13_context", return_value=None)
+    @patch("ifds.data.uw_shadow.write_shadow_snapshot", return_value=None)
+    @patch("ifds.data.phase4_snapshot.save_phase4_snapshot", return_value=None)
     @patch("ifds.output.execution_plan.write_trade_plan", return_value="/tmp/trade.csv")
     @patch("ifds.output.execution_plan.write_full_scan_matrix", return_value="/tmp/scan.csv")
     @patch("ifds.output.execution_plan.write_execution_plan", return_value="/tmp/test.csv")
@@ -236,12 +292,28 @@ class TestEndToEnd:
     @patch("ifds.data.unusual_whales.UnusualWhalesClient", _mock_client_class)
     @patch("ifds.data.polygon.PolygonClient", _mock_client_class)
     @patch("ifds.data.fmp.FMPClient", _mock_client_class)
-    def test_full_pipeline_flow(self, mock_p0, mock_p1, mock_p2, mock_p3,
-                                 mock_p4, mock_p5, mock_p6, mock_output,
-                                 mock_scan, mock_trade, mock_save_snapshot,
-                                 mock_write_shadow, mock_save_phase13,
-                                 mock_tg_macro, mock_tg_trading, mock_tg_daily,
-                                 env_setup, tmp_path, monkeypatch):
+    def test_full_pipeline_flow(
+        self,
+        mock_p0,
+        mock_p1,
+        mock_p2,
+        mock_p3,
+        mock_p4,
+        mock_p5,
+        mock_p6,
+        mock_output,
+        mock_scan,
+        mock_trade,
+        mock_save_snapshot,
+        mock_write_shadow,
+        mock_save_phase13,
+        mock_tg_macro,
+        mock_tg_trading,
+        mock_tg_daily,
+        env_setup,
+        tmp_path,
+        monkeypatch,
+    ):
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
 
         result = run_pipeline()
@@ -301,12 +373,9 @@ class TestSnapshotIsolation:
     @patch("ifds.output.telegram.send_daily_report", return_value=True)
     @patch("ifds.output.telegram.send_trading_plan", return_value=True)
     @patch("ifds.output.telegram.send_macro_snapshot", return_value=True)
-    @patch("ifds.pipeline.context_persistence.save_phase13_context",
-           return_value=None)
-    @patch("ifds.data.uw_shadow.write_shadow_snapshot",
-           return_value=None)
-    @patch("ifds.data.phase4_snapshot.save_phase4_snapshot",
-           return_value=None)
+    @patch("ifds.pipeline.context_persistence.save_phase13_context", return_value=None)
+    @patch("ifds.data.uw_shadow.write_shadow_snapshot", return_value=None)
+    @patch("ifds.data.phase4_snapshot.save_phase4_snapshot", return_value=None)
     @patch("ifds.output.execution_plan.write_trade_plan", return_value="/tmp/t.csv")
     @patch("ifds.output.execution_plan.write_full_scan_matrix", return_value="/tmp/s.csv")
     @patch("ifds.output.execution_plan.write_execution_plan", return_value="/tmp/p.csv")
@@ -321,11 +390,26 @@ class TestSnapshotIsolation:
     @patch("ifds.data.polygon.PolygonClient", _mock_client_class)
     @patch("ifds.data.fmp.FMPClient", _mock_client_class)
     def test_save_snapshot_is_mocked_in_e2e(
-        self, mock_p0, mock_p1, mock_p2, mock_p3, mock_p4, mock_p5, mock_p6,
-        mock_output, mock_scan, mock_trade, mock_save_snapshot,
-        mock_write_shadow, mock_save_phase13,
-        mock_tg_macro, mock_tg_trading, mock_tg_daily,
-        env_setup, tmp_path, monkeypatch,
+        self,
+        mock_p0,
+        mock_p1,
+        mock_p2,
+        mock_p3,
+        mock_p4,
+        mock_p5,
+        mock_p6,
+        mock_output,
+        mock_scan,
+        mock_trade,
+        mock_save_snapshot,
+        mock_write_shadow,
+        mock_save_phase13,
+        mock_tg_macro,
+        mock_tg_trading,
+        mock_tg_daily,
+        env_setup,
+        tmp_path,
+        monkeypatch,
     ):
         """Both save_phase4_snapshot and write_shadow_snapshot must be mocked."""
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
@@ -343,8 +427,7 @@ class TestSnapshotIsolation:
         )
 
     @patch("ifds.output.telegram.send_macro_snapshot", return_value=True)
-    @patch("ifds.pipeline.context_persistence.save_phase13_context",
-           return_value=None)
+    @patch("ifds.pipeline.context_persistence.save_phase13_context", return_value=None)
     @patch(_P3, return_value=_mock_phase3())
     @patch(_P2, return_value=_mock_phase2())
     @patch(_P1, return_value=_mock_phase1())
@@ -353,9 +436,16 @@ class TestSnapshotIsolation:
     @patch("ifds.data.polygon.PolygonClient", _mock_client_class)
     @patch("ifds.data.fmp.FMPClient", _mock_client_class)
     def test_phase13_context_save_is_mocked(
-        self, mock_p0, mock_p1, mock_p2, mock_p3, mock_save_phase13,
+        self,
+        mock_p0,
+        mock_p1,
+        mock_p2,
+        mock_p3,
+        mock_save_phase13,
         mock_tg_macro,
-        env_setup, tmp_path, monkeypatch,
+        env_setup,
+        tmp_path,
+        monkeypatch,
     ):
         """save_phase13_context must be mocked when --phases 1-3 runs.
 
@@ -385,8 +475,7 @@ class TestPipelineHalt:
     """Pipeline stops when diagnostics fail."""
 
     @patch(_P0, return_value=_mock_diagnostics_halt())
-    def test_diagnostics_failure_halts_pipeline(self, mock_p0, env_setup,
-                                                 tmp_path, monkeypatch):
+    def test_diagnostics_failure_halts_pipeline(self, mock_p0, env_setup, tmp_path, monkeypatch):
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
 
         result = run_pipeline()
@@ -396,8 +485,7 @@ class TestPipelineHalt:
         assert "polygon" in result.message
 
     @patch(_P0, return_value=_mock_diagnostics_halt())
-    def test_halt_does_not_run_subsequent_phases(self, mock_p0, env_setup,
-                                                   tmp_path, monkeypatch):
+    def test_halt_does_not_run_subsequent_phases(self, mock_p0, env_setup, tmp_path, monkeypatch):
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
 
         result = run_pipeline()
@@ -428,8 +516,7 @@ class TestSinglePhase:
     @patch("ifds.data.polygon.PolygonClient", _mock_client_class)
     @patch(_P3, return_value=_mock_phase3())
     @patch(_P0, return_value=_mock_diagnostics_ok())
-    def test_phase_3_only(self, mock_p0, mock_p3, env_setup,
-                           tmp_path, monkeypatch):
+    def test_phase_3_only(self, mock_p0, mock_p3, env_setup, tmp_path, monkeypatch):
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
 
         result = run_pipeline(phase=3)

@@ -36,9 +36,7 @@ class TestEventsToSqlite:
         conn = sqlite3.connect(str(db))
         m.init_db(conn)
 
-        tables = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         assert ("events",) in tables
         conn.close()
 
@@ -50,10 +48,24 @@ class TestEventsToSqlite:
         m.init_db(conn)
 
         jsonl = tmp_path / "pt_events_2026-04-02.jsonl"
-        _write_jsonl(jsonl, [
-            {"ts": "2026-04-02T13:35:08+00:00", "script": "submit", "event": "order_submitted", "ticker": "CF", "qty": 34},
-            {"ts": "2026-04-02T14:08:15+00:00", "script": "monitor", "event": "tp1_detected", "ticker": "CF"},
-        ])
+        _write_jsonl(
+            jsonl,
+            [
+                {
+                    "ts": "2026-04-02T13:35:08+00:00",
+                    "script": "submit",
+                    "event": "order_submitted",
+                    "ticker": "CF",
+                    "qty": 34,
+                },
+                {
+                    "ts": "2026-04-02T14:08:15+00:00",
+                    "script": "monitor",
+                    "event": "tp1_detected",
+                    "ticker": "CF",
+                },
+            ],
+        )
 
         count = m.import_jsonl(conn, str(jsonl))
         assert count == 2
@@ -70,9 +82,17 @@ class TestEventsToSqlite:
         m.init_db(conn)
 
         jsonl = tmp_path / "pt_events_2026-04-02.jsonl"
-        _write_jsonl(jsonl, [
-            {"ts": "2026-04-02T13:35:08+00:00", "script": "submit", "event": "order_submitted", "ticker": "AAPL"},
-        ])
+        _write_jsonl(
+            jsonl,
+            [
+                {
+                    "ts": "2026-04-02T13:35:08+00:00",
+                    "script": "submit",
+                    "event": "order_submitted",
+                    "ticker": "AAPL",
+                },
+            ],
+        )
 
         count1 = m.import_jsonl(conn, str(jsonl))
         count2 = m.import_jsonl(conn, str(jsonl))
@@ -91,10 +111,28 @@ class TestEventsToSqlite:
         m.init_db(conn)
 
         jsonl = tmp_path / "pt_events_2026-04-02.jsonl"
-        _write_jsonl(jsonl, [
-            {"ts": "2026-04-02T13:50:22+00:00", "script": "avwap", "event": "avwap_fill", "ticker": "CF", "fill_price": 134.46, "qty": 34},
-            {"ts": "2026-04-02T17:00:21+00:00", "script": "monitor", "event": "loss_exit", "ticker": "CF", "exit_price": 130.44, "pnl": -136.68, "qty": 34},
-        ])
+        _write_jsonl(
+            jsonl,
+            [
+                {
+                    "ts": "2026-04-02T13:50:22+00:00",
+                    "script": "avwap",
+                    "event": "avwap_fill",
+                    "ticker": "CF",
+                    "fill_price": 134.46,
+                    "qty": 34,
+                },
+                {
+                    "ts": "2026-04-02T17:00:21+00:00",
+                    "script": "monitor",
+                    "event": "loss_exit",
+                    "ticker": "CF",
+                    "exit_price": 130.44,
+                    "pnl": -136.68,
+                    "qty": 34,
+                },
+            ],
+        )
 
         m.import_jsonl(conn, str(jsonl))
 
@@ -116,7 +154,14 @@ class TestEventsToSqlite:
         m.init_db(conn)
 
         jsonl = tmp_path / "pt_events_2026-04-02.jsonl"
-        original = {"ts": "2026-04-02T13:35:08+00:00", "script": "submit", "event": "order_submitted", "ticker": "CF", "qty": 34, "sl": 117.27}
+        original = {
+            "ts": "2026-04-02T13:35:08+00:00",
+            "script": "submit",
+            "event": "order_submitted",
+            "ticker": "CF",
+            "qty": 34,
+            "sl": 117.27,
+        }
         _write_jsonl(jsonl, [original])
 
         m.import_jsonl(conn, str(jsonl))
@@ -136,9 +181,13 @@ class TestEventsToSqlite:
 
         jsonl = tmp_path / "pt_events_2026-04-02.jsonl"
         with open(jsonl, "w") as f:
-            f.write(json.dumps({"ts": "2026-04-02T13:00:00+00:00", "script": "s", "event": "e"}) + "\n")
+            f.write(
+                json.dumps({"ts": "2026-04-02T13:00:00+00:00", "script": "s", "event": "e"}) + "\n"
+            )
             f.write("\n")
-            f.write(json.dumps({"ts": "2026-04-02T14:00:00+00:00", "script": "s", "event": "e2"}) + "\n")
+            f.write(
+                json.dumps({"ts": "2026-04-02T14:00:00+00:00", "script": "s", "event": "e2"}) + "\n"
+            )
 
         count = m.import_jsonl(conn, str(jsonl))
         assert count == 2

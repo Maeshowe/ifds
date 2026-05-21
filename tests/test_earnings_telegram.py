@@ -12,7 +12,9 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
 from ifds.output.telegram import (
-    _format_exec_table, _format_phases_0_to_4, _format_phases_5_to_6,
+    _format_exec_table,
+    _format_phases_0_to_4,
+    _format_phases_5_to_6,
 )
 
 
@@ -50,8 +52,10 @@ class TestGetNextEarningsDate:
             {"date": "2026-07-20", "epsActual": None},
         ]
 
-        with patch.object(client, "_get", return_value=api_response), \
-             patch("ifds.data.fmp.date") as mock_date:
+        with (
+            patch.object(client, "_get", return_value=api_response),
+            patch("ifds.data.fmp.date") as mock_date,
+        ):
             mock_date.today.return_value.isoformat.return_value = "2026-02-24"
             result = client.get_next_earnings_date("AAPL")
 
@@ -69,8 +73,10 @@ class TestGetNextEarningsDate:
             {"date": "2026-04-22", "epsActual": 3.0},
         ]
 
-        with patch.object(client, "_get", return_value=api_response), \
-             patch("ifds.data.fmp.date") as mock_date:
+        with (
+            patch.object(client, "_get", return_value=api_response),
+            patch("ifds.data.fmp.date") as mock_date,
+        ):
             mock_date.today.return_value.isoformat.return_value = "2026-02-24"
             result = client.get_next_earnings_date("AAPL")
 
@@ -88,8 +94,10 @@ class TestGetNextEarningsDate:
             {"date": "2026-01-15", "epsActual": 2.5},
         ]
 
-        with patch.object(client, "_get", return_value=api_response), \
-             patch("ifds.data.fmp.date") as mock_date:
+        with (
+            patch.object(client, "_get", return_value=api_response),
+            patch("ifds.data.fmp.date") as mock_date,
+        ):
             mock_date.today.return_value.isoformat.return_value = "2026-02-24"
             result = client.get_next_earnings_date("AAPL")
 
@@ -177,18 +185,29 @@ class TestPhasesEarningsIntegration:
     def _make_ctx(self):
         """Minimal PipelineContext with phase6 positions."""
         from ifds.models.market import (
-            PipelineContext, Phase5Result, Phase6Result, PositionSizing,
+            PipelineContext,
+            Phase5Result,
+            Phase6Result,
+            PositionSizing,
         )
 
         pos = PositionSizing(
-            ticker="GE", sector="Industrials", direction="BUY",
-            entry_price=343.22, quantity=27, stop_loss=328.35,
-            take_profit_1=363.04, take_profit_2=372.95,
-            risk_usd=404.0, combined_score=85.0,
-            gex_regime="POSITIVE", multiplier_total=1.2,
+            ticker="GE",
+            sector="Industrials",
+            direction="BUY",
+            entry_price=343.22,
+            quantity=27,
+            stop_loss=328.35,
+            take_profit_1=363.04,
+            take_profit_2=372.95,
+            risk_usd=404.0,
+            combined_score=85.0,
+            gex_regime="POSITIVE",
+            multiplier_total=1.2,
         )
         ctx = PipelineContext(
-            run_id="test", started_at=None,
+            run_id="test",
+            started_at=None,
             phase5=Phase5Result(analyzed=[], passed=[], negative_regime_count=0),
             phase6=Phase6Result(
                 positions=[pos],
@@ -263,18 +282,29 @@ class TestSendDailyReportFmpParam:
         """fmp parameter reaches _format_exec_table."""
         from ifds.output.telegram import send_daily_report
         from ifds.models.market import (
-            PipelineContext, Phase5Result, Phase6Result, PositionSizing,
+            PipelineContext,
+            Phase5Result,
+            Phase6Result,
+            PositionSizing,
         )
 
         pos = PositionSizing(
-            ticker="T", sector="Telecom", direction="BUY",
-            entry_price=28.0, quantity=100, stop_loss=27.0,
-            take_profit_1=29.0, take_profit_2=30.0,
-            risk_usd=100.0, combined_score=80.0,
-            gex_regime="POSITIVE", multiplier_total=1.0,
+            ticker="T",
+            sector="Telecom",
+            direction="BUY",
+            entry_price=28.0,
+            quantity=100,
+            stop_loss=27.0,
+            take_profit_1=29.0,
+            take_profit_2=30.0,
+            risk_usd=100.0,
+            combined_score=80.0,
+            gex_regime="POSITIVE",
+            multiplier_total=1.0,
         )
         ctx = PipelineContext(
-            run_id="test", started_at=None,
+            run_id="test",
+            started_at=None,
             phase5=Phase5Result(analyzed=[], passed=[], negative_regime_count=0),
             phase6=Phase6Result(
                 positions=[pos],
@@ -315,6 +345,7 @@ class TestPhase2EarningsBreakdown:
 
     def _make_ctx(self, bulk=10, ticker_specific=2, total_excluded=12):
         from ifds.models.market import PipelineContext, Phase2Result, Ticker
+
         excluded = [f"T{i}" for i in range(total_excluded)]
         tickers = [Ticker(symbol="AAPL"), Ticker(symbol="NVDA")]
         phase2 = Phase2Result(

@@ -32,11 +32,13 @@ class TestCountAppearances:
         assert count_appearances("AAPL", [], reference_date=REF) == 0
 
     def test_within_lookback(self):
-        h = _history([
-            ("2026-03-01", "AAPL"),
-            ("2026-03-15", "AAPL"),
-            ("2026-02-01", "AAPL"),  # Within 90d from Apr 1
-        ])
+        h = _history(
+            [
+                ("2026-03-01", "AAPL"),
+                ("2026-03-15", "AAPL"),
+                ("2026-02-01", "AAPL"),  # Within 90d from Apr 1
+            ]
+        )
         assert count_appearances("AAPL", h, lookback_days=90, reference_date=REF) == 3
 
     def test_outside_lookback(self):
@@ -58,10 +60,12 @@ class TestDaysSinceLastAppearance:
         assert days_since_last_appearance("AAPL", h, reference_date=REF) == 2
 
     def test_most_recent_used(self):
-        h = _history([
-            ("2026-03-01", "AAPL"),
-            ("2026-03-28", "AAPL"),
-        ])
+        h = _history(
+            [
+                ("2026-03-01", "AAPL"),
+                ("2026-03-28", "AAPL"),
+            ]
+        )
         assert days_since_last_appearance("AAPL", h, reference_date=REF) == 4
 
 
@@ -73,11 +77,13 @@ class TestWowMultiplier:
 
     def test_wow_recurring_winner(self):
         """3+ appearances, last ≤5 days → 1.10."""
-        h = _history([
-            ("2026-03-28", "AAPL"),
-            ("2026-03-29", "AAPL"),
-            ("2026-03-30", "AAPL"),
-        ])
+        h = _history(
+            [
+                ("2026-03-28", "AAPL"),
+                ("2026-03-29", "AAPL"),
+                ("2026-03-30", "AAPL"),
+            ]
+        )
         assert wow_multiplier("AAPL", h, reference_date=REF) == 1.10
 
     def test_stale_returning(self):
@@ -87,13 +93,15 @@ class TestWowMultiplier:
 
     def test_persistent(self):
         """5+ appearances (but last >5 days) → 1.05."""
-        h = _history([
-            ("2026-03-10", "AAPL"),
-            ("2026-03-12", "AAPL"),
-            ("2026-03-14", "AAPL"),
-            ("2026-03-16", "AAPL"),
-            ("2026-03-18", "AAPL"),
-        ])
+        h = _history(
+            [
+                ("2026-03-10", "AAPL"),
+                ("2026-03-12", "AAPL"),
+                ("2026-03-14", "AAPL"),
+                ("2026-03-16", "AAPL"),
+                ("2026-03-18", "AAPL"),
+            ]
+        )
         # 5 appearances, last = Mar 18 → 14 days ago (>5)
         assert wow_multiplier("AAPL", h, reference_date=REF) == 1.05
 
@@ -104,12 +112,14 @@ class TestWowMultiplier:
 
     def test_wow_beats_persistent(self):
         """WOW condition (3+ recent) takes priority over Persistent (5+)."""
-        h = _history([
-            ("2026-03-20", "AAPL"),
-            ("2026-03-25", "AAPL"),
-            ("2026-03-28", "AAPL"),
-            ("2026-03-29", "AAPL"),
-            ("2026-03-31", "AAPL"),
-        ])
+        h = _history(
+            [
+                ("2026-03-20", "AAPL"),
+                ("2026-03-25", "AAPL"),
+                ("2026-03-28", "AAPL"),
+                ("2026-03-29", "AAPL"),
+                ("2026-03-31", "AAPL"),
+            ]
+        )
         # 5 appearances, last=1 day ago → WOW wins (3+ and ≤5 days)
         assert wow_multiplier("AAPL", h, reference_date=REF) == 1.10

@@ -25,8 +25,7 @@ def _make_sector(etf="XLK", name="Technology", momentum=1.5):
         classification=MomentumClassification.LEADER,
         sector_bmi=55.0,
         sector_bmi_regime=SectorBMIRegime.OVERBOUGHT,
-        breadth=SectorBreadth(etf=etf, breadth_score=72.0,
-                              breadth_regime=BreadthRegime.STRONG),
+        breadth=SectorBreadth(etf=etf, breadth_score=72.0, breadth_regime=BreadthRegime.STRONG),
     )
 
 
@@ -40,8 +39,7 @@ def _make_agg_benchmark():
         classification=MomentumClassification.NEUTRAL,
         sector_bmi=48.0,
         sector_bmi_regime=SectorBMIRegime.NEUTRAL,
-        breadth=SectorBreadth(etf="AGG", breadth_score=45.0,
-                              breadth_regime=BreadthRegime.NEUTRAL),
+        breadth=SectorBreadth(etf="AGG", breadth_score=45.0, breadth_regime=BreadthRegime.NEUTRAL),
     )
 
 
@@ -50,8 +48,7 @@ class TestSectorTableBenchmark:
 
     def test_without_benchmark_no_agg_row(self):
         """When benchmark=None (default), AGG row does not appear."""
-        sectors = [_make_sector("XLK", "Technology", 2.1),
-                   _make_sector("XLF", "Financials", 0.8)]
+        sectors = [_make_sector("XLK", "Technology", 2.1), _make_sector("XLF", "Financials", 0.8)]
         result = _format_sector_table(sectors)
         assert "AGG" not in result
         assert "Benchmark" not in result
@@ -110,8 +107,7 @@ class TestSectorTableBenchmark:
 
     def test_existing_tests_unaffected_default_none(self):
         """Calling without benchmark param still works (backward compat)."""
-        sectors = [_make_sector("XLK", "Technology", 1.0),
-                   _make_sector("XLE", "Energy", -0.5)]
+        sectors = [_make_sector("XLK", "Technology", 1.0), _make_sector("XLE", "Energy", -0.5)]
         result = _format_sector_table(sectors)
         assert "<pre>" in result
         assert "XLK" in result

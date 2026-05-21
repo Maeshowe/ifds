@@ -29,7 +29,7 @@ def _isolate_close_env():
         sys.modules[mod_key] = cached
 
 
-def _make_fill(con_id, side, shares, order_ref=''):
+def _make_fill(con_id, side, shares, order_ref=""):
     """Build a mock ib_insync Fill for a bracket child execution."""
     fill = MagicMock()
     fill.contract.conId = con_id
@@ -41,8 +41,9 @@ def _make_fill(con_id, side, shares, order_ref=''):
 
 
 def _load_cp():
-    sys.modules['dotenv'] = MagicMock()
+    sys.modules["dotenv"] = MagicMock()
     import scripts.paper_trading.close_positions as cp
+
     return cp
 
 
@@ -52,39 +53,39 @@ class TestGetNetOpenQtyBasic:
     def test_entry_only_no_exits(self):
         """Bought 100, no sells → MOC 100."""
         cp = _load_cp()
-        fills = [_make_fill(con_id=100, side='BOT', shares=100, order_ref='IFDS_AAPL')]
-        net = cp.get_net_open_qty('AAPL', 100, 100, fills)
+        fills = [_make_fill(con_id=100, side="BOT", shares=100, order_ref="IFDS_AAPL")]
+        net = cp.get_net_open_qty("AAPL", 100, 100, fills)
         assert net == 100
 
     def test_fully_closed_intraday(self):
         """Bought 100, sold 100 via TP → MOC 0."""
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=100, side='BOT', shares=100, order_ref='IFDS_AAPL'),
-            _make_fill(con_id=100, side='SLD', shares=33, order_ref='IFDS_AAPL_A_TP'),
-            _make_fill(con_id=100, side='SLD', shares=67, order_ref='IFDS_AAPL_B_TRAIL'),
+            _make_fill(con_id=100, side="BOT", shares=100, order_ref="IFDS_AAPL"),
+            _make_fill(con_id=100, side="SLD", shares=33, order_ref="IFDS_AAPL_A_TP"),
+            _make_fill(con_id=100, side="SLD", shares=67, order_ref="IFDS_AAPL_B_TRAIL"),
         ]
-        net = cp.get_net_open_qty('AAPL', 100, 0, fills)
+        net = cp.get_net_open_qty("AAPL", 100, 0, fills)
         assert net == 0
 
     def test_partial_exit_bracket_a_tp(self):
         """Bought 100, A_TP sold 33 → MOC 67."""
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=100, side='BOT', shares=100, order_ref='IFDS_AAPL'),
-            _make_fill(con_id=100, side='SLD', shares=33, order_ref='IFDS_AAPL_A_TP'),
+            _make_fill(con_id=100, side="BOT", shares=100, order_ref="IFDS_AAPL"),
+            _make_fill(con_id=100, side="SLD", shares=33, order_ref="IFDS_AAPL_A_TP"),
         ]
-        net = cp.get_net_open_qty('AAPL', 100, 67, fills)
+        net = cp.get_net_open_qty("AAPL", 100, 67, fills)
         assert net == 67
 
     def test_partial_exit_bracket_b_sl(self):
         """Bought 100, B_SL sold 67 → MOC 33."""
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=100, side='BOT', shares=100, order_ref='IFDS_AAPL'),
-            _make_fill(con_id=100, side='SLD', shares=67, order_ref='IFDS_AAPL_B_SL'),
+            _make_fill(con_id=100, side="BOT", shares=100, order_ref="IFDS_AAPL"),
+            _make_fill(con_id=100, side="SLD", shares=67, order_ref="IFDS_AAPL_B_SL"),
         ]
-        net = cp.get_net_open_qty('AAPL', 100, 33, fills)
+        net = cp.get_net_open_qty("AAPL", 100, 33, fills)
         assert net == 33
 
 
@@ -95,47 +96,47 @@ class TestGetNetOpenQtyNewExitTypes:
         """LOSS_EXIT fill (Scenario B) is correctly counted as SLD."""
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=100, side='BOT', shares=183, order_ref='IFDS_CNX'),
-            _make_fill(con_id=100, side='SLD', shares=60, order_ref='IFDS_CNX_LOSS_EXIT'),
+            _make_fill(con_id=100, side="BOT", shares=183, order_ref="IFDS_CNX"),
+            _make_fill(con_id=100, side="SLD", shares=60, order_ref="IFDS_CNX_LOSS_EXIT"),
         ]
         # Old logic: missed _LOSS_EXIT → MOC=183 → leftover 123sh
         # New logic: net = 183 - 60 = 123
-        net = cp.get_net_open_qty('CNX', 100, 183, fills)
+        net = cp.get_net_open_qty("CNX", 100, 183, fills)
         assert net == 123
 
     def test_avwap_tp_fills_counted(self):
         """AVWAP bracket TP fills are correctly counted."""
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=200, side='BOT', shares=108, order_ref='IFDS_EMN'),
-            _make_fill(con_id=200, side='SLD', shares=36, order_ref='IFDS_EMN_AVWAP_A_TP'),
+            _make_fill(con_id=200, side="BOT", shares=108, order_ref="IFDS_EMN"),
+            _make_fill(con_id=200, side="SLD", shares=36, order_ref="IFDS_EMN_AVWAP_A_TP"),
         ]
         # Old logic: missed _AVWAP_A_TP → MOC=108 → leftover 36sh
         # New logic: net = 108 - 36 = 72
-        net = cp.get_net_open_qty('EMN', 200, 72, fills)
+        net = cp.get_net_open_qty("EMN", 200, 72, fills)
         assert net == 72
 
     def test_avwap_b_tp_fill_counted(self):
         """AVWAP bracket B TP2 fill is correctly counted."""
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=300, side='BOT', shares=50, order_ref='IFDS_CENX'),
-            _make_fill(con_id=300, side='SLD', shares=27, order_ref='IFDS_CENX_AVWAP_B_TP'),
+            _make_fill(con_id=300, side="BOT", shares=50, order_ref="IFDS_CENX"),
+            _make_fill(con_id=300, side="SLD", shares=27, order_ref="IFDS_CENX_AVWAP_B_TP"),
         ]
-        net = cp.get_net_open_qty('CENX', 300, 23, fills)
+        net = cp.get_net_open_qty("CENX", 300, 23, fills)
         assert net == 23
 
     def test_mixed_exit_types(self):
         """Multiple exit types in same day — all counted."""
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=100, side='BOT', shares=200, order_ref='IFDS_TEST'),
-            _make_fill(con_id=100, side='SLD', shares=66, order_ref='IFDS_TEST_A_TP'),
-            _make_fill(con_id=100, side='SLD', shares=50, order_ref='IFDS_TEST_LOSS_EXIT'),
-            _make_fill(con_id=100, side='SLD', shares=30, order_ref='IFDS_TEST_B_TRAIL'),
+            _make_fill(con_id=100, side="BOT", shares=200, order_ref="IFDS_TEST"),
+            _make_fill(con_id=100, side="SLD", shares=66, order_ref="IFDS_TEST_A_TP"),
+            _make_fill(con_id=100, side="SLD", shares=50, order_ref="IFDS_TEST_LOSS_EXIT"),
+            _make_fill(con_id=100, side="SLD", shares=30, order_ref="IFDS_TEST_B_TRAIL"),
         ]
         # net = 200 - (66 + 50 + 30) = 54
-        net = cp.get_net_open_qty('TEST', 100, 54, fills)
+        net = cp.get_net_open_qty("TEST", 100, 54, fills)
         assert net == 54
 
 
@@ -145,27 +146,27 @@ class TestGetNetOpenQtyEdgeCases:
     def test_no_fills_returns_gross_qty(self):
         """No intraday fills → returns gross_qty unchanged."""
         cp = _load_cp()
-        net = cp.get_net_open_qty('LASR', 100, 52, [])
+        net = cp.get_net_open_qty("LASR", 100, 52, [])
         assert net == 52
 
     def test_other_conid_fills_ignored(self):
         """Fills for a different conId are not counted."""
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=999, side='BOT', shares=100, order_ref='IFDS_OTHER'),
-            _make_fill(con_id=999, side='SLD', shares=100, order_ref='IFDS_OTHER_B_SL'),
+            _make_fill(con_id=999, side="BOT", shares=100, order_ref="IFDS_OTHER"),
+            _make_fill(con_id=999, side="SLD", shares=100, order_ref="IFDS_OTHER_B_SL"),
         ]
-        net = cp.get_net_open_qty('LASR', 100, 35, fills)
+        net = cp.get_net_open_qty("LASR", 100, 35, fills)
         assert net == 35
 
     def test_never_goes_negative(self):
         """Result is clamped to 0 even if sold > bought (stale position data)."""
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=100, side='BOT', shares=35, order_ref='IFDS_LASR'),
-            _make_fill(con_id=100, side='SLD', shares=50, order_ref='IFDS_LASR_B_SL'),
+            _make_fill(con_id=100, side="BOT", shares=35, order_ref="IFDS_LASR"),
+            _make_fill(con_id=100, side="SLD", shares=50, order_ref="IFDS_LASR_B_SL"),
         ]
-        net = cp.get_net_open_qty('LASR', 100, 35, fills)
+        net = cp.get_net_open_qty("LASR", 100, 35, fills)
         assert net == 0
 
     def test_only_sold_fills_no_bot(self):
@@ -179,9 +180,9 @@ class TestGetNetOpenQtyEdgeCases:
         """
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=100, side='SLD', shares=35, order_ref='IFDS_LASR_B_SL'),
+            _make_fill(con_id=100, side="SLD", shares=35, order_ref="IFDS_LASR_B_SL"),
         ]
-        net = cp.get_net_open_qty('LASR', 100, 35, fills)
+        net = cp.get_net_open_qty("LASR", 100, 35, fills)
         assert net == 0
 
     def test_prior_day_position_no_fills_today(self):
@@ -192,7 +193,7 @@ class TestGetNetOpenQtyEdgeCases:
         """
         cp = _load_cp()
         fills = [
-            _make_fill(con_id=999, side='BOT', shares=50, order_ref='IFDS_OTHER'),
+            _make_fill(con_id=999, side="BOT", shares=50, order_ref="IFDS_OTHER"),
         ]
-        net = cp.get_net_open_qty('LASR', 100, 35, fills)
+        net = cp.get_net_open_qty("LASR", 100, 35, fills)
         assert net == 35

@@ -194,9 +194,7 @@ class SecEdgarClient:
             if path.exists():
                 try:
                     payload = json.loads(path.read_text())
-                    logger.warning(
-                        "SEC tickers fetch failed (%s) — using stale CIK map cache", exc
-                    )
+                    logger.warning("SEC tickers fetch failed (%s) — using stale CIK map cache", exc)
                     self._cik_map = dict(payload.get("map") or {})
                     return self._cik_map
                 except (KeyError, ValueError, OSError):
@@ -274,12 +272,15 @@ class SecEdgarClient:
             if cached is not None and age is not None and age.days <= self._stale_fallback_days:
                 logger.info(
                     "SEC EDGAR fallback to %d-day-old cache for %s (%s)",
-                    age.days, ticker, exc,
+                    age.days,
+                    ticker,
+                    exc,
                 )
                 return cached
             logger.warning(
                 "SEC EDGAR API failed for %s and cache stale (age=%s) — fail-open",
-                ticker, age,
+                ticker,
+                age,
             )
             return []
 

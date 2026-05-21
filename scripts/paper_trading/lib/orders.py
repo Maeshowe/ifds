@@ -1,4 +1,5 @@
 """IBKR Paper Trading — Order Creation"""
+
 import logging
 
 from ib_insync import LimitOrder, MarketOrder, Stock, StopOrder
@@ -8,26 +9,29 @@ logger = logging.getLogger("submit")
 # IBKR order status values that indicate a successful placement.
 # Any other status (especially "Cancelled", "Inactive", "ApiCancelled") means
 # the order was silently rejected by IBKR.
-_VALID_ORDER_STATUSES = frozenset({
-    "PreSubmitted",
-    "Submitted",
-    "Filled",
-    "PendingSubmit",
-    "PendingCancel",
-})
+_VALID_ORDER_STATUSES = frozenset(
+    {
+        "PreSubmitted",
+        "Submitted",
+        "Filled",
+        "PendingSubmit",
+        "PendingCancel",
+    }
+)
 
 
 def validate_contract(ib, symbol):
     """Validate stock exists in IBKR. Returns contract or None."""
-    contract = Stock(symbol, 'SMART', 'USD')
+    contract = Stock(symbol, "SMART", "USD")
     details = ib.reqContractDetails(contract)
     if not details:
         return None
     return details[0].contract
 
 
-def create_day_bracket(ib, contract, action, qty, limit_price, tp_price,
-                       sl_price, account, tag_suffix=""):
+def create_day_bracket(
+    ib, contract, action, qty, limit_price, tp_price, sl_price, account, tag_suffix=""
+):
     """Create a single bracket order: MKT entry + LMT TP + STP SL, all DAY TIF.
 
     Per BC20A_3 scope: entry is a MarketOrder (immediate fill at open),
@@ -45,14 +49,14 @@ def create_day_bracket(ib, contract, action, qty, limit_price, tp_price,
     tp_id = ib.client.getReqId()
     sl_id = ib.client.getReqId()
 
-    exit_action = 'SELL' if action == 'BUY' else 'BUY'
+    exit_action = "SELL" if action == "BUY" else "BUY"
 
     entry = MarketOrder(
         action=action,
         totalQuantity=qty,
         orderId=entry_id,
         account=account,
-        tif='DAY',
+        tif="DAY",
         outsideRth=False,
         orderRef=f"IFDS_{tag_suffix}",
         transmit=False,
@@ -64,7 +68,7 @@ def create_day_bracket(ib, contract, action, qty, limit_price, tp_price,
         lmtPrice=round(tp_price, 2),
         orderId=tp_id,
         account=account,
-        tif='DAY',
+        tif="DAY",
         parentId=entry_id,
         orderRef=f"IFDS_{tag_suffix}_TP",
         transmit=False,
@@ -76,7 +80,7 @@ def create_day_bracket(ib, contract, action, qty, limit_price, tp_price,
         stopPrice=round(sl_price, 2),
         orderId=sl_id,
         account=account,
-        tif='DAY',
+        tif="DAY",
         parentId=entry_id,
         orderRef=f"IFDS_{tag_suffix}_SL",
         transmit=True,  # Last child transmits all
@@ -126,17 +130,15 @@ def submit_bracket(ib, contract, orders, dry_run=False):
                 f"log={log_entries}"
             )
         else:
-            logger.debug(
-                f"{sym}: order OK — orderRef={order_ref} status={status}"
-            )
+            logger.debug(f"{sym}: order OK — orderRef={order_ref} status={status}")
 
     return trades
 
 
-def create_moc_order(qty, account, action='SELL'):
+def create_moc_order(qty, account, action="SELL"):
     """Create Market-on-Close order."""
     order = MarketOrder(action, qty)
-    order.tif = 'DAY'
-    order.orderType = 'MOC'
+    order.tif = "DAY"
+    order.orderType = "MOC"
     order.account = account
     return order

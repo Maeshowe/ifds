@@ -12,66 +12,57 @@ Three layers:
 
 CORE = {
     # BMI (Big Money Index)
-    "bmi_volume_spike_sigma": 2.0,      # k in volume spike detection
-    "bmi_sma_period": 25,               # BMI smoothing period (days)
-    "bmi_volume_avg_period": 20,        # Volume average lookback (days)
-
+    "bmi_volume_spike_sigma": 2.0,  # k in volume spike detection
+    "bmi_sma_period": 25,  # BMI smoothing period (days)
+    "bmi_volume_avg_period": 20,  # Volume average lookback (days)
     # Technical Analysis
-    "sma_long_period": 200,             # Long-term trend filter
-    "sma_mid_period": 50,              # Mid-term trend (SMA50 bonus)
-    "sma_short_period": 20,            # Short-term trend
-    "rsi_period": 14,                   # RSI lookback
-    "atr_period": 14,                   # ATR lookback
-
+    "sma_long_period": 200,  # Long-term trend filter
+    "sma_mid_period": 50,  # Mid-term trend (SMA50 bonus)
+    "sma_short_period": 20,  # Short-term trend
+    "rsi_period": 14,  # RSI lookback
+    "atr_period": 14,  # ATR lookback
     # GEX
-    "gex_normalization_factor": 0.01,   # GEX formula constant
-    "gex_contract_size": 100,           # Options contract multiplier
-
+    "gex_normalization_factor": 0.01,  # GEX formula constant
+    "gex_contract_size": 100,  # Options contract multiplier
     # Position Sizing
-    "stop_loss_atr_multiple": 1.5,      # k in StopLoss = Entry - k * ATR
-    "tp1_atr_multiple": 1.25,          # W16 follow-up: tightened after 0/18 TP1 hits (was 1.5)
-    "tp2_atr_multiple": 2.0,           # BC23: reachable swing target (was 3.0 → 0.4% hit rate)
-    "scale_out_atr_multiple": 2.0,     # Scale-out trigger at 2 * ATR
-    "scale_out_pct": 0.50,             # BC23: equal bracket split (was 0.33)
-
+    "stop_loss_atr_multiple": 1.5,  # k in StopLoss = Entry - k * ATR
+    "tp1_atr_multiple": 1.25,  # W16 follow-up: tightened after 0/18 TP1 hits (was 1.5)
+    "tp2_atr_multiple": 2.0,  # BC23: reachable swing target (was 3.0 → 0.4% hit rate)
+    "scale_out_atr_multiple": 2.0,  # Scale-out trigger at 2 * ATR
+    "scale_out_pct": 0.50,  # BC23: equal bracket split (was 0.33)
     # Sector BMI
-    "sector_bmi_min_signals": 5,       # Min buy+sell signals per sector per day
-
+    "sector_bmi_min_signals": 5,  # Min buy+sell signals per sector per day
     # Sector Breadth (BC14)
-    "breadth_sma_periods": [20, 50, 200],           # SMA periods to compute
-    "breadth_lookback_calendar_days": 330,           # ~220 trading days for SMA200 (with holiday buffer)
-    "breadth_composite_weights": (0.20, 0.50, 0.30), # SMA20, SMA50, SMA200 weights
-
+    "breadth_sma_periods": [20, 50, 200],  # SMA periods to compute
+    "breadth_lookback_calendar_days": 330,  # ~220 trading days for SMA200 (with holiday buffer)
+    "breadth_composite_weights": (0.20, 0.50, 0.30),  # SMA20, SMA50, SMA200 weights
     # MMS — Market Microstructure Scorer (BC15)
-    "mms_window": 63,                                    # Rolling baseline window (trading days)
-    "mms_min_periods": 10,                               # Min observations for z-score validity (21→10: universe rotation)
-    "mms_feature_weights": {                             # 6-feature weights (sum = 1.0)
+    "mms_window": 63,  # Rolling baseline window (trading days)
+    "mms_min_periods": 10,  # Min observations for z-score validity (21→10: universe rotation)
+    "mms_feature_weights": {  # 6-feature weights (sum = 1.0)
         "dark_share": 0.25,
         "gex": 0.25,
-        "venue_entropy": 0.15,                             # Shannon entropy of DP venue distribution
+        "venue_entropy": 0.15,  # Shannon entropy of DP venue distribution
         "block_intensity": 0.15,
         "iv_rank": 0.10,
-        "iv_skew": 0.10,                                   # ATM put IV - call IV
+        "iv_skew": 0.10,  # ATM put IV - call IV
     },
-    "mms_z_gex_threshold": 1.5,                          # ±1.5 for Γ⁺/Γ⁻ (~93rd percentile)
-    "mms_z_dex_threshold": 1.0,                          # ±1.0 for ABS/DIST (~84th percentile)
-    "mms_z_block_threshold": 1.0,                        # +1.0 for DD (~84th percentile)
-    "mms_dark_share_dd": 0.70,                           # DarkShare absolute for DD rule
-    "mms_dark_share_abs": 0.50,                          # DarkShare absolute for ABS rule
-    "mms_return_abs": -0.005,                            # Daily return threshold for ABS (≥ -0.5%)
-    "mms_return_dist": 0.005,                            # Daily return threshold for DIST (≤ +0.5%)
-
+    "mms_z_gex_threshold": 1.5,  # ±1.5 for Γ⁺/Γ⁻ (~93rd percentile)
+    "mms_z_dex_threshold": 1.0,  # ±1.0 for ABS/DIST (~84th percentile)
+    "mms_z_block_threshold": 1.0,  # +1.0 for DD (~84th percentile)
+    "mms_dark_share_dd": 0.70,  # DarkShare absolute for DD rule
+    "mms_dark_share_abs": 0.50,  # DarkShare absolute for ABS rule
+    "mms_return_abs": -0.005,  # Daily return threshold for ABS (≥ -0.5%)
+    "mms_return_dist": 0.005,  # Daily return threshold for DIST (≤ +0.5%)
     # Freshness Alpha
-    "freshness_lookback_days": 90,     # Days before signal is "fresh"
-    "freshness_bonus": 1.0,            # BC23: disabled (was 1.5 — inverse quintile pattern)
-
+    "freshness_lookback_days": 90,  # Days before signal is "fresh"
+    "freshness_bonus": 1.0,  # BC23: disabled (was 1.5 — inverse quintile pattern)
     # Clipping Logic
-    "clipping_threshold": 95,          # Score above this = crowded trade → SKIP
-
+    "clipping_threshold": 95,  # Score above this = crowded trade → SKIP
     # Scoring Weights
-    "weight_flow": 0.60,               # BC23: flow-first (was 0.40 — only component with weak alpha)
-    "weight_fundamental": 0.10,        # BC23: reduced (was 0.30 — no P&L correlation)
-    "weight_technical": 0.30,          # Technical weight
+    "weight_flow": 0.60,  # BC23: flow-first (was 0.40 — only component with weak alpha)
+    "weight_fundamental": 0.10,  # BC23: reduced (was 0.30 — no P&L correlation)
+    "weight_technical": 0.30,  # Technical weight
 }
 
 # ============================================================================
@@ -80,67 +71,58 @@ CORE = {
 
 TUNING = {
     # BMI Regime thresholds
-    "bmi_green_threshold": 25,          # BMI <= 25% → GREEN (aggressive long)
-    "bmi_red_threshold": 80,            # BMI >= 80% → RED (short/defensive)
-
+    "bmi_green_threshold": 25,  # BMI <= 25% → GREEN (aggressive long)
+    "bmi_red_threshold": 80,  # BMI >= 80% → RED (short/defensive)
     # BMI Divergence
-    "bmi_divergence_spy_change_pct": 1.0,   # SPY must rise > 1%
+    "bmi_divergence_spy_change_pct": 1.0,  # SPY must rise > 1%
     "bmi_divergence_bmi_change_pts": -2.0,  # BMI must drop > 2 points
-
     # BMI Momentum Guard (Phase 6) — tiered reduction (recalibrated 2026-05-12).
     # Original config was a single fixed reduction to 5, but BC23 already set
     # max_positions=5 → guard was a no-op. Tiered scheme scales the cut with
     # the duration of the BMI decline.
-    "bmi_momentum_guard_enabled": True,     # Reduce max_positions on declining BMI trend
-    "bmi_momentum_days": 3,                 # Min consecutive declining days to trigger
-    "bmi_momentum_min_delta": -1.0,         # Min cumulative BMI drop over period
-    "bmi_momentum_mild_max_positions": 4,   # 3-4 days declining → 4 (was: fixed 5)
-    "bmi_momentum_strong_max_positions": 3, # 5-6 days declining → 3
-    "bmi_momentum_severe_max_positions": 2, # 7+ days declining → 2
-    "bmi_momentum_mild_days": 3,            # Tier 1 threshold (inclusive)
-    "bmi_momentum_strong_days": 5,          # Tier 2 threshold (inclusive)
-    "bmi_momentum_severe_days": 7,          # Tier 3 threshold (inclusive)
-
+    "bmi_momentum_guard_enabled": True,  # Reduce max_positions on declining BMI trend
+    "bmi_momentum_days": 3,  # Min consecutive declining days to trigger
+    "bmi_momentum_min_delta": -1.0,  # Min cumulative BMI drop over period
+    "bmi_momentum_mild_max_positions": 4,  # 3-4 days declining → 4 (was: fixed 5)
+    "bmi_momentum_strong_max_positions": 3,  # 5-6 days declining → 3
+    "bmi_momentum_severe_max_positions": 2,  # 7+ days declining → 2
+    "bmi_momentum_mild_days": 3,  # Tier 1 threshold (inclusive)
+    "bmi_momentum_strong_days": 5,  # Tier 2 threshold (inclusive)
+    "bmi_momentum_severe_days": 7,  # Tier 3 threshold (inclusive)
     # Universe Building — LONG
-    "universe_min_market_cap": 2_000_000_000,   # $2B
-    "universe_min_price": 5.0,                   # $5
-    "universe_min_avg_volume": 500_000,          # 500K shares/day
+    "universe_min_market_cap": 2_000_000_000,  # $2B
+    "universe_min_price": 5.0,  # $5
+    "universe_min_avg_volume": 500_000,  # 500K shares/day
     "universe_require_options": True,
-
     # Universe Building — SHORT (Zombie)
-    "zombie_min_market_cap": 500_000_000,       # $500M
+    "zombie_min_market_cap": 500_000_000,  # $500M
     "zombie_min_avg_volume": 500_000,
-    "zombie_min_debt_equity": 3.0,              # D/E > 3.0
-    "zombie_max_net_margin": 0.0,               # Negative margin
+    "zombie_min_debt_equity": 3.0,  # D/E > 3.0
+    "zombie_max_net_margin": 0.0,  # Negative margin
     "zombie_max_interest_coverage": 1.5,
-
     # Zombie Hunter (Earnings exclusion)
-    "earnings_exclusion_days": 10,              # Skip if earnings within 10 calendar days
-                                                # (swing hold × 2 buffer — Day 63 outcome §3.10)
-
+    "earnings_exclusion_days": 10,  # Skip if earnings within 10 calendar days
+    # (swing hold × 2 buffer — Day 63 outcome §3.10)
     # SEC EDGAR Filing Exclusion (Fázis 1, 2026-05-16) — 10-Q / 10-K event-protection
     # Closes the AGNC 2026-05-04 case (10-Q event, NOT earnings release, -$380 LOSS_EXIT)
     "sec_filing_exclusion_enabled": True,
-    "sec_filing_lookahead_days": 10,            # Match earnings_exclusion_days (10d swing buffer)
+    "sec_filing_lookahead_days": 10,  # Match earnings_exclusion_days (10d swing buffer)
     "sec_filing_quarterly_tolerance_days": 10,  # ±10d on the 10-Q prediction (Tamás 2026-05-15)
     "sec_filing_cache_dir": "state/sec_cache",
-    "sec_filing_cik_refresh_days": 30,          # Ticker→CIK map TTL
-    "sec_filing_filings_refresh_days": 1,       # Per-ticker submissions TTL
-
+    "sec_filing_cik_refresh_days": 30,  # Ticker→CIK map TTL
+    "sec_filing_filings_refresh_days": 1,  # Per-ticker submissions TTL
     # Sector Momentum
-    "sector_leader_count": 3,                   # Top 3 → Leader
-    "sector_laggard_count": 3,                  # Bottom 3 → Laggard
-    "sector_leader_bonus": 15,                  # Leader score bonus
-    "sector_laggard_penalty": -20,              # Laggard score penalty
-    "sector_laggard_mr_penalty": -5,            # Laggard + Oversold (Mean Reversion)
-    "sector_momentum_period": 5,                # 5-day relative performance
-
+    "sector_leader_count": 3,  # Top 3 → Leader
+    "sector_laggard_count": 3,  # Bottom 3 → Laggard
+    "sector_leader_bonus": 15,  # Leader score bonus
+    "sector_laggard_penalty": -20,  # Laggard score penalty
+    "sector_laggard_mr_penalty": -5,  # Laggard + Oversold (Mean Reversion)
+    "sector_momentum_period": 5,  # 5-day relative performance
     # Individual Stock — RSI thresholds
     "rsi_oversold": 30,
     "rsi_overbought": 70,
     "rsi_oversold_bonus": 5,
     "rsi_overbought_penalty": -5,
-
     # Individual Stock — RVOL thresholds
     "rvol_low": 0.5,
     "rvol_normal": 1.0,
@@ -148,21 +130,18 @@ TUNING = {
     "rvol_low_penalty": -10,
     "rvol_elevated_bonus": 5,
     "rvol_significant_bonus": 15,
-
     # Squat Bar Detection
     "squat_bar_rvol_min": 2.0,
     "squat_bar_spread_ratio_max": 0.9,
     "squat_bar_bonus": 10,
-
     # Dark Pool — recalibrated 2026-05-08 from 60-trade audit (W17-W19).
     # Pearson r (dp_pct ↔ P&L per share) = -0.265 (p=0.041), Spearman = -0.327
     # (p=0.011). High dp_pct tickers had Q5 win rate 25% vs Q1 58%. The signal
     # is INVERSE of the previous bonus configuration. See:
     # docs/analysis/dp-pct-retrospective-audit.md
-    "dark_pool_volume_threshold_pct": 12,       # > 12% dp_pct → -10 penalty (was 40, unreachable)
-
+    "dark_pool_volume_threshold_pct": 12,  # > 12% dp_pct → -10 penalty (was 40, unreachable)
     # Fundamental Scoring
-    "funda_revenue_growth_good": 10,            # > 10% YoY
+    "funda_revenue_growth_good": 10,  # > 10% YoY
     "funda_revenue_growth_bad": -10,
     "funda_eps_growth_good": 15,
     "funda_eps_growth_bad": -15,
@@ -176,46 +155,39 @@ TUNING = {
     "funda_score_bonus": 5,
     "funda_score_penalty": -5,
     "funda_debt_penalty": -10,
-
     # Insider Activity
     "insider_lookback_days": 30,
     "insider_strong_buy_threshold": 3,
     "insider_strong_sell_threshold": -3,
     "insider_buy_multiplier": 1.25,
     "insider_sell_multiplier": 0.75,
-
     # Combined Score minimum
     "combined_score_minimum": 70,
-
     # GEX Regime multipliers
     "gex_positive_multiplier": 1.0,
     "gex_negative_multiplier": 0.5,
     "gex_high_vol_multiplier": 0.6,
-
     # VIX thresholds
     "vix_low": 15,
     "vix_normal": 20,
     "vix_elevated": 30,
     "vix_penalty_start": 20,
-    "vix_penalty_rate": 0.02,                   # Per VIX point above threshold
+    "vix_penalty_rate": 0.02,  # Per VIX point above threshold
     "vix_multiplier_floor": 0.25,
-
     # TNX Rate Sensitivity
-    "tnx_sensitivity_pct": 5,                   # TNX > SMA20 * 1.05
+    "tnx_sensitivity_pct": 5,  # TNX > SMA20 * 1.05
     "tnx_sensitive_sectors": ["Technology", "Real Estate"],
-
     # Yield Curve (BC18 shadow → BC21 active)
-    "yield_curve_shadow_enabled": True,         # Log 2s10s spread (T10Y2Y) — shadow only, no sizing effect
-    "yield_curve_enabled": True,                # 2s10s as 4th voter in cross-asset regime (BC21)
-    "yield_curve_inversion_threshold": 0.0,     # Inverted = negative spread
-    "yield_curve_severe_threshold": -0.50,      # Deep inversion
-    "yield_curve_vote_weight": 0.5,             # Half vote (slow-moving indicator)
-    "yield_curve_severe_vote_weight": 1.0,      # Full vote on deep inversion
-
+    "yield_curve_shadow_enabled": True,  # Log 2s10s spread (T10Y2Y) — shadow only, no sizing effect
+    "yield_curve_enabled": True,  # 2s10s as 4th voter in cross-asset regime (BC21)
+    "yield_curve_inversion_threshold": 0.0,  # Inverted = negative spread
+    "yield_curve_severe_threshold": -0.50,  # Deep inversion
+    "yield_curve_vote_weight": 0.5,  # Half vote (slow-moving indicator)
+    "yield_curve_severe_vote_weight": 1.0,  # Full vote on deep inversion
     # Cross-Asset Regime (BC21)
     "cross_asset_enabled": True,
     "cross_asset_sma_period": 20,
-    "cross_asset_vix_crisis_threshold": 30,     # CRISIS only if VIX > this
+    "cross_asset_vix_crisis_threshold": 30,  # CRISIS only if VIX > this
     "cross_asset_cautious_vix_delta": -1,
     "cross_asset_risk_off_vix_delta": -3,
     "cross_asset_crisis_vix_delta": -5,
@@ -223,25 +195,21 @@ TUNING = {
     "cross_asset_crisis_max_positions": 4,
     "cross_asset_risk_off_min_score": 75,
     "cross_asset_crisis_min_score": 80,
-
     # Correlation Guard — sector group limits (BC21)
     "correlation_guard_enabled": True,
-    "sector_group_max_cyclical": 3,    # BC23: rescaled for 5 positions (was 5)
-    "sector_group_max_defensive": 2,    # BC23: was 4
-    "sector_group_max_financial": 2,    # BC23: was 3
-    "sector_group_max_commodity": 2,    # BC23: was 3
-
+    "sector_group_max_cyclical": 3,  # BC23: rescaled for 5 positions (was 5)
+    "sector_group_max_defensive": 2,  # BC23: was 4
+    "sector_group_max_financial": 2,  # BC23: was 3
+    "sector_group_max_commodity": 2,  # BC23: was 3
     # Portfolio VaR (BC21)
     "portfolio_var_enabled": True,
     "portfolio_var_confidence": 0.95,
-    "portfolio_var_max_pct": 3.0,        # Max 3% account VaR
-
+    "portfolio_var_max_pct": 3.0,  # Max 3% account VaR
     # Swing Management (BC20A)
-    "breakeven_threshold_atr": 0.3,     # 0.3×ATR profit → SL breakeven
-    "trailing_stop_atr": 1.0,           # Trail distance = 1×ATR
+    "breakeven_threshold_atr": 0.3,  # 0.3×ATR profit → SL breakeven
+    "trailing_stop_atr": 1.0,  # Trail distance = 1×ATR
     "max_hold_trading_days": 5,
-    "earnings_exit_days": 1,            # Exit if earnings within 1 trading day
-
+    "earnings_exit_days": 1,  # Exit if earnings within 1 trading day
     # Risk Management multipliers
     # M_flow threshold = 80: flow_score = BASE(50) + rvol_score.
     # rvol_score max realistic ~+30 (elevated+squat). Threshold 80 means only
@@ -253,14 +221,12 @@ TUNING = {
     "multiplier_funda_value": 0.50,
     "multiplier_utility_threshold": 85,
     "multiplier_utility_max": 1.3,
-
     # Analyst Price Target Contradiction Penalty (Phase 6 M_target)
-    "target_overshoot_enabled": True,       # Penalize if price >> analyst consensus
-    "target_overshoot_threshold": 0.20,     # 20-50% above target → ×0.85
+    "target_overshoot_enabled": True,  # Penalize if price >> analyst consensus
+    "target_overshoot_threshold": 0.20,  # 20-50% above target → ×0.85
     "target_overshoot_penalty": 0.85,
-    "target_severe_threshold": 0.50,        # >50% above target → ×0.60
+    "target_severe_threshold": 0.50,  # >50% above target → ×0.60
     "target_severe_penalty": 0.60,
-
     # M_contradiction multiplier (Phase 6, 2026-05-02 W18 wrap-up)
     # Outlier protection from structured FMP fundamentals — earnings beat ratio,
     # consensus target overshoot, analyst HIGH overshoot, recent downgrades.
@@ -271,25 +237,21 @@ TUNING = {
     # signal direction observed at the daily horizon.
     "m_contradiction_enabled": False,
     "m_contradiction_value": 0.80,
-
     # Sector Diversification
-    "max_positions_per_sector": 2,     # BC23: was 3
-
+    "max_positions_per_sector": 2,  # BC23: was 3
     # Dynamic Position Threshold (BC23)
     "dynamic_position_score_threshold": 85,  # Only tickers above this score get capital
-
     # Options Flow Scoring (BC9)
-    "pcr_bullish_threshold": 0.7,              # PCR < 0.7 → bullish bonus
-    "pcr_bearish_threshold": 1.3,              # PCR > 1.3 → bearish penalty
+    "pcr_bullish_threshold": 0.7,  # PCR < 0.7 → bullish bonus
+    "pcr_bearish_threshold": 1.3,  # PCR > 1.3 → bearish penalty
     "pcr_bullish_bonus": 15,
     "pcr_bearish_penalty": -10,
-    "otm_call_ratio_threshold": 0.4,           # > 40% OTM calls → bonus
+    "otm_call_ratio_threshold": 0.4,  # > 40% OTM calls → bonus
     "otm_call_bonus": 10,
-    "block_trade_significant": 5,              # >5 blocks → bonus
-    "block_trade_very_high": 20,               # >20 blocks → higher bonus
+    "block_trade_significant": 5,  # >5 blocks → bonus
+    "block_trade_very_high": 20,  # >20 blocks → higher bonus
     "block_trade_significant_bonus": 10,
     "block_trade_very_high_bonus": 15,
-
     # Dark Pool Percentage Scoring — sign-flipped + rethresholded 2026-05-08
     # Audit (60 trades, W17-W19): high dp_pct correlates with NEGATIVE P&L per
     # share (r=-0.265**, ρ=-0.327**). Q5 win rate 25%, Q1 58%, Q5-Q1 spread
@@ -299,10 +261,9 @@ TUNING = {
     #   dp_pct > 18%   → -15 (high penalty)
     # Threshold rationale: live per-ticker UW shows liquid tickers in 7-15%,
     # so 12%/18% covers the high-DP tail (the predictive signal area).
-    "dp_pct_high_threshold": 18,               # > 18% dp_pct → high penalty (was 60)
-    "dp_pct_bonus": -10,                       # dp_pct > 12% → -10 (was +10, sign-flipped)
-    "dp_pct_high_bonus": -15,                  # dp_pct > 18% → -15 (was +15, sign-flipped)
-
+    "dp_pct_high_threshold": 18,  # > 18% dp_pct → high penalty (was 60)
+    "dp_pct_bonus": -10,  # dp_pct > 12% → -10 (was +10, sign-flipped)
+    "dp_pct_high_bonus": -15,  # dp_pct > 18% → -15 (was +15, sign-flipped)
     # Swing Scoring (2026-05-18, Day 63 §3.4, §3.5, §3.13 — Döntés 4, 5, 13)
     # Radical simplification of Phase 4 scoring for the swing horizon:
     #   S_j(t) = 100 × (PCR_percentile - OTM_percentile) + sector_adj(t)
@@ -315,7 +276,6 @@ TUNING = {
     "swing_score_threshold": 50.0,
     "swing_ewma_span": 5,
     "swing_ewma_state_file": "state/swing_ewma_state.json",
-
     # Phase 6 multiplier chain gates for swing horizon (Day 63 §3.13)
     # M_GEX already gated by uw_gex_sizing_enabled (Fázis 1).
     # M_VIX deactivated: VIX-sensitivity less sharp on swing horizon
@@ -323,7 +283,6 @@ TUNING = {
     # M_contradiction deactivated pending Fázis 2 backtest sign-flip analysis.
     # M_target kept active (analyst consensus overshoot — Decision 13).
     "m_vix_enabled": False,
-
     # Swing Sizing — Phase 6 (2026-05-18, Day 63 §3.7, §3.11 — Döntés 7, 11)
     # "Quality over quantity": fewer but larger swing positions, sector
     # concentration capped by notional ($) not by ticker count.
@@ -336,15 +295,14 @@ TUNING = {
     # Active multipliers: only M_target. M_VIX, M_GEX, M_contradiction are
     # forced to 1.0 by their respective enable flags.
     "swing_sizing_enabled": True,
-    "swing_risk_per_trade_pct": 0.0035,        # 0.35% = $350 / $100k account (D[7])
-    "swing_max_concurrent": 12,                # Portfolio cap (D[7])
-    "swing_max_daily_new": 3,                  # Daily new-entry cap (D[7])
-    "swing_sector_cap_pct": 0.30,              # 30% notional per sector (D[11])
-    "swing_stop_atr_multiple": 2.0,            # 2.0×ATR mental stop in sizing formula (D[7])
-    "swing_tp1_atr_multiple": 1.5,             # Task #4: swing-specific TP1 (was 1.25 in Task #3)
-    "swing_tp2_atr_multiple": 3.0,             # Task #4: swing-specific TP2 (was 2.0 in Task #3)
-    "swing_min_notional": 1_000,               # Skip entries smaller than $1k (numerical floor)
-
+    "swing_risk_per_trade_pct": 0.0035,  # 0.35% = $350 / $100k account (D[7])
+    "swing_max_concurrent": 12,  # Portfolio cap (D[7])
+    "swing_max_daily_new": 3,  # Daily new-entry cap (D[7])
+    "swing_sector_cap_pct": 0.30,  # 30% notional per sector (D[11])
+    "swing_stop_atr_multiple": 2.0,  # 2.0×ATR mental stop in sizing formula (D[7])
+    "swing_tp1_atr_multiple": 1.5,  # Task #4: swing-specific TP1 (was 1.25 in Task #3)
+    "swing_tp2_atr_multiple": 3.0,  # Task #4: swing-specific TP2 (was 2.0 in Task #3)
+    "swing_min_notional": 1_000,  # Skip entries smaller than $1k (numerical floor)
     # Swing Execution + Exit — Task #4 (2026-05-18, Day 63 §3.1, §3.6, §3.8, §3.12)
     # Mental-stop architecture: IBKR holds only the open position; stop, TP1,
     # TP2 and trail are evaluated by the daily EOD eval (22:00 CEST) and
@@ -352,29 +310,26 @@ TUNING = {
     "swing_execution_enabled": True,
     "swing_entry_time_cest": "15:30",
     "swing_eod_eval_time_cest": "22:00",
-    "swing_close_eod_action_time_cest": "15:30",   # next-day exit
-    "swing_close_time_stop_time_cest": "21:40",    # same-day MOC for TIME_STOP
-    "swing_tp1_sell_pct": 0.50,                    # 50/50 split
-    "swing_mental_stop_atr_multiple": 2.0,         # Same as swing_stop_atr_multiple (Task #3)
-    "swing_trail_atr_multiple": 1.0,               # Trail activated after TP1 hit
+    "swing_close_eod_action_time_cest": "15:30",  # next-day exit
+    "swing_close_time_stop_time_cest": "21:40",  # same-day MOC for TIME_STOP
+    "swing_tp1_sell_pct": 0.50,  # 50/50 split
+    "swing_mental_stop_atr_multiple": 2.0,  # Same as swing_stop_atr_multiple (Task #3)
+    "swing_trail_atr_multiple": 1.0,  # Trail activated after TP1 hit
     "swing_hard_sl_weekly_cumulative_pct": -0.08,  # -8% weekly cum P&L → HARD_SL
-    "swing_time_stop_trading_days": 5,             # 5 trading days → TIME_STOP MOC
+    "swing_time_stop_trading_days": 5,  # 5 trading days → TIME_STOP MOC
     "swing_positions_state_file": "state/swing_positions.json",
-
     # IBKR bracket DEAKTIVÁLVA — Task #4 (swing mental stop arch)
-    "ibkr_bracket_enabled": False,                  # Csak market BUY (no bracket OCA)
-    "loss_exit_intraday_enabled": False,           # Régi -2% intraday LOSS_EXIT KIKAPCSOLVA
-    "pt_monitor_5min_mode": False,                  # New: napi egyszer EOD eval @ 22:00 CEST
-
+    "ibkr_bracket_enabled": False,  # Csak market BUY (no bracket OCA)
+    "loss_exit_intraday_enabled": False,  # Régi -2% intraday LOSS_EXIT KIKAPCSOLVA
+    "pt_monitor_5min_mode": False,  # New: napi egyszer EOD eval @ 22:00 CEST
     # Swing Universe (2026-05-18, Day 63 §3.9 Döntés 9)
     # Replace the FMP screener (~1390 unstable weekly-rotating universe)
     # with S&P 500 + Russell 1000 union (~1000 stable, monthly-rebalanced).
     # Required by the new Phase 4 percentile-normalized scoring which needs a
     # stable universe distribution.
-    "universe_source": "swing_sp500_r1000",        # "fmp_screener" | "swing_sp500_r1000"
+    "universe_source": "swing_sp500_r1000",  # "fmp_screener" | "swing_sp500_r1000"
     "swing_universe_cache_dir": "state/swing_universe",
-    "swing_universe_cache_ttl_days": 7,            # Wikipedia monthly rebalance buffer
-
+    "swing_universe_cache_ttl_days": 7,  # Wikipedia monthly rebalance buffer
     # UW Dark Pool / GEX Deactivation + Shadow Logging (2026-05-26, Day 63 §3.2)
     # Day 63 outcome decision [2]: the UW dark pool / GEX scoring is deactivated
     # because the 60-day audit (W17-W19) showed an inverse signal (dp_pct r=-0.265,
@@ -382,45 +337,37 @@ TUNING = {
     # uses only PCR + OTM-inverse — UW dark pool / GEX has no role in the
     # multiplier chain. Underlying data continues to be collected as shadow log
     # through Day 90 (~2026-08-26) for retroactive Bayesian recalibration analysis.
-    "uw_dark_pool_scoring_enabled": False,     # Phase 4: dp_pct bonus gated (default off)
-    "uw_gex_sizing_enabled": False,            # Phase 6: M_GEX forced to 1.0 (default off)
-    "uw_shadow_logging_enabled": True,         # Daily shadow snapshot to state/uw_shadow/
-    "uw_shadow_dir": "state/uw_shadow",        # Shadow log directory
-
+    "uw_dark_pool_scoring_enabled": False,  # Phase 4: dp_pct bonus gated (default off)
+    "uw_gex_sizing_enabled": False,  # Phase 6: M_GEX forced to 1.0 (default off)
+    "uw_shadow_logging_enabled": True,  # Daily shadow snapshot to state/uw_shadow/
+    "uw_shadow_dir": "state/uw_shadow",  # Shadow log directory
     # Buy Pressure + VWAP (BC10)
-    "buy_pressure_strong_bonus": 15,           # buy_pos > 0.7 → +15
-    "buy_pressure_weak_penalty": -15,          # buy_pos < 0.3 → -15
-    "vwap_accumulation_bonus": 10,             # close > VWAP → +10
-    "vwap_distribution_penalty": -5,           # close < VWAP → -5
-
+    "buy_pressure_strong_bonus": 15,  # buy_pos > 0.7 → +15
+    "buy_pressure_weak_penalty": -15,  # buy_pos < 0.3 → -15
+    "vwap_accumulation_bonus": 10,  # close > VWAP → +10
+    "vwap_distribution_penalty": -5,  # close < VWAP → -5
     # Shark Detector (BC9)
-    "shark_min_unique_insiders": 2,            # 2+ different insiders
-    "shark_lookback_days": 10,                 # within 10 days
-    "shark_min_total_value": 100_000,          # total $100K+
+    "shark_min_unique_insiders": 2,  # 2+ different insiders
+    "shark_lookback_days": 10,  # within 10 days
+    "shark_min_total_value": 100_000,  # total $100K+
     "shark_score_bonus": 10,
-
     # RSI Ideal Zone (BC9 — replaces old ±5 scoring)
     "rsi_ideal_inner_low": 45,
     "rsi_ideal_inner_high": 65,
     "rsi_ideal_outer_low": 35,
     "rsi_ideal_outer_high": 75,
-    "rsi_ideal_inner_bonus": 30,               # [45-65] → +30
-    "rsi_ideal_outer_bonus": 15,               # [35-45) or (65-75] → +15
-
+    "rsi_ideal_inner_bonus": 30,  # [45-65] → +30
+    "rsi_ideal_outer_bonus": 15,  # [35-45) or (65-75] → +15
     # SMA50 & RS vs SPY (BC9)
-    "sma50_bonus": 30,                         # price > SMA50 → +30
-    "rs_spy_bonus": 15,                        # BC23: reduced (was 40 — momentum chasing)
-
+    "sma50_bonus": 30,  # price > SMA50 → +30
+    "rs_spy_bonus": 15,  # BC23: reduced (was 40 — momentum chasing)
     # Call Wall ATR Filter (BC12)
-    "call_wall_max_atr_distance": 5.0,         # Max ATR multiples from price to call wall
-
+    "call_wall_max_atr_distance": 5.0,  # Max ATR multiples from price to call wall
     # Front-Month Options Filter (BC12)
-    "gex_max_dte": 90,                         # Only include options within 90 DTE (3 months)
-
+    "gex_max_dte": 90,  # Only include options within 90 DTE (3 months)
     # VIX EXTREME regime (BC12)
-    "vix_extreme_threshold": 50,               # VIX > 50 → EXTREME regime
-    "vix_extreme_multiplier": 0.10,            # Position sizing × 0.1 in EXTREME
-
+    "vix_extreme_threshold": 50,  # VIX > 50 → EXTREME regime
+    "vix_extreme_multiplier": 0.10,  # Position sizing × 0.1 in EXTREME
     # Sector Breadth Analysis (BC14)
     "breadth_enabled": True,
     "breadth_strong_threshold": 70,
@@ -430,29 +377,27 @@ TUNING = {
     "breadth_weak_penalty": -5,
     "breadth_very_weak_penalty": -15,
     "breadth_divergence_penalty": -10,
-    "breadth_divergence_etf_threshold": 2.0,        # ETF 5d change %
-    "breadth_divergence_breadth_threshold": 5.0,     # SMA50 breadth momentum points
+    "breadth_divergence_etf_threshold": 2.0,  # ETF 5d change %
+    "breadth_divergence_breadth_threshold": 5.0,  # SMA50 breadth momentum points
     "breadth_min_constituents": 10,
-
     # Sector-specific BMI thresholds (oversold, overbought)
     "sector_bmi_thresholds": {
-        "XLK": (12, 85),   # Technology
-        "XLF": (10, 80),   # Financials
-        "XLE": (10, 75),   # Energy
-        "XLV": (12, 80),   # Healthcare
-        "XLI": (12, 80),   # Industrials
-        "XLP": (15, 75),   # Consumer Defensive
-        "XLY": (9, 80),    # Consumer Cyclical
-        "XLB": (12, 80),   # Basic Materials
-        "XLC": (12, 80),   # Communication Services
-        "XLRE": (9, 85),   # Real Estate
-        "XLU": (15, 75),   # Utilities
+        "XLK": (12, 85),  # Technology
+        "XLF": (10, 80),  # Financials
+        "XLE": (10, 75),  # Energy
+        "XLV": (12, 80),  # Healthcare
+        "XLI": (12, 80),  # Industrials
+        "XLP": (15, 75),  # Consumer Defensive
+        "XLY": (9, 80),  # Consumer Cyclical
+        "XLB": (12, 80),  # Basic Materials
+        "XLC": (12, 80),  # Communication Services
+        "XLRE": (9, 85),  # Real Estate
+        "XLU": (15, 75),  # Utilities
     },
-
     # MMS (BC15)
-    "mms_enabled": False,                              # BC23: disabled (93/100 undetermined, flat 0.75×)
-    "mms_store_always_collect": True,                  # Accumulate feature store even when disabled
-    "mms_regime_multipliers": {                        # Phase 6 sizing multipliers per regime
+    "mms_enabled": False,  # BC23: disabled (93/100 undetermined, flat 0.75×)
+    "mms_store_always_collect": True,  # Accumulate feature store even when disabled
+    "mms_regime_multipliers": {  # Phase 6 sizing multipliers per regime
         "gamma_positive": 1.5,
         "gamma_negative": 0.25,
         "dark_dominant": 1.25,
@@ -460,32 +405,27 @@ TUNING = {
         "distribution": 0.5,
         "neutral": 1.0,
         "undetermined": 0.75,
-        "volatile": 0.60,                            # VOL: unstable microstructure (BC16)
+        "volatile": 0.60,  # VOL: unstable microstructure (BC16)
     },
-
     # Factor Volatility (BC16)
-    "factor_volatility_enabled": True,                # BC18B: activated (25-day baseline)
-    "factor_volatility_window": 20,                   # Rolling σ window (trading days)
-    "factor_volatility_confidence_floor": 0.6,        # Minimum confidence multiplier
-
+    "factor_volatility_enabled": True,  # BC18B: activated (25-day baseline)
+    "factor_volatility_window": 20,  # Rolling σ window (trading days)
+    "factor_volatility_confidence_floor": 0.6,  # Minimum confidence multiplier
     # T5: BMI Extreme Oversold Sizing (BC18B)
-    "bmi_oversold_threshold": 25,                     # BMI < 25% = extreme oversold
-    "bmi_oversold_multiplier": 1.25,                  # Aggressive sizing boost
-
+    "bmi_oversold_threshold": 25,  # BMI < 25% = extreme oversold
+    "bmi_oversold_multiplier": 1.25,  # Aggressive sizing boost
     # EWMA Score Smoothing (BC18A)
-    "ewma_enabled": True,                             # BC18A: activated 2026-03-21
-    "ewma_span": 10,                                  # EWMA window (trading days)
-
+    "ewma_enabled": True,  # BC18A: activated 2026-03-21
+    "ewma_span": 10,  # EWMA window (trading days)
     # Crowdedness Shadow (BC18A) — Decision B+C+C
-    "crowdedness_shadow_enabled": True,               # BC18A: activated 2026-03-21 (shadow, no sizing)
-    "crowdedness_threshold": 0.55,                    # dark_share threshold for crowding detection
-
+    "crowdedness_shadow_enabled": True,  # BC18A: activated 2026-03-21 (shadow, no sizing)
+    "crowdedness_threshold": 0.55,  # dark_share threshold for crowding detection
     # Danger Zone Filter (BC18-prep — T3 Bottom 10)
-    "danger_zone_enabled": True,                      # Explicit negative filter
-    "danger_zone_debt_equity": 5.0,                   # D/E > 5.0 = extreme leverage
-    "danger_zone_net_margin": -0.10,                  # Net margin < -10% = burning cash
-    "danger_zone_interest_coverage": 1.0,             # IC < 1.0 = can't cover debt
-    "danger_zone_min_signals": 2,                     # Need 2+ danger signals to filter
+    "danger_zone_enabled": True,  # Explicit negative filter
+    "danger_zone_debt_equity": 5.0,  # D/E > 5.0 = extreme leverage
+    "danger_zone_net_margin": -0.10,  # Net margin < -10% = burning cash
+    "danger_zone_interest_coverage": 1.0,  # IC < 1.0 = can't cover debt
+    "danger_zone_min_signals": 2,  # Need 2+ danger signals to filter
 }
 
 # ============================================================================
@@ -494,9 +434,8 @@ TUNING = {
 
 RUNTIME = {
     # Account
-    "account_equity": 100_000,          # USD
-    "risk_per_trade_pct": 0.7,          # BC23: fewer but larger (was 0.5, 5×0.7%=3.5%)
-
+    "account_equity": 100_000,  # USD
+    "risk_per_trade_pct": 0.7,  # BC23: fewer but larger (was 0.5, 5×0.7%=3.5%)
     # Position Limits
     # Day 63 §3.7 (swing pivot): max_positions raised 5 → 12, gross exposure
     # 80k → 150k (12 × ~$12.5k avg), per-ticker tightened 20k → 15k.
@@ -504,94 +443,76 @@ RUNTIME = {
     "max_single_position_risk_pct": 1.5,
     "max_gross_exposure": 150_000,
     "max_single_ticker_exposure": 15_000,
-
     # API Keys (MUST be loaded from env vars, never hardcoded)
-    "polygon_api_key": None,            # IFDS_POLYGON_API_KEY
-    "unusual_whales_api_key": None,     # IFDS_UW_API_KEY
-    "fmp_api_key": None,                # IFDS_FMP_API_KEY
-    "fred_api_key": None,               # IFDS_FRED_API_KEY (free but required)
-    "mid_api_key": None,                # MID_API_KEY (optional, shadow-mode only)
-
+    "polygon_api_key": None,  # IFDS_POLYGON_API_KEY
+    "unusual_whales_api_key": None,  # IFDS_UW_API_KEY
+    "fmp_api_key": None,  # IFDS_FMP_API_KEY
+    "fred_api_key": None,  # IFDS_FRED_API_KEY (free but required)
+    "mid_api_key": None,  # MID_API_KEY (optional, shadow-mode only)
     # API Timeouts and Retries
     "api_timeout_polygon": 10,
     "api_timeout_polygon_options": 15,
     "api_timeout_uw": 10,
     "api_timeout_fmp": 10,
     "api_timeout_fred": 10,
-    "api_timeout_mid": 10,              # MID bundle API (shadow-mode, non-fatal)
+    "api_timeout_mid": 10,  # MID bundle API (shadow-mode, non-fatal)
     "api_max_retries": 3,
-
     # Async Concurrency (Phase 1/4/5 parallel processing — BC16 tuning)
-    "async_enabled": False,                 # Set IFDS_ASYNC_ENABLED=true to enable
-    "async_sem_polygon": 10,                # Polygon paid tier ~10 req/s
-    "async_sem_fmp": 8,                     # FMP middle ground (429 at 12, too slow at 5)
-    "async_sem_uw": 5,                      # UW conservative default
-    "async_max_tickers": 10,                # 10 tickers × ~5 FMP calls = 50 concurrent
-
+    "async_enabled": False,  # Set IFDS_ASYNC_ENABLED=true to enable
+    "async_sem_polygon": 10,  # Polygon paid tier ~10 req/s
+    "async_sem_fmp": 8,  # FMP middle ground (429 at 12, too slow at 5)
+    "async_sem_uw": 5,  # UW conservative default
+    "async_max_tickers": 10,  # 10 tickers × ~5 FMP calls = 50 concurrent
     # Dark Pool Batch Prefetch (legacy — production switched to per-ticker
     # enrichment 2026-05-12, see Phase 4 Pass 2 in phase4_stocks.py)
-    "dp_batch_max_pages": 15,              # Max pagination pages for /recent
-    "dp_batch_page_delay": 0.5,            # Seconds between paginated calls (sync)
-    "dp_batch_page_delay_async": 0.3,      # Seconds between paginated calls (async)
+    "dp_batch_max_pages": 15,  # Max pagination pages for /recent
+    "dp_batch_page_delay": 0.5,  # Seconds between paginated calls (sync)
+    "dp_batch_page_delay_async": 0.3,  # Seconds between paginated calls (async)
     # Dark Pool Pass 2 Enrichment (per-ticker, sequential — W20 D3 calibration)
     # 0.2 s × ~150 passed tickers ≈ 30 s extra; eliminates the 5-parallel
     # burst that produced ~46 HTTP 429s on UW Basic.
     "dp_enrichment_delay_s": 0.2,
-
     # File-based Cache
-    "cache_enabled": False,                 # Set IFDS_CACHE_ENABLED=true to enable
-    "cache_dir": "data/cache",             # Cache directory path
-    "cache_max_age_days": 7,               # Days before cleanup deletes old files
-
+    "cache_enabled": False,  # Set IFDS_CACHE_ENABLED=true to enable
+    "cache_dir": "data/cache",  # Cache directory path
+    "cache_max_age_days": 7,  # Days before cleanup deletes old files
     # Circuit Breaker (drawdown)
     "circuit_breaker_drawdown_limit_pct": 3.0,
     "circuit_breaker_state_file": "state/circuit_breaker.json",
-
     # Per-provider Circuit Breaker (API error rate)
-    "cb_window_size": 50,                  # Sliding window of recent calls
-    "cb_error_threshold": 0.3,             # 30% error rate → OPEN
-    "cb_cooldown_seconds": 60,             # Seconds before HALF_OPEN probe
-
+    "cb_window_size": 50,  # Sliding window of recent calls
+    "cb_error_threshold": 0.3,  # 30% error rate → OPEN
+    "cb_cooldown_seconds": 60,  # Seconds before HALF_OPEN probe
     # Signal Deduplication
     "signal_hash_file": "state/signal_hashes.json",
-
     # Fat Finger Protection (BC12)
-    "max_order_quantity": 5000,                # Hard cap on shares per position
-
+    "max_order_quantity": 5000,  # Hard cap on shares per position
     # Survivorship Bias (BC13)
     "survivorship_snapshot_dir": "state/universe_snapshots",
     "survivorship_max_snapshots": 30,
-
     # Telegram Alerts (BC13) — env vars: IFDS_TELEGRAM_BOT_TOKEN, IFDS_TELEGRAM_CHAT_ID
     "telegram_bot_token": None,
     "telegram_chat_id": None,
     "telegram_timeout": 5,
-
     # Max Daily Trades (BC13)
     "max_daily_trades": 20,
     "daily_trades_file": "state/daily_trades.json",
-
     # Notional Limits (BC13)
     "max_daily_notional": 200_000,
     "max_position_notional": 25_000,
     "daily_notional_file": "state/daily_notional.json",
-
     # MMS Feature Store (BC15)
     "mms_store_dir": "state/mms",
     "mms_max_store_entries": 100,
-
     # Phase 4 Snapshot (BC19 — SIM-L2 Mód 2 prep)
     "phase4_snapshot_enabled": True,
     "phase4_snapshot_dir": "state/phase4_snapshots",
-
     # Output
     "output_dir": "output",
     "log_dir": "logs",
-
     # Signal History (Freshness Alpha)
     "signal_history_file": "state/signal_history.parquet",
-
     # Cross-Asset ETFs (BC21)
     "cross_asset_etfs": ["HYG", "IEF", "RSP", "SPY", "IWM"],
-    "cross_asset_lookback_days": 30,            # 25 trading days + buffer
+    "cross_asset_lookback_days": 30,  # 25 trading days + buffer
 }

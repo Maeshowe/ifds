@@ -54,11 +54,16 @@ def config():
     return c
 
 
-def _make_stock(ticker="TEST", score=85.0, atr=2.0, price=100.0,
-                funda_score=15, flow_rvol=10, insider_mult=1.0):
+def _make_stock(
+    ticker="TEST", score=85.0, atr=2.0, price=100.0, funda_score=15, flow_rvol=10, insider_mult=1.0
+):
     from ifds.models.market import (
-        StockAnalysis, FlowAnalysis, FundamentalScoring, TechnicalAnalysis
+        StockAnalysis,
+        FlowAnalysis,
+        FundamentalScoring,
+        TechnicalAnalysis,
     )
+
     flow = MagicMock(spec=FlowAnalysis)
     flow.rvol_score = flow_rvol
     funda = MagicMock(spec=FundamentalScoring)
@@ -80,6 +85,7 @@ def _make_stock(ticker="TEST", score=85.0, atr=2.0, price=100.0,
 
 def _make_gex(ticker="TEST", multiplier=1.0):
     from ifds.models.market import GEXAnalysis, GEXRegime
+
     gex = MagicMock(spec=GEXAnalysis)
     gex.ticker = ticker
     gex.gex_regime = GEXRegime.POSITIVE
@@ -91,6 +97,7 @@ def _make_gex(ticker="TEST", multiplier=1.0):
 
 def _make_macro(vix_mult=1.0):
     from ifds.models.market import MacroRegime, MarketVolatilityRegime
+
     macro = MagicMock(spec=MacroRegime)
     macro.vix_multiplier = vix_mult
     return macro
@@ -104,18 +111,21 @@ def _make_macro(vix_mult=1.0):
 def test_mms_enabled_default_false():
     """BC23: MMS disabled by default (was True in BC18B)."""
     from ifds.config.defaults import TUNING
+
     assert TUNING["mms_enabled"] is False
 
 
 def test_factor_volatility_enabled_default_true():
     """Factor volatility enabled by default in BC18B config."""
     from ifds.config.defaults import TUNING
+
     assert TUNING["factor_volatility_enabled"] is True
 
 
 def test_bmi_oversold_config_keys_exist():
     """T5 config keys exist with correct defaults."""
     from ifds.config.defaults import TUNING
+
     assert TUNING["bmi_oversold_threshold"] == 25
     assert TUNING["bmi_oversold_multiplier"] == 1.25
 
@@ -136,13 +146,21 @@ def test_t5_bmi_below_threshold_boosts_sizing(config):
 
     # Without T5 (bmi_value=None)
     pos_normal = _calculate_position(
-        stock, gex, macro, config, StrategyMode.LONG,
+        stock,
+        gex,
+        macro,
+        config,
+        StrategyMode.LONG,
         bmi_value=None,
     )
 
     # With T5 (bmi_value=20 < 25)
     pos_oversold = _calculate_position(
-        stock, gex, macro, config, StrategyMode.LONG,
+        stock,
+        gex,
+        macro,
+        config,
+        StrategyMode.LONG,
         bmi_value=20.0,
     )
 
@@ -162,12 +180,20 @@ def test_t5_bmi_above_threshold_no_change(config):
     macro = _make_macro()
 
     pos_normal = _calculate_position(
-        stock, gex, macro, config, StrategyMode.LONG,
+        stock,
+        gex,
+        macro,
+        config,
+        StrategyMode.LONG,
         bmi_value=None,
     )
 
     pos_above = _calculate_position(
-        stock, gex, macro, config, StrategyMode.LONG,
+        stock,
+        gex,
+        macro,
+        config,
+        StrategyMode.LONG,
         bmi_value=50.0,
     )
 
@@ -186,7 +212,11 @@ def test_t5_bmi_none_backwards_compatible(config):
     macro = _make_macro()
 
     pos = _calculate_position(
-        stock, gex, macro, config, StrategyMode.LONG,
+        stock,
+        gex,
+        macro,
+        config,
+        StrategyMode.LONG,
         bmi_value=None,
     )
     assert pos is not None
@@ -203,11 +233,19 @@ def test_t5_bmi_at_exact_threshold_no_boost(config):
     macro = _make_macro()
 
     pos_at = _calculate_position(
-        stock, gex, macro, config, StrategyMode.LONG,
+        stock,
+        gex,
+        macro,
+        config,
+        StrategyMode.LONG,
         bmi_value=25.0,
     )
     pos_none = _calculate_position(
-        stock, gex, macro, config, StrategyMode.LONG,
+        stock,
+        gex,
+        macro,
+        config,
+        StrategyMode.LONG,
         bmi_value=None,
     )
 
@@ -225,7 +263,11 @@ def test_t5_m_total_capped_at_2(config):
     macro = _make_macro()
 
     pos = _calculate_position(
-        stock, gex, macro, config, StrategyMode.LONG,
+        stock,
+        gex,
+        macro,
+        config,
+        StrategyMode.LONG,
         bmi_value=10.0,  # Very oversold
     )
 

@@ -22,6 +22,7 @@ def _get_nyse_calendar():
 # Witching days (self-contained, no exchange_calendars needed)
 # ============================================================================
 
+
 def get_witching_dates(year: int) -> set[date]:
     """Return Triple/Quadruple Witching dates for a given year.
 
@@ -49,6 +50,7 @@ def is_witching_day(d: date | None = None) -> bool:
 # NYSE session checks (exchange_calendars)
 # ============================================================================
 
+
 def is_nyse_trading_day(d: date | None = None) -> bool:
     """Return True if NYSE is open on this date.
 
@@ -57,6 +59,7 @@ def is_nyse_trading_day(d: date | None = None) -> bool:
     if d is None:
         d = date.today()
     import pandas as pd
+
     return _get_nyse_calendar().is_session(pd.Timestamp(d))
 
 
@@ -70,6 +73,7 @@ def is_early_close(d: date | None = None) -> bool:
         d = date.today()
     cal = _get_nyse_calendar()
     import pandas as pd
+
     ts = pd.Timestamp(d)
     if not cal.is_session(ts):
         return False
@@ -90,6 +94,7 @@ def get_market_close_time_et(d: date | None = None) -> time | None:
         d = date.today()
     cal = _get_nyse_calendar()
     import pandas as pd
+
     ts = pd.Timestamp(d)
     if not cal.is_session(ts):
         return None

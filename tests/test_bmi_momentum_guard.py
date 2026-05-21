@@ -16,8 +16,9 @@ def config(monkeypatch):
 
 def _history(*bmis):
     """Build bmi_history list from BMI values (ascending dates)."""
-    return [{"date": f"2026-03-{i+1:02d}", "bmi": v, "regime": "yellow"}
-            for i, v in enumerate(bmis)]
+    return [
+        {"date": f"2026-03-{i+1:02d}", "bmi": v, "regime": "yellow"} for i, v in enumerate(bmis)
+    ]
 
 
 class TestBmiMomentumGuard:

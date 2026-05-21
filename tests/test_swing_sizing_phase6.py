@@ -35,10 +35,10 @@ from ifds.phases.phase6_sizing import (
     run_phase6,
 )
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def config(monkeypatch, tmp_path):
@@ -77,8 +77,11 @@ def logger(tmp_path):
 @pytest.fixture
 def macro():
     return MacroRegime(
-        vix_value=18.0, vix_regime=MarketVolatilityRegime.NORMAL,
-        vix_multiplier=1.0, tnx_value=4.2, tnx_sma20=4.1,
+        vix_value=18.0,
+        vix_regime=MarketVolatilityRegime.NORMAL,
+        vix_multiplier=1.0,
+        tnx_value=4.2,
+        tnx_sma20=4.1,
         tnx_rate_sensitive=False,
     )
 
@@ -96,8 +99,12 @@ def _make_stock(
         ticker=ticker,
         sector=sector,
         technical=TechnicalAnalysis(
-            price=price, sma_200=140.0, sma_20=148.0,
-            rsi_14=55.0, atr_14=atr, trend_pass=True,
+            price=price,
+            sma_200=140.0,
+            sma_20=148.0,
+            rsi_14=55.0,
+            atr_14=atr,
+            trend_pass=True,
         ),
         flow=FlowAnalysis(rvol_score=0),
         fundamental=FundamentalScoring(funda_score=15, insider_multiplier=1.0),
@@ -108,9 +115,14 @@ def _make_stock(
 
 def _make_gex(ticker: str, *, price: float = 150.0) -> GEXAnalysis:
     return GEXAnalysis(
-        ticker=ticker, net_gex=500.0, call_wall=0.0, put_wall=0.0,
-        zero_gamma=140.0, current_price=price,
-        gex_regime=GEXRegime.POSITIVE, gex_multiplier=1.0,
+        ticker=ticker,
+        net_gex=500.0,
+        call_wall=0.0,
+        put_wall=0.0,
+        zero_gamma=140.0,
+        current_price=price,
+        gex_regime=GEXRegime.POSITIVE,
+        gex_multiplier=1.0,
     )
 
 
@@ -164,7 +176,10 @@ class TestCalculateSwingPosition:
         stock = _make_stock("AAPL", price=150.0, atr=3.0)
         gex = _make_gex("AAPL")
         pos = _calculate_swing_position(
-            stock, gex, config, StrategyMode.LONG,
+            stock,
+            gex,
+            config,
+            StrategyMode.LONG,
         )
         assert pos is not None
         assert pos.ticker == "AAPL"
@@ -183,18 +198,30 @@ class TestCalculateSwingPosition:
     def test_zero_atr_returns_none(self, config):
         stock = _make_stock("AAPL", atr=0.0)
         gex = _make_gex("AAPL")
-        assert _calculate_swing_position(
-            stock, gex, config, StrategyMode.LONG,
-        ) is None
+        assert (
+            _calculate_swing_position(
+                stock,
+                gex,
+                config,
+                StrategyMode.LONG,
+            )
+            is None
+        )
 
     def test_below_min_notional_returns_none(self, config):
         # Force the min_notional floor by raising it past computed notional
         config.tuning["swing_min_notional"] = 100_000
         stock = _make_stock("AAPL", price=150.0, atr=3.0)
         gex = _make_gex("AAPL")
-        assert _calculate_swing_position(
-            stock, gex, config, StrategyMode.LONG,
-        ) is None
+        assert (
+            _calculate_swing_position(
+                stock,
+                gex,
+                config,
+                StrategyMode.LONG,
+            )
+            is None
+        )
 
 
 # ============================================================================
@@ -206,13 +233,18 @@ class TestSelectSwingEntries:
     def test_respects_max_daily_new(self, config, logger):
         """5 ranked candidates, max_daily_new=3 → only 3 selected."""
         candidates = [
-            (_make_stock(f"T{i}", sector=f"S{i}", combined_score=90 - i, price=50.0, atr=1.0),
-             _make_gex(f"T{i}"))
+            (
+                _make_stock(f"T{i}", sector=f"S{i}", combined_score=90 - i, price=50.0, atr=1.0),
+                _make_gex(f"T{i}"),
+            )
             for i in range(5)
         ]
         selected, counts = _select_swing_entries(
-            candidates, open_positions=[], config=config,
-            strategy_mode=StrategyMode.LONG, logger=logger,
+            candidates,
+            open_positions=[],
+            config=config,
+            strategy_mode=StrategyMode.LONG,
+            logger=logger,
         )
         assert len(selected) == 3
         assert [p.ticker for p in selected] == ["T0", "T1", "T2"]
@@ -222,22 +254,34 @@ class TestSelectSwingEntries:
         """open=10, max_daily_new=3, max_concurrent=12 → only 2 new fit."""
         open_positions = [
             PositionSizing(
-                ticker=f"O{i}", sector=f"OS{i}", direction="BUY",
-                entry_price=100.0, quantity=10,
-                stop_loss=98.0, take_profit_1=102.0, take_profit_2=104.0,
-                risk_usd=20.0, combined_score=70.0, gex_regime="positive",
+                ticker=f"O{i}",
+                sector=f"OS{i}",
+                direction="BUY",
+                entry_price=100.0,
+                quantity=10,
+                stop_loss=98.0,
+                take_profit_1=102.0,
+                take_profit_2=104.0,
+                risk_usd=20.0,
+                combined_score=70.0,
+                gex_regime="positive",
                 multiplier_total=1.0,
             )
             for i in range(10)
         ]
         candidates = [
-            (_make_stock(f"N{i}", sector=f"NS{i}", combined_score=90 - i, price=50.0, atr=1.0),
-             _make_gex(f"N{i}"))
+            (
+                _make_stock(f"N{i}", sector=f"NS{i}", combined_score=90 - i, price=50.0, atr=1.0),
+                _make_gex(f"N{i}"),
+            )
             for i in range(5)
         ]
         selected, _ = _select_swing_entries(
-            candidates, open_positions=open_positions, config=config,
-            strategy_mode=StrategyMode.LONG, logger=logger,
+            candidates,
+            open_positions=open_positions,
+            config=config,
+            strategy_mode=StrategyMode.LONG,
+            logger=logger,
         )
         assert len(selected) == 2  # 12 cap - 10 open = 2 headroom (< daily_new=3)
 
@@ -245,10 +289,17 @@ class TestSelectSwingEntries:
         """open=12 → 0 daily new entry."""
         open_positions = [
             PositionSizing(
-                ticker=f"O{i}", sector=f"S{i}", direction="BUY",
-                entry_price=100.0, quantity=10,
-                stop_loss=98.0, take_profit_1=102.0, take_profit_2=104.0,
-                risk_usd=20.0, combined_score=70.0, gex_regime="positive",
+                ticker=f"O{i}",
+                sector=f"S{i}",
+                direction="BUY",
+                entry_price=100.0,
+                quantity=10,
+                stop_loss=98.0,
+                take_profit_1=102.0,
+                take_profit_2=104.0,
+                risk_usd=20.0,
+                combined_score=70.0,
+                gex_regime="positive",
                 multiplier_total=1.0,
             )
             for i in range(12)
@@ -257,8 +308,11 @@ class TestSelectSwingEntries:
             (_make_stock("N1", combined_score=99.0), _make_gex("N1")),
         ]
         selected, counts = _select_swing_entries(
-            candidates, open_positions=open_positions, config=config,
-            strategy_mode=StrategyMode.LONG, logger=logger,
+            candidates,
+            open_positions=open_positions,
+            config=config,
+            strategy_mode=StrategyMode.LONG,
+            logger=logger,
         )
         assert selected == []
         assert counts["concurrent_cap"] == 1
@@ -273,14 +327,20 @@ class TestSelectSwingEntries:
         # Use entry=200, atr=1.5 → ATR_pct=0.0075 → notional=350/(0.0075*2)=$23,333
         config.tuning["swing_max_daily_new"] = 5
         candidates = [
-            (_make_stock(f"T{i}", sector="Technology", combined_score=90 - i,
-                         price=200.0, atr=1.5),
-             _make_gex(f"T{i}"))
+            (
+                _make_stock(
+                    f"T{i}", sector="Technology", combined_score=90 - i, price=200.0, atr=1.5
+                ),
+                _make_gex(f"T{i}"),
+            )
             for i in range(4)
         ]
         selected, counts = _select_swing_entries(
-            candidates, open_positions=[], config=config,
-            strategy_mode=StrategyMode.LONG, logger=logger,
+            candidates,
+            open_positions=[],
+            config=config,
+            strategy_mode=StrategyMode.LONG,
+            logger=logger,
         )
         # Each notional capped to max_single_ticker_exposure=$15k (15000/200=75 shares),
         # so per-position notional = 75*200 = $15,000.
@@ -293,19 +353,30 @@ class TestSelectSwingEntries:
         config.tuning["swing_max_daily_new"] = 4
         candidates = [
             # Tech tickers (high score) — will fill tech sector cap quickly
-            (_make_stock("T1", sector="Technology", combined_score=95,
-                         price=200.0, atr=1.5), _make_gex("T1")),
-            (_make_stock("T2", sector="Technology", combined_score=92,
-                         price=200.0, atr=1.5), _make_gex("T2")),
-            (_make_stock("T3", sector="Technology", combined_score=88,
-                         price=200.0, atr=1.5), _make_gex("T3")),
+            (
+                _make_stock("T1", sector="Technology", combined_score=95, price=200.0, atr=1.5),
+                _make_gex("T1"),
+            ),
+            (
+                _make_stock("T2", sector="Technology", combined_score=92, price=200.0, atr=1.5),
+                _make_gex("T2"),
+            ),
+            (
+                _make_stock("T3", sector="Technology", combined_score=88, price=200.0, atr=1.5),
+                _make_gex("T3"),
+            ),
             # Lower-score healthcare → should still get picked when tech is capped
-            (_make_stock("H1", sector="Healthcare", combined_score=70,
-                         price=200.0, atr=1.5), _make_gex("H1")),
+            (
+                _make_stock("H1", sector="Healthcare", combined_score=70, price=200.0, atr=1.5),
+                _make_gex("H1"),
+            ),
         ]
         selected, _ = _select_swing_entries(
-            candidates, open_positions=[], config=config,
-            strategy_mode=StrategyMode.LONG, logger=logger,
+            candidates,
+            open_positions=[],
+            config=config,
+            strategy_mode=StrategyMode.LONG,
+            logger=logger,
         )
         tickers = [p.ticker for p in selected]
         # T1 + T2 fit in Tech ($15k each, total $30k = cap), T3 blocked, H1 fits
@@ -316,8 +387,11 @@ class TestSelectSwingEntries:
     def test_zero_new_when_no_qualified(self, config, logger):
         """No candidates → empty selection."""
         selected, counts = _select_swing_entries(
-            [], open_positions=[], config=config,
-            strategy_mode=StrategyMode.LONG, logger=logger,
+            [],
+            open_positions=[],
+            config=config,
+            strategy_mode=StrategyMode.LONG,
+            logger=logger,
         )
         assert selected == []
         assert all(v == 0 for v in counts.values())
@@ -326,21 +400,33 @@ class TestSelectSwingEntries:
         """An existing $20k Tech open position → new Tech entry can only add $10k more."""
         open_positions = [
             PositionSizing(
-                ticker="OLD", sector="Technology", direction="BUY",
-                entry_price=200.0, quantity=100,  # $20k notional
-                stop_loss=196.0, take_profit_1=204.0, take_profit_2=208.0,
-                risk_usd=40.0, combined_score=80.0, gex_regime="positive",
+                ticker="OLD",
+                sector="Technology",
+                direction="BUY",
+                entry_price=200.0,
+                quantity=100,  # $20k notional
+                stop_loss=196.0,
+                take_profit_1=204.0,
+                take_profit_2=208.0,
+                risk_usd=40.0,
+                combined_score=80.0,
+                gex_regime="positive",
                 multiplier_total=1.0,
             ),
         ]
         # Candidate: $15k tech (would push sector to $35k > $30k cap) → blocked
         candidates = [
-            (_make_stock("NEW", sector="Technology", combined_score=90,
-                         price=200.0, atr=1.5), _make_gex("NEW")),
+            (
+                _make_stock("NEW", sector="Technology", combined_score=90, price=200.0, atr=1.5),
+                _make_gex("NEW"),
+            ),
         ]
         selected, counts = _select_swing_entries(
-            candidates, open_positions=open_positions, config=config,
-            strategy_mode=StrategyMode.LONG, logger=logger,
+            candidates,
+            open_positions=open_positions,
+            config=config,
+            strategy_mode=StrategyMode.LONG,
+            logger=logger,
         )
         assert selected == []
         assert counts["sector_cap"] == 1
@@ -358,14 +444,20 @@ class TestPhase6SwingIntegration:
         gex = [_make_gex("AAPL")]
 
         macro_low = MacroRegime(
-            vix_value=15.0, vix_regime=MarketVolatilityRegime.LOW,
-            vix_multiplier=1.0, tnx_value=4.2, tnx_sma20=4.1,
+            vix_value=15.0,
+            vix_regime=MarketVolatilityRegime.LOW,
+            vix_multiplier=1.0,
+            tnx_value=4.2,
+            tnx_sma20=4.1,
             tnx_rate_sensitive=False,
         )
         macro_high = MacroRegime(
-            vix_value=30.0, vix_regime=MarketVolatilityRegime.ELEVATED,
+            vix_value=30.0,
+            vix_regime=MarketVolatilityRegime.ELEVATED,
             vix_multiplier=0.50,
-            tnx_value=4.2, tnx_sma20=4.1, tnx_rate_sensitive=False,
+            tnx_value=4.2,
+            tnx_sma20=4.1,
+            tnx_rate_sensitive=False,
         )
 
         res_low = run_phase6(config, logger, stocks, gex, macro_low, StrategyMode.LONG)
@@ -385,14 +477,12 @@ class TestPhase6SwingIntegration:
         """
         config.tuning["swing_max_daily_new"] = 4
         stocks = [
-            _make_stock("AAA", sector="Technology", combined_score=95,
-                        price=200.0, atr=1.5),
-            _make_stock("BBB", sector="Technology", combined_score=92,
-                        price=200.0, atr=1.5),
-            _make_stock("CCC", sector="Technology", combined_score=88,
-                        price=200.0, atr=1.5),  # blocked: sector cap
-            _make_stock("DDD", sector="Healthcare", combined_score=85,
-                        price=150.0, atr=3.0),
+            _make_stock("AAA", sector="Technology", combined_score=95, price=200.0, atr=1.5),
+            _make_stock("BBB", sector="Technology", combined_score=92, price=200.0, atr=1.5),
+            _make_stock(
+                "CCC", sector="Technology", combined_score=88, price=200.0, atr=1.5
+            ),  # blocked: sector cap
+            _make_stock("DDD", sector="Healthcare", combined_score=85, price=150.0, atr=3.0),
         ]
         gex = [_make_gex(s.ticker, price=s.technical.price) for s in stocks]
 

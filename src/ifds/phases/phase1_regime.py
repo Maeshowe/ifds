@@ -45,9 +45,12 @@ FMP_SECTOR_TO_ETF = {
 }
 
 
-def run_phase1(config: Config, logger: EventLogger,
-               polygon: PolygonClient,
-               sector_mapping: dict[str, str] | None = None) -> Phase1Result:
+def run_phase1(
+    config: Config,
+    logger: EventLogger,
+    polygon: PolygonClient,
+    sector_mapping: dict[str, str] | None = None,
+) -> Phase1Result:
     """Execute Phase 1: Market Regime determination via BMI.
 
     Args:
@@ -60,9 +63,13 @@ def run_phase1(config: Config, logger: EventLogger,
     """
     # Async dispatch (BC16): concurrent grouped daily fetching
     if config.runtime.get("async_enabled", False):
-        return asyncio.run(_run_phase1_async(
-            config, logger, sector_mapping=sector_mapping,
-        ))
+        return asyncio.run(
+            _run_phase1_async(
+                config,
+                logger,
+                sector_mapping=sector_mapping,
+            )
+        )
 
     start_time = time.monotonic()
     logger.phase_start(1, "Market Regime (BMI)")
@@ -80,8 +87,11 @@ def run_phase1(config: Config, logger: EventLogger,
         daily_bars = _fetch_daily_history(polygon, lookback_calendar_days=lookback)
 
         if not daily_bars or len(daily_bars) < 25:
-            logger.phase_error(1, "Market Regime (BMI)",
-                               f"Insufficient data: got {len(daily_bars) if daily_bars else 0} days, need 25+")
+            logger.phase_error(
+                1,
+                "Market Regime (BMI)",
+                f"Insufficient data: got {len(daily_bars) if daily_bars else 0} days, need 25+",
+            )
             # Conservative fallback: YELLOW regime, LONG mode
             bmi = BMIData(
                 bmi_value=50.0,
@@ -93,9 +103,9 @@ def run_phase1(config: Config, logger: EventLogger,
             return result
 
         # Calculate daily ratios from grouped bars
-        daily_ratios = _calculate_daily_ratios(daily_bars, config,
-                                               sector_mapping=sector_mapping,
-                                               logger=logger)
+        daily_ratios = _calculate_daily_ratios(
+            daily_bars, config, sector_mapping=sector_mapping, logger=logger
+        )
 
         # BMI = SMA25 of daily ratios
         sma_period = config.core["bmi_sma_period"]
@@ -133,7 +143,9 @@ def run_phase1(config: Config, logger: EventLogger,
         sector_bmi_values: dict[str, float] = {}
         if sector_mapping:
             logger.log(
-                EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=1,
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.DEBUG,
+                phase=1,
                 message=f"Sector mapping: {len(sector_mapping)} tickers mapped",
             )
             sector_bmi_values = _calculate_sector_bmi(daily_bars, config, logger=logger)
@@ -155,8 +167,7 @@ def run_phase1(config: Config, logger: EventLogger,
         raise
 
 
-def _fetch_daily_history(polygon: PolygonClient,
-                         lookback_calendar_days: int = 55) -> list[dict]:
+def _fetch_daily_history(polygon: PolygonClient, lookback_calendar_days: int = 55) -> list[dict]:
     """Fetch grouped daily bars for the lookback period.
 
     Returns list of dicts, one per trading day, each containing the raw
@@ -176,16 +187,19 @@ def _fetch_daily_history(polygon: PolygonClient,
     for day_str in days:
         bars = polygon.get_grouped_daily(day_str)
         if bars:
-            daily_data.append({
-                "date": day_str,
-                "bars": bars,
-            })
+            daily_data.append(
+                {
+                    "date": day_str,
+                    "bars": bars,
+                }
+            )
 
     return daily_data
 
 
-async def _fetch_daily_history_async(polygon, lookback_calendar_days: int = 55,
-                                     logger=None) -> list[dict]:
+async def _fetch_daily_history_async(
+    polygon, lookback_calendar_days: int = 55, logger=None
+) -> list[dict]:
     """Fetch grouped daily bars concurrently with asyncio.gather.
 
     Same logic as _fetch_daily_history() but fires all requests in parallel,
@@ -202,8 +216,7 @@ async def _fetch_daily_history_async(polygon, lookback_calendar_days: int = 55,
 
     # Fire all requests concurrently — semaphore handles rate limiting
     results = await asyncio.gather(
-        *[polygon.get_grouped_daily(day_str) for day_str in days],
-        return_exceptions=True
+        *[polygon.get_grouped_daily(day_str) for day_str in days], return_exceptions=True
     )
 
     daily_data = []
@@ -211,8 +224,13 @@ async def _fetch_daily_history_async(polygon, lookback_calendar_days: int = 55,
         if isinstance(result, BaseException):
             if logger:
                 from ifds.events.types import EventType, Severity
-                logger.log(EventType.API_ERROR, Severity.WARNING,
-                           phase=1, message=f"Polygon request failed for {day_str}: {result}")
+
+                logger.log(
+                    EventType.API_ERROR,
+                    Severity.WARNING,
+                    phase=1,
+                    message=f"Polygon request failed for {day_str}: {result}",
+                )
             continue
         if result:
             daily_data.append({"date": day_str, "bars": result})
@@ -220,10 +238,12 @@ async def _fetch_daily_history_async(polygon, lookback_calendar_days: int = 55,
     return daily_data
 
 
-def _calculate_daily_ratios(daily_data: list[dict],
-                            config: Config,
-                            sector_mapping: dict[str, str] | None = None,
-                            logger: EventLogger | None = None) -> list[float]:
+def _calculate_daily_ratios(
+    daily_data: list[dict],
+    config: Config,
+    sector_mapping: dict[str, str] | None = None,
+    logger: EventLogger | None = None,
+) -> list[float]:
     """Calculate daily Big Money buy/sell ratios.
 
     For each day, scan all tickers. A ticker has a Big Money signal if:
@@ -274,7 +294,7 @@ def _calculate_daily_ratios(daily_data: list[dict],
             recent = vol_hist[-vol_period:]
             mean_vol = sum(recent) / vol_period
             variance = sum((v - mean_vol) ** 2 for v in recent) / vol_period
-            sigma_vol = variance ** 0.5
+            sigma_vol = variance**0.5
 
             # Volume spike detection
             threshold = mean_vol + k * sigma_vol
@@ -298,7 +318,9 @@ def _calculate_daily_ratios(daily_data: list[dict],
         # Debug: log per-sector signal counts
         if logger and sector_mapping and (sector_buys or sector_sells):
             logger.log(
-                EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=1,
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.DEBUG,
+                phase=1,
                 message=(
                     f"Day {day.get('date', '?')}: sector signals = "
                     f"{sum(sector_buys.values())} buys, "
@@ -326,9 +348,9 @@ def _calculate_daily_ratios(daily_data: list[dict],
     return daily_ratios
 
 
-def _calculate_sector_bmi(daily_data: list[dict],
-                          config: Config,
-                          logger: EventLogger | None = None) -> dict[str, float]:
+def _calculate_sector_bmi(
+    daily_data: list[dict], config: Config, logger: EventLogger | None = None
+) -> dict[str, float]:
     """Calculate per-sector BMI from daily sector buy/sell data.
 
     Same algorithm as market BMI: SMA25 of daily sector ratios.
@@ -361,7 +383,9 @@ def _calculate_sector_bmi(daily_data: list[dict],
     if logger:
         ratio_counts = {etf: len(r) for etf, r in sector_ratios.items()}
         logger.log(
-            EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=1,
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.DEBUG,
+            phase=1,
             message=(
                 f"Sector BMI: ratio day counts={ratio_counts}, "
                 f"sma_period={sma_period}, min_signals={min_signals}"
@@ -377,7 +401,9 @@ def _calculate_sector_bmi(daily_data: list[dict],
 
     if logger:
         logger.log(
-            EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=1,
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.INFO,
+            phase=1,
             message=f"Sector BMI results: {result}",
         )
 
@@ -397,9 +423,9 @@ def _classify_bmi(bmi_value: float, config: Config) -> BMIRegime:
         return BMIRegime.YELLOW
 
 
-def _detect_divergence(daily_data: list[dict],
-                       daily_ratios: list[float],
-                       config: Config) -> str | None:
+def _detect_divergence(
+    daily_data: list[dict], daily_ratios: list[float], config: Config
+) -> str | None:
     """Detect BMI divergence with SPY.
 
     Bearish divergence: SPY up >1% in 5d but BMI down >2 points.
@@ -435,13 +461,16 @@ def _find_spy_close(day_data: dict) -> float | None:
     return None
 
 
-def _log_result(logger: EventLogger, result: Phase1Result,
-                start_time: float, fallback: bool = False) -> None:
+def _log_result(
+    logger: EventLogger, result: Phase1Result, start_time: float, fallback: bool = False
+) -> None:
     """Log Phase 1 result."""
     bmi = result.bmi
 
     logger.log(
-        EventType.REGIME_DECISION, Severity.INFO, phase=1,
+        EventType.REGIME_DECISION,
+        Severity.INFO,
+        phase=1,
         message=(
             f"BMI={bmi.bmi_value:.1f}% ({bmi.bmi_regime.value}) → "
             f"strategy={result.strategy_mode.value}"
@@ -466,8 +495,9 @@ def _log_result(logger: EventLogger, result: Phase1Result,
     logger.phase_complete(1, "Market Regime (BMI)", duration_ms=duration_ms)
 
 
-async def _run_phase1_async(config: Config, logger: EventLogger,
-                             sector_mapping: dict[str, str] | None = None) -> Phase1Result:
+async def _run_phase1_async(
+    config: Config, logger: EventLogger, sector_mapping: dict[str, str] | None = None
+) -> Phase1Result:
     """Async Phase 1: fetch grouped daily bars concurrently with semaphore rate limiting.
 
     Same computation as the sync path — only the data fetching is parallelised.
@@ -495,20 +525,25 @@ async def _run_phase1_async(config: Config, logger: EventLogger,
         else:
             lookback = 75
 
-        daily_bars = await _fetch_daily_history_async(polygon, lookback_calendar_days=lookback, logger=logger)
+        daily_bars = await _fetch_daily_history_async(
+            polygon, lookback_calendar_days=lookback, logger=logger
+        )
 
         if not daily_bars or len(daily_bars) < 25:
-            logger.phase_error(1, "Market Regime (BMI)",
-                               f"Insufficient data: got {len(daily_bars) if daily_bars else 0} days, need 25+")
+            logger.phase_error(
+                1,
+                "Market Regime (BMI)",
+                f"Insufficient data: got {len(daily_bars) if daily_bars else 0} days, need 25+",
+            )
             bmi = BMIData(bmi_value=50.0, bmi_regime=BMIRegime.YELLOW, daily_ratio=50.0)
             result = Phase1Result(bmi=bmi, strategy_mode=StrategyMode.LONG)
             _log_result(logger, result, start_time, fallback=True)
             return result
 
         # Pure computation — identical to sync path
-        daily_ratios = _calculate_daily_ratios(daily_bars, config,
-                                                sector_mapping=sector_mapping,
-                                                logger=logger)
+        daily_ratios = _calculate_daily_ratios(
+            daily_bars, config, sector_mapping=sector_mapping, logger=logger
+        )
 
         sma_period = config.core["bmi_sma_period"]
         if len(daily_ratios) >= sma_period:
@@ -538,8 +573,12 @@ async def _run_phase1_async(config: Config, logger: EventLogger,
 
         sector_bmi_values: dict[str, float] = {}
         if sector_mapping:
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=1,
-                       message=f"Sector mapping: {len(sector_mapping)} tickers mapped")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.DEBUG,
+                phase=1,
+                message=f"Sector mapping: {len(sector_mapping)} tickers mapped",
+            )
             sector_bmi_values = _calculate_sector_bmi(daily_bars, config, logger=logger)
 
         ticker_count = daily_bars[-1].get("_ticker_count", 0) if daily_bars else 0

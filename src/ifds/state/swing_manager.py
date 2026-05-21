@@ -24,22 +24,24 @@ from ifds.state.position_tracker import OpenPosition, PositionTracker
 
 class SwingAction(Enum):
     """Actions returned by the swing manager for IBKR execution."""
-    MOC_EXIT = "moc_exit"               # Full position MOC close
-    ACTIVATE_TRAIL = "activate_trail"   # Place IBKR TRAIL order
-    MODIFY_SL = "modify_sl"            # Modify SL order to new price
-    UPDATE_TRAIL = "update_trail"       # Update trail stop price
+
+    MOC_EXIT = "moc_exit"  # Full position MOC close
+    ACTIVATE_TRAIL = "activate_trail"  # Place IBKR TRAIL order
+    MODIFY_SL = "modify_sl"  # Modify SL order to new price
+    UPDATE_TRAIL = "update_trail"  # Update trail stop price
     NO_ACTION = "no_action"
 
 
 @dataclass(frozen=True)
 class SwingDecision:
     """A single management decision for one position."""
+
     ticker: str
     action: SwingAction
     reason: str
     qty: int = 0
-    price: float = 0.0                  # New SL or trail stop price
-    trail_amount: float = 0.0           # For TRAIL orders: trailing amount $
+    price: float = 0.0  # New SL or trail stop price
+    trail_amount: float = 0.0  # For TRAIL orders: trailing amount $
     details: dict = field(default_factory=dict)
 
 
@@ -58,6 +60,7 @@ _DEFAULTS: dict[str, Any] = {
 # ------------------------------------------------------------------
 # Main entry point
 # ------------------------------------------------------------------
+
 
 def run_swing_management(
     tracker: PositionTracker,
@@ -107,39 +110,45 @@ def run_swing_management(
                 earn_date = date.fromisoformat(earn_str)
                 days_until = (earn_date - today).days
                 if 0 <= days_until <= cfg["earnings_exit_days"]:
-                    decisions.append(SwingDecision(
-                        ticker=pos.ticker,
-                        action=SwingAction.MOC_EXIT,
-                        reason="earnings_risk",
-                        qty=pos.remaining_qty,
-                        details={"earnings_date": earn_str, "days_until": days_until},
-                    ))
+                    decisions.append(
+                        SwingDecision(
+                            ticker=pos.ticker,
+                            action=SwingAction.MOC_EXIT,
+                            reason="earnings_risk",
+                            qty=pos.remaining_qty,
+                            details={"earnings_date": earn_str, "days_until": days_until},
+                        )
+                    )
                     continue
             except ValueError:
                 pass
 
         # 3. Max hold → MOC exit
         if pos.hold_days >= cfg["max_hold_trading_days"]:
-            decisions.append(SwingDecision(
-                ticker=pos.ticker,
-                action=SwingAction.MOC_EXIT,
-                reason="max_hold",
-                qty=pos.remaining_qty,
-                details={"hold_days": pos.hold_days, "max": cfg["max_hold_trading_days"]},
-            ))
+            decisions.append(
+                SwingDecision(
+                    ticker=pos.ticker,
+                    action=SwingAction.MOC_EXIT,
+                    reason="max_hold",
+                    qty=pos.remaining_qty,
+                    details={"hold_days": pos.hold_days, "max": cfg["max_hold_trading_days"]},
+                )
+            )
             continue
 
         # 4. Breakeven check
         if not pos.breakeven_triggered and not pos.tp1_triggered:
             be_threshold = pos.entry_price + pos.atr_at_entry * cfg["breakeven_threshold_atr"]
             if price >= be_threshold:
-                decisions.append(SwingDecision(
-                    ticker=pos.ticker,
-                    action=SwingAction.MODIFY_SL,
-                    reason="breakeven",
-                    qty=pos.remaining_qty,
-                    price=pos.entry_price,
-                ))
+                decisions.append(
+                    SwingDecision(
+                        ticker=pos.ticker,
+                        action=SwingAction.MODIFY_SL,
+                        reason="breakeven",
+                        qty=pos.remaining_qty,
+                        price=pos.entry_price,
+                    )
+                )
                 tracker.update_position(
                     pos.ticker,
                     breakeven_triggered=True,
@@ -150,14 +159,16 @@ def run_swing_management(
         if pos.tp1_triggered and pos.trail_amount_usd == 0:
             trail_amount = pos.atr_at_entry * cfg["trailing_stop_atr"]
             trail_stop = round(price - trail_amount, 2)
-            decisions.append(SwingDecision(
-                ticker=pos.ticker,
-                action=SwingAction.ACTIVATE_TRAIL,
-                reason="tp1_trail_activation",
-                qty=pos.remaining_qty,
-                trail_amount=round(trail_amount, 2),
-                price=trail_stop,
-            ))
+            decisions.append(
+                SwingDecision(
+                    ticker=pos.ticker,
+                    action=SwingAction.ACTIVATE_TRAIL,
+                    reason="tp1_trail_activation",
+                    qty=pos.remaining_qty,
+                    trail_amount=round(trail_amount, 2),
+                    price=trail_stop,
+                )
+            )
             tracker.update_position(
                 pos.ticker,
                 trail_amount_usd=round(trail_amount, 2),
@@ -168,14 +179,16 @@ def run_swing_management(
         if pos.trail_amount_usd > 0 and pos.current_trail_stop > 0:
             new_trail = round(price - pos.trail_amount_usd, 2)
             if new_trail > pos.current_trail_stop:
-                decisions.append(SwingDecision(
-                    ticker=pos.ticker,
-                    action=SwingAction.UPDATE_TRAIL,
-                    reason="trail_tighten",
-                    qty=pos.remaining_qty,
-                    price=new_trail,
-                    details={"prev_trail": pos.current_trail_stop},
-                ))
+                decisions.append(
+                    SwingDecision(
+                        ticker=pos.ticker,
+                        action=SwingAction.UPDATE_TRAIL,
+                        reason="trail_tighten",
+                        qty=pos.remaining_qty,
+                        price=new_trail,
+                        details={"prev_trail": pos.current_trail_stop},
+                    )
+                )
                 tracker.update_position(pos.ticker, current_trail_stop=new_trail)
 
     return decisions

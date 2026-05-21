@@ -36,8 +36,7 @@ class MMSStore:
         except (json.JSONDecodeError, OSError):
             return []
 
-    def append_and_save(self, ticker: str, entry: dict,
-                        existing: list[dict] | None = None) -> None:
+    def append_and_save(self, ticker: str, entry: dict, existing: list[dict] | None = None) -> None:
         """Append today's entry and save. Trims to max_entries."""
         entries = existing if existing is not None else self.load(ticker)
 
@@ -49,7 +48,7 @@ class MMSStore:
 
         # Trim oldest if over limit
         if len(entries) > self._max_entries:
-            entries = entries[-self._max_entries:]
+            entries = entries[-self._max_entries :]
 
         self._atomic_write(ticker, entries)
 

@@ -99,8 +99,7 @@ class Config:
                     self.runtime[key] = type_fn(value)
                 except (ValueError, TypeError):
                     raise ConfigValidationError(
-                        f"Invalid value for {env_key}: '{value}' "
-                        f"(expected {type_fn.__name__})"
+                        f"Invalid value for {env_key}: '{value}' " f"(expected {type_fn.__name__})"
                     )
             else:
                 self.runtime[target] = value

@@ -1,4 +1,5 @@
 """Phase 6 — M_contradiction multiplier tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -35,19 +36,26 @@ def config(monkeypatch):
 @pytest.fixture
 def macro():
     return MacroRegime(
-        vix_value=18.0, vix_regime=MarketVolatilityRegime.NORMAL,
-        vix_multiplier=1.0, tnx_value=4.2, tnx_sma20=4.1,
+        vix_value=18.0,
+        vix_regime=MarketVolatilityRegime.NORMAL,
+        vix_multiplier=1.0,
+        tnx_value=4.2,
+        tnx_sma20=4.1,
         tnx_rate_sensitive=False,
     )
 
 
-def _stock(*, contradiction_flag: bool = False,
-           reasons: tuple[str, ...] = ()) -> StockAnalysis:
+def _stock(*, contradiction_flag: bool = False, reasons: tuple[str, ...] = ()) -> StockAnalysis:
     return StockAnalysis(
-        ticker="T", sector="Technology",
+        ticker="T",
+        sector="Technology",
         technical=TechnicalAnalysis(
-            price=100.0, sma_200=90.0, sma_20=98.0,
-            rsi_14=55.0, atr_14=2.0, trend_pass=True,
+            price=100.0,
+            sma_200=90.0,
+            sma_20=98.0,
+            rsi_14=55.0,
+            atr_14=2.0,
+            trend_pass=True,
         ),
         flow=FlowAnalysis(),
         fundamental=FundamentalScoring(funda_score=15),
@@ -59,9 +67,14 @@ def _stock(*, contradiction_flag: bool = False,
 
 def _gex() -> GEXAnalysis:
     return GEXAnalysis(
-        ticker="T", net_gex=500.0, call_wall=0.0, put_wall=0.0,
-        zero_gamma=90.0, current_price=100.0,
-        gex_regime=GEXRegime.POSITIVE, gex_multiplier=1.0,
+        ticker="T",
+        net_gex=500.0,
+        call_wall=0.0,
+        put_wall=0.0,
+        zero_gamma=90.0,
+        current_price=100.0,
+        gex_regime=GEXRegime.POSITIVE,
+        gex_multiplier=1.0,
     )
 
 
@@ -102,8 +115,11 @@ class TestMContradiction:
         config.tuning["m_contradiction_enabled"] = True
         # m_vix=0.9 (slight VIX penalty), m_gex=1.0, m_target=1.0, m_contradiction=0.80
         macro_v = MacroRegime(
-            vix_value=22.0, vix_regime=MarketVolatilityRegime.NORMAL,
-            vix_multiplier=0.9, tnx_value=4.2, tnx_sma20=4.1,
+            vix_value=22.0,
+            vix_regime=MarketVolatilityRegime.NORMAL,
+            vix_multiplier=0.9,
+            tnx_value=4.2,
+            tnx_sma20=4.1,
             tnx_rate_sensitive=False,
         )
         stock = _stock(contradiction_flag=True)

@@ -55,13 +55,16 @@ SECTOR_ETFS = {
 }
 
 
-def run_phase3(config: Config, logger: EventLogger,
-               polygon: PolygonClient,
-               strategy_mode: StrategyMode,
-               macro: MacroRegime | None = None,
-               sector_bmi_values: dict[str, float] | None = None,
-               grouped_daily_bars: list[dict] | None = None,
-               fmp=None) -> Phase3Result:
+def run_phase3(
+    config: Config,
+    logger: EventLogger,
+    polygon: PolygonClient,
+    strategy_mode: StrategyMode,
+    macro: MacroRegime | None = None,
+    sector_bmi_values: dict[str, float] | None = None,
+    grouped_daily_bars: list[dict] | None = None,
+    fmp=None,
+) -> Phase3Result:
     """Execute Phase 3: Sector Rotation analysis.
 
     Args:
@@ -127,7 +130,9 @@ def run_phase3(config: Config, logger: EventLogger,
 
         # Log summary
         logger.log(
-            EventType.PHASE_COMPLETE, Severity.INFO, phase=3,
+            EventType.PHASE_COMPLETE,
+            Severity.INFO,
+            phase=3,
             message=(
                 f"Sectors: {len(active)} active, {len(vetoed)} vetoed"
                 f"{', rate_sensitive' if rate_sensitive else ''}"
@@ -136,10 +141,12 @@ def run_phase3(config: Config, logger: EventLogger,
                 "active_count": len(active),
                 "vetoed_count": len(vetoed),
                 "vetoed_sectors": vetoed,
-                "leaders": [s.etf for s in scores
-                            if s.classification == MomentumClassification.LEADER],
-                "laggards": [s.etf for s in scores
-                             if s.classification == MomentumClassification.LAGGARD],
+                "leaders": [
+                    s.etf for s in scores if s.classification == MomentumClassification.LEADER
+                ],
+                "laggards": [
+                    s.etf for s in scores if s.classification == MomentumClassification.LAGGARD
+                ],
                 "rate_sensitive_penalty": rate_sensitive,
             },
         )
@@ -154,10 +161,12 @@ def run_phase3(config: Config, logger: EventLogger,
         raise
 
 
-def _fetch_sector_data(polygon: PolygonClient,
-                       momentum_period: int,
-                       sma_period: int,
-                       etf_override: dict[str, str] | None = None) -> dict[str, dict]:
+def _fetch_sector_data(
+    polygon: PolygonClient,
+    momentum_period: int,
+    sma_period: int,
+    etf_override: dict[str, str] | None = None,
+) -> dict[str, dict]:
     """Fetch OHLCV data for sector ETFs (or custom ETF list).
 
     Args:
@@ -201,9 +210,9 @@ def _fetch_sector_data(polygon: PolygonClient,
     return sector_data
 
 
-def _calculate_sector_scores(sector_data: dict[str, dict],
-                             config: Config,
-                             name_override: dict[str, str] | None = None) -> list[SectorScore]:
+def _calculate_sector_scores(
+    sector_data: dict[str, dict], config: Config, name_override: dict[str, str] | None = None
+) -> list[SectorScore]:
     """Calculate momentum and trend for each sector.
 
     Args:
@@ -288,8 +297,7 @@ def _apply_sector_bmi(scores: list[SectorScore], config: Config) -> None:
                 score.sector_bmi_regime = SectorBMIRegime.NEUTRAL
 
 
-def _apply_veto_matrix(scores: list[SectorScore], config: Config,
-                       logger: EventLogger) -> None:
+def _apply_veto_matrix(scores: list[SectorScore], config: Config, logger: EventLogger) -> None:
     """Apply the LONG strategy veto matrix.
 
     Rules:
@@ -329,7 +337,9 @@ def _apply_veto_matrix(scores: list[SectorScore], config: Config,
 
         if score.vetoed:
             logger.log(
-                EventType.SECTOR_VETO, Severity.INFO, phase=3,
+                EventType.SECTOR_VETO,
+                Severity.INFO,
+                phase=3,
                 message=f"Sector VETO: {score.etf} ({score.sector_name}) — {score.veto_reason}",
                 data={
                     "etf": score.etf,
@@ -340,8 +350,7 @@ def _apply_veto_matrix(scores: list[SectorScore], config: Config,
             )
 
 
-def _apply_rate_sensitivity(scores: list[SectorScore], config: Config,
-                            logger: EventLogger) -> None:
+def _apply_rate_sensitivity(scores: list[SectorScore], config: Config, logger: EventLogger) -> None:
     """Apply TNX rate sensitivity penalty to sensitive sectors.
 
     When TNX > SMA20 * 1.05, Technology and Real Estate get additional penalty.
@@ -352,7 +361,9 @@ def _apply_rate_sensitivity(scores: list[SectorScore], config: Config,
         if score.sector_name in sensitive_sectors and not score.vetoed:
             score.score_adjustment -= 10  # Rate sensitivity penalty
             logger.log(
-                EventType.SECTOR_VETO, Severity.INFO, phase=3,
+                EventType.SECTOR_VETO,
+                Severity.INFO,
+                phase=3,
                 message=f"Rate sensitivity: {score.etf} ({score.sector_name}) -10 penalty",
                 data={
                     "etf": score.etf,
@@ -367,6 +378,7 @@ def _apply_rate_sensitivity(scores: list[SectorScore], config: Config,
 # BC14: Sector Breadth Analysis
 # ---------------------------------------------------------------------------
 
+
 def _compute_sma(prices: list[float], period: int) -> float | None:
     """Simple moving average of last `period` values. None if insufficient."""
     if len(prices) < period:
@@ -374,8 +386,9 @@ def _compute_sma(prices: list[float], period: int) -> float | None:
     return sum(prices[-period:]) / period
 
 
-def _build_ticker_close_history(grouped_daily_bars: list[dict],
-                                tickers: set[str]) -> dict[str, list[float]]:
+def _build_ticker_close_history(
+    grouped_daily_bars: list[dict], tickers: set[str]
+) -> dict[str, list[float]]:
     """Extract per-ticker closing price time series from grouped daily bars.
 
     Returns {ticker: [chronological_closes]} for tickers with ≥20 data points.
@@ -412,9 +425,9 @@ def _build_ticker_close_history(grouped_daily_bars: list[dict],
     return result
 
 
-def _calculate_breadth(etf: str, holdings: list[str],
-                       ticker_histories: dict[str, list[float]],
-                       config: Config) -> SectorBreadth:
+def _calculate_breadth(
+    etf: str, holdings: list[str], ticker_histories: dict[str, list[float]], config: Config
+) -> SectorBreadth:
     """Calculate % above SMA20/50/200 for sector constituents."""
     periods = config.core.get("breadth_sma_periods", [20, 50, 200])
     weights = config.core.get("breadth_composite_weights", (0.20, 0.50, 0.30))
@@ -457,10 +470,9 @@ def _calculate_breadth(etf: str, holdings: list[str],
     )
 
 
-def _compute_pct_above_sma_n_days_ago(holdings: list[str],
-                                       ticker_histories: dict[str, list[float]],
-                                       period: int,
-                                       days_ago: int) -> float | None:
+def _compute_pct_above_sma_n_days_ago(
+    holdings: list[str], ticker_histories: dict[str, list[float]], period: int, days_ago: int
+) -> float | None:
     """Recompute pct_above_sma for `days_ago` by slicing histories."""
     above = 0
     counted = 0
@@ -478,8 +490,7 @@ def _compute_pct_above_sma_n_days_ago(holdings: list[str],
     return above / counted * 100
 
 
-def _classify_breadth_regime(breadth: SectorBreadth,
-                             pct_sma50_5d_ago: float | None) -> None:
+def _classify_breadth_regime(breadth: SectorBreadth, pct_sma50_5d_ago: float | None) -> None:
     """Classify breadth regime using SMA50 and SMA200 dimensions."""
     b50 = breadth.pct_above_sma50
     b200 = breadth.pct_above_sma200
@@ -508,9 +519,9 @@ def _classify_breadth_regime(breadth: SectorBreadth,
         breadth.breadth_momentum = round(b50 - pct_sma50_5d_ago, 1)
 
 
-def _detect_breadth_divergence(etf_momentum_5d: float,
-                                breadth_momentum: float,
-                                config: Config) -> tuple[bool, str | None]:
+def _detect_breadth_divergence(
+    etf_momentum_5d: float, breadth_momentum: float, config: Config
+) -> tuple[bool, str | None]:
     """Detect price-breadth divergence.
 
     Bearish: ETF up >2% AND breadth momentum SMA50 < -5 points
@@ -526,8 +537,7 @@ def _detect_breadth_divergence(etf_momentum_5d: float,
     return False, None
 
 
-def _apply_breadth_score_adjustment(breadth: SectorBreadth,
-                                     config: Config) -> None:
+def _apply_breadth_score_adjustment(breadth: SectorBreadth, config: Config) -> None:
     """Set score_adjustment based on breadth_score and divergence."""
     strong_threshold = config.tuning.get("breadth_strong_threshold", 70)
     weak_threshold = config.tuning.get("breadth_weak_threshold", 50)
@@ -554,10 +564,13 @@ def _apply_breadth_score_adjustment(breadth: SectorBreadth,
     breadth.score_adjustment = adj
 
 
-def _calculate_sector_breadth(scores: list[SectorScore],
-                               grouped_daily_bars: list[dict],
-                               fmp, config: Config,
-                               logger: EventLogger) -> None:
+def _calculate_sector_breadth(
+    scores: list[SectorScore],
+    grouped_daily_bars: list[dict],
+    fmp,
+    config: Config,
+    logger: EventLogger,
+) -> None:
     """Orchestrate breadth calculation for all sectors.
 
     1. Fetch ETF holdings (12 FMP calls, cached)
@@ -574,16 +587,22 @@ def _calculate_sector_breadth(scores: list[SectorScore],
         holdings_data = fmp.get_etf_holdings(score.etf)
         if not holdings_data:
             logger.log(
-                EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=3,
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.WARNING,
+                phase=3,
                 message=f"[BREADTH] {score.etf}: no holdings data",
             )
             continue
-        tickers = [h.get("asset", h.get("symbol", ""))
-                   for h in holdings_data
-                   if h.get("asset", h.get("symbol", ""))]
+        tickers = [
+            h.get("asset", h.get("symbol", ""))
+            for h in holdings_data
+            if h.get("asset", h.get("symbol", ""))
+        ]
         if len(tickers) < min_constituents:
             logger.log(
-                EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=3,
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.WARNING,
+                phase=3,
                 message=f"[BREADTH] {score.etf}: only {len(tickers)} holdings < {min_constituents}",
             )
             continue
@@ -592,7 +611,9 @@ def _calculate_sector_breadth(scores: list[SectorScore],
 
     if not all_tickers:
         logger.log(
-            EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=3,
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.WARNING,
+            phase=3,
             message="[BREADTH] No valid holdings found for any sector",
         )
         return
@@ -601,9 +622,11 @@ def _calculate_sector_breadth(scores: list[SectorScore],
     ticker_histories = _build_ticker_close_history(grouped_daily_bars, all_tickers)
 
     logger.log(
-        EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=3,
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.DEBUG,
+        phase=3,
         message=f"[BREADTH] {len(all_tickers)} unique tickers, "
-                f"{len(ticker_histories)} with sufficient history",
+        f"{len(ticker_histories)} with sufficient history",
     )
 
     for score in scores:
@@ -616,7 +639,10 @@ def _calculate_sector_breadth(scores: list[SectorScore],
 
         # SMA50 pct 5 days ago (for momentum and divergence)
         pct_sma50_5d_ago = _compute_pct_above_sma_n_days_ago(
-            holdings, ticker_histories, period=50, days_ago=5,
+            holdings,
+            ticker_histories,
+            period=50,
+            days_ago=5,
         )
 
         # Classify regime
@@ -625,7 +651,9 @@ def _calculate_sector_breadth(scores: list[SectorScore],
         # Detect divergence (using ETF's 5d momentum from sector data)
         if breadth.breadth_momentum != 0.0:
             detected, div_type = _detect_breadth_divergence(
-                score.momentum_5d, breadth.breadth_momentum, config,
+                score.momentum_5d,
+                breadth.breadth_momentum,
+                config,
             )
             breadth.divergence_detected = detected
             breadth.divergence_type = div_type
@@ -639,7 +667,9 @@ def _calculate_sector_breadth(scores: list[SectorScore],
         score.score_adjustment += breadth.score_adjustment
 
         logger.log(
-            EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=3,
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.DEBUG,
+            phase=3,
             message=(
                 f"[BREADTH] {score.etf}: score={breadth.breadth_score:.0f} "
                 f"regime={breadth.breadth_regime.value} "

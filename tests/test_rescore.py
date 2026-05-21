@@ -34,10 +34,10 @@ from ifds.sim.rescore import (
     rescore_snapshot,
 )
 
-
 # ============================================================================
 # Helpers
 # ============================================================================
+
 
 def _make_stock(
     ticker: str = "AAPL",
@@ -135,6 +135,7 @@ def _make_snapshot_record(**overrides) -> dict:
 # Round-trip: StockAnalysis → dict → StockAnalysis
 # ============================================================================
 
+
 class TestSnapshotRoundTrip:
 
     def test_round_trip_preserves_fields(self):
@@ -191,11 +192,18 @@ class TestSnapshotRoundTrip:
 # Combined score re-calculation
 # ============================================================================
 
+
 class TestRescoreCombinedScore:
 
     def test_default_weights(self):
-        stock = _make_stock(rvol_score=10, funda_score=15, rsi_score=30,
-                            sma50_bonus=30, rs_spy_score=40, sector_adjustment=0)
+        stock = _make_stock(
+            rvol_score=10,
+            funda_score=15,
+            rsi_score=30,
+            sma50_bonus=30,
+            rs_spy_score=40,
+            sector_adjustment=0,
+        )
         cfg = _build_config({})
 
         score = _rescore_combined_score(stock, cfg)
@@ -207,13 +215,16 @@ class TestRescoreCombinedScore:
         assert score == 73.5
 
     def test_custom_weights(self):
-        stock = _make_stock(rvol_score=10, funda_score=15, rsi_score=30,
-                            sma50_bonus=30, rs_spy_score=40)
-        cfg = _build_config({
-            "weight_flow": 0.50,
-            "weight_fundamental": 0.25,
-            "weight_technical": 0.25,
-        })
+        stock = _make_stock(
+            rvol_score=10, funda_score=15, rsi_score=30, sma50_bonus=30, rs_spy_score=40
+        )
+        cfg = _build_config(
+            {
+                "weight_flow": 0.50,
+                "weight_fundamental": 0.25,
+                "weight_technical": 0.25,
+            }
+        )
 
         score = _rescore_combined_score(stock, cfg)
         # flow=60, funda=65, tech=100
@@ -245,6 +256,7 @@ class TestRescoreCombinedScore:
 # EWMA
 # ============================================================================
 
+
 class TestEWMA:
 
     def test_first_day_returns_current(self):
@@ -266,6 +278,7 @@ class TestEWMA:
 # ============================================================================
 # Sizing multipliers
 # ============================================================================
+
 
 class TestMTarget:
 
@@ -314,6 +327,7 @@ class TestMVix:
 # Sizing
 # ============================================================================
 
+
 class TestCalculateSizing:
 
     def test_basic_sizing(self):
@@ -348,6 +362,7 @@ class TestCalculateSizing:
 # rescore_snapshot — end-to-end
 # ============================================================================
 
+
 class TestRescoreSnapshot:
 
     def test_basic_rescore(self):
@@ -361,10 +376,22 @@ class TestRescoreSnapshot:
 
     def test_sorted_by_score_descending(self):
         records = [
-            _make_snapshot_record(ticker="LOW", rvol_score=-5, funda_score=5,
-                                  rsi_score=10, sma50_bonus=0, rs_spy_score=0),
-            _make_snapshot_record(ticker="HIGH", rvol_score=20, funda_score=15,
-                                  rsi_score=30, sma50_bonus=30, rs_spy_score=40),
+            _make_snapshot_record(
+                ticker="LOW",
+                rvol_score=-5,
+                funda_score=5,
+                rsi_score=10,
+                sma50_bonus=0,
+                rs_spy_score=0,
+            ),
+            _make_snapshot_record(
+                ticker="HIGH",
+                rvol_score=20,
+                funda_score=15,
+                rsi_score=30,
+                sma50_bonus=30,
+                rs_spy_score=40,
+            ),
         ]
         positions = rescore_snapshot(records)
         if len(positions) >= 2:
@@ -376,7 +403,8 @@ class TestRescoreSnapshot:
         pos_no_ewma = rescore_snapshot(records, {"ewma_enabled": False})
         ewma_state = {"AAPL": 60.0}  # Deliberately low previous
         pos_with_ewma = rescore_snapshot(
-            records, {"ewma_enabled": True, "ewma_span": 10},
+            records,
+            {"ewma_enabled": True, "ewma_span": 10},
             ewma_state=ewma_state,
         )
 
@@ -393,10 +421,16 @@ class TestRescoreSnapshot:
         assert rescore_snapshot([]) == []
 
     def test_below_min_score_filtered(self):
-        records = [_make_snapshot_record(
-            ticker="WEAK", rvol_score=-20, funda_score=-10,
-            rsi_score=0, sma50_bonus=0, rs_spy_score=0,
-        )]
+        records = [
+            _make_snapshot_record(
+                ticker="WEAK",
+                rvol_score=-20,
+                funda_score=-10,
+                rsi_score=0,
+                sma50_bonus=0,
+                rs_spy_score=0,
+            )
+        ]
         positions = rescore_snapshot(records)
         # Score too low → no positions
         assert len(positions) == 0
@@ -404,19 +438,31 @@ class TestRescoreSnapshot:
     def test_config_override_weight_changes_ranking(self):
         """Different weights can change which ticker gets selected."""
         high_flow = _make_snapshot_record(
-            ticker="FLOW", rvol_score=30, funda_score=0,
-            rsi_score=15, sma50_bonus=15, rs_spy_score=20,
+            ticker="FLOW",
+            rvol_score=30,
+            funda_score=0,
+            rsi_score=15,
+            sma50_bonus=15,
+            rs_spy_score=20,
         )
         high_funda = _make_snapshot_record(
-            ticker="FUNDA", rvol_score=0, funda_score=25,
-            rsi_score=15, sma50_bonus=15, rs_spy_score=20,
+            ticker="FUNDA",
+            rvol_score=0,
+            funda_score=25,
+            rsi_score=15,
+            sma50_bonus=15,
+            rs_spy_score=20,
         )
         records = [high_flow, high_funda]
 
         # Flow-heavy weighting
-        pos_flow = rescore_snapshot(records, {"weight_flow": 0.60, "weight_fundamental": 0.20, "weight_technical": 0.20})
+        pos_flow = rescore_snapshot(
+            records, {"weight_flow": 0.60, "weight_fundamental": 0.20, "weight_technical": 0.20}
+        )
         # Funda-heavy weighting
-        pos_funda = rescore_snapshot(records, {"weight_flow": 0.20, "weight_fundamental": 0.60, "weight_technical": 0.20})
+        pos_funda = rescore_snapshot(
+            records, {"weight_flow": 0.20, "weight_fundamental": 0.60, "weight_technical": 0.20}
+        )
 
         if pos_flow and pos_funda:
             assert pos_flow[0].ticker == "FLOW"
@@ -426,6 +472,7 @@ class TestRescoreSnapshot:
 # ============================================================================
 # Freshness modes (BC20B)
 # ============================================================================
+
 
 class TestFreshnessMode:
 
@@ -443,7 +490,12 @@ class TestFreshnessMode:
         records = [_make_snapshot_record(ticker="AAPL")]
         history = [{"date": "2026-03-25", "ticker": "AAPL"}]
 
-        pos_fresh = rescore_snapshot(records, {"freshness_mode": "linear"}, signal_history=history, snapshot_date="2026-04-01")
+        pos_fresh = rescore_snapshot(
+            records,
+            {"freshness_mode": "linear"},
+            signal_history=history,
+            snapshot_date="2026-04-01",
+        )
         pos_no_fresh = rescore_snapshot(records, {"freshness_mode": "none"})
 
         # AAPL in history → no bonus → same as no freshness
@@ -455,7 +507,9 @@ class TestFreshnessMode:
         records = [_make_snapshot_record(ticker="NEW")]
         history = [{"date": "2026-03-25", "ticker": "OTHER"}]
 
-        pos_wow = rescore_snapshot(records, {"freshness_mode": "wow"}, signal_history=history, snapshot_date="2026-04-01")
+        pos_wow = rescore_snapshot(
+            records, {"freshness_mode": "wow"}, signal_history=history, snapshot_date="2026-04-01"
+        )
         pos_none = rescore_snapshot(records, {"freshness_mode": "none"})
 
         if pos_wow and pos_none:
@@ -467,7 +521,9 @@ class TestFreshnessMode:
         records = [_make_snapshot_record(ticker="STALE")]
         history = [{"date": "2026-02-15", "ticker": "STALE"}]  # 45 days before ref
 
-        pos_wow = rescore_snapshot(records, {"freshness_mode": "wow"}, signal_history=history, snapshot_date="2026-04-01")
+        pos_wow = rescore_snapshot(
+            records, {"freshness_mode": "wow"}, signal_history=history, snapshot_date="2026-04-01"
+        )
         pos_none = rescore_snapshot(records, {"freshness_mode": "none"})
 
         if pos_wow and pos_none:

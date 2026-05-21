@@ -40,8 +40,12 @@ def _make_stock(ticker, price=150.0, combined_score=75.0):
         ticker=ticker,
         sector="Technology",
         technical=TechnicalAnalysis(
-            price=price, sma_200=140.0, sma_20=148.0,
-            rsi_14=55.0, atr_14=2.5, trend_pass=True,
+            price=price,
+            sma_200=140.0,
+            sma_20=148.0,
+            rsi_14=55.0,
+            atr_14=2.5,
+            trend_pass=True,
         ),
         flow=FlowAnalysis(),
         fundamental=FundamentalScoring(),
@@ -53,47 +57,36 @@ def _make_stock(ticker, price=150.0, combined_score=75.0):
 # GEX Regime Classification Tests
 # ============================================================================
 
+
 class TestGEXClassification:
     def test_positive_regime(self):
         # Price > ZeroGamma AND NetGEX > 0
-        regime = _classify_gex_regime(
-            current_price=160.0, zero_gamma=150.0, net_gex=1000.0
-        )
+        regime = _classify_gex_regime(current_price=160.0, zero_gamma=150.0, net_gex=1000.0)
         assert regime == GEXRegime.POSITIVE
 
     def test_negative_regime(self):
         # Price < ZeroGamma
-        regime = _classify_gex_regime(
-            current_price=140.0, zero_gamma=150.0, net_gex=-500.0
-        )
+        regime = _classify_gex_regime(current_price=140.0, zero_gamma=150.0, net_gex=-500.0)
         assert regime == GEXRegime.NEGATIVE
 
     def test_high_vol_transition_zone(self):
         # Within 2% of ZeroGamma
-        regime = _classify_gex_regime(
-            current_price=151.0, zero_gamma=150.0, net_gex=1000.0
-        )
+        regime = _classify_gex_regime(current_price=151.0, zero_gamma=150.0, net_gex=1000.0)
         # 1/150 * 100 = 0.67% → within 2%
         assert regime == GEXRegime.HIGH_VOL
 
     def test_high_vol_price_above_but_negative_gex(self):
         # Price > ZeroGamma but NetGEX <= 0 → HIGH_VOL
-        regime = _classify_gex_regime(
-            current_price=200.0, zero_gamma=150.0, net_gex=-100.0
-        )
+        regime = _classify_gex_regime(current_price=200.0, zero_gamma=150.0, net_gex=-100.0)
         assert regime == GEXRegime.HIGH_VOL
 
     def test_zero_gamma_zero_defaults_positive(self):
         # No zero gamma data → POSITIVE (assume benign)
-        regime = _classify_gex_regime(
-            current_price=150.0, zero_gamma=0.0, net_gex=0.0
-        )
+        regime = _classify_gex_regime(current_price=150.0, zero_gamma=0.0, net_gex=0.0)
         assert regime == GEXRegime.POSITIVE
 
     def test_negative_zero_gamma_defaults_positive(self):
-        regime = _classify_gex_regime(
-            current_price=150.0, zero_gamma=-10.0, net_gex=0.0
-        )
+        regime = _classify_gex_regime(current_price=150.0, zero_gamma=-10.0, net_gex=0.0)
         assert regime == GEXRegime.POSITIVE
 
     def test_transition_zone_boundary_2_pct(self):
@@ -122,6 +115,7 @@ class TestGEXClassification:
 # GEX Multiplier Tests
 # ============================================================================
 
+
 class TestGEXMultiplier:
     def test_positive_multiplier(self, config):
         mult = _get_gex_multiplier(GEXRegime.POSITIVE, config)
@@ -139,6 +133,7 @@ class TestGEXMultiplier:
 # ============================================================================
 # Phase 5 Integration Tests
 # ============================================================================
+
 
 class TestPhase5Integration:
     def test_long_excludes_negative(self, config, logger):
@@ -211,8 +206,7 @@ class TestPhase5Integration:
         gex_provider = MagicMock()
         gex_provider.get_gex.return_value = None  # Pass through
 
-        stocks = [_make_stock(f"T{i:03d}", combined_score=50 + i * 0.5)
-                  for i in range(150)]
+        stocks = [_make_stock(f"T{i:03d}", combined_score=50 + i * 0.5) for i in range(150)]
 
         result = run_phase5(config, logger, gex_provider, stocks, StrategyMode.LONG)
 
@@ -243,14 +237,29 @@ class TestPhase5Integration:
 
         def mock_gex(ticker):
             if ticker == "POS":
-                return {"net_gex": 1000, "call_wall": 170, "put_wall": 130,
-                        "zero_gamma": 140, "source": "test"}
+                return {
+                    "net_gex": 1000,
+                    "call_wall": 170,
+                    "put_wall": 130,
+                    "zero_gamma": 140,
+                    "source": "test",
+                }
             elif ticker == "NEG":
-                return {"net_gex": -500, "call_wall": 160, "put_wall": 130,
-                        "zero_gamma": 200, "source": "test"}
+                return {
+                    "net_gex": -500,
+                    "call_wall": 160,
+                    "put_wall": 130,
+                    "zero_gamma": 200,
+                    "source": "test",
+                }
             elif ticker == "HV":
-                return {"net_gex": 100, "call_wall": 155, "put_wall": 145,
-                        "zero_gamma": 150, "source": "test"}  # Within 2%
+                return {
+                    "net_gex": 100,
+                    "call_wall": 155,
+                    "put_wall": 145,
+                    "zero_gamma": 150,
+                    "source": "test",
+                }  # Within 2%
             return None
 
         gex_provider.get_gex.side_effect = mock_gex
@@ -265,4 +274,4 @@ class TestPhase5Integration:
 
         assert len(result.analyzed) == 3
         assert result.excluded_count == 1  # NEG excluded
-        assert len(result.passed) == 2     # POS + HV
+        assert len(result.passed) == 2  # POS + HV

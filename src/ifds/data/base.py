@@ -18,10 +18,15 @@ class BaseAPIClient:
     - Common request handling
     """
 
-    def __init__(self, base_url: str, api_key: str | None = None,
-                 timeout: int = 10, max_retries: int = 3,
-                 provider_name: str = "unknown",
-                 circuit_breaker=None):
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str | None = None,
+        timeout: int = 10,
+        max_retries: int = 3,
+        provider_name: str = "unknown",
+        circuit_breaker=None,
+    ):
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._timeout = timeout
@@ -30,8 +35,12 @@ class BaseAPIClient:
         self._circuit_breaker = circuit_breaker
         self._session = requests.Session()
 
-    def _get(self, endpoint: str, params: dict[str, Any] | None = None,
-             headers: dict[str, str] | None = None) -> dict | list | None:
+    def _get(
+        self,
+        endpoint: str,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict | list | None:
         """Make a GET request with retry logic.
 
         Returns parsed JSON on success, None on failure after all retries.
@@ -50,7 +59,9 @@ class BaseAPIClient:
         for attempt in range(1, self._max_retries + 1):
             try:
                 resp = self._session.get(
-                    url, params=params, headers=headers,
+                    url,
+                    params=params,
+                    headers=headers,
                     timeout=self._timeout,
                 )
                 resp.raise_for_status()
@@ -58,11 +69,15 @@ class BaseAPIClient:
                     self._circuit_breaker.record_success()
                 return resp.json()
             except requests.exceptions.Timeout:
-                last_error = f"Timeout after {self._timeout}s (attempt {attempt}/{self._max_retries})"
+                last_error = (
+                    f"Timeout after {self._timeout}s (attempt {attempt}/{self._max_retries})"
+                )
             except requests.exceptions.ConnectionError:
                 last_error = f"Connection error (attempt {attempt}/{self._max_retries})"
             except requests.exceptions.HTTPError as e:
-                last_error = f"HTTP {e.response.status_code} (attempt {attempt}/{self._max_retries})"
+                last_error = (
+                    f"HTTP {e.response.status_code} (attempt {attempt}/{self._max_retries})"
+                )
                 # Don't retry on 4xx client errors (except 429 rate limit)
                 if e.response.status_code < 500 and e.response.status_code != 429:
                     break
@@ -100,7 +115,8 @@ class BaseAPIClient:
             retries_used = attempt - 1
             try:
                 resp = self._session.get(
-                    url, params=self._health_check_params(),
+                    url,
+                    params=self._health_check_params(),
                     headers=self._auth_headers(),
                     timeout=self._timeout,
                 )
@@ -108,18 +124,24 @@ class BaseAPIClient:
 
                 if resp.status_code == 200:
                     return APIHealthResult(
-                        provider=self._provider, endpoint=endpoint,
-                        status=APIStatus.OK, response_time_ms=elapsed_ms,
-                        is_critical=is_critical, retries_used=retries_used,
+                        provider=self._provider,
+                        endpoint=endpoint,
+                        status=APIStatus.OK,
+                        response_time_ms=elapsed_ms,
+                        is_critical=is_critical,
+                        retries_used=retries_used,
                     )
                 else:
                     error = f"HTTP {resp.status_code}"
                     if resp.status_code < 500 and resp.status_code != 429:
                         return APIHealthResult(
-                            provider=self._provider, endpoint=endpoint,
-                            status=APIStatus.DOWN, error=error,
+                            provider=self._provider,
+                            endpoint=endpoint,
+                            status=APIStatus.DOWN,
+                            error=error,
                             response_time_ms=elapsed_ms,
-                            is_critical=is_critical, retries_used=retries_used,
+                            is_critical=is_critical,
+                            retries_used=retries_used,
                         )
 
             except requests.exceptions.Timeout:
@@ -134,10 +156,13 @@ class BaseAPIClient:
 
         elapsed_ms = (time.monotonic() - start) * 1000
         return APIHealthResult(
-            provider=self._provider, endpoint=endpoint,
-            status=APIStatus.DOWN, error=error,
+            provider=self._provider,
+            endpoint=endpoint,
+            status=APIStatus.DOWN,
+            error=error,
             response_time_ms=elapsed_ms,
-            is_critical=is_critical, retries_used=retries_used,
+            is_critical=is_critical,
+            retries_used=retries_used,
         )
 
     def _auth_headers(self) -> dict[str, str]:

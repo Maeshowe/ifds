@@ -25,6 +25,7 @@ Usage:
     python scripts/analysis/dp_pct_retrospective_audit.py
     python scripts/analysis/dp_pct_retrospective_audit.py --start 2026-04-20 --end 2026-05-08
 """
+
 from __future__ import annotations
 
 import argparse
@@ -45,9 +46,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO,
-                    format="%(asctime)s [%(levelname)s] %(message)s",
-                    datefmt="%H:%M:%S")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+)
 logger = logging.getLogger("dp_audit")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -75,10 +76,10 @@ class Trade:
 @dataclass(frozen=True)
 class AuditRow:
     trade: Trade
-    dp_pct: float | None       # dp_volume / total_volume * 100
-    dp_records: int            # number of UW records on that date
-    dp_volume: int             # aggregated dark-pool volume (shares)
-    total_volume: int          # max stock day volume seen in records
+    dp_pct: float | None  # dp_volume / total_volume * 100
+    dp_records: int  # number of UW records on that date
+    dp_volume: int  # aggregated dark-pool volume (shares)
+    total_volume: int  # max stock day volume seen in records
 
 
 # ---------------------------------------------------------------------------
@@ -110,8 +111,9 @@ def load_trades(start: str, end: str, trades_dir: Path = TRADES_DIR) -> list[Tra
             sector = rows[0].get("sector", "")
         except (KeyError, ValueError):
             continue
-        out.append(Trade(date=d, ticker=t, sector=sector, score=score,
-                         qty=qty, actual_pnl=round(pnl, 2)))
+        out.append(
+            Trade(date=d, ticker=t, sector=sector, score=score, qty=qty, actual_pnl=round(pnl, 2))
+        )
     return sorted(out, key=lambda t: (t.date, t.ticker))
 
 
@@ -149,8 +151,7 @@ class DPCache:
             json.dump(self._data, f, indent=2, sort_keys=True)
 
 
-def fetch_dp_for_date(ticker: str, date_str: str, cache: DPCache,
-                      uw_client) -> dict | None:
+def fetch_dp_for_date(ticker: str, date_str: str, cache: DPCache, uw_client) -> dict | None:
     """UW per-ticker DP fetch for a specific historical date. Returns aggregated dict.
 
     The aggregated dict mirrors what ``_aggregate_dp_records`` produces:
@@ -161,8 +162,9 @@ def fetch_dp_for_date(ticker: str, date_str: str, cache: DPCache,
         return cached
 
     endpoint = f"/api/darkpool/{ticker}"
-    raw = uw_client._get(endpoint, params={"limit": 500, "date": date_str},
-                         headers=uw_client._auth_headers())
+    raw = uw_client._get(
+        endpoint, params={"limit": 500, "date": date_str}, headers=uw_client._auth_headers()
+    )
     if raw is None:
         return None
     if isinstance(raw, dict) and raw.get("data"):
@@ -208,6 +210,7 @@ def pearson(x: list[float], y: list[float]) -> tuple[float, float] | None:
         return None
     try:
         from scipy.stats import pearsonr
+
         r, p = pearsonr(x, y)
         return float(r), float(p)
     except ImportError:
@@ -219,6 +222,7 @@ def spearman(x: list[float], y: list[float]) -> tuple[float, float] | None:
         return None
     try:
         from scipy.stats import spearmanr
+
         rho, p = spearmanr(x, y)
         return float(rho), float(p)
     except ImportError:
@@ -243,14 +247,16 @@ def quintile_table(rows: list[AuditRow]) -> list[dict]:
         pcts = [r.dp_pct or 0.0 for r in chunk]
         pnls = [r.trade.actual_pnl for r in chunk]
         wins = sum(1 for p in pnls if p > 0)
-        out.append({
-            "quintile": q + 1,
-            "range": f"{min(pcts):.2f}–{max(pcts):.2f}",
-            "n": len(chunk),
-            "avg_pnl": round(mean(pnls), 2),
-            "median_pnl": round(median(pnls), 2),
-            "win_rate": round(wins / len(chunk), 2),
-        })
+        out.append(
+            {
+                "quintile": q + 1,
+                "range": f"{min(pcts):.2f}–{max(pcts):.2f}",
+                "n": len(chunk),
+                "avg_pnl": round(mean(pnls), 2),
+                "median_pnl": round(median(pnls), 2),
+                "win_rate": round(wins / len(chunk), 2),
+            }
+        )
     return out
 
 
@@ -259,12 +265,13 @@ def quintile_table(rows: list[AuditRow]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def render_report(rows: list[AuditRow], start: str, end: str,
-                  no_data: list[Trade]) -> str:
+def render_report(rows: list[AuditRow], start: str, end: str, no_data: list[Trade]) -> str:
     out: list[str] = []
     out.append(f"# Dark Pool % Retrospective Audit — Live UW Per-Ticker ({start} → {end})\n")
-    out.append("> Read-only. Bypasses production batch provider — fetches "
-               "`/api/darkpool/{ticker}?date=YYYY-MM-DD` per trade.\n")
+    out.append(
+        "> Read-only. Bypasses production batch provider — fetches "
+        "`/api/darkpool/{ticker}?date=YYYY-MM-DD` per trade.\n"
+    )
 
     valid = [r for r in rows if r.dp_pct is not None]
     if not valid:
@@ -279,10 +286,14 @@ def render_report(rows: list[AuditRow], start: str, end: str,
     out.append("## Summary\n")
     out.append(f"- Trades audited: **{len(rows)}** (merged by date+ticker)")
     out.append(f"- With UW data: {len(valid)} | no data: {len(no_data) + (len(rows) - len(valid))}")
-    out.append(f"- dp_pct range: {min(pcts):.2f}% – {max(pcts):.2f}%, "
-               f"mean {mean(pcts):.2f}%, median {median(pcts):.2f}%")
-    out.append(f"- Realized P&L range: ${min(pnls):+,.2f} – ${max(pnls):+,.2f}, "
-               f"mean ${mean(pnls):+,.2f}")
+    out.append(
+        f"- dp_pct range: {min(pcts):.2f}% – {max(pcts):.2f}%, "
+        f"mean {mean(pcts):.2f}%, median {median(pcts):.2f}%"
+    )
+    out.append(
+        f"- Realized P&L range: ${min(pnls):+,.2f} – ${max(pnls):+,.2f}, "
+        f"mean ${mean(pnls):+,.2f}"
+    )
     out.append("")
 
     pr = pearson(pcts, pnls)
@@ -297,13 +308,15 @@ def render_report(rows: list[AuditRow], start: str, end: str,
         f"| dp_pct ↔ P&L (\\$) | "
         f"{pr[0]:+.3f} (p={pr[1]:.3f}) | "
         f"{sp[0]:+.3f} (p={sp[1]:.3f}) |"
-        if pr and sp else "| dp_pct ↔ P&L | — (scipy missing) | — |"
+        if pr and sp
+        else "| dp_pct ↔ P&L | — (scipy missing) | — |"
     )
     out.append(
         f"| dp_pct ↔ P&L per share | "
         f"{pr_pps[0]:+.3f} (p={pr_pps[1]:.3f}) | "
         f"{sp_pps[0]:+.3f} (p={sp_pps[1]:.3f}) |"
-        if pr_pps and sp_pps else "| dp_pct ↔ P&L/share | — | — |"
+        if pr_pps and sp_pps
+        else "| dp_pct ↔ P&L/share | — | — |"
     )
     out.append("")
 
@@ -347,8 +360,12 @@ def render_report(rows: list[AuditRow], start: str, end: str,
         out.append("")
 
     out.append("## Per-trade detail\n")
-    out.append("| Date | Ticker | Sector | Score | Qty | dp_pct | n_rec | dp_vol | total_vol | P&L |")
-    out.append("|------|--------|--------|-------|-----|--------|-------|--------|-----------|-----|")
+    out.append(
+        "| Date | Ticker | Sector | Score | Qty | dp_pct | n_rec | dp_vol | total_vol | P&L |"
+    )
+    out.append(
+        "|------|--------|--------|-------|-----|--------|-------|--------|-----------|-----|"
+    )
     for r in sorted(rows, key=lambda x: (x.trade.date, x.trade.ticker)):
         t = r.trade
         if r.dp_pct is None:
@@ -371,17 +388,23 @@ def render_report(rows: list[AuditRow], start: str, end: str,
     out.append("- Trades merged by `(date, ticker)`; split orders summed by qty/P&L.")
     out.append("- UW endpoint `/api/darkpool/{ticker}?limit=500&date=YYYY-MM-DD` —")
     out.append("  filtered server-side to the entry day, **not** the most-recent batch.")
-    out.append("- `dp_pct = max(record.size_sum) / max(record.volume) * 100`. "
-               "The `volume` field on each DP record is the stock's full-day volume.")
+    out.append(
+        "- `dp_pct = max(record.size_sum) / max(record.volume) * 100`. "
+        "The `volume` field on each DP record is the stock's full-day volume."
+    )
     out.append("- Significance threshold: |r|>0.22 at n≈80, p<0.05.")
     out.append("")
 
     out.append("## Caveats\n")
-    out.append("- Sample is whatever IBKR paper-trading actually executed in the window — "
-               "biased toward IFDS-qualified tickers (score ≥85), not the full market.")
-    out.append("- `dp_pct` here uses raw aggregate from the per-ticker endpoint. "
-               "Production uses a different (broken) batch path; this audit measures the "
-               "*ceiling* of dp_pct's predictive power if the production pipeline were fixed.")
+    out.append(
+        "- Sample is whatever IBKR paper-trading actually executed in the window — "
+        "biased toward IFDS-qualified tickers (score ≥85), not the full market."
+    )
+    out.append(
+        "- `dp_pct` here uses raw aggregate from the per-ticker endpoint. "
+        "Production uses a different (broken) batch path; this audit measures the "
+        "*ceiling* of dp_pct's predictive power if the production pipeline were fixed."
+    )
     out.append("- Polygon close ≠ MOC fill — irrelevant for this audit (no counterfactual).")
     out.append("")
     return "\n".join(out)
@@ -422,20 +445,23 @@ def main() -> int:
     for i, t in enumerate(trades, 1):
         agg = fetch_dp_for_date(t.ticker, t.date, cache, client)
         if agg is None or agg.get("total_volume", 0) <= 0:
-            rows.append(AuditRow(trade=t, dp_pct=None,
-                                  dp_records=0, dp_volume=0, total_volume=0))
+            rows.append(AuditRow(trade=t, dp_pct=None, dp_records=0, dp_volume=0, total_volume=0))
             no_data.append(t)
             logger.info(f"  {i:>3}/{len(trades)} {t.ticker:<6} {t.date} → no data")
             continue
-        rows.append(AuditRow(
-            trade=t,
-            dp_pct=agg["dp_pct"],
-            dp_records=agg["n_records"],
-            dp_volume=agg["dp_volume"],
-            total_volume=agg["total_volume"],
-        ))
-        logger.info(f"  {i:>3}/{len(trades)} {t.ticker:<6} {t.date} → "
-                    f"dp_pct={agg['dp_pct']:.2f}% n={agg['n_records']}")
+        rows.append(
+            AuditRow(
+                trade=t,
+                dp_pct=agg["dp_pct"],
+                dp_records=agg["n_records"],
+                dp_volume=agg["dp_volume"],
+                total_volume=agg["total_volume"],
+            )
+        )
+        logger.info(
+            f"  {i:>3}/{len(trades)} {t.ticker:<6} {t.date} → "
+            f"dp_pct={agg['dp_pct']:.2f}% n={agg['n_records']}"
+        )
 
     cache.save()
 

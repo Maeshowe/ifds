@@ -7,7 +7,9 @@ Async version of adapters.py — reuses pure-computation functions
 import asyncio
 
 from ifds.data.adapters import (
-    _safe_float, _find_zero_gamma, _aggregate_dp_records,
+    _safe_float,
+    _find_zero_gamma,
+    _aggregate_dp_records,
 )
 from ifds.events.logger import EventLogger
 from ifds.events.types import EventType, Severity
@@ -53,10 +55,7 @@ def _calculate_uw_gex(strikes: list[dict]) -> dict | None:
         "call_wall": call_wall,
         "put_wall": put_wall,
         "zero_gamma": zero_gamma,
-        "gex_by_strike": [
-            {"strike": s, "gex": g}
-            for s, g in sorted(gex_by_strike.items())
-        ],
+        "gex_by_strike": [{"strike": s, "gex": g} for s, g in sorted(gex_by_strike.items())],
         "source": "unusual_whales",
     }
 
@@ -110,8 +109,7 @@ class AsyncPolygonGEXProvider(AsyncGEXProvider):
             return None
         return self._calculate_gex(ticker, options, max_dte=self._max_dte)
 
-    def _calculate_gex(self, ticker: str, options: list[dict],
-                       max_dte: int = 90) -> dict:
+    def _calculate_gex(self, ticker: str, options: list[dict], max_dte: int = 90) -> dict:
         """Calculate GEX from raw options chain data.
 
         GEX per strike = Gamma * OI * 100 * Spot^2 * 0.01
@@ -119,6 +117,7 @@ class AsyncPolygonGEXProvider(AsyncGEXProvider):
         If DTE filter leaves <5 contracts, all contracts are used as fallback.
         """
         from datetime import date as _date
+
         today = _date.today()
 
         # Pre-filter by DTE, with <5 contract fallback
@@ -157,7 +156,7 @@ class AsyncPolygonGEXProvider(AsyncGEXProvider):
             if not all([strike, gamma, spot]):
                 continue
 
-            gex = gamma * oi * 100 * (spot ** 2) * 0.01
+            gex = gamma * oi * 100 * (spot**2) * 0.01
 
             if contract_type == "call":
                 call_gex[strike] = call_gex.get(strike, 0) + gex
@@ -177,10 +176,7 @@ class AsyncPolygonGEXProvider(AsyncGEXProvider):
             "call_wall": call_wall,
             "put_wall": put_wall,
             "zero_gamma": zero_gamma,
-            "gex_by_strike": [
-                {"strike": s, "gex": g}
-                for s, g in sorted(gex_by_strike.items())
-            ],
+            "gex_by_strike": [{"strike": s, "gex": g} for s, g in sorted(gex_by_strike.items())],
             "source": "polygon_calculated",
         }
 
@@ -207,8 +203,13 @@ class AsyncUWDarkPoolProvider(AsyncDarkPoolProvider):
 class AsyncUWBatchDarkPoolProvider(AsyncDarkPoolProvider):
     """Async Dark Pool batch prefetch via /api/darkpool/recent."""
 
-    def __init__(self, uw_client, logger: EventLogger | None = None,
-                 max_pages: int = 15, page_delay: float = 0.3):
+    def __init__(
+        self,
+        uw_client,
+        logger: EventLogger | None = None,
+        max_pages: int = 15,
+        page_delay: float = 0.3,
+    ):
         self._client = uw_client
         self._logger = logger
         self._max_pages = max_pages
@@ -223,7 +224,9 @@ class AsyncUWBatchDarkPoolProvider(AsyncDarkPoolProvider):
 
         for page in range(self._max_pages):
             records = await self._client.get_dark_pool_recent(
-                limit=200, date=date, older_than=older_than,
+                limit=200,
+                date=date,
+                older_than=older_than,
             )
             if not records:
                 break
@@ -243,9 +246,11 @@ class AsyncUWBatchDarkPoolProvider(AsyncDarkPoolProvider):
         self._prefetched = True
         if self._logger:
             self._logger.log(
-                EventType.DATA_PREFETCH, Severity.INFO, phase=4,
+                EventType.DATA_PREFETCH,
+                Severity.INFO,
+                phase=4,
                 message=f"Dark Pool batch: {sum(len(v) for v in self._cache.values())} "
-                        f"trades across {len(self._cache)} tickers",
+                f"trades across {len(self._cache)} tickers",
             )
 
     async def get_dark_pool(self, ticker: str) -> dict | None:
@@ -263,8 +268,12 @@ class AsyncUWBatchDarkPoolProvider(AsyncDarkPoolProvider):
 class AsyncFallbackGEXProvider(AsyncGEXProvider):
     """Async GEX with automatic fallback: UW → Polygon."""
 
-    def __init__(self, primary: AsyncGEXProvider, fallback: AsyncGEXProvider,
-                 logger: EventLogger | None = None):
+    def __init__(
+        self,
+        primary: AsyncGEXProvider,
+        fallback: AsyncGEXProvider,
+        logger: EventLogger | None = None,
+    ):
         self._primary = primary
         self._fallback = fallback
         self._logger = logger
@@ -283,7 +292,9 @@ class AsyncFallbackGEXProvider(AsyncGEXProvider):
         fallback_result = await self._fallback.get_gex(ticker)
         if fallback_result is None and self._logger:
             self._logger.log(
-                EventType.API_ERROR, Severity.DEBUG, phase=5,
+                EventType.API_ERROR,
+                Severity.DEBUG,
+                phase=5,
                 message=(
                     f"No GEX data for {ticker} from either "
                     f"{self._primary.provider_name()} or "
@@ -300,9 +311,12 @@ class AsyncFallbackGEXProvider(AsyncGEXProvider):
 class AsyncFallbackDarkPoolProvider(AsyncDarkPoolProvider):
     """Async Dark Pool with fallback: batch → per-ticker."""
 
-    def __init__(self, primary: AsyncDarkPoolProvider,
-                 fallback: AsyncDarkPoolProvider | None = None,
-                 logger: EventLogger | None = None):
+    def __init__(
+        self,
+        primary: AsyncDarkPoolProvider,
+        fallback: AsyncDarkPoolProvider | None = None,
+        logger: EventLogger | None = None,
+    ):
         self._primary = primary
         self._fallback = fallback
         self._logger = logger
@@ -319,7 +333,8 @@ class AsyncFallbackDarkPoolProvider(AsyncDarkPoolProvider):
 
         if self._logger:
             self._logger.log(
-                EventType.API_FALLBACK, Severity.DEBUG,
+                EventType.API_FALLBACK,
+                Severity.DEBUG,
                 message=(
                     f"Fallback: {self._primary.provider_name()} → none "
                     f"(Dark Pool data unavailable for {ticker} — no fallback)"

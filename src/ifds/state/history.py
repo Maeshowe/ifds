@@ -49,7 +49,7 @@ class BMIHistory:
         entries.append({"date": today, "bmi": round(bmi_value, 2), "regime": regime})
 
         # Keep only last MAX_ENTRIES
-        entries = entries[-self.MAX_ENTRIES:]
+        entries = entries[-self.MAX_ENTRIES :]
 
         self._write(entries)
 
@@ -110,7 +110,7 @@ class SectorHistory:
         rounded = {k: round(v, 3) for k, v in sector_momentum.items()}
         entries.append({"date": today, "sectors": rounded})
 
-        entries = entries[-self.MAX_ENTRIES:]
+        entries = entries[-self.MAX_ENTRIES :]
         self._write(entries)
 
     def get_previous(self) -> dict[str, float] | None:

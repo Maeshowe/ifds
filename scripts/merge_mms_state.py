@@ -23,9 +23,9 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
-SOURCE_MINI = REPO_ROOT / "state" / "mms_from_mini"   # rsync ide húzza a Mini-t
-SOURCE_MACBOOK = REPO_ROOT / "state" / "mms"           # MacBook jelenlegi állapota
-OUTPUT = REPO_ROOT / "state" / "mms"                   # eredmény (in-place)
+SOURCE_MINI = REPO_ROOT / "state" / "mms_from_mini"  # rsync ide húzza a Mini-t
+SOURCE_MACBOOK = REPO_ROOT / "state" / "mms"  # MacBook jelenlegi állapota
+OUTPUT = REPO_ROOT / "state" / "mms"  # eredmény (in-place)
 
 
 def load_entries(path: Path) -> dict[str, dict]:
@@ -40,8 +40,9 @@ def load_entries(path: Path) -> dict[str, dict]:
         return {}
 
 
-def merge_ticker(ticker: str, mini_path: Path | None, macbook_path: Path | None,
-                 dry_run: bool) -> tuple[int, int, int]:
+def merge_ticker(
+    ticker: str, mini_path: Path | None, macbook_path: Path | None, dry_run: bool
+) -> tuple[int, int, int]:
     """Egy ticker merge-je. Visszaad: (mini_only, macbook_only, conflict_mini_wins)."""
     mini_entries = load_entries(mini_path) if mini_path else {}
     macbook_entries = load_entries(macbook_path) if macbook_path else {}
@@ -58,7 +59,7 @@ def merge_ticker(ticker: str, mini_path: Path | None, macbook_path: Path | None,
         if in_mini and in_macbook:
             if mini_entries[date] != macbook_entries[date]:
                 conflict_mini_wins += 1
-            merged.append(mini_entries[date])   # Mini nyeri konfliktnál
+            merged.append(mini_entries[date])  # Mini nyeri konfliktnál
         elif in_mini:
             mini_only += 1
             merged.append(mini_entries[date])
@@ -76,8 +77,7 @@ def merge_ticker(ticker: str, mini_path: Path | None, macbook_path: Path | None,
 
 def main():
     parser = argparse.ArgumentParser(description="Merge MMS state: Mini + MacBook")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Csak logolás, nem ír fájlt")
+    parser.add_argument("--dry-run", action="store_true", help="Csak logolás, nem ír fájlt")
     args = parser.parse_args()
 
     if not SOURCE_MINI.exists():
@@ -92,7 +92,9 @@ def main():
 
     # Összes ticker mindkét forrásból
     mini_tickers = {p.stem for p in SOURCE_MINI.glob("*.json")}
-    macbook_tickers = {p.stem for p in SOURCE_MACBOOK.glob("*.json")} if SOURCE_MACBOOK.exists() else set()
+    macbook_tickers = (
+        {p.stem for p in SOURCE_MACBOOK.glob("*.json")} if SOURCE_MACBOOK.exists() else set()
+    )
     all_tickers = sorted(mini_tickers | macbook_tickers)
 
     print(f"Mini    (mms_from_mini/): {len(mini_tickers):>4} ticker")
@@ -102,7 +104,7 @@ def main():
 
     # Statisztikák
     total_mini_only = total_macbook_only = total_conflicts = 0
-    tickers_with_new = []       # Mini-n van ami MacBook-on nincs
+    tickers_with_new = []  # Mini-n van ami MacBook-on nincs
     tickers_with_conflict = []  # Ugyanaz a date, eltérő tartalom
 
     for ticker in all_tickers:

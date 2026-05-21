@@ -1,4 +1,5 @@
 """Unit tests for MID bundle snapshot save/load."""
+
 from __future__ import annotations
 
 import gzip
@@ -49,8 +50,7 @@ class TestSaveBundleSnapshot:
 
         assert save_bundle_snapshot("not a dict", date(2026, 4, 27), tmp_path) is None  # type: ignore[arg-type]
 
-    def test_creates_directory(self, tmp_path: Path,
-                               sample_bundle: dict) -> None:
+    def test_creates_directory(self, tmp_path: Path, sample_bundle: dict) -> None:
         from ifds.data.mid_bundle_snapshot import save_bundle_snapshot
 
         nested = tmp_path / "nested" / "subdir"
@@ -58,8 +58,7 @@ class TestSaveBundleSnapshot:
         assert out is not None
         assert nested.is_dir()
 
-    def test_gzip_compression(self, tmp_path: Path,
-                              sample_bundle: dict) -> None:
+    def test_gzip_compression(self, tmp_path: Path, sample_bundle: dict) -> None:
         """File must be valid gzip + JSON."""
         from ifds.data.mid_bundle_snapshot import save_bundle_snapshot
 

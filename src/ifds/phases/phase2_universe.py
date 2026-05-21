@@ -34,8 +34,9 @@ from ifds.events.types import EventType, Severity
 from ifds.models.market import Phase2Result, StrategyMode, Ticker
 
 
-def run_phase2(config: Config, logger: EventLogger,
-               fmp: FMPClient, strategy_mode: StrategyMode) -> Phase2Result:
+def run_phase2(
+    config: Config, logger: EventLogger, fmp: FMPClient, strategy_mode: StrategyMode
+) -> Phase2Result:
     """Execute Phase 2: Universe Building.
 
     Args:
@@ -83,7 +84,9 @@ def run_phase2(config: Config, logger: EventLogger,
 
         # Log
         logger.log(
-            EventType.UNIVERSE_BUILT, Severity.INFO, phase=2,
+            EventType.UNIVERSE_BUILT,
+            Severity.INFO,
+            phase=2,
             message=(
                 f"Universe: {len(tickers)} tickers "
                 f"(screened={total_screened}, earnings_excluded={len(earnings_excluded)}, "
@@ -99,8 +102,9 @@ def run_phase2(config: Config, logger: EventLogger,
         )
 
         duration_ms = (time.monotonic() - start_time) * 1000
-        logger.phase_complete(2, "Universe Building",
-                              output_count=len(tickers), duration_ms=duration_ms)
+        logger.phase_complete(
+            2, "Universe Building", output_count=len(tickers), duration_ms=duration_ms
+        )
 
         return result
 
@@ -109,8 +113,7 @@ def run_phase2(config: Config, logger: EventLogger,
         raise
 
 
-def _screen_long_universe(fmp: FMPClient, config: Config,
-                          logger: EventLogger) -> list[Ticker]:
+def _screen_long_universe(fmp: FMPClient, config: Config, logger: EventLogger) -> list[Ticker]:
     """Screen for LONG universe.
 
     2026-05-18 (Day 63 §3.9): the default `universe_source` is now
@@ -128,20 +131,32 @@ def _screen_long_universe(fmp: FMPClient, config: Config,
         "limit": 10000,
     }
 
-    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=2,
-               message=f"FMP screener request (LONG): {params}",
-               data={"screener_params": params})
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.DEBUG,
+        phase=2,
+        message=f"FMP screener request (LONG): {params}",
+        data={"screener_params": params},
+    )
 
     raw = fmp.screener(params)
 
     raw_count = len(raw) if raw else 0
-    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
-               message=f"FMP screener response: {raw_count} raw tickers",
-               data={"raw_count": raw_count})
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.INFO,
+        phase=2,
+        message=f"FMP screener response: {raw_count} raw tickers",
+        data={"raw_count": raw_count},
+    )
 
     if not raw:
-        logger.log(EventType.PHASE_ERROR, Severity.ERROR, phase=2,
-                    message="FMP screener returned no results for LONG universe")
+        logger.log(
+            EventType.PHASE_ERROR,
+            Severity.ERROR,
+            phase=2,
+            message="FMP screener returned no results for LONG universe",
+        )
         return []
 
     universe_source = config.tuning.get("universe_source", "swing_sp500_r1000")
@@ -149,9 +164,13 @@ def _screen_long_universe(fmp: FMPClient, config: Config,
     if universe_source == "swing_sp500_r1000":
         swing_membership = _load_swing_membership(fmp, config, logger)
         if swing_membership is None:
-            logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=2,
-                       message="Swing universe fetch failed — falling back to "
-                               "raw FMP screener (legacy ~1390 ticker universe)")
+            logger.log(
+                EventType.CONFIG_WARNING,
+                Severity.WARNING,
+                phase=2,
+                message="Swing universe fetch failed — falling back to "
+                "raw FMP screener (legacy ~1390 ticker universe)",
+            )
 
     tickers = []
     filtered_inactive = 0
@@ -174,24 +193,34 @@ def _screen_long_universe(fmp: FMPClient, config: Config,
         tickers.append(ticker)
 
     if filtered_inactive:
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
-                   message=f"Filtered {filtered_inactive} inactive tickers (isActivelyTrading=false)",
-                   data={"filtered_inactive": filtered_inactive,
-                         "remaining": len(tickers)})
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.INFO,
+            phase=2,
+            message=f"Filtered {filtered_inactive} inactive tickers (isActivelyTrading=false)",
+            data={"filtered_inactive": filtered_inactive, "remaining": len(tickers)},
+        )
 
     if filtered_membership:
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
-                   message=(f"Swing universe filter: {filtered_membership} tickers "
-                            f"excluded (not in S&P 500 + Russell 1000)"),
-                   data={"swing_membership_size": len(swing_membership or []),
-                         "filtered_membership": filtered_membership,
-                         "remaining": len(tickers)})
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.INFO,
+            phase=2,
+            message=(
+                f"Swing universe filter: {filtered_membership} tickers "
+                f"excluded (not in S&P 500 + Russell 1000)"
+            ),
+            data={
+                "swing_membership_size": len(swing_membership or []),
+                "filtered_membership": filtered_membership,
+                "remaining": len(tickers),
+            },
+        )
 
     return tickers
 
 
-def _load_swing_membership(fmp: FMPClient, config: Config,
-                           logger: EventLogger) -> set[str] | None:
+def _load_swing_membership(fmp: FMPClient, config: Config, logger: EventLogger) -> set[str] | None:
     """Load the S&P 500 + Russell 1000 union as a normalized symbol set.
 
     Returns None on any failure so the caller can fall back to the raw
@@ -199,27 +228,36 @@ def _load_swing_membership(fmp: FMPClient, config: Config,
     """
     from ifds.data.swing_universe import SwingUniverseSource
 
-    cache_dir = Path(config.tuning.get(
-        "swing_universe_cache_dir", "state/swing_universe",
-    ))
+    cache_dir = Path(
+        config.tuning.get(
+            "swing_universe_cache_dir",
+            "state/swing_universe",
+        )
+    )
     ttl_days = int(config.tuning.get("swing_universe_cache_ttl_days", 7))
     source = SwingUniverseSource(cache_dir=cache_dir, cache_ttl_days=ttl_days)
     try:
         symbols = source.get_universe(fmp_client=fmp)
     except Exception as exc:
-        logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=2,
-                   message=f"Swing universe load failed: {exc}")
+        logger.log(
+            EventType.CONFIG_WARNING,
+            Severity.WARNING,
+            phase=2,
+            message=f"Swing universe load failed: {exc}",
+        )
         return None
 
-    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
-               message=f"Swing universe loaded: {len(symbols)} symbols "
-                       f"(S&P 500 + Russell 1000 union)",
-               data={"swing_universe_size": len(symbols)})
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.INFO,
+        phase=2,
+        message=f"Swing universe loaded: {len(symbols)} symbols " f"(S&P 500 + Russell 1000 union)",
+        data={"swing_universe_size": len(symbols)},
+    )
     return {s.upper() for s in symbols}
 
 
-def _screen_short_universe(fmp: FMPClient, config: Config,
-                           logger: EventLogger) -> list[Ticker]:
+def _screen_short_universe(fmp: FMPClient, config: Config, logger: EventLogger) -> list[Ticker]:
     """Screen for SHORT/Zombie universe using FMP screener."""
     params = {
         "marketCapMoreThan": config.tuning["zombie_min_market_cap"],
@@ -228,20 +266,32 @@ def _screen_short_universe(fmp: FMPClient, config: Config,
         "limit": 5000,
     }
 
-    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=2,
-               message=f"FMP screener request (SHORT): {params}",
-               data={"screener_params": params})
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.DEBUG,
+        phase=2,
+        message=f"FMP screener request (SHORT): {params}",
+        data={"screener_params": params},
+    )
 
     raw = fmp.screener(params)
 
     raw_count = len(raw) if raw else 0
-    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
-               message=f"FMP screener response: {raw_count} raw tickers",
-               data={"raw_count": raw_count})
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.INFO,
+        phase=2,
+        message=f"FMP screener response: {raw_count} raw tickers",
+        data={"raw_count": raw_count},
+    )
 
     if not raw:
-        logger.log(EventType.PHASE_ERROR, Severity.ERROR, phase=2,
-                    message="FMP screener returned no results for SHORT universe")
+        logger.log(
+            EventType.PHASE_ERROR,
+            Severity.ERROR,
+            phase=2,
+            message="FMP screener returned no results for SHORT universe",
+        )
         return []
 
     # Apply zombie filters locally
@@ -274,9 +324,9 @@ def _screen_short_universe(fmp: FMPClient, config: Config,
     return tickers
 
 
-def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
-                      exclusion_days: int,
-                      logger: EventLogger) -> tuple[list[Ticker], list[str], int, int]:
+def _exclude_earnings(
+    tickers: list[Ticker], fmp: FMPClient, exclusion_days: int, logger: EventLogger
+) -> tuple[list[Ticker], list[str], int, int]:
     """Exclude tickers with earnings within the exclusion window.
 
     Two-pass approach:
@@ -301,11 +351,13 @@ def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
     )
 
     ec_count = len(earnings_data) if earnings_data else 0
-    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=2,
-               message=f"Earnings calendar: {ec_count} entries ({today_str} to {to_date_str})",
-               data={"earnings_entries": ec_count,
-                     "from_date": today_str,
-                     "to_date": to_date_str})
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.DEBUG,
+        phase=2,
+        message=f"Earnings calendar: {ec_count} entries ({today_str} to {to_date_str})",
+        data={"earnings_entries": ec_count, "from_date": today_str, "to_date": to_date_str},
+    )
 
     # Build set of symbols caught by bulk
     bulk_earnings_symbols: set[str] = set()
@@ -322,7 +374,9 @@ def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
         if ticker.symbol.upper() in bulk_earnings_symbols:
             excluded.append(ticker.symbol)
             logger.log(
-                EventType.EARNINGS_EXCLUSION, Severity.DEBUG, phase=2,
+                EventType.EARNINGS_EXCLUSION,
+                Severity.DEBUG,
+                phase=2,
                 ticker=ticker.symbol,
                 message=f"{ticker.symbol} excluded: earnings within {exclusion_days} days (bulk calendar)",
             )
@@ -363,7 +417,9 @@ def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
                 pass2_excluded.append(ticker_obj.symbol)
                 excluded.append(ticker_obj.symbol)
                 logger.log(
-                    EventType.EARNINGS_EXCLUSION, Severity.INFO, phase=2,
+                    EventType.EARNINGS_EXCLUSION,
+                    Severity.INFO,
+                    phase=2,
                     ticker=ticker_obj.symbol,
                     message=(
                         f"{ticker_obj.symbol} excluded: earnings within {exclusion_days} days "
@@ -374,7 +430,9 @@ def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
                 pass2_filtered.append(ticker_obj)
 
     logger.log(
-        EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.INFO,
+        phase=2,
         message=(
             f"Earnings exclusion: {len(excluded)} total "
             f"(bulk={bulk_excluded_count}, ticker-specific={len(pass2_excluded)})"
@@ -390,8 +448,9 @@ def _exclude_earnings(tickers: list[Ticker], fmp: FMPClient,
     return pass2_filtered, excluded, bulk_excluded_count, len(pass2_excluded)
 
 
-def _exclude_sec_filings(tickers: list[Ticker], config: Config,
-                          logger: EventLogger) -> tuple[list[Ticker], list[str]]:
+def _exclude_sec_filings(
+    tickers: list[Ticker], config: Config, logger: EventLogger
+) -> tuple[list[Ticker], list[str]]:
     """Exclude tickers with an upcoming 10-Q / 10-K filing (Fázis 1, 2026-05-16).
 
     Closes the AGNC 2026-05-04 case: a 10-Q event (not earnings) caused a
@@ -428,7 +487,9 @@ def _exclude_sec_filings(tickers: list[Ticker], config: Config,
             if client.has_upcoming_10q_or_10k(ticker.symbol, lookahead_days=lookahead_days):
                 excluded.append(ticker.symbol)
                 logger.log(
-                    EventType.SEC_FILING_EXCLUSION, Severity.INFO, phase=2,
+                    EventType.SEC_FILING_EXCLUSION,
+                    Severity.INFO,
+                    phase=2,
                     ticker=ticker.symbol,
                     message=(
                         f"{ticker.symbol} excluded: predicted 10-Q within "
@@ -440,14 +501,18 @@ def _exclude_sec_filings(tickers: list[Ticker], config: Config,
         except Exception as exc:
             # Defensive fail-open: a single ticker's exception must not derail Phase 2
             logger.log(
-                EventType.API_FALLBACK, Severity.WARNING, phase=2,
+                EventType.API_FALLBACK,
+                Severity.WARNING,
+                phase=2,
                 ticker=ticker.symbol,
                 message=f"SEC EDGAR check failed for {ticker.symbol} ({exc}) — fail-open",
             )
             filtered.append(ticker)
 
     logger.log(
-        EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.INFO,
+        phase=2,
         message=(
             f"SEC filing exclusion: {len(excluded)} tickers excluded "
             f"(lookahead={lookahead_days}d ±{tolerance_days}d)"
@@ -477,8 +542,7 @@ def _fmp_to_ticker(item: dict) -> Ticker:
     )
 
 
-def _save_universe_snapshot(tickers: list[Ticker], config: Config,
-                            logger: EventLogger) -> None:
+def _save_universe_snapshot(tickers: list[Ticker], config: Config, logger: EventLogger) -> None:
     """Save universe snapshot and log diffs vs previous day (BC13)."""
     snap_dir = config.runtime.get("survivorship_snapshot_dir", "state/universe_snapshots")
     max_snaps = config.runtime.get("survivorship_max_snapshots", 30)
@@ -488,8 +552,7 @@ def _save_universe_snapshot(tickers: list[Ticker], config: Config,
 
         today = date.today().isoformat()
         snapshot = [
-            {"symbol": t.symbol, "market_cap": t.market_cap, "sector": t.sector}
-            for t in tickers
+            {"symbol": t.symbol, "market_cap": t.market_cap, "sector": t.sector} for t in tickers
         ]
 
         # Save today's snapshot
@@ -514,19 +577,25 @@ def _save_universe_snapshot(tickers: list[Ticker], config: Config,
 
             if removed:
                 logger.log(
-                    EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=2,
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.WARNING,
+                    phase=2,
                     message=f"[SURVIVORSHIP] Removed from universe: {removed}",
                     data={"removed_count": len(removed), "removed": removed[:50]},
                 )
             if added:
                 logger.log(
-                    EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=2,
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.INFO,
+                    phase=2,
                     message=f"[SURVIVORSHIP] New in universe: {added}",
                     data={"added_count": len(added), "added": added[:50]},
                 )
             if not removed and not added:
                 logger.log(
-                    EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=2,
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.DEBUG,
+                    phase=2,
                     message="[SURVIVORSHIP] Universe unchanged",
                 )
 
@@ -539,5 +608,9 @@ def _save_universe_snapshot(tickers: list[Ticker], config: Config,
             os.remove(os.path.join(snap_dir, old))
 
     except Exception as e:
-        logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=2,
-                   message=f"[SURVIVORSHIP] Error saving snapshot: {e}")
+        logger.log(
+            EventType.CONFIG_WARNING,
+            Severity.WARNING,
+            phase=2,
+            message=f"[SURVIVORSHIP] Error saving snapshot: {e}",
+        )

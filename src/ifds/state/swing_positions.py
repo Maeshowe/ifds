@@ -21,23 +21,28 @@ from typing import Any
 
 from ifds.utils.io import atomic_write_json
 
-
 # ---------------------------------------------------------------------------
 # Exit action enum (string-valued for JSON-friendliness)
 # ---------------------------------------------------------------------------
 
 # Possible values of ``SwingPosition.next_action`` produced by ``evaluate_position_eod``.
 ACTION_HOLD = "HOLD"
-ACTION_HARD_SL = "HARD_SL"            # next-day 15:30 MARKET SELL 100% (weekly cum < -8%)
-ACTION_MENTAL_SL = "MENTAL_SL"        # next-day 15:30 MARKET SELL 100% (close < entry - 2*ATR)
-ACTION_TP1 = "TP1"                    # next-day 15:30 MARKET SELL 50% (high >= entry + 1.5*ATR)
-ACTION_TP2 = "TP2"                    # next-day 15:30 MARKET SELL remainder (high >= entry + 3.0*ATR)
-ACTION_TRAIL_SL = "TRAIL_SL"          # next-day 15:30 MARKET SELL remainder (close < trail_sl)
-ACTION_TIME_STOP = "TIME_STOP"        # SAME-day 21:40 MOC SELL remainder (days_held >= 5)
+ACTION_HARD_SL = "HARD_SL"  # next-day 15:30 MARKET SELL 100% (weekly cum < -8%)
+ACTION_MENTAL_SL = "MENTAL_SL"  # next-day 15:30 MARKET SELL 100% (close < entry - 2*ATR)
+ACTION_TP1 = "TP1"  # next-day 15:30 MARKET SELL 50% (high >= entry + 1.5*ATR)
+ACTION_TP2 = "TP2"  # next-day 15:30 MARKET SELL remainder (high >= entry + 3.0*ATR)
+ACTION_TRAIL_SL = "TRAIL_SL"  # next-day 15:30 MARKET SELL remainder (close < trail_sl)
+ACTION_TIME_STOP = "TIME_STOP"  # SAME-day 21:40 MOC SELL remainder (days_held >= 5)
 
-EOD_ACTIONS_NEXT_DAY = frozenset({
-    ACTION_HARD_SL, ACTION_MENTAL_SL, ACTION_TP1, ACTION_TP2, ACTION_TRAIL_SL,
-})
+EOD_ACTIONS_NEXT_DAY = frozenset(
+    {
+        ACTION_HARD_SL,
+        ACTION_MENTAL_SL,
+        ACTION_TP1,
+        ACTION_TP2,
+        ACTION_TRAIL_SL,
+    }
+)
 EOD_ACTIONS_SAME_DAY_MOC = frozenset({ACTION_TIME_STOP})
 
 
@@ -45,33 +50,35 @@ EOD_ACTIONS_SAME_DAY_MOC = frozenset({ACTION_TIME_STOP})
 # Dataclass
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class SwingPosition:
     """A single open swing position with mental stop/TP levels."""
 
     ticker: str
-    entry_date: str                       # ISO YYYY-MM-DD
+    entry_date: str  # ISO YYYY-MM-DD
     entry_price: float
     atr: float
-    stop_level: float                     # entry - 2.0 * ATR
-    tp1_level: float                      # entry + 1.5 * ATR
-    tp2_level: float                      # entry + 3.0 * ATR
+    stop_level: float  # entry - 2.0 * ATR
+    tp1_level: float  # entry + 1.5 * ATR
+    tp2_level: float  # entry + 3.0 * ATR
     qty: int
     qty_remaining: int
     tp1_hit: bool = False
-    trail_sl: float | None = None         # set after TP1 hit
+    trail_sl: float | None = None  # set after TP1 hit
     days_held: int = 0
     next_action: str = ACTION_HOLD
-    next_action_at: str | None = None     # ISO datetime when next_action was set
+    next_action_at: str | None = None  # ISO datetime when next_action was set
     weekly_pnl_pct: float = 0.0
     sector: str = ""
     direction: str = "BUY"
-    m_target: float = 1.0                 # audit trail — Phase 6 captured at entry
+    m_target: float = 1.0  # audit trail — Phase 6 captured at entry
 
 
 # ---------------------------------------------------------------------------
 # Persistence
 # ---------------------------------------------------------------------------
+
 
 def load_swing_positions(state_file: str | Path) -> list[SwingPosition]:
     """Load swing positions from JSON state file.
@@ -105,6 +112,7 @@ def save_swing_positions(
 # Pure helpers
 # ---------------------------------------------------------------------------
 
+
 def compute_weekly_pnl_pct(
     position: SwingPosition,
     today_close: float,
@@ -135,6 +143,7 @@ def compute_sell_qty(position: SwingPosition, action: str, tp1_sell_pct: float =
 # ---------------------------------------------------------------------------
 # Daily EOD eval — the core decision logic
 # ---------------------------------------------------------------------------
+
 
 def evaluate_position_eod(
     position: SwingPosition,
@@ -239,6 +248,7 @@ def to_position_sizing_stub(position: SwingPosition) -> Any:
     into this module's import graph.
     """
     from ifds.models.market import PositionSizing
+
     return PositionSizing(
         ticker=position.ticker,
         sector=position.sector,
@@ -249,7 +259,7 @@ def to_position_sizing_stub(position: SwingPosition) -> Any:
         take_profit_1=position.tp1_level,
         take_profit_2=position.tp2_level,
         risk_usd=(position.entry_price - position.stop_level) * position.qty_remaining,
-        combined_score=0.0,           # not used by sector-cap math
+        combined_score=0.0,  # not used by sector-cap math
         gex_regime="",
         multiplier_total=1.0,
         m_target=position.m_target,

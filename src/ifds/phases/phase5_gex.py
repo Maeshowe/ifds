@@ -28,11 +28,14 @@ from ifds.models.market import (
 )
 
 
-def run_phase5(config: Config, logger: EventLogger,
-               gex_provider: GEXProvider,
-               stock_analyses: list[StockAnalysis],
-               strategy_mode: StrategyMode,
-               polygon=None) -> Phase5Result:
+def run_phase5(
+    config: Config,
+    logger: EventLogger,
+    gex_provider: GEXProvider,
+    stock_analyses: list[StockAnalysis],
+    strategy_mode: StrategyMode,
+    polygon=None,
+) -> Phase5Result:
     """Execute Phase 5: GEX Regime Analysis.
 
     Args:
@@ -48,13 +51,18 @@ def run_phase5(config: Config, logger: EventLogger,
     """
     mms_enabled = config.tuning.get("mms_enabled", False)
     always_collect = config.tuning.get("mms_store_always_collect", True)
-    needs_mms = (mms_enabled or always_collect)
+    needs_mms = mms_enabled or always_collect
 
     if config.runtime.get("async_enabled", False):
-        return asyncio.run(_run_phase5_async(
-            config, logger, stock_analyses, strategy_mode,
-            run_mms=needs_mms,
-        ))
+        return asyncio.run(
+            _run_phase5_async(
+                config,
+                logger,
+                stock_analyses,
+                strategy_mode,
+                run_mms=needs_mms,
+            )
+        )
 
     start_time = time.monotonic()
     logger.phase_start(5, "GEX Analysis", input_count=len(stock_analyses))
@@ -66,15 +74,16 @@ def run_phase5(config: Config, logger: EventLogger,
     if should_run_mms:
         from ifds.data.mms_store import MMSStore
         from ifds.phases.phase5_mms import run_mms_analysis
+
         store_dir = config.runtime.get("mms_store_dir", "state/mms")
         max_entries = config.runtime.get("mms_max_store_entries", 100)
         mms_store = MMSStore(store_dir=store_dir, max_entries=max_entries)
 
     try:
         # Take top 100 candidates by combined_score
-        sorted_candidates = sorted(
-            stock_analyses, key=lambda s: s.combined_score, reverse=True
-        )[:100]
+        sorted_candidates = sorted(stock_analyses, key=lambda s: s.combined_score, reverse=True)[
+            :100
+        ]
 
         analyzed = []
         passed = []
@@ -88,7 +97,9 @@ def run_phase5(config: Config, logger: EventLogger,
             if gex_data is None:
                 # No GEX data — pass through with POSITIVE default
                 logger.log(
-                    EventType.API_ERROR, Severity.DEBUG, phase=5,
+                    EventType.API_ERROR,
+                    Severity.DEBUG,
+                    phase=5,
                     ticker=ticker,
                     message=f"{ticker} no GEX data from any provider — defaulting to POSITIVE regime",
                 )
@@ -107,8 +118,14 @@ def run_phase5(config: Config, logger: EventLogger,
                         bars = polygon.get_aggregates(ticker, mms_from, mms_to)
                         options = polygon.get_options_snapshot(ticker)
                         obs = run_mms_analysis(
-                            config.core, config.tuning,
-                            ticker, bars, options, stock, None, mms_store,
+                            config.core,
+                            config.tuning,
+                            ticker,
+                            bars,
+                            options,
+                            stock,
+                            None,
+                            mms_store,
                         )
                         obs.gex_regime = GEXRegime.POSITIVE
                         obs.data_source = "none"
@@ -117,7 +134,9 @@ def run_phase5(config: Config, logger: EventLogger,
                         mms_analyses.append(obs)
                     except Exception as mms_err:
                         logger.log(
-                            EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=5,
+                            EventType.PHASE_DIAGNOSTIC,
+                            Severity.DEBUG,
+                            phase=5,
                             ticker=ticker,
                             message=f"[MMS] {ticker} collection skipped (no GEX data): {mms_err}",
                         )
@@ -146,7 +165,9 @@ def run_phase5(config: Config, logger: EventLogger,
             n_contracts = len(gex_data.get("gex_by_strike", []))
             if len(analyzed) < 5:
                 logger.log(
-                    EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=5,
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.DEBUG,
+                    phase=5,
                     message=(
                         f"[GEX_DEBUG] {ticker}: regime={regime.value}, "
                         f"net_gex={net_gex:.0f}, zero_gamma={zero_gamma:.2f}, "
@@ -184,8 +205,14 @@ def run_phase5(config: Config, logger: EventLogger,
                     bars = polygon.get_aggregates(ticker, mms_from, mms_to)
                     options = polygon.get_options_snapshot(ticker)
                     mms_result = run_mms_analysis(
-                        config.core, config.tuning,
-                        ticker, bars, options, stock, gex_data, mms_store,
+                        config.core,
+                        config.tuning,
+                        ticker,
+                        bars,
+                        options,
+                        stock,
+                        gex_data,
+                        mms_store,
                     )
                     # Carry GEX structural data
                     mms_result.call_wall = call_wall
@@ -201,7 +228,9 @@ def run_phase5(config: Config, logger: EventLogger,
                     mms_analyses.append(mms_result)
                 except Exception as mms_err:
                     logger.log(
-                        EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=5,
+                        EventType.PHASE_DIAGNOSTIC,
+                        Severity.WARNING,
+                        phase=5,
                         ticker=ticker,
                         message=f"[MMS] {ticker} analysis failed: {mms_err}",
                     )
@@ -210,7 +239,10 @@ def run_phase5(config: Config, logger: EventLogger,
             excluded_this = False
             if mms_enabled and mms_result is not None:
                 # MMS Γ⁻ exclusion replaces GEX NEGATIVE exclusion
-                if mms_result.mm_regime == MMRegime.GAMMA_NEGATIVE and strategy_mode == StrategyMode.LONG:
+                if (
+                    mms_result.mm_regime == MMRegime.GAMMA_NEGATIVE
+                    and strategy_mode == StrategyMode.LONG
+                ):
                     gex_analysis.excluded = True
                     gex_analysis.exclusion_reason = "gamma_negative_long"
                     mms_result.excluded = True
@@ -227,7 +259,9 @@ def run_phase5(config: Config, logger: EventLogger,
                 excluded_count += 1
                 negative_count += 1
                 logger.log(
-                    EventType.GEX_EXCLUSION, Severity.INFO, phase=5,
+                    EventType.GEX_EXCLUSION,
+                    Severity.INFO,
+                    phase=5,
                     ticker=ticker,
                     message=(
                         f"{ticker} excluded in LONG mode "
@@ -266,7 +300,9 @@ def run_phase5(config: Config, logger: EventLogger,
             mms_msg = f" | MMS: {dict(sorted(regime_counts.items()))}"
 
         logger.log(
-            EventType.PHASE_COMPLETE, Severity.INFO, phase=5,
+            EventType.PHASE_COMPLETE,
+            Severity.INFO,
+            phase=5,
             message=(
                 f"GEX analyzed {len(analyzed)} → Passed {len(passed)} "
                 f"(excluded={excluded_count}, negative={negative_count})"
@@ -282,8 +318,7 @@ def run_phase5(config: Config, logger: EventLogger,
         )
 
         duration_ms = (time.monotonic() - start_time) * 1000
-        logger.phase_complete(5, "GEX Analysis",
-                              output_count=len(passed), duration_ms=duration_ms)
+        logger.phase_complete(5, "GEX Analysis", output_count=len(passed), duration_ms=duration_ms)
 
         return result
 
@@ -292,8 +327,7 @@ def run_phase5(config: Config, logger: EventLogger,
         raise
 
 
-def _classify_gex_regime(current_price: float, zero_gamma: float,
-                         net_gex: float) -> GEXRegime:
+def _classify_gex_regime(current_price: float, zero_gamma: float, net_gex: float) -> GEXRegime:
     """Classify GEX regime based on price vs zero gamma level.
 
     Rules:
@@ -333,17 +367,23 @@ def _get_gex_multiplier(regime: GEXRegime, config: Config) -> float:
 # Async Phase 5 — concurrent GEX analysis
 # ============================================================================
 
-async def _run_phase5_async(config: Config, logger: EventLogger,
-                            stock_analyses: list[StockAnalysis],
-                            strategy_mode: StrategyMode,
-                            run_mms: bool = False) -> Phase5Result:
+
+async def _run_phase5_async(
+    config: Config,
+    logger: EventLogger,
+    stock_analyses: list[StockAnalysis],
+    strategy_mode: StrategyMode,
+    run_mms: bool = False,
+) -> Phase5Result:
     """Async Phase 5: process GEX for all candidates concurrently.
 
     When run_mms=True, also fetches bars+options for MMS analysis.
     """
     from ifds.data.async_clients import AsyncPolygonClient, AsyncUWClient
     from ifds.data.async_adapters import (
-        AsyncFallbackGEXProvider, AsyncPolygonGEXProvider, AsyncUWGEXProvider,
+        AsyncFallbackGEXProvider,
+        AsyncPolygonGEXProvider,
+        AsyncUWGEXProvider,
     )
 
     start_time = time.monotonic()
@@ -359,6 +399,7 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
     file_cache = None
     if config.runtime.get("cache_enabled", False):
         from ifds.data.cache import FileCache
+
         file_cache = FileCache(
             cache_dir=config.runtime.get("cache_dir", "data/cache"),
             max_age_days=config.runtime.get("cache_max_age_days", 7),
@@ -391,9 +432,7 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
     else:
         gex_provider = AsyncPolygonGEXProvider(polygon, max_dte=max_dte)
 
-    sorted_candidates = sorted(
-        stock_analyses, key=lambda s: s.combined_score, reverse=True
-    )[:100]
+    sorted_candidates = sorted(stock_analyses, key=lambda s: s.combined_score, reverse=True)[:100]
 
     analyzed = []
     passed = []
@@ -436,6 +475,7 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
         if run_mms:
             from ifds.data.mms_store import MMSStore
             from ifds.phases.phase5_mms import run_mms_analysis
+
             store_dir = config.runtime.get("mms_store_dir", "state/mms")
             max_entries = config.runtime.get("mms_max_store_entries", 100)
             mms_store = MMSStore(store_dir=store_dir, max_entries=max_entries)
@@ -446,14 +486,20 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
             ticker = stock.ticker
 
             if isinstance(gex_data, BaseException):
-                logger.log(EventType.API_ERROR, Severity.WARNING, phase=5,
-                           ticker=ticker,
-                           message=f"{ticker} GEX fetch failed: {gex_data}")
+                logger.log(
+                    EventType.API_ERROR,
+                    Severity.WARNING,
+                    phase=5,
+                    ticker=ticker,
+                    message=f"{ticker} GEX fetch failed: {gex_data}",
+                )
                 gex_data = None
 
             if gex_data is None:
                 logger.log(
-                    EventType.API_ERROR, Severity.DEBUG, phase=5,
+                    EventType.API_ERROR,
+                    Severity.DEBUG,
+                    phase=5,
                     ticker=ticker,
                     message=f"{ticker} no GEX data from any provider — defaulting to POSITIVE regime",
                 )
@@ -469,8 +515,14 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
                     try:
                         bars, options = mms_data_map[ticker]
                         obs = run_mms_fn(
-                            config.core, config.tuning,
-                            ticker, bars, options, stock, None, mms_store,
+                            config.core,
+                            config.tuning,
+                            ticker,
+                            bars,
+                            options,
+                            stock,
+                            None,
+                            mms_store,
                         )
                         obs.gex_regime = GEXRegime.POSITIVE
                         obs.data_source = "none"
@@ -479,7 +531,9 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
                         mms_analyses.append(obs)
                     except Exception as mms_err:
                         logger.log(
-                            EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=5,
+                            EventType.PHASE_DIAGNOSTIC,
+                            Severity.DEBUG,
+                            phase=5,
                             ticker=ticker,
                             message=f"[MMS] {ticker} collection skipped (no GEX data): {mms_err}",
                         )
@@ -508,7 +562,9 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
             n_contracts = len(gex_data.get("gex_by_strike", []))
             if len(analyzed) < 5:
                 logger.log(
-                    EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=5,
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.DEBUG,
+                    phase=5,
                     message=(
                         f"[GEX_DEBUG] {ticker}: regime={regime.value}, "
                         f"net_gex={net_gex:.0f}, zero_gamma={zero_gamma:.2f}, "
@@ -542,8 +598,14 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
                 try:
                     bars, options = mms_data_map[ticker]
                     mms_result = run_mms_fn(
-                        config.core, config.tuning,
-                        ticker, bars, options, stock, gex_data, mms_store,
+                        config.core,
+                        config.tuning,
+                        ticker,
+                        bars,
+                        options,
+                        stock,
+                        gex_data,
+                        mms_store,
                     )
                     mms_result.call_wall = call_wall
                     mms_result.put_wall = put_wall
@@ -558,7 +620,9 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
                     mms_analyses.append(mms_result)
                 except Exception as mms_err:
                     logger.log(
-                        EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=5,
+                        EventType.PHASE_DIAGNOSTIC,
+                        Severity.WARNING,
+                        phase=5,
                         ticker=ticker,
                         message=f"[MMS] {ticker} analysis failed: {mms_err}",
                     )
@@ -566,7 +630,10 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
             # Exclusion decision
             excluded_this = False
             if mms_enabled and mms_result is not None:
-                if mms_result.mm_regime == MMRegime.GAMMA_NEGATIVE and strategy_mode == StrategyMode.LONG:
+                if (
+                    mms_result.mm_regime == MMRegime.GAMMA_NEGATIVE
+                    and strategy_mode == StrategyMode.LONG
+                ):
                     gex_analysis.excluded = True
                     gex_analysis.exclusion_reason = "gamma_negative_long"
                     mms_result.excluded = True
@@ -582,7 +649,9 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
                 excluded_count += 1
                 negative_count += 1
                 logger.log(
-                    EventType.GEX_EXCLUSION, Severity.INFO, phase=5,
+                    EventType.GEX_EXCLUSION,
+                    Severity.INFO,
+                    phase=5,
                     ticker=ticker,
                     message=(
                         f"{ticker} excluded in LONG mode "
@@ -621,7 +690,9 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
             mms_msg = f" | MMS: {dict(sorted(regime_counts.items()))}"
 
         logger.log(
-            EventType.PHASE_COMPLETE, Severity.INFO, phase=5,
+            EventType.PHASE_COMPLETE,
+            Severity.INFO,
+            phase=5,
             message=(
                 f"GEX analyzed {len(analyzed)} → Passed {len(passed)} "
                 f"(excluded={excluded_count}, negative={negative_count})"
@@ -637,8 +708,9 @@ async def _run_phase5_async(config: Config, logger: EventLogger,
         )
 
         duration_ms = (time.monotonic() - start_time) * 1000
-        logger.phase_complete(5, "GEX Analysis (async)",
-                              output_count=len(passed), duration_ms=duration_ms)
+        logger.phase_complete(
+            5, "GEX Analysis (async)", output_count=len(passed), duration_ms=duration_ms
+        )
 
         return result
 

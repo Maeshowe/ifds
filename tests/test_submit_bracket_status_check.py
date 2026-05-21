@@ -9,6 +9,7 @@ The fix: submit_bracket now calls ib.sleep() after placement and then
 inspects trade.orderStatus.status for each order. Any status not in
 _VALID_ORDER_STATUSES triggers a logger.warning with full details.
 """
+
 from unittest.mock import MagicMock
 
 import pytest
@@ -140,9 +141,7 @@ class TestSubmitBracketStatusCheck:
     def test_dry_run_skips_placement(self, fake_ib, fake_contract):
         from scripts.paper_trading.lib.orders import submit_bracket
 
-        trades = submit_bracket(
-            fake_ib, fake_contract, [MagicMock(), MagicMock()], dry_run=True
-        )
+        trades = submit_bracket(fake_ib, fake_contract, [MagicMock(), MagicMock()], dry_run=True)
         assert trades == []
         fake_ib.placeOrder.assert_not_called()
         fake_ib.sleep.assert_not_called()
@@ -176,9 +175,15 @@ class TestCreateDayBracketEntryType:
         ib = self._make_ib()
         contract = MagicMock(symbol="AAPL")
         entry, tp, sl = create_day_bracket(
-            ib, contract, action="BUY", qty=100,
-            limit_price=150.25, tp_price=155.00, sl_price=145.00,
-            account="DUH118657", tag_suffix="AAPL_A",
+            ib,
+            contract,
+            action="BUY",
+            qty=100,
+            limit_price=150.25,
+            tp_price=155.00,
+            sl_price=145.00,
+            account="DUH118657",
+            tag_suffix="AAPL_A",
         )
         assert isinstance(entry, MarketOrder)
         assert entry.action == "BUY"
@@ -194,18 +199,22 @@ class TestCreateDayBracketEntryType:
         ib = self._make_ib()
         contract = MagicMock(symbol="AAPL")
         entry, _, _ = create_day_bracket(
-            ib, contract, action="BUY", qty=100,
-            limit_price=150.25, tp_price=155.00, sl_price=145.00,
-            account="DUH118657", tag_suffix="AAPL_A",
+            ib,
+            contract,
+            action="BUY",
+            qty=100,
+            limit_price=150.25,
+            tp_price=155.00,
+            sl_price=145.00,
+            account="DUH118657",
+            tag_suffix="AAPL_A",
         )
         # ib_insync Order defaults algoStrategy to empty string, not None
         assert not getattr(entry, "algoStrategy", ""), (
             "Entry order must not use an IBKR algoStrategy "
             "(paper accounts silently reject Adaptive)"
         )
-        assert not getattr(entry, "algoParams", None), (
-            "Entry order must not carry algoParams"
-        )
+        assert not getattr(entry, "algoParams", None), "Entry order must not carry algoParams"
 
     def test_entry_has_no_lmt_price(self):
         """MarketOrder must leave lmtPrice at IBKR's UNSET sentinel."""
@@ -216,16 +225,22 @@ class TestCreateDayBracketEntryType:
         ib = self._make_ib()
         contract = MagicMock(symbol="AAPL")
         entry, _, _ = create_day_bracket(
-            ib, contract, action="BUY", qty=100,
-            limit_price=150.25, tp_price=155.00, sl_price=145.00,
-            account="DUH118657", tag_suffix="AAPL_A",
+            ib,
+            contract,
+            action="BUY",
+            qty=100,
+            limit_price=150.25,
+            tp_price=155.00,
+            sl_price=145.00,
+            account="DUH118657",
+            tag_suffix="AAPL_A",
         )
         # ib_insync uses sys.float_info.max as the "unset" sentinel
         # for numeric Order fields. A real lmtPrice would be much smaller.
         lmt = getattr(entry, "lmtPrice", 0)
-        assert lmt == sys.float_info.max or lmt == 0, (
-            f"MarketOrder should leave lmtPrice unset, got {lmt}"
-        )
+        assert (
+            lmt == sys.float_info.max or lmt == 0
+        ), f"MarketOrder should leave lmtPrice unset, got {lmt}"
 
     def test_bracket_children_unchanged(self):
         """TP must be LimitOrder, SL must be StopOrder, both DAY TIF."""
@@ -236,9 +251,15 @@ class TestCreateDayBracketEntryType:
         ib = self._make_ib()
         contract = MagicMock(symbol="AAPL")
         entry, tp, sl = create_day_bracket(
-            ib, contract, action="BUY", qty=100,
-            limit_price=150.25, tp_price=155.00, sl_price=145.00,
-            account="DUH118657", tag_suffix="AAPL_A",
+            ib,
+            contract,
+            action="BUY",
+            qty=100,
+            limit_price=150.25,
+            tp_price=155.00,
+            sl_price=145.00,
+            account="DUH118657",
+            tag_suffix="AAPL_A",
         )
         assert isinstance(tp, LimitOrder)
         assert tp.action == "SELL"
@@ -258,9 +279,15 @@ class TestCreateDayBracketEntryType:
         ib = self._make_ib()
         contract = MagicMock(symbol="AAPL")
         entry, tp, sl = create_day_bracket(
-            ib, contract, action="SELL", qty=50,
-            limit_price=150.00, tp_price=145.00, sl_price=155.00,
-            account="DUH118657", tag_suffix="AAPL_A",
+            ib,
+            contract,
+            action="SELL",
+            qty=50,
+            limit_price=150.00,
+            tp_price=145.00,
+            sl_price=155.00,
+            account="DUH118657",
+            tag_suffix="AAPL_A",
         )
         assert entry.action == "SELL"
         assert tp.action == "BUY"

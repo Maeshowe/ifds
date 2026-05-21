@@ -18,6 +18,7 @@ Usage:
 
 If --output is omitted, the report is printed to stdout.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -89,12 +90,14 @@ def load_ifds_sectors(target: date) -> list[dict]:
     for sector, scores in by_sector.items():
         if not scores:
             continue
-        out.append({
-            "sector": sector,
-            "n_passed": len(scores),
-            "top_score": max(scores),
-            "avg_score": sum(scores) / len(scores),
-        })
+        out.append(
+            {
+                "sector": sector,
+                "n_passed": len(scores),
+                "top_score": max(scores),
+                "avg_score": sum(scores) / len(scores),
+            }
+        )
     out.sort(key=lambda r: r["avg_score"], reverse=True)
     return out
 
@@ -141,8 +144,7 @@ def _ifds_top_sectors(sectors: list[dict], n: int = 5) -> list[str]:
 
 
 def _md_table(headers: list[str], rows: list[list[str]]) -> str:
-    out = ["| " + " | ".join(headers) + " |",
-           "|" + "|".join(["---"] * len(headers)) + "|"]
+    out = ["| " + " | ".join(headers) + " |", "|" + "|".join(["---"] * len(headers)) + "|"]
     for row in rows:
         out.append("| " + " | ".join(row) + " |")
     return "\n".join(out)
@@ -158,8 +160,10 @@ def build_report(start: date, end: date) -> str:
     lines.append(f"- MID bundles: `{MID_BUNDLES_DIR}/`")
     lines.append(f"- IFDS Phase 4 snapshots: `{PHASE4_DIR}/`")
     lines.append("")
-    lines.append("Forward-return scoring is intentionally omitted in this "
-                 "first iteration — see the daily review for context.")
+    lines.append(
+        "Forward-return scoring is intentionally omitted in this "
+        "first iteration — see the daily review for context."
+    )
     lines.append("")
 
     cur = start
@@ -196,8 +200,7 @@ def build_report(start: date, end: date) -> str:
 
         rows = [
             ["MID top 5 (ETF)", ", ".join(mid_top) if mid_top else "_(none)_"],
-            ["IFDS top 5 (sector name)",
-             ", ".join(ifds_top) if ifds_top else "_(none)_"],
+            ["IFDS top 5 (sector name)", ", ".join(ifds_top) if ifds_top else "_(none)_"],
             ["MID sector count", str(len(mid_sectors))],
             ["IFDS sector count", str(len(ifds_sectors))],
         ]
@@ -208,12 +211,10 @@ def build_report(start: date, end: date) -> str:
             lines.append("**IFDS Phase 4 — top sectors by avg score:**")
             lines.append("")
             ifds_rows = [
-                [s["sector"], str(s["n_passed"]),
-                 f"{s['avg_score']:.1f}", f"{s['top_score']:.1f}"]
+                [s["sector"], str(s["n_passed"]), f"{s['avg_score']:.1f}", f"{s['top_score']:.1f}"]
                 for s in ifds_sectors[:10]
             ]
-            lines.append(_md_table(
-                ["Sector", "N passed", "Avg score", "Top score"], ifds_rows))
+            lines.append(_md_table(["Sector", "N passed", "Avg score", "Top score"], ifds_rows))
             lines.append("")
 
         cur += timedelta(days=1)
@@ -244,15 +245,15 @@ def _parse_date(s: str) -> date:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Offline MID vs IFDS sector-rotation comparison."
+    parser = argparse.ArgumentParser(description="Offline MID vs IFDS sector-rotation comparison.")
+    parser.add_argument("--start", required=True, type=_parse_date, help="Start date (YYYY-MM-DD).")
+    parser.add_argument("--end", required=True, type=_parse_date, help="End date (YYYY-MM-DD).")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output markdown path. If omitted, prints to stdout.",
     )
-    parser.add_argument("--start", required=True, type=_parse_date,
-                        help="Start date (YYYY-MM-DD).")
-    parser.add_argument("--end", required=True, type=_parse_date,
-                        help="End date (YYYY-MM-DD).")
-    parser.add_argument("--output", type=Path, default=None,
-                        help="Output markdown path. If omitted, prints to stdout.")
     args = parser.parse_args()
 
     if args.start > args.end:

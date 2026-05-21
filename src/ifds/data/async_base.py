@@ -19,11 +19,16 @@ class AsyncBaseAPIClient:
     - Lazy session creation (created on first request)
     """
 
-    def __init__(self, base_url: str, api_key: str | None = None,
-                 timeout: int = 10, max_retries: int = 3,
-                 provider_name: str = "unknown",
-                 semaphore: asyncio.Semaphore | None = None,
-                 circuit_breaker=None):
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str | None = None,
+        timeout: int = 10,
+        max_retries: int = 3,
+        provider_name: str = "unknown",
+        semaphore: asyncio.Semaphore | None = None,
+        circuit_breaker=None,
+    ):
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._timeout = aiohttp.ClientTimeout(total=timeout)
@@ -39,8 +44,12 @@ class AsyncBaseAPIClient:
             self._session = aiohttp.ClientSession(timeout=self._timeout)
         return self._session
 
-    async def _get(self, endpoint: str, params: dict[str, Any] | None = None,
-                   headers: dict[str, str] | None = None) -> dict | list | None:
+    async def _get(
+        self,
+        endpoint: str,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict | list | None:
         """Make an async GET request with semaphore + retry logic.
 
         Returns parsed JSON on success, None on failure after all retries.
@@ -62,7 +71,9 @@ class AsyncBaseAPIClient:
                 async with self._semaphore:
                     async with session.get(url, params=params, headers=headers) as resp:
                         if resp.status >= 400:
-                            last_error = f"HTTP {resp.status} (attempt {attempt}/{self._max_retries})"
+                            last_error = (
+                                f"HTTP {resp.status} (attempt {attempt}/{self._max_retries})"
+                            )
                             # Don't retry 4xx except 429
                             if resp.status < 500 and resp.status != 429:
                                 break
@@ -110,18 +121,24 @@ class AsyncBaseAPIClient:
 
                         if resp.status == 200:
                             return APIHealthResult(
-                                provider=self._provider, endpoint=endpoint,
-                                status=APIStatus.OK, response_time_ms=elapsed_ms,
-                                is_critical=is_critical, retries_used=retries_used,
+                                provider=self._provider,
+                                endpoint=endpoint,
+                                status=APIStatus.OK,
+                                response_time_ms=elapsed_ms,
+                                is_critical=is_critical,
+                                retries_used=retries_used,
                             )
                         else:
                             error = f"HTTP {resp.status}"
                             if resp.status < 500 and resp.status != 429:
                                 return APIHealthResult(
-                                    provider=self._provider, endpoint=endpoint,
-                                    status=APIStatus.DOWN, error=error,
+                                    provider=self._provider,
+                                    endpoint=endpoint,
+                                    status=APIStatus.DOWN,
+                                    error=error,
                                     response_time_ms=elapsed_ms,
-                                    is_critical=is_critical, retries_used=retries_used,
+                                    is_critical=is_critical,
+                                    retries_used=retries_used,
                                 )
 
             except asyncio.TimeoutError:
@@ -136,10 +153,13 @@ class AsyncBaseAPIClient:
 
         elapsed_ms = (time.monotonic() - start) * 1000
         return APIHealthResult(
-            provider=self._provider, endpoint=endpoint,
-            status=APIStatus.DOWN, error=error,
+            provider=self._provider,
+            endpoint=endpoint,
+            status=APIStatus.DOWN,
+            error=error,
             response_time_ms=elapsed_ms,
-            is_critical=is_critical, retries_used=retries_used,
+            is_critical=is_critical,
+            retries_used=retries_used,
         )
 
     def _auth_headers(self) -> dict[str, str]:

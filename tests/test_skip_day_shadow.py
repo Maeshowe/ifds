@@ -21,12 +21,18 @@ def config(monkeypatch):
 
 
 def _make_macro(vix: float = 18.0) -> MacroRegime:
-    regime = MarketVolatilityRegime.PANIC if vix >= 30 else (
-        MarketVolatilityRegime.ELEVATED if vix > 20 else MarketVolatilityRegime.NORMAL
+    regime = (
+        MarketVolatilityRegime.PANIC
+        if vix >= 30
+        else (MarketVolatilityRegime.ELEVATED if vix > 20 else MarketVolatilityRegime.NORMAL)
     )
     return MacroRegime(
-        vix_value=vix, vix_regime=regime, vix_multiplier=1.0,
-        tnx_value=4.2, tnx_sma20=4.1, tnx_rate_sensitive=False,
+        vix_value=vix,
+        vix_regime=regime,
+        vix_multiplier=1.0,
+        tnx_value=4.2,
+        tnx_sma20=4.1,
+        tnx_rate_sensitive=False,
     )
 
 

@@ -26,7 +26,7 @@ def _isolate_eod_env():
         sys.modules[mod_key] = cached
 
 
-def _make_fill(symbol, side, price, qty, order_ref=''):
+def _make_fill(symbol, side, price, qty, order_ref=""):
     """Build a mock ib_insync fill object."""
     fill = MagicMock()
     fill.contract.symbol = symbol
@@ -47,56 +47,59 @@ class TestMOCOrderRefEmpty:
         """SLD fill with orderRef='' is recognized when pnl_by_symbol provided."""
         with MagicMock() as _mock_dotenv:
             import sys
-            sys.modules['dotenv'] = MagicMock()
+
+            sys.modules["dotenv"] = MagicMock()
             import scripts.paper_trading.eod_report as eod
 
-        sell_fill = _make_fill('AR', 'SLD', 37.87, 304, order_ref='')
+        sell_fill = _make_fill("AR", "SLD", 37.87, 304, order_ref="")
         meta = {}
-        pnl_by_symbol = {'AR': 255.80}
+        pnl_by_symbol = {"AR": 255.80}
 
         trades = eod.build_trade_report([sell_fill], meta, pnl_by_symbol=pnl_by_symbol)
 
         assert len(trades) == 1
         t = trades[0]
-        assert t['ticker'] == 'AR'
-        assert t['exit_type'] == 'MOC'
-        assert t['exit_price'] == 37.87
-        assert t['exit_qty'] == 304
-        assert t['pnl'] == 255.80
+        assert t["ticker"] == "AR"
+        assert t["exit_type"] == "MOC"
+        assert t["exit_price"] == 37.87
+        assert t["exit_qty"] == 304
+        assert t["pnl"] == 255.80
 
     def test_eod_portfolio_realizedpnl_entry_price_derived(self):
         """Entry price is back-calculated from realized P&L."""
         with MagicMock():
             import sys
-            sys.modules['dotenv'] = MagicMock()
+
+            sys.modules["dotenv"] = MagicMock()
             import scripts.paper_trading.eod_report as eod
 
         # pnl = (exit - entry) * qty  →  entry = exit - pnl/qty
         # 255.80 = (37.87 - entry) * 304  →  entry = 37.87 - 255.80/304 ≈ 37.03
-        sell_fill = _make_fill('AR', 'SLD', 37.87, 304, order_ref='')
-        pnl_by_symbol = {'AR': 255.80}
+        sell_fill = _make_fill("AR", "SLD", 37.87, 304, order_ref="")
+        pnl_by_symbol = {"AR": 255.80}
 
         trades = eod.build_trade_report([sell_fill], {}, pnl_by_symbol=pnl_by_symbol)
 
         assert len(trades) == 1
         expected_entry = round(37.87 - 255.80 / 304, 2)
-        assert trades[0]['entry_price'] == expected_entry
+        assert trades[0]["entry_price"] == expected_entry
 
     def test_eod_zero_trades_not_reported_on_moc_day(self):
         """6 MOC closes produce 6 trade records, not 0."""
         with MagicMock():
             import sys
-            sys.modules['dotenv'] = MagicMock()
+
+            sys.modules["dotenv"] = MagicMock()
             import scripts.paper_trading.eod_report as eod
 
         # Mirror the 2026-03-04 log exactly
         fills_data = [
-            ('AR',   'SLD', 37.87,  304, 255.80),
-            ('TIGO', 'SLD', 72.48,   62,  25.51),
-            ('NYT',  'SLD', 81.02,   96, -39.50),
-            ('ENPH', 'SLD', 42.68,  126, -28.22),
-            ('LYV',  'SLD', 158.49,  32, -70.21),
-            ('TS',   'SLD', 53.55,  151,  89.08),
+            ("AR", "SLD", 37.87, 304, 255.80),
+            ("TIGO", "SLD", 72.48, 62, 25.51),
+            ("NYT", "SLD", 81.02, 96, -39.50),
+            ("ENPH", "SLD", 42.68, 126, -28.22),
+            ("LYV", "SLD", 158.49, 32, -70.21),
+            ("TS", "SLD", 53.55, 151, 89.08),
         ]
         fills = [_make_fill(sym, side, price, qty) for sym, side, price, qty, _ in fills_data]
         pnl_by_symbol = {sym: pnl for sym, _, _, _, pnl in fills_data}
@@ -104,6 +107,6 @@ class TestMOCOrderRefEmpty:
         trades = eod.build_trade_report(fills, {}, pnl_by_symbol=pnl_by_symbol)
 
         assert len(trades) == 6
-        total_pnl = sum(t['pnl'] for t in trades)
+        total_pnl = sum(t["pnl"] for t in trades)
         assert abs(total_pnl - 232.46) < 0.01
-        assert all(t['exit_type'] == 'MOC' for t in trades)
+        assert all(t["exit_type"] == "MOC" for t in trades)

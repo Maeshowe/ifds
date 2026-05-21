@@ -28,8 +28,11 @@ from ifds.data.fmp import FMPClient
 from ifds.data.fred import FREDClient
 from ifds.data.unusual_whales import UnusualWhalesClient
 from ifds.data.adapters import (
-    UWGEXProvider, PolygonGEXProvider, UWDarkPoolProvider,
-    FallbackGEXProvider, FallbackDarkPoolProvider,
+    UWGEXProvider,
+    PolygonGEXProvider,
+    UWDarkPoolProvider,
+    FallbackGEXProvider,
+    FallbackDarkPoolProvider,
 )
 
 PASS = "\033[92mPASS\033[0m"
@@ -59,26 +62,38 @@ def test_polygon(api_key: str):
 
     # Health check
     health = client.check_health()
-    report("Health check", health.status.value == "ok",
-           f"status={health.status.value} time={health.response_time_ms:.0f}ms")
+    report(
+        "Health check",
+        health.status.value == "ok",
+        f"status={health.status.value} time={health.response_time_ms:.0f}ms",
+    )
 
     # Grouped daily
     yesterday = (date.today() - timedelta(days=3)).isoformat()
     bars = client.get_grouped_daily(yesterday)
-    report("Grouped daily", bars is not None and len(bars) > 0,
-           f"{len(bars)} tickers" if bars else "None returned")
+    report(
+        "Grouped daily",
+        bars is not None and len(bars) > 0,
+        f"{len(bars)} tickers" if bars else "None returned",
+    )
 
     # AAPL aggregates (90 days)
     from_date = (date.today() - timedelta(days=90)).isoformat()
     to_date = date.today().isoformat()
     aggs = client.get_aggregates("AAPL", from_date, to_date)
-    report("AAPL aggregates (90d)", aggs is not None and len(aggs) > 0,
-           f"{len(aggs)} bars" if aggs else "None returned")
+    report(
+        "AAPL aggregates (90d)",
+        aggs is not None and len(aggs) > 0,
+        f"{len(aggs)} bars" if aggs else "None returned",
+    )
 
     # Options snapshot
     opts = client.get_options_snapshot("AAPL")
-    report("AAPL options snapshot", opts is not None and len(opts) > 0,
-           f"{len(opts)} contracts" if opts else "None returned")
+    report(
+        "AAPL options snapshot",
+        opts is not None and len(opts) > 0,
+        f"{len(opts)} contracts" if opts else "None returned",
+    )
 
     if opts and len(opts) > 0:
         sample = opts[0]
@@ -86,9 +101,14 @@ def test_polygon(api_key: str):
         has_details = "details" in sample
         has_oi = "open_interest" in sample or "open_interest" in sample.get("day", {})
         report("  → has greeks", has_greeks, f"keys: {list(sample.get('greeks', {}).keys())[:5]}")
-        report("  → has details", has_details, f"keys: {list(sample.get('details', {}).keys())[:5]}")
-        report("  → has open_interest", has_oi,
-               f"root={sample.get('open_interest')}, day={sample.get('day', {}).get('open_interest')}")
+        report(
+            "  → has details", has_details, f"keys: {list(sample.get('details', {}).keys())[:5]}"
+        )
+        report(
+            "  → has open_interest",
+            has_oi,
+            f"root={sample.get('open_interest')}, day={sample.get('day', {}).get('open_interest')}",
+        )
 
     client.close()
 
@@ -99,13 +119,19 @@ def test_fmp(api_key: str):
 
     # Health check
     health = client.check_health()
-    report("Health check", health.status.value == "ok",
-           f"status={health.status.value} time={health.response_time_ms:.0f}ms")
+    report(
+        "Health check",
+        health.status.value == "ok",
+        f"status={health.status.value} time={health.response_time_ms:.0f}ms",
+    )
 
     # Company screener
     screener = client.screener({"marketCapMoreThan": 100_000_000_000, "limit": 5})
-    report("Company screener", screener is not None and len(screener) > 0,
-           f"{len(screener)} companies" if screener else "None returned")
+    report(
+        "Company screener",
+        screener is not None and len(screener) > 0,
+        f"{len(screener)} companies" if screener else "None returned",
+    )
 
     if screener and len(screener) > 0:
         sample = screener[0]
@@ -115,13 +141,19 @@ def test_fmp(api_key: str):
     from_d = date.today().isoformat()
     to_d = (date.today() + timedelta(days=14)).isoformat()
     earnings = client.get_earnings_calendar(from_d, to_d)
-    report("Earnings calendar", earnings is not None,
-           f"{len(earnings)} entries" if earnings else "None returned")
+    report(
+        "Earnings calendar",
+        earnings is not None,
+        f"{len(earnings)} entries" if earnings else "None returned",
+    )
 
     # Insider trading
     insiders = client.get_insider_trading("AAPL")
-    report("Insider trading (AAPL)", insiders is not None and len(insiders) > 0,
-           f"{len(insiders)} trades" if insiders else "None returned")
+    report(
+        "Insider trading (AAPL)",
+        insiders is not None and len(insiders) > 0,
+        f"{len(insiders)} trades" if insiders else "None returned",
+    )
 
     if insiders and len(insiders) > 0:
         sample = insiders[0]
@@ -129,13 +161,19 @@ def test_fmp(api_key: str):
 
     # Key metrics
     metrics = client.get_key_metrics("AAPL")
-    report("Key metrics (AAPL)", metrics is not None,
-           f"keys: {list(metrics.keys())[:6]}" if metrics else "None returned")
+    report(
+        "Key metrics (AAPL)",
+        metrics is not None,
+        f"keys: {list(metrics.keys())[:6]}" if metrics else "None returned",
+    )
 
     # Financial growth
     growth = client.get_financial_growth("AAPL")
-    report("Financial growth (AAPL)", growth is not None,
-           f"keys: {list(growth.keys())[:6]}" if growth else "None returned")
+    report(
+        "Financial growth (AAPL)",
+        growth is not None,
+        f"keys: {list(growth.keys())[:6]}" if growth else "None returned",
+    )
 
     client.close()
 
@@ -146,18 +184,27 @@ def test_fred(api_key: str):
 
     # Health check
     health = client.check_health()
-    report("Health check", health.status.value == "ok",
-           f"status={health.status.value} time={health.response_time_ms:.0f}ms")
+    report(
+        "Health check",
+        health.status.value == "ok",
+        f"status={health.status.value} time={health.response_time_ms:.0f}ms",
+    )
 
     # VIX
     vix = client.get_vix(limit=5)
-    report("VIX data", vix is not None and len(vix) > 0,
-           f"{len(vix)} obs, latest={vix[0]}" if vix else "None returned")
+    report(
+        "VIX data",
+        vix is not None and len(vix) > 0,
+        f"{len(vix)} obs, latest={vix[0]}" if vix else "None returned",
+    )
 
     # TNX (10Y yield)
     tnx = client.get_tnx(limit=5)
-    report("TNX (10Y yield)", tnx is not None and len(tnx) > 0,
-           f"{len(tnx)} obs, latest={tnx[0]}" if tnx else "None returned")
+    report(
+        "TNX (10Y yield)",
+        tnx is not None and len(tnx) > 0,
+        f"{len(tnx)} obs, latest={tnx[0]}" if tnx else "None returned",
+    )
 
     client.close()
 
@@ -168,30 +215,45 @@ def test_unusual_whales(api_key: str):
 
     # Health check
     health = client.check_health()
-    report("Health check", health.status.value == "ok",
-           f"status={health.status.value} time={health.response_time_ms:.0f}ms")
+    report(
+        "Health check",
+        health.status.value == "ok",
+        f"status={health.status.value} time={health.response_time_ms:.0f}ms",
+    )
 
     # Dark Pool
     dp = client.get_dark_pool("SPY")
-    report("Dark Pool (SPY)", dp is not None and len(dp) > 0,
-           f"{len(dp)} records" if dp else "None returned")
+    report(
+        "Dark Pool (SPY)",
+        dp is not None and len(dp) > 0,
+        f"{len(dp)} records" if dp else "None returned",
+    )
 
     if dp and len(dp) > 0:
         sample = dp[0]
         report("  → sample fields", True, f"{list(sample.keys())[:8]}")
         has_nbbo = "nbbo_ask" in sample and "nbbo_bid" in sample
-        report("  → has NBBO fields", has_nbbo,
-               f"nbbo_ask={sample.get('nbbo_ask')}, nbbo_bid={sample.get('nbbo_bid')}")
+        report(
+            "  → has NBBO fields",
+            has_nbbo,
+            f"nbbo_ask={sample.get('nbbo_ask')}, nbbo_bid={sample.get('nbbo_bid')}",
+        )
 
     # Greek Exposure
     greeks = client.get_greeks("SPY")
-    report("Greek Exposure (SPY)", greeks is not None,
-           f"keys: {list(greeks.keys())[:8]}" if greeks else "None returned")
+    report(
+        "Greek Exposure (SPY)",
+        greeks is not None,
+        f"keys: {list(greeks.keys())[:8]}" if greeks else "None returned",
+    )
 
     if greeks:
         has_gamma = "call_gamma" in greeks or "put_gamma" in greeks
-        report("  → has gamma fields", has_gamma,
-               f"call_gamma={greeks.get('call_gamma')}, put_gamma={greeks.get('put_gamma')}")
+        report(
+            "  → has gamma fields",
+            has_gamma,
+            f"call_gamma={greeks.get('call_gamma')}, put_gamma={greeks.get('put_gamma')}",
+        )
 
     client.close()
     return client
@@ -208,25 +270,36 @@ def test_adapters(polygon_key: str, uw_key: str):
     fallback_gex = FallbackGEXProvider(uw_gex, poly_gex)
 
     gex_result = fallback_gex.get_gex("AAPL")
-    report("FallbackGEX (AAPL)", gex_result is not None,
-           f"source={gex_result.get('source')}, net_gex={gex_result.get('net_gex', 0):.0f}, "
-           f"call_wall={gex_result.get('call_wall')}, put_wall={gex_result.get('put_wall')}, "
-           f"zero_gamma={gex_result.get('zero_gamma')}"
-           if gex_result else "None — both providers failed")
+    report(
+        "FallbackGEX (AAPL)",
+        gex_result is not None,
+        (
+            f"source={gex_result.get('source')}, net_gex={gex_result.get('net_gex', 0):.0f}, "
+            f"call_wall={gex_result.get('call_wall')}, put_wall={gex_result.get('put_wall')}, "
+            f"zero_gamma={gex_result.get('zero_gamma')}"
+            if gex_result
+            else "None — both providers failed"
+        ),
+    )
 
     if gex_result and gex_result.get("gex_by_strike"):
-        report("  → gex_by_strike", True,
-               f"{len(gex_result['gex_by_strike'])} strikes")
+        report("  → gex_by_strike", True, f"{len(gex_result['gex_by_strike'])} strikes")
 
     # Dark Pool fallback
     uw_dp = UWDarkPoolProvider(uw)
     fallback_dp = FallbackDarkPoolProvider(uw_dp)
 
     dp_result = fallback_dp.get_dark_pool("SPY")
-    report("FallbackDP (SPY)", dp_result is not None,
-           f"signal={dp_result.get('signal')}, dp_volume={dp_result.get('dp_volume')}, "
-           f"buys={dp_result.get('dp_buys')}, sells={dp_result.get('dp_sells')}"
-           if dp_result else "None — no dark pool data")
+    report(
+        "FallbackDP (SPY)",
+        dp_result is not None,
+        (
+            f"signal={dp_result.get('signal')}, dp_volume={dp_result.get('dp_volume')}, "
+            f"buys={dp_result.get('dp_buys')}, sells={dp_result.get('dp_sells')}"
+            if dp_result
+            else "None — no dark pool data"
+        ),
+    )
 
     polygon.close()
     uw.close()
@@ -269,7 +342,9 @@ def main():
     # Summary
     total = results["pass"] + results["fail"] + results["skip"]
     print(f"\n{BOLD}{'='*50}{RESET}")
-    print(f"  {PASS}: {results['pass']}  |  {FAIL}: {results['fail']}  |  {SKIP}: {results['skip']}  |  Total: {total}")
+    print(
+        f"  {PASS}: {results['pass']}  |  {FAIL}: {results['fail']}  |  {SKIP}: {results['skip']}  |  Total: {total}"
+    )
     print(f"{'='*50}")
 
     return 0 if results["fail"] == 0 else 1

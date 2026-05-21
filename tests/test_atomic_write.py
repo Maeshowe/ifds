@@ -40,6 +40,7 @@ class TestAtomicWriteJson:
 
 try:
     import pandas as pd
+
     _PANDAS_AVAILABLE = True
 except ImportError:
     _PANDAS_AVAILABLE = False
@@ -52,6 +53,7 @@ class TestAtomicWriteParquet:
 
     def test_creates_parquet(self, tmp_path):
         from ifds.utils.io import atomic_write_parquet
+
         df = pd.DataFrame({"ticker": ["AAPL"], "date": ["2026-01-01"]})
         path = tmp_path / "test.parquet"
         atomic_write_parquet(path, df)
@@ -60,6 +62,7 @@ class TestAtomicWriteParquet:
 
     def test_no_leftover_tmp(self, tmp_path):
         from ifds.utils.io import atomic_write_parquet
+
         df = pd.DataFrame({"x": [1, 2, 3]})
         path = tmp_path / "clean.parquet"
         atomic_write_parquet(path, df)

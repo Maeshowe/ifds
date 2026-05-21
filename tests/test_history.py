@@ -49,8 +49,9 @@ class TestBMIHistory:
     def test_max_entries_trimmed(self, tmp_path):
         h = BMIHistory(state_dir=str(tmp_path))
         # Write 95 entries manually
-        entries = [{"date": f"2024-{i:03d}", "bmi": float(i), "regime": "yellow"}
-                   for i in range(95)]
+        entries = [
+            {"date": f"2024-{i:03d}", "bmi": float(i), "regime": "yellow"} for i in range(95)
+        ]
         path = tmp_path / "bmi_history.json"
         path.write_text(json.dumps(entries))
 

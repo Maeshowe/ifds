@@ -10,6 +10,7 @@ Covers:
   * Phase 4 integration: ``_apply_swing_scoring`` recovers legacy-clipped
     tickers, re-scores, applies the threshold, and persists state.
 """
+
 from __future__ import annotations
 
 import json
@@ -32,7 +33,6 @@ from ifds.scoring.swing_score import (
     compute_raw_swing_score,
     compute_swing_scores,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -70,8 +70,12 @@ def _make_analysis(
         ticker=ticker,
         sector="Technology",
         technical=TechnicalAnalysis(
-            price=100.0, sma_200=95.0, sma_20=98.0, rsi_14=55.0,
-            atr_14=2.0, trend_pass=True,
+            price=100.0,
+            sma_200=95.0,
+            sma_20=98.0,
+            rsi_14=55.0,
+            atr_14=2.0,
+            trend_pass=True,
         ),
         flow=FlowAnalysis(pcr=pcr, otm_call_ratio=otm),
         fundamental=FundamentalScoring(),
@@ -109,8 +113,10 @@ class TestRawSwingScore:
         pcr_universe = [0.3, 0.5, 0.7, 0.9, 1.1]
         otm_universe = [0.2, 0.3, 0.4, 0.5, 0.6]
         score = compute_raw_swing_score(
-            pcr=1.1, pcr_universe=pcr_universe,
-            otm_call_ratio=0.2, otm_universe=otm_universe,
+            pcr=1.1,
+            pcr_universe=pcr_universe,
+            otm_call_ratio=0.2,
+            otm_universe=otm_universe,
             sector_adjustment=0,
         )
         # PCR_pct=1.0, OTM_pct=0.2 → 100*(1.0−0.2) = 80
@@ -120,8 +126,10 @@ class TestRawSwingScore:
         pcr_universe = [0.3, 0.5, 0.7, 0.9, 1.1]
         otm_universe = [0.2, 0.3, 0.4, 0.5, 0.6]
         score = compute_raw_swing_score(
-            pcr=0.3, pcr_universe=pcr_universe,
-            otm_call_ratio=0.6, otm_universe=otm_universe,
+            pcr=0.3,
+            pcr_universe=pcr_universe,
+            otm_call_ratio=0.6,
+            otm_universe=otm_universe,
             sector_adjustment=0,
         )
         # PCR_pct=0.2, OTM_pct=1.0 → 100*(0.2−1.0) = -80
@@ -129,8 +137,10 @@ class TestRawSwingScore:
 
     def test_sector_leader_adds_15(self):
         score = compute_raw_swing_score(
-            pcr=0.7, pcr_universe=[0.3, 0.5, 0.7, 0.9, 1.1],
-            otm_call_ratio=0.4, otm_universe=[0.2, 0.3, 0.4, 0.5, 0.6],
+            pcr=0.7,
+            pcr_universe=[0.3, 0.5, 0.7, 0.9, 1.1],
+            otm_call_ratio=0.4,
+            otm_universe=[0.2, 0.3, 0.4, 0.5, 0.6],
             sector_adjustment=15,
         )
         # PCR_pct=0.6, OTM_pct=0.6 → 100*0 + 15 = 15
@@ -152,8 +162,8 @@ class TestEwmaState:
     def test_day2_blends_with_alpha(self, tmp_path):
         state = SwingEwmaState(path=tmp_path / "ewma.json", span=5)
         state.load()
-        state.update("AAPL", 60.0)         # Day 1 → ewma = 60.0
-        s2 = state.update("AAPL", 40.0)    # Day 2 → α=2/6 ≈ 0.333
+        state.update("AAPL", 60.0)  # Day 1 → ewma = 60.0
+        s2 = state.update("AAPL", 40.0)  # Day 2 → α=2/6 ≈ 0.333
         # ewma_new = 0.333 * 40 + 0.667 * 60 = 53.33
         assert s2 == pytest.approx(53.33, abs=0.1)
 
@@ -202,8 +212,8 @@ class TestComputeSwingScores:
         state.load()
         tickers_data = [
             {"ticker": "LOSE", "pcr": 0.3, "otm_call_ratio": 0.6, "sector_adjustment": 0},
-            {"ticker": "MID",  "pcr": 0.7, "otm_call_ratio": 0.4, "sector_adjustment": 0},
-            {"ticker": "WIN",  "pcr": 1.1, "otm_call_ratio": 0.2, "sector_adjustment": 0},
+            {"ticker": "MID", "pcr": 0.7, "otm_call_ratio": 0.4, "sector_adjustment": 0},
+            {"ticker": "WIN", "pcr": 1.1, "otm_call_ratio": 0.2, "sector_adjustment": 0},
         ]
         results = compute_swing_scores(tickers_data, state)
         scores = {r.ticker: r.raw_score for r in results}
@@ -237,15 +247,16 @@ class TestPhase4SwingPostprocessor:
         analyzed = [
             _make_analysis("PASS1", pcr=0.9, otm=0.2),
             _make_analysis("PASS2", pcr=0.8, otm=0.3),
-            _make_analysis("CLIP1", pcr=0.6, otm=0.4,
-                           excluded=True, exclusion_reason="clipping"),
-            _make_analysis("MIN1", pcr=0.5, otm=0.5,
-                           excluded=True, exclusion_reason="min_score"),
-            _make_analysis("TECH1", pcr=0.7, otm=0.6,
-                           excluded=True, exclusion_reason="tech_filter"),
+            _make_analysis("CLIP1", pcr=0.6, otm=0.4, excluded=True, exclusion_reason="clipping"),
+            _make_analysis("MIN1", pcr=0.5, otm=0.5, excluded=True, exclusion_reason="min_score"),
+            _make_analysis(
+                "TECH1", pcr=0.7, otm=0.6, excluded=True, exclusion_reason="tech_filter"
+            ),
         ]
         passed, recovered, swing_filtered = _apply_swing_scoring(
-            analyzed, config, logger,
+            analyzed,
+            config,
+            logger,
         )
         # CLIP1 + MIN1 recovered, TECH1 stays excluded
         assert recovered == 2
@@ -262,7 +273,9 @@ class TestPhase4SwingPostprocessor:
             _make_analysis("LOSE", pcr=0.2, otm=0.9),
         ]
         passed, _, swing_filtered = _apply_swing_scoring(
-            analyzed, config, logger,
+            analyzed,
+            config,
+            logger,
         )
         assert "WIN" in {a.ticker for a in passed}
         # At least one is filtered by swing_score threshold

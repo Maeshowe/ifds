@@ -50,9 +50,7 @@ def _mock_position(symbol: str, qty: int = 100):
 
 def _import_pt_monitor(tmp_path):
     """Import pt_monitor with STATE_DIR pointed at tmp_path."""
-    scripts_dir = os.path.join(
-        os.path.dirname(__file__), "..", "scripts", "paper_trading"
-    )
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts", "paper_trading")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
 
@@ -149,11 +147,12 @@ def test_phantom_ticker_filtered_out(tmp_path):
     mock_ib = MagicMock()
     mock_ib.positions.return_value = []  # DELL never filled
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ) as mock_disc, patch.object(mod, "tp1_was_filled") as mock_tp1, patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect") as mock_disc,
+        patch.object(mod, "tp1_was_filled") as mock_tp1,
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mod.main()
 
     # No TP1 check, no Telegram — phantom filtered before monitoring loop
@@ -180,12 +179,12 @@ def test_phantom_and_real_mix(tmp_path):
         tp1_calls.append(sym)
         return False
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", side_effect=_track_tp1), patch.object(
-        mod, "get_last_price", return_value=180.50
-    ), patch.object(
-        mod, "send_telegram"
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", side_effect=_track_tp1),
+        patch.object(mod, "get_last_price", return_value=180.50),
+        patch.object(mod, "send_telegram"),
     ):
         mod.main()
 
@@ -206,11 +205,12 @@ def test_all_phantom_early_exit(tmp_path):
     mock_ib = MagicMock()
     mock_ib.positions.return_value = []  # Neither filled
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ) as mock_disc, patch.object(mod, "tp1_was_filled") as mock_tp1, patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect") as mock_disc,
+        patch.object(mod, "tp1_was_filled") as mock_tp1,
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mod.main()
 
     mock_tp1.assert_not_called()
@@ -226,13 +226,13 @@ def test_tp1_not_filled_no_trail(tmp_path):
     mock_ib = MagicMock()
     mock_ib.positions.return_value = [_mock_position("LION", 537)]
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=False), patch.object(
-        mod, "get_last_price", return_value=9.40
-    ), patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=False),
+        patch.object(mod, "get_last_price", return_value=9.40),
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mod.main()
 
     mock_tg.assert_not_called()
@@ -250,15 +250,14 @@ def test_scenario_a_trail_activation(tmp_path):
     mock_ib = MagicMock()
     mock_ib.positions.return_value = [_mock_position("LION", 537)]
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=True), patch.object(
-        mod, "get_last_price", return_value=10.20
-    ), patch.object(
-        mod, "cancel_bracket_b_sl", return_value=True
-    ) as mock_cancel, patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=True),
+        patch.object(mod, "get_last_price", return_value=10.20),
+        patch.object(mod, "cancel_bracket_b_sl", return_value=True) as mock_cancel,
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mod.main()
 
     mock_cancel.assert_called_once_with(mock_ib, "LION")
@@ -285,14 +284,13 @@ def test_scenario_a_breakeven_protection(tmp_path):
     # current_price = 9.55, sl_distance = 0.60
     # new_sl = 9.55 - 0.60 = 8.95 < entry 9.50
     # breakeven protection -> trail_sl = max(9.50, 8.95) = 9.50
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=True), patch.object(
-        mod, "get_last_price", return_value=9.55
-    ), patch.object(
-        mod, "cancel_bracket_b_sl", return_value=True
-    ), patch.object(
-        mod, "send_telegram"
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=True),
+        patch.object(mod, "get_last_price", return_value=9.55),
+        patch.object(mod, "cancel_bracket_b_sl", return_value=True),
+        patch.object(mod, "send_telegram"),
     ):
         mod.main()
 
@@ -304,8 +302,12 @@ def test_scenario_a_trail_update(tmp_path):
     """Price rises -> trail_sl moves up."""
     # Start with trail already active
     state = _make_state(
-        entry=9.50, sl=8.90, tp1_filled=True, trail_active=True,
-        trail_sl=9.60, trail_high=10.20,
+        entry=9.50,
+        sl=8.90,
+        tp1_filled=True,
+        trail_active=True,
+        trail_sl=9.60,
+        trail_high=10.20,
     )
     _write_state(tmp_path, state)
     mod = _import_pt_monitor(tmp_path)
@@ -314,10 +316,11 @@ def test_scenario_a_trail_update(tmp_path):
     mock_ib.positions.return_value = [_mock_position("LION", 537)]
 
     # Price rose to 10.80 -> new_sl = 10.80 - 0.60 = 10.20 > current 9.60
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "get_last_price", return_value=10.80), patch.object(
-        mod, "send_telegram"
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "get_last_price", return_value=10.80),
+        patch.object(mod, "send_telegram"),
     ):
         mod.main()
 
@@ -329,8 +332,12 @@ def test_scenario_a_trail_update(tmp_path):
 def test_scenario_a_trail_sl_not_lowered(tmp_path):
     """Price drops -> trail_sl stays the same (only moves up)."""
     state = _make_state(
-        entry=9.50, sl=8.90, tp1_filled=True, trail_active=True,
-        trail_sl=10.20, trail_high=10.80,
+        entry=9.50,
+        sl=8.90,
+        tp1_filled=True,
+        trail_active=True,
+        trail_sl=10.20,
+        trail_high=10.80,
     )
     _write_state(tmp_path, state)
     mod = _import_pt_monitor(tmp_path)
@@ -339,11 +346,12 @@ def test_scenario_a_trail_sl_not_lowered(tmp_path):
     mock_ib.positions.return_value = [_mock_position("LION", 537)]
 
     # Price dropped to 10.40 -> new_sl = 10.40 - 0.60 = 9.80 < current 10.20
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "get_last_price", return_value=10.40), patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "get_last_price", return_value=10.40),
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mod.main()
 
     state = mod.load_state(date.today().strftime("%Y-%m-%d"))
@@ -355,8 +363,12 @@ def test_scenario_a_trail_sl_not_lowered(tmp_path):
 def test_scenario_a_trail_sl_hit(tmp_path):
     """current_price <= trail_sl -> SELL order placed with IFDS_{sym}_B_TRAIL."""
     state = _make_state(
-        entry=9.50, sl=8.90, tp1_filled=True, trail_active=True,
-        trail_sl=10.20, trail_high=10.80,
+        entry=9.50,
+        sl=8.90,
+        tp1_filled=True,
+        trail_active=True,
+        trail_sl=10.20,
+        trail_high=10.80,
     )
     _write_state(tmp_path, state)
     mod = _import_pt_monitor(tmp_path)
@@ -366,11 +378,12 @@ def test_scenario_a_trail_sl_hit(tmp_path):
     mock_ib.positions.return_value = [_mock_position("LION", 360)]
 
     # Price dropped to 10.15 <= trail_sl 10.20 -> SELL
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "get_last_price", return_value=10.15), patch.object(
-        mod, "send_telegram"
-    ) as mock_tg:
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "get_last_price", return_value=10.15),
+        patch.object(mod, "send_telegram") as mock_tg,
+    ):
         mod.main()
 
     # Verify SELL order placed
@@ -408,12 +421,12 @@ def test_scenario_a_tp2_not_cancelled(tmp_path):
     tp_order.orderId = 101
     mock_ib.openOrders.return_value = [sl_order, tp_order]
 
-    with patch("lib.connection.connect", return_value=mock_ib), patch(
-        "lib.connection.disconnect"
-    ), patch.object(mod, "tp1_was_filled", return_value=True), patch.object(
-        mod, "get_last_price", return_value=10.20
-    ), patch.object(
-        mod, "send_telegram"
+    with (
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+        patch.object(mod, "tp1_was_filled", return_value=True),
+        patch.object(mod, "get_last_price", return_value=10.20),
+        patch.object(mod, "send_telegram"),
     ):
         # Use real cancel_bracket_b_sl (not mocked)
         mod.main()

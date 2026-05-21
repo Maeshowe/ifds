@@ -67,6 +67,7 @@ def _load_ewma_scores(path: str) -> dict[str, float]:
 def _save_ewma_scores(path: str, scores: dict[str, float]) -> None:
     """Save current EWMA scores to JSON state file."""
     from ifds.utils.io import atomic_write_json
+
     try:
         atomic_write_json(path, {"date": date.today().isoformat(), "scores": scores})
     except OSError:
@@ -173,17 +174,20 @@ def check_skip_day_shadow(
     return would_skip, details
 
 
-def run_phase6(config: Config, logger: EventLogger,
-               stock_analyses: list[StockAnalysis],
-               gex_analyses: list[GEXAnalysis],
-               macro: MacroRegime,
-               strategy_mode: StrategyMode,
-               signal_history_path: str | None = None,
-               sector_scores: list[SectorScore] | None = None,
-               signal_hash_file: str | None = None,
-               mms_analyses: list[MMSAnalysis] | None = None,
-               bmi_value: float | None = None,
-               open_positions: list[PositionSizing] | None = None) -> Phase6Result:
+def run_phase6(
+    config: Config,
+    logger: EventLogger,
+    stock_analyses: list[StockAnalysis],
+    gex_analyses: list[GEXAnalysis],
+    macro: MacroRegime,
+    strategy_mode: StrategyMode,
+    signal_history_path: str | None = None,
+    sector_scores: list[SectorScore] | None = None,
+    signal_hash_file: str | None = None,
+    mms_analyses: list[MMSAnalysis] | None = None,
+    bmi_value: float | None = None,
+    open_positions: list[PositionSizing] | None = None,
+) -> Phase6Result:
     """Run Phase 6: Position Sizing & Risk Management.
 
     Args:
@@ -198,8 +202,12 @@ def run_phase6(config: Config, logger: EventLogger,
     Returns:
         Phase6Result with sized positions.
     """
-    logger.log(EventType.PHASE_START, Severity.INFO, phase=6,
-               message="Phase 6 started: Position Sizing & Risk Management")
+    logger.log(
+        EventType.PHASE_START,
+        Severity.INFO,
+        phase=6,
+        message="Phase 6 started: Position Sizing & Risk Management",
+    )
     t0 = time.time()
 
     try:
@@ -207,8 +215,12 @@ def run_phase6(config: Config, logger: EventLogger,
         candidates = _join_stock_gex(stock_analyses, gex_analyses)
 
         if not candidates:
-            logger.log(EventType.PHASE_COMPLETE, Severity.INFO, phase=6,
-                       message="No candidates after stock-GEX join")
+            logger.log(
+                EventType.PHASE_COMPLETE,
+                Severity.INFO,
+                phase=6,
+                message="No candidates after stock-GEX join",
+            )
             return Phase6Result()
 
         # Swing sizing path (Day 63 §3.7, §3.11 — Döntés 7, 11).
@@ -216,7 +228,9 @@ def run_phase6(config: Config, logger: EventLogger,
         # sector-balanced greedy fill. Only M_target is active.
         if config.tuning.get("swing_sizing_enabled", False):
             return _run_phase6_swing(
-                config, logger, candidates,
+                config,
+                logger,
+                candidates,
                 strategy_mode=strategy_mode,
                 open_positions=open_positions or [],
                 sector_scores=sector_scores,
@@ -228,7 +242,10 @@ def run_phase6(config: Config, logger: EventLogger,
 
         # 3. Apply freshness alpha (modifies scores before sizing)
         freshness_count, fresh_tickers = _apply_freshness_alpha(
-            candidates, config, signal_history_path, logger,
+            candidates,
+            config,
+            signal_history_path,
+            logger,
         )
 
         # 4. Apply EWMA smoothing if enabled (BC18A)
@@ -249,22 +266,31 @@ def run_phase6(config: Config, logger: EventLogger,
                     stock.combined_score = smoothed
                     ewma_applied += 1
                     ewma_deltas.append(delta)
-                    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=6,
-                               message=f"[EWMA] {stock.ticker} raw={raw:.1f} ewma={smoothed:.1f} "
-                                       f"prev={prev:.1f} delta={delta:+.1f}")
+                    logger.log(
+                        EventType.PHASE_DIAGNOSTIC,
+                        Severity.DEBUG,
+                        phase=6,
+                        message=f"[EWMA] {stock.ticker} raw={raw:.1f} ewma={smoothed:.1f} "
+                        f"prev={prev:.1f} delta={delta:+.1f}",
+                    )
             _save_ewma_scores(ewma_path, new_ewma)
             if ewma_applied:
                 avg_delta = sum(ewma_deltas) / len(ewma_deltas)
                 max_abs_delta = max(ewma_deltas, key=abs)
-                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
-                           message=f"[EWMA] {ewma_applied}/{len(candidates)} tickers smoothed "
-                                   f"(span={span}), avg delta={avg_delta:+.1f}, "
-                                   f"max delta={max_abs_delta:+.1f}")
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.INFO,
+                    phase=6,
+                    message=f"[EWMA] {ewma_applied}/{len(candidates)} tickers smoothed "
+                    f"(span={span}), avg delta={avg_delta:+.1f}, "
+                    f"max delta={max_abs_delta:+.1f}",
+                )
 
         # 5. Sort by original (pre-freshness) score to preserve ranking
         # Freshness is a multiplier bonus, not a reranking mechanism
-        candidates.sort(key=lambda c: original_scores.get(c[0].ticker, c[0].combined_score),
-                        reverse=True)
+        candidates.sort(
+            key=lambda c: original_scores.get(c[0].ticker, c[0].combined_score), reverse=True
+        )
 
         # 6. Build sector lookup for new PositionSizing fields
         _sector_map = {ss.sector_name: ss for ss in (sector_scores or [])}
@@ -278,24 +304,30 @@ def run_phase6(config: Config, logger: EventLogger,
 
         # Daily trade tracker (BC13)
         daily_trades = _load_daily_counter(
-            config.runtime.get("daily_trades_file", "state/daily_trades.json"))
+            config.runtime.get("daily_trades_file", "state/daily_trades.json")
+        )
         max_daily_trades = config.runtime.get("max_daily_trades", 20)
         daily_trade_limit_hit = False
         initial_trade_count = daily_trades["count"]
 
         # Daily notional tracker (BC13)
         daily_notional = _load_daily_counter(
-            config.runtime.get("daily_notional_file", "state/daily_notional.json"))
+            config.runtime.get("daily_notional_file", "state/daily_notional.json")
+        )
         max_daily_notional = config.runtime.get("max_daily_notional", 200_000)
         max_position_notional = config.runtime.get("max_position_notional", 25_000)
         initial_notional_count = daily_notional["count"]
         daily_trade_excluded = 0
         notional_excluded = 0
 
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=6,
-                   message=f"[PHASE6] Starting: {len(candidates)} candidates, "
-                           f"daily_trades={initial_trade_count}/{max_daily_trades}, "
-                           f"daily_notional=${initial_notional_count:.0f}/${max_daily_notional:.0f}")
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.DEBUG,
+            phase=6,
+            message=f"[PHASE6] Starting: {len(candidates)} candidates, "
+            f"daily_trades={initial_trade_count}/{max_daily_trades}, "
+            f"daily_notional=${initial_notional_count:.0f}/${max_daily_notional:.0f}",
+        )
 
         raw_positions = []
         sizing_failed_count = 0
@@ -303,31 +335,53 @@ def run_phase6(config: Config, logger: EventLogger,
             direction = "BUY" if strategy_mode == StrategyMode.LONG else "SELL_SHORT"
             if dedup and dedup.is_duplicate(stock.ticker, direction):
                 dedup_count += 1
-                logger.log(EventType.TICKER_FILTERED, Severity.INFO, phase=6,
-                           message=f"[DEDUP] Skipping {stock.ticker} — signal already generated today")
+                logger.log(
+                    EventType.TICKER_FILTERED,
+                    Severity.INFO,
+                    phase=6,
+                    message=f"[DEDUP] Skipping {stock.ticker} — signal already generated today",
+                )
                 continue
 
             # Daily trade limit check (BC13) — after dedup, before sizing
             if daily_trades["count"] >= max_daily_trades:
                 if not daily_trade_limit_hit:
-                    logger.log(EventType.TICKER_FILTERED, Severity.WARNING, phase=6,
-                               message=f"[GLOBALGUARD] Daily trade limit reached "
-                                       f"({daily_trades['count']}/{max_daily_trades}), skip remaining")
+                    logger.log(
+                        EventType.TICKER_FILTERED,
+                        Severity.WARNING,
+                        phase=6,
+                        message=f"[GLOBALGUARD] Daily trade limit reached "
+                        f"({daily_trades['count']}/{max_daily_trades}), skip remaining",
+                    )
                     daily_trade_limit_hit = True
                 daily_trade_excluded += 1
                 continue
 
-            pos = _calculate_position(stock, gex, macro, config, strategy_mode,
-                                      original_scores, fresh_tickers, _sector_map,
-                                      _mms_map, bmi_value, logger)
+            pos = _calculate_position(
+                stock,
+                gex,
+                macro,
+                config,
+                strategy_mode,
+                original_scores,
+                fresh_tickers,
+                _sector_map,
+                _mms_map,
+                bmi_value,
+                logger,
+            )
             if pos is None:
                 sizing_failed_count += 1
                 if sizing_failed_count <= 5:
-                    logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=6,
-                               message=f"[PHASE6] {stock.ticker}: sizing returned None "
-                                       f"(score={stock.combined_score:.1f}, "
-                                       f"atr={stock.technical.atr_14:.2f}, "
-                                       f"price={stock.technical.price:.2f})")
+                    logger.log(
+                        EventType.PHASE_DIAGNOSTIC,
+                        Severity.DEBUG,
+                        phase=6,
+                        message=f"[PHASE6] {stock.ticker}: sizing returned None "
+                        f"(score={stock.combined_score:.1f}, "
+                        f"atr={stock.technical.atr_14:.2f}, "
+                        f"price={stock.technical.price:.2f})",
+                    )
                 continue
 
             # Notional limit checks (BC13)
@@ -339,17 +393,25 @@ def run_phase6(config: Config, logger: EventLogger,
                 capped_qty = math.floor(max_position_notional / pos.entry_price)
                 if capped_qty <= 0:
                     continue
-                logger.log(EventType.TICKER_FILTERED, Severity.INFO, phase=6,
-                           message=f"[GLOBALGUARD] Position notional capped: {pos.ticker} "
-                                   f"${original_notional:.0f} → ${capped_qty * pos.entry_price:.0f}")
+                logger.log(
+                    EventType.TICKER_FILTERED,
+                    Severity.INFO,
+                    phase=6,
+                    message=f"[GLOBALGUARD] Position notional capped: {pos.ticker} "
+                    f"${original_notional:.0f} → ${capped_qty * pos.entry_price:.0f}",
+                )
                 pos = _replace_quantity(pos, capped_qty)
                 pos_notional = capped_qty * pos.entry_price
 
             # Daily notional cap
             if daily_notional["count"] + pos_notional > max_daily_notional:
-                logger.log(EventType.TICKER_FILTERED, Severity.WARNING, phase=6,
-                           message=f"[GLOBALGUARD] Daily notional limit reached: "
-                                   f"${daily_notional['count']:.0f}/${max_daily_notional:.0f}")
+                logger.log(
+                    EventType.TICKER_FILTERED,
+                    Severity.WARNING,
+                    phase=6,
+                    message=f"[GLOBALGUARD] Daily notional limit reached: "
+                    f"${daily_notional['count']:.0f}/${max_daily_notional:.0f}",
+                )
                 notional_excluded += 1
                 continue
 
@@ -361,7 +423,9 @@ def run_phase6(config: Config, logger: EventLogger,
 
         # 8. Apply position limits
         final_positions, limit_counts = _apply_position_limits(
-            raw_positions, config, logger,
+            raw_positions,
+            config,
+            logger,
         )
 
         # Recalculate daily counters based on final positions (not raw).
@@ -369,46 +433,57 @@ def run_phase6(config: Config, logger: EventLogger,
         # so we must not inflate the daily counters for removed positions.
         daily_trades["count"] = initial_trade_count + len(final_positions)
         daily_notional["count"] = initial_notional_count + sum(
-            p.quantity * p.entry_price for p in final_positions)
+            p.quantity * p.entry_price for p in final_positions
+        )
 
         # 9. Log each sized position
         for pos in final_positions:
-            logger.log(EventType.POSITION_SIZED, Severity.INFO, phase=6,
-                       message=f"Sized {pos.ticker}: {pos.quantity} shares @ ${pos.entry_price:.2f}",
-                       data={
-                           "ticker": pos.ticker,
-                           "direction": pos.direction,
-                           "quantity": pos.quantity,
-                           "entry_price": pos.entry_price,
-                           "stop_loss": pos.stop_loss,
-                           "risk_usd": round(pos.risk_usd, 2),
-                           "multiplier_total": round(pos.multiplier_total, 4),
-                       })
+            logger.log(
+                EventType.POSITION_SIZED,
+                Severity.INFO,
+                phase=6,
+                message=f"Sized {pos.ticker}: {pos.quantity} shares @ ${pos.entry_price:.2f}",
+                data={
+                    "ticker": pos.ticker,
+                    "direction": pos.direction,
+                    "quantity": pos.quantity,
+                    "entry_price": pos.entry_price,
+                    "stop_loss": pos.stop_loss,
+                    "risk_usd": round(pos.risk_usd, 2),
+                    "multiplier_total": round(pos.multiplier_total, 4),
+                },
+            )
 
         # Save state files
         if dedup:
             dedup.save()
         _save_daily_counter(
-            config.runtime.get("daily_trades_file", "state/daily_trades.json"),
-            daily_trades)
+            config.runtime.get("daily_trades_file", "state/daily_trades.json"), daily_trades
+        )
         _save_daily_counter(
-            config.runtime.get("daily_notional_file", "state/daily_notional.json"),
-            daily_notional)
+            config.runtime.get("daily_notional_file", "state/daily_notional.json"), daily_notional
+        )
 
         total_risk = sum(p.risk_usd for p in final_positions)
         total_exposure = sum(p.quantity * p.entry_price for p in final_positions)
 
         elapsed = time.time() - t0
-        logger.log(EventType.PHASE_COMPLETE, Severity.INFO, phase=6,
-                   message=f"Phase 6 complete: {len(final_positions)} positions sized in {elapsed:.2f}s",
-                   data={
-                       "positions": len(final_positions),
-                       "total_risk_usd": round(total_risk, 2),
-                       "total_exposure_usd": round(total_exposure, 2),
-                       "freshness_applied": freshness_count,
-                       "ewma_applied": ewma_applied,
-                       "ewma_avg_delta": round(sum(ewma_deltas) / len(ewma_deltas), 2) if ewma_deltas else 0.0,
-                   })
+        logger.log(
+            EventType.PHASE_COMPLETE,
+            Severity.INFO,
+            phase=6,
+            message=f"Phase 6 complete: {len(final_positions)} positions sized in {elapsed:.2f}s",
+            data={
+                "positions": len(final_positions),
+                "total_risk_usd": round(total_risk, 2),
+                "total_exposure_usd": round(total_exposure, 2),
+                "freshness_applied": freshness_count,
+                "ewma_applied": ewma_applied,
+                "ewma_avg_delta": (
+                    round(sum(ewma_deltas) / len(ewma_deltas), 2) if ewma_deltas else 0.0
+                ),
+            },
+        )
 
         # Portfolio VaR check (BC21)
         portfolio_var_pct = 0.0
@@ -416,22 +491,35 @@ def run_phase6(config: Config, logger: EventLogger,
         var_removed = 0
         if config.tuning.get("portfolio_var_enabled", True) and final_positions:
             from ifds.risk.portfolio_var import calculate_portfolio_var, trim_positions_by_var
+
             confidence = config.tuning.get("portfolio_var_confidence", 0.95)
             max_var = config.tuning.get("portfolio_var_max_pct", 3.0)
             account_equity = config.runtime["account_equity"]
 
             portfolio_var_usd, _ = calculate_portfolio_var(final_positions, confidence)
-            account_var_pct = (portfolio_var_usd / account_equity * 100) if account_equity > 0 else 0.0
+            account_var_pct = (
+                (portfolio_var_usd / account_equity * 100) if account_equity > 0 else 0.0
+            )
 
             if account_var_pct > max_var:
                 final_positions, var_removed, portfolio_var_pct = trim_positions_by_var(
-                    final_positions, account_equity, max_var, confidence,
+                    final_positions,
+                    account_equity,
+                    max_var,
+                    confidence,
                 )
-                logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
-                           message=f"[VAR] Portfolio VaR {account_var_pct:.2f}% > {max_var}% "
-                                   f"→ removed {var_removed} positions",
-                           data={"var_before": account_var_pct, "var_after": portfolio_var_pct,
-                                 "removed": var_removed})
+                logger.log(
+                    EventType.PHASE_DIAGNOSTIC,
+                    Severity.WARNING,
+                    phase=6,
+                    message=f"[VAR] Portfolio VaR {account_var_pct:.2f}% > {max_var}% "
+                    f"→ removed {var_removed} positions",
+                    data={
+                        "var_before": account_var_pct,
+                        "var_after": portfolio_var_pct,
+                        "removed": var_removed,
+                    },
+                )
                 # Recalculate totals
                 portfolio_var_usd, _ = calculate_portfolio_var(final_positions, confidence)
             else:
@@ -456,8 +544,7 @@ def run_phase6(config: Config, logger: EventLogger,
         )
 
     except Exception as e:
-        logger.log(EventType.PHASE_ERROR, Severity.ERROR, phase=6,
-                   message=f"Phase 6 error: {e}")
+        logger.log(EventType.PHASE_ERROR, Severity.ERROR, phase=6, message=f"Phase 6 error: {e}")
         raise
 
 
@@ -499,18 +586,24 @@ def _run_phase6_swing(
     )
 
     for pos in positions:
-        logger.log(EventType.POSITION_SIZED, Severity.INFO, phase=6,
-                   message=(f"Sized {pos.ticker}: {pos.quantity} shares @ "
-                            f"${pos.entry_price:.2f} (swing path)"),
-                   data={
-                       "ticker": pos.ticker,
-                       "direction": pos.direction,
-                       "quantity": pos.quantity,
-                       "entry_price": pos.entry_price,
-                       "stop_loss": pos.stop_loss,
-                       "risk_usd": round(pos.risk_usd, 2),
-                       "m_target": pos.m_target,
-                   })
+        logger.log(
+            EventType.POSITION_SIZED,
+            Severity.INFO,
+            phase=6,
+            message=(
+                f"Sized {pos.ticker}: {pos.quantity} shares @ "
+                f"${pos.entry_price:.2f} (swing path)"
+            ),
+            data={
+                "ticker": pos.ticker,
+                "direction": pos.direction,
+                "quantity": pos.quantity,
+                "entry_price": pos.entry_price,
+                "stop_loss": pos.stop_loss,
+                "risk_usd": round(pos.risk_usd, 2),
+                "m_target": pos.m_target,
+            },
+        )
 
     total_risk = sum(p.risk_usd for p in positions)
     total_exposure = sum(p.quantity * p.entry_price for p in positions)
@@ -523,17 +616,19 @@ def _run_phase6_swing(
             calculate_portfolio_var,
             trim_positions_by_var,
         )
+
         confidence = config.tuning.get("portfolio_var_confidence", 0.95)
         max_var = config.tuning.get("portfolio_var_max_pct", 3.0)
         account_equity = config.runtime["account_equity"]
 
         portfolio_var_usd, _ = calculate_portfolio_var(positions, confidence)
-        account_var_pct = (
-            portfolio_var_usd / account_equity * 100 if account_equity > 0 else 0.0
-        )
+        account_var_pct = portfolio_var_usd / account_equity * 100 if account_equity > 0 else 0.0
         if account_var_pct > max_var:
             positions, var_removed, portfolio_var_pct = trim_positions_by_var(
-                positions, account_equity, max_var, confidence,
+                positions,
+                account_equity,
+                max_var,
+                confidence,
             )
             portfolio_var_usd, _ = calculate_portfolio_var(positions, confidence)
             total_risk = sum(p.risk_usd for p in positions)
@@ -542,19 +637,22 @@ def _run_phase6_swing(
             portfolio_var_pct = round(account_var_pct, 4)
 
     elapsed = time.time() - t0
-    logger.log(EventType.PHASE_COMPLETE, Severity.INFO, phase=6,
-               message=(f"Phase 6 (swing) complete: {len(positions)} entries "
-                        f"in {elapsed:.2f}s"),
-               data={
-                   "positions": len(positions),
-                   "total_risk_usd": round(total_risk, 2),
-                   "total_exposure_usd": round(total_exposure, 2),
-                   "open_positions": len(open_positions),
-                   "skipped_below_threshold": skipped_below_threshold,
-                   "skipped_sector_cap": counts["sector_cap"],
-                   "skipped_daily_cap": counts["daily_cap"],
-                   "skipped_sizing_failed": counts["sizing_failed"],
-               })
+    logger.log(
+        EventType.PHASE_COMPLETE,
+        Severity.INFO,
+        phase=6,
+        message=(f"Phase 6 (swing) complete: {len(positions)} entries " f"in {elapsed:.2f}s"),
+        data={
+            "positions": len(positions),
+            "total_risk_usd": round(total_risk, 2),
+            "total_exposure_usd": round(total_exposure, 2),
+            "open_positions": len(open_positions),
+            "skipped_below_threshold": skipped_below_threshold,
+            "skipped_sector_cap": counts["sector_cap"],
+            "skipped_daily_cap": counts["daily_cap"],
+            "skipped_sizing_failed": counts["sizing_failed"],
+        },
+    )
 
     return Phase6Result(
         positions=positions,
@@ -575,9 +673,10 @@ def _run_phase6_swing(
     )
 
 
-def _join_stock_gex(stock_analyses: list[StockAnalysis],
-                    gex_analyses: list[GEXAnalysis],
-                    ) -> list[tuple[StockAnalysis, GEXAnalysis]]:
+def _join_stock_gex(
+    stock_analyses: list[StockAnalysis],
+    gex_analyses: list[GEXAnalysis],
+) -> list[tuple[StockAnalysis, GEXAnalysis]]:
     """Inner join stock and GEX analyses by ticker."""
     gex_map = {g.ticker: g for g in gex_analyses}
     result = []
@@ -602,8 +701,12 @@ def _apply_freshness_alpha(
     try:
         import pandas as pd
     except ImportError:
-        logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=6,
-                   message="pandas not installed — skipping freshness alpha")
+        logger.log(
+            EventType.CONFIG_WARNING,
+            Severity.WARNING,
+            phase=6,
+            message="pandas not installed — skipping freshness alpha",
+        )
         return 0, set()
 
     lookback_days = config.core["freshness_lookback_days"]
@@ -617,6 +720,7 @@ def _apply_freshness_alpha(
             df = pd.read_parquet(signal_history_path)
             if "date" in df.columns and "ticker" in df.columns:
                 from datetime import timedelta
+
                 cutoff_date = cutoff - timedelta(days=lookback_days)
                 df["date"] = pd.to_datetime(df["date"]).dt.date
                 recent = df[df["date"] >= cutoff_date]
@@ -624,8 +728,12 @@ def _apply_freshness_alpha(
         except FileNotFoundError:
             pass  # No history yet — all signals are fresh
         except Exception as e:
-            logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=6,
-                       message=f"Error reading signal history: {e}")
+            logger.log(
+                EventType.CONFIG_WARNING,
+                Severity.WARNING,
+                phase=6,
+                message=f"Error reading signal history: {e}",
+            )
 
     # Apply freshness bonus
     fresh_count = 0
@@ -636,19 +744,24 @@ def _apply_freshness_alpha(
             stock.combined_score = original * bonus
             fresh_tickers.add(stock.ticker)
             fresh_count += 1
-            logger.log(EventType.FRESHNESS_BONUS, Severity.DEBUG, phase=6,
-                       message=f"Fresh signal: {stock.ticker} (score × {bonus})",
-                       data={"ticker": stock.ticker, "bonus": bonus,
-                             "original_score": original})
+            logger.log(
+                EventType.FRESHNESS_BONUS,
+                Severity.DEBUG,
+                phase=6,
+                message=f"Fresh signal: {stock.ticker} (score × {bonus})",
+                data={"ticker": stock.ticker, "bonus": bonus, "original_score": original},
+            )
 
     # Save current signals to history
     if signal_history_path:
         try:
             current_tickers = [s.ticker for s, _ in candidates]
-            new_rows = pd.DataFrame({
-                "ticker": current_tickers,
-                "date": [cutoff] * len(current_tickers),
-            })
+            new_rows = pd.DataFrame(
+                {
+                    "ticker": current_tickers,
+                    "date": [cutoff] * len(current_tickers),
+                }
+            )
             try:
                 existing = pd.read_parquet(signal_history_path)
                 combined = pd.concat([existing, new_rows], ignore_index=True)
@@ -656,10 +769,15 @@ def _apply_freshness_alpha(
                 combined = new_rows
 
             from ifds.utils.io import atomic_write_parquet
+
             atomic_write_parquet(signal_history_path, combined)
         except Exception as e:
-            logger.log(EventType.CONFIG_WARNING, Severity.WARNING, phase=6,
-                       message=f"Error saving signal history: {e}")
+            logger.log(
+                EventType.CONFIG_WARNING,
+                Severity.WARNING,
+                phase=6,
+                message=f"Error saving signal history: {e}",
+            )
 
     return fresh_count, fresh_tickers
 
@@ -676,7 +794,11 @@ def _calculate_target_multiplier(
     """
     if not config.tuning.get("target_overshoot_enabled", True):
         return 1.0
-    if analyst_target is None or not isinstance(analyst_target, (int, float)) or analyst_target <= 0:
+    if (
+        analyst_target is None
+        or not isinstance(analyst_target, (int, float))
+        or analyst_target <= 0
+    ):
         return 1.0
 
     overshoot_pct = (current_price - analyst_target) / analyst_target
@@ -738,16 +860,15 @@ def _calculate_multiplier_total(
     else:
         m_vix = 1.0
 
-    m_target = _calculate_target_multiplier(
-        stock.technical.price, stock.analyst_target, config
-    )
+    m_target = _calculate_target_multiplier(stock.technical.price, stock.analyst_target, config)
 
     # M_contradiction (BC23 W18+, 2026-05-02): structured FMP outlier protection.
     # Phase 4 sets stock.contradiction_flag from earnings/target/grades data;
     # Phase 6 just consumes the precomputed flag.
     m_contradiction = 1.0
-    if (config.tuning.get("m_contradiction_enabled", False)
-            and getattr(stock, "contradiction_flag", False)):
+    if config.tuning.get("m_contradiction_enabled", False) and getattr(
+        stock, "contradiction_flag", False
+    ):
         m_contradiction = config.tuning["m_contradiction_value"]
 
     # Total product, clamped to [0.25, 2.0]
@@ -798,13 +919,18 @@ def _calculate_position(
     vwap_reduction = 1.0
     if vwap_data and stock.ticker in vwap_data:
         from ifds.phases.vwap import vwap_distance_pct, vwap_entry_check
+
         vwap = vwap_data[stock.ticker]
         dist = vwap_distance_pct(entry, vwap)
         check = vwap_entry_check(entry, vwap)
         if logger:
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.DEBUG, phase=6,
-                       message=f"[VWAP] {stock.ticker} price={entry:.2f} vwap={vwap:.2f} "
-                               f"dist={dist:+.1f}% → {check}")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.DEBUG,
+                phase=6,
+                message=f"[VWAP] {stock.ticker} price={entry:.2f} vwap={vwap:.2f} "
+                f"dist={dist:+.1f}% → {check}",
+            )
         if check == "REJECT":
             return None
         elif check == "REDUCE":
@@ -818,26 +944,45 @@ def _calculate_position(
     m_total, multipliers = _calculate_multiplier_total(stock, gex, macro, config)
 
     # Log analyst target penalty if active
-    if multipliers["m_target"] < 1.0 and isinstance(stock.analyst_target, (int, float)) and stock.analyst_target:
+    if (
+        multipliers["m_target"] < 1.0
+        and isinstance(stock.analyst_target, (int, float))
+        and stock.analyst_target
+    ):
         overshoot_pct = (stock.technical.price - stock.analyst_target) / stock.analyst_target
         if logger is not None:
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
-                       message=f"[TARGET] {stock.ticker} price=${stock.technical.price:.2f} "
-                               f"target=${stock.analyst_target:.2f} "
-                               f"overshoot={overshoot_pct:.1%} → M_target={multipliers['m_target']}",
-                       data={"ticker": stock.ticker, "m_target": multipliers["m_target"],
-                             "overshoot_pct": overshoot_pct})
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.INFO,
+                phase=6,
+                message=f"[TARGET] {stock.ticker} price=${stock.technical.price:.2f} "
+                f"target=${stock.analyst_target:.2f} "
+                f"overshoot={overshoot_pct:.1%} → M_target={multipliers['m_target']}",
+                data={
+                    "ticker": stock.ticker,
+                    "m_target": multipliers["m_target"],
+                    "overshoot_pct": overshoot_pct,
+                },
+            )
 
     # Log M_contradiction if active
     if multipliers["m_contradiction"] < 1.0 and logger is not None:
         reasons = list(getattr(stock, "contradiction_reasons", ()) or ())
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
-                   message=(f"[M_CONTRADICTION] {stock.ticker}: applied "
-                            f"{multipliers['m_contradiction']:.2f} multiplier "
-                            f"(reasons: {', '.join(reasons)})"),
-                   data={"ticker": stock.ticker,
-                         "m_contradiction": multipliers["m_contradiction"],
-                         "reasons": reasons})
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.INFO,
+            phase=6,
+            message=(
+                f"[M_CONTRADICTION] {stock.ticker}: applied "
+                f"{multipliers['m_contradiction']:.2f} multiplier "
+                f"(reasons: {', '.join(reasons)})"
+            ),
+            data={
+                "ticker": stock.ticker,
+                "m_contradiction": multipliers["m_contradiction"],
+                "reasons": reasons,
+            },
+        )
 
     # T5: BMI oversold aggressive sizing REMOVED (BC23) — redundant with BMI guard
 
@@ -985,16 +1130,29 @@ def _apply_position_limits(
         qualified = [p for p in positions if p.combined_score >= score_threshold]
         filtered_out = len(positions) - len(qualified)
         if filtered_out > 0:
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
-                       message=f"[DYNAMIC] {len(qualified)}/{len(positions)} tickers "
-                               f"above threshold {score_threshold} — "
-                               f"{filtered_out} filtered out")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.INFO,
+                phase=6,
+                message=f"[DYNAMIC] {len(qualified)}/{len(positions)} tickers "
+                f"above threshold {score_threshold} — "
+                f"{filtered_out} filtered out",
+            )
         if not qualified:
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.WARNING, phase=6,
-                       message=f"[DYNAMIC] No tickers above score threshold "
-                               f"{score_threshold} — no positions today")
-            return [], {"sector": 0, "position": len(positions), "risk": 0,
-                        "exposure": 0, "correlation": 0}
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.WARNING,
+                phase=6,
+                message=f"[DYNAMIC] No tickers above score threshold "
+                f"{score_threshold} — no positions today",
+            )
+            return [], {
+                "sector": 0,
+                "position": len(positions),
+                "risk": 0,
+                "exposure": 0,
+                "correlation": 0,
+            }
         positions = qualified
 
     max_positions = min(config.runtime["max_positions"], len(positions))
@@ -1037,27 +1195,39 @@ def _apply_position_limits(
         sector_count = sector_counts.get(pos.sector, 0)
         if sector_count >= max_per_sector:
             counts["sector"] += 1
-            logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=6,
-                       message=f"{pos.ticker} excluded: sector limit ({pos.sector})",
-                       data={"ticker": pos.ticker, "reason": "sector_limit"})
+            logger.log(
+                EventType.TICKER_FILTERED,
+                Severity.DEBUG,
+                phase=6,
+                message=f"{pos.ticker} excluded: sector limit ({pos.sector})",
+                data={"ticker": pos.ticker, "reason": "sector_limit"},
+            )
             continue
 
         # 3. Single position risk cap
         if pos.risk_usd > max_risk_usd:
             counts["risk"] += 1
-            logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=6,
-                       message=f"{pos.ticker} excluded: risk ${pos.risk_usd:.0f} > cap ${max_risk_usd:.0f}",
-                       data={"ticker": pos.ticker, "reason": "risk_limit"})
+            logger.log(
+                EventType.TICKER_FILTERED,
+                Severity.DEBUG,
+                phase=6,
+                message=f"{pos.ticker} excluded: risk ${pos.risk_usd:.0f} > cap ${max_risk_usd:.0f}",
+                data={"ticker": pos.ticker, "reason": "risk_limit"},
+            )
             continue
 
         # 4. Gross exposure check
         ticker_exposure = pos.quantity * pos.entry_price
         if running_exposure + ticker_exposure > max_gross:
             counts["exposure"] += 1
-            logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=6,
-                       message=f"[GLOBALGUARD] {pos.ticker} removed: gross exposure "
-                               f"${running_exposure + ticker_exposure:.0f} > ${max_gross:.0f}",
-                       data={"ticker": pos.ticker, "reason": "exposure_limit"})
+            logger.log(
+                EventType.TICKER_FILTERED,
+                Severity.DEBUG,
+                phase=6,
+                message=f"[GLOBALGUARD] {pos.ticker} removed: gross exposure "
+                f"${running_exposure + ticker_exposure:.0f} > ${max_gross:.0f}",
+                data={"ticker": pos.ticker, "reason": "exposure_limit"},
+            )
             continue
 
         # 5. Sector group correlation guard (BC21)
@@ -1067,10 +1237,17 @@ def _apply_position_limits(
                 if pos.sector in group_sectors:
                     if group_counts.get(group_name, 0) >= max_per_group.get(group_name, 99):
                         counts["correlation"] += 1
-                        logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=6,
-                                   message=f"{pos.ticker} excluded: {group_name} group limit ({pos.sector})",
-                                   data={"ticker": pos.ticker, "reason": "correlation_limit",
-                                         "group": group_name})
+                        logger.log(
+                            EventType.TICKER_FILTERED,
+                            Severity.DEBUG,
+                            phase=6,
+                            message=f"{pos.ticker} excluded: {group_name} group limit ({pos.sector})",
+                            data={
+                                "ticker": pos.ticker,
+                                "reason": "correlation_limit",
+                                "group": group_name,
+                            },
+                        )
                         blocked = True
                         break
             if blocked:
@@ -1082,10 +1259,14 @@ def _apply_position_limits(
             if reduced_qty <= 0:
                 counts["exposure"] += 1
                 continue
-            logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=6,
-                       message=f"[GLOBALGUARD] {pos.ticker} reduced: exposure "
-                               f"${ticker_exposure:.0f} > ${max_ticker:.0f}",
-                       data={"ticker": pos.ticker, "reason": "ticker_exposure_reduced"})
+            logger.log(
+                EventType.TICKER_FILTERED,
+                Severity.DEBUG,
+                phase=6,
+                message=f"[GLOBALGUARD] {pos.ticker} reduced: exposure "
+                f"${ticker_exposure:.0f} > ${max_ticker:.0f}",
+                data={"ticker": pos.ticker, "reason": "ticker_exposure_reduced"},
+            )
             pos = dataclasses.replace(pos, quantity=reduced_qty)
             ticker_exposure = reduced_qty * pos.entry_price
 
@@ -1121,6 +1302,7 @@ def _load_daily_counter(file_path: str) -> dict:
 def _save_daily_counter(file_path: str, counter: dict) -> None:
     """Save a daily counter to JSON state file (atomic write)."""
     from ifds.utils.io import atomic_write_json
+
     try:
         atomic_write_json(file_path, counter)
     except OSError:
@@ -1171,11 +1353,15 @@ def compute_swing_notional(
 
     notional = (equity * risk_pct) / (atr_pct * stop_mult) * m_target
 
-    return notional, m_target, {
-        "atr_pct": atr_pct,
-        "risk_usd": equity * risk_pct * m_target,
-        "stop_mult": stop_mult,
-    }
+    return (
+        notional,
+        m_target,
+        {
+            "atr_pct": atr_pct,
+            "risk_usd": equity * risk_pct * m_target,
+            "stop_mult": stop_mult,
+        },
+    )
 
 
 def _calculate_swing_position(
@@ -1319,9 +1505,7 @@ def _select_swing_entries(
     sector_notionals: dict[str, float] = {}
     for pos in open_positions:
         pos_notional = pos.quantity * pos.entry_price
-        sector_notionals[pos.sector] = (
-            sector_notionals.get(pos.sector, 0.0) + pos_notional
-        )
+        sector_notionals[pos.sector] = sector_notionals.get(pos.sector, 0.0) + pos_notional
 
     headroom = max(0, max_concurrent - len(open_positions))
     max_new = min(max_daily, headroom)
@@ -1331,9 +1515,13 @@ def _select_swing_entries(
     if max_new <= 0:
         if len(open_positions) >= max_concurrent:
             counts["concurrent_cap"] = len(candidates)
-            logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
-                       message=f"[SWING] No new entries — at concurrent cap "
-                               f"({len(open_positions)}/{max_concurrent})")
+            logger.log(
+                EventType.PHASE_DIAGNOSTIC,
+                Severity.INFO,
+                phase=6,
+                message=f"[SWING] No new entries — at concurrent cap "
+                f"({len(open_positions)}/{max_concurrent})",
+            )
         return [], counts
 
     ranked = sorted(candidates, key=lambda c: c[0].combined_score, reverse=True)
@@ -1345,7 +1533,12 @@ def _select_swing_entries(
             continue
 
         pos = _calculate_swing_position(
-            stock, gex, config, strategy_mode, sector_map, mms_map,
+            stock,
+            gex,
+            config,
+            strategy_mode,
+            sector_map,
+            mms_map,
         )
         if pos is None:
             counts["sizing_failed"] += 1
@@ -1355,23 +1548,30 @@ def _select_swing_entries(
         new_sector_total = sector_notionals.get(pos.sector, 0.0) + pos_notional
         if new_sector_total > sector_cap_usd:
             counts["sector_cap"] += 1
-            logger.log(EventType.TICKER_FILTERED, Severity.DEBUG, phase=6,
-                       message=f"[SWING] {pos.ticker} excluded: sector "
-                               f"{pos.sector} would hit "
-                               f"${new_sector_total:.0f} > "
-                               f"${sector_cap_usd:.0f} cap",
-                       data={"ticker": pos.ticker, "sector": pos.sector,
-                             "reason": "sector_notional_cap"})
+            logger.log(
+                EventType.TICKER_FILTERED,
+                Severity.DEBUG,
+                phase=6,
+                message=f"[SWING] {pos.ticker} excluded: sector "
+                f"{pos.sector} would hit "
+                f"${new_sector_total:.0f} > "
+                f"${sector_cap_usd:.0f} cap",
+                data={"ticker": pos.ticker, "sector": pos.sector, "reason": "sector_notional_cap"},
+            )
             continue
 
         selected.append(pos)
         sector_notionals[pos.sector] = new_sector_total
 
     if not selected and ranked:
-        logger.log(EventType.PHASE_DIAGNOSTIC, Severity.INFO, phase=6,
-                   message=f"[SWING] 0 entries from {len(ranked)} candidates "
-                           f"(daily_cap={counts['daily_cap']}, "
-                           f"sector_cap={counts['sector_cap']}, "
-                           f"sizing_failed={counts['sizing_failed']})")
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.INFO,
+            phase=6,
+            message=f"[SWING] 0 entries from {len(ranked)} candidates "
+            f"(daily_cap={counts['daily_cap']}, "
+            f"sector_cap={counts['sector_cap']}, "
+            f"sizing_failed={counts['sizing_failed']})",
+        )
 
     return selected, counts

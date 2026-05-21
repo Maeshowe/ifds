@@ -22,6 +22,7 @@ def is_trading_day(d: date) -> bool:
     """Check if a date is a valid NYSE trading day."""
     cal = _get_nyse_calendar()
     import pandas as pd
+
     ts = pd.Timestamp(d)
     return cal.is_session(ts)
 
@@ -41,6 +42,7 @@ def next_trading_day(d: date, n: int = 1) -> date:
 
     cal = _get_nyse_calendar()
     import pandas as pd
+
     ts = pd.Timestamp(d)
 
     current = ts
@@ -68,6 +70,7 @@ def prev_trading_day(d: date, n: int = 1) -> date:
 
     cal = _get_nyse_calendar()
     import pandas as pd
+
     ts = pd.Timestamp(d)
 
     current = ts
@@ -92,6 +95,7 @@ def trading_days_between(start: date, end: date) -> list[date]:
     """
     cal = _get_nyse_calendar()
     import pandas as pd
+
     sessions = cal.sessions_in_range(pd.Timestamp(start), pd.Timestamp(end))
     return [s.date() for s in sessions]
 
@@ -128,6 +132,7 @@ def count_trading_days(start: date, end: date) -> int:
         return 0
     cal = _get_nyse_calendar()
     import pandas as pd
+
     # Sessions in (start, end] = sessions_in_range(start+1day, end)
     next_day = start + timedelta(days=1)
     sessions = cal.sessions_in_range(pd.Timestamp(next_day), pd.Timestamp(end))

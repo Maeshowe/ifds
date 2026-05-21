@@ -17,6 +17,7 @@ mindig küld egy reggeli heartbeat-et.
 Usage:
     python scripts/paper_trading/monitor_positions.py
 """
+
 from __future__ import annotations
 
 import os
@@ -28,14 +29,19 @@ load_dotenv()
 
 try:
     from lib.log_setup import setup_pt_logger
+
     logger = setup_pt_logger("monitor_positions")
 except ModuleNotFoundError:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
-    logger = logging.getLogger('monitor_positions')
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    )
+    logger = logging.getLogger("monitor_positions")
 
 try:
     from lib.event_logger import PTEventLogger
+
     evt = PTEventLogger()
 except ModuleNotFoundError:
     evt = None
@@ -49,6 +55,7 @@ def send_telegram(message: str) -> None:
     """Send message via Telegram Bot API with CET timestamp header."""
     from lib.telegram_helper import telegram_header
     from lib.telegram_helper import send_telegram as _send
+
     _send(f"{telegram_header('LEFTOVER')}\n{message}")
 
 
@@ -62,15 +69,18 @@ def load_swing_state_tickers() -> set[str]:
     try:
         from ifds.config.loader import Config
         from ifds.state.swing_positions import load_swing_positions
+
         cfg = Config()
         state_file = cfg.tuning.get(
-            "swing_positions_state_file", "state/swing_positions.json",
+            "swing_positions_state_file",
+            "state/swing_positions.json",
         )
     except Exception:
         state_file = "state/swing_positions.json"
 
     try:
         from ifds.state.swing_positions import load_swing_positions
+
         positions = load_swing_positions(state_file)
         return {p.ticker for p in positions}
     except Exception as exc:
@@ -96,6 +106,7 @@ def classify_positions(
 def main() -> None:
     try:
         from lib.trading_day_guard import check_trading_day
+
         check_trading_day(logger)
     except ModuleNotFoundError:
         pass
@@ -105,9 +116,7 @@ def main() -> None:
     logger.info(f"Leftover position monitor — {today_str}")
 
     swing_tickers = load_swing_state_tickers()
-    logger.info(
-        f"Swing state: {sorted(swing_tickers) if swing_tickers else 'empty'}"
-    )
+    logger.info(f"Swing state: {sorted(swing_tickers) if swing_tickers else 'empty'}")
 
     ib = connect(client_id=14)
     ib.sleep(3)
@@ -118,7 +127,8 @@ def main() -> None:
     ibkr_tickers = set(ibkr_qty.keys())
 
     true_leftovers, swing_carry_over, permanent_orphans = classify_positions(
-        ibkr_tickers, swing_tickers,
+        ibkr_tickers,
+        swing_tickers,
     )
 
     logger.info(
@@ -134,20 +144,17 @@ def main() -> None:
         for sym in sorted(true_leftovers):
             lines.append(f"  {sym}: {ibkr_qty[sym]:+d} shares (NOT in swing state)")
         if swing_carry_over:
-            lines.append(
-                f"\nSwing carry-over (NORMAL, ignored): {sorted(swing_carry_over)}"
-            )
+            lines.append(f"\nSwing carry-over (NORMAL, ignored): {sorted(swing_carry_over)}")
         if permanent_orphans:
-            lines.append(
-                f"Permanent orphans (ignored): {sorted(permanent_orphans)}"
-            )
+            lines.append(f"Permanent orphans (ignored): {sorted(permanent_orphans)}")
         lines.append("\nAction: nuke.py before market open or manual close in IBKR.")
         msg = "\n".join(lines)
         logger.warning(msg)
         send_telegram(msg)
         if evt:
             evt.log(
-                "monitor_positions", "true_leftover_found",
+                "monitor_positions",
+                "true_leftover_found",
                 tickers=sorted(true_leftovers),
                 count=len(true_leftovers),
                 swing_carry_over=sorted(swing_carry_over),
@@ -156,20 +163,17 @@ def main() -> None:
         logger.info("No true leftovers — swing carry-over is normal.")
         if evt:
             evt.log(
-                "monitor_positions", "no_true_leftover",
+                "monitor_positions",
+                "no_true_leftover",
                 swing_carry_over=sorted(swing_carry_over),
                 permanent_orphans=sorted(permanent_orphans),
             )
         if verbose:
             lines = [f"✓ Morning leftover check — {today_str}"]
             if swing_carry_over:
-                lines.append(
-                    f"  Swing carry-over (NORMAL): {sorted(swing_carry_over)}"
-                )
+                lines.append(f"  Swing carry-over (NORMAL): {sorted(swing_carry_over)}")
             if permanent_orphans:
-                lines.append(
-                    f"  Permanent orphans (ignored): {sorted(permanent_orphans)}"
-                )
+                lines.append(f"  Permanent orphans (ignored): {sorted(permanent_orphans)}")
             lines.append("  No true leftovers detected.")
             send_telegram("\n".join(lines))
 

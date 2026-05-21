@@ -94,7 +94,8 @@ class TestPTEventLogger:
 
         el = PTEventLogger(log_dir=str(tmp_path))
         el.log(
-            "eod", "leftover_warning",
+            "eod",
+            "leftover_warning",
             leftover=["AAPL:100", "MSFT:50"],
             count=2,
         )

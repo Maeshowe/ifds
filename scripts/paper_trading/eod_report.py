@@ -8,6 +8,7 @@ sends Telegram summary, cancels all remaining orders.
 Usage:
     python scripts/paper_trading/eod_report.py
 """
+
 import argparse
 import csv
 import glob
@@ -25,8 +26,8 @@ load_dotenv()
 # Configuration
 # ---------------------------------------------------------------------------
 
-LOG_DIR = 'scripts/paper_trading/logs'
-CUMULATIVE_PNL_FILE = 'scripts/paper_trading/logs/cumulative_pnl.json'
+LOG_DIR = "scripts/paper_trading/logs"
+CUMULATIVE_PNL_FILE = "scripts/paper_trading/logs/cumulative_pnl.json"
 CIRCUIT_BREAKER_USD = -5_000
 INITIAL_CAPITAL = 100_000
 
@@ -40,14 +41,19 @@ IGNORED_POSITIONS = {"AVDL.CVR"}
 
 try:
     from lib.log_setup import setup_pt_logger
+
     logger = setup_pt_logger("eod")
 except ModuleNotFoundError:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
-    logger = logging.getLogger('eod')
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    )
+    logger = logging.getLogger("eod")
 
 try:
     from lib.event_logger import PTEventLogger
+
     evt = PTEventLogger()
 except ModuleNotFoundError:
     evt = None
@@ -61,6 +67,7 @@ def send_telegram(message):
     """Send message via Telegram Bot API with CET timestamp header."""
     from lib.telegram_helper import telegram_header
     from lib.telegram_helper import send_telegram as _send
+
     _send(f"{telegram_header('EOD')}\n{message}")
 
 
@@ -83,15 +90,15 @@ def load_execution_plan_metadata(today_str):
         return {}
 
     meta = {}
-    with open(files[-1], newline='') as f:
+    with open(files[-1], newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            meta[row['instrument_id']] = {
-                'score': float(row['score']),
-                'sector': row['sector'],
-                'sl_price': float(row['stop_loss']),
-                'tp1_price': float(row['take_profit_1']),
-                'tp2_price': float(row['take_profit_2']),
+            meta[row["instrument_id"]] = {
+                "score": float(row["score"]),
+                "sector": row["sector"],
+                "sl_price": float(row["stop_loss"]),
+                "tp1_price": float(row["take_profit_1"]),
+                "tp2_price": float(row["take_profit_2"]),
             }
     return meta
 
@@ -146,7 +153,7 @@ def build_trade_report(executions, meta, pnl_by_symbol=None):
     MOC closes where the entry fill is from a previous day (orderRef='').
     """
     # Group executions by symbol
-    by_symbol = defaultdict(lambda: {'buys': [], 'sells': []})
+    by_symbol = defaultdict(lambda: {"buys": [], "sells": []})
 
     for exe in executions:
         sym = exe.contract.symbol
@@ -154,110 +161,115 @@ def build_trade_report(executions, meta, pnl_by_symbol=None):
         price = exe.execution.price
         qty = int(exe.execution.shares)
         commission = exe.commissionReport.commission if exe.commissionReport else 0.0
-        order_ref = getattr(exe.execution, 'orderRef', '') or ''
+        order_ref = getattr(exe.execution, "orderRef", "") or ""
 
         record = {
-            'price': price,
-            'qty': qty,
-            'commission': commission,
-            'time': exe.execution.time,
-            'order_ref': order_ref,
+            "price": price,
+            "qty": qty,
+            "commission": commission,
+            "time": exe.execution.time,
+            "order_ref": order_ref,
         }
 
-        if side == 'BOT':
-            by_symbol[sym]['buys'].append(record)
+        if side == "BOT":
+            by_symbol[sym]["buys"].append(record)
         else:
-            by_symbol[sym]['sells'].append(record)
+            by_symbol[sym]["sells"].append(record)
 
     trades = []
     for sym, fills in by_symbol.items():
         ticker_meta = meta.get(sym, {})
-        sl_price = ticker_meta.get('sl_price', 0)
-        tp1_price = ticker_meta.get('tp1_price', 0)
-        tp2_price = ticker_meta.get('tp2_price', 0)
-        score = ticker_meta.get('score', 0)
-        sector = ticker_meta.get('sector', 'N/A')
+        sl_price = ticker_meta.get("sl_price", 0)
+        tp1_price = ticker_meta.get("tp1_price", 0)
+        tp2_price = ticker_meta.get("tp2_price", 0)
+        score = ticker_meta.get("score", 0)
+        sector = ticker_meta.get("sector", "N/A")
 
         # Calculate average entry price
-        total_buy_qty = sum(b['qty'] for b in fills['buys'])
+        total_buy_qty = sum(b["qty"] for b in fills["buys"])
 
         # MOC close path: entry was on a previous day — no BUY fills today
-        if total_buy_qty == 0 and fills['sells'] and pnl_by_symbol:
+        if total_buy_qty == 0 and fills["sells"] and pnl_by_symbol:
             realized_pnl = pnl_by_symbol.get(sym)
             if realized_pnl is None:
                 continue
-            total_sell_qty = sum(s['qty'] for s in fills['sells'])
-            for sell in fills['sells']:
-                qty = sell['qty']
-                exit_price = sell['price']
+            total_sell_qty = sum(s["qty"] for s in fills["sells"])
+            for sell in fills["sells"]:
+                qty = sell["qty"]
+                exit_price = sell["price"]
                 # Distribute P&L proportionally for multi-fill closes
                 pnl = realized_pnl * (qty / total_sell_qty) if total_sell_qty else realized_pnl
                 # Back-calculate entry price from realized P&L
                 entry_price = round(exit_price - pnl / qty, 2) if qty else 0
                 pnl_pct = round((pnl / (entry_price * qty) * 100), 2) if entry_price and qty else 0
-                trades.append({
-                    'date': date.today().isoformat(),
-                    'ticker': sym,
-                    'direction': 'LONG',
-                    'entry_price': entry_price,
-                    'entry_qty': qty,
-                    'exit_price': round(exit_price, 2),
-                    'exit_qty': qty,
-                    'exit_type': 'MOC',
-                    'pnl': round(pnl, 2),
-                    'pnl_pct': pnl_pct,
-                    'commission': round(sell['commission'], 2),
-                    'score': score,
-                    'sector': sector,
-                    'sl_price': sl_price,
-                    'tp1_price': tp1_price,
-                    'tp2_price': tp2_price,
-                })
+                trades.append(
+                    {
+                        "date": date.today().isoformat(),
+                        "ticker": sym,
+                        "direction": "LONG",
+                        "entry_price": entry_price,
+                        "entry_qty": qty,
+                        "exit_price": round(exit_price, 2),
+                        "exit_qty": qty,
+                        "exit_type": "MOC",
+                        "pnl": round(pnl, 2),
+                        "pnl_pct": pnl_pct,
+                        "commission": round(sell["commission"], 2),
+                        "score": score,
+                        "sector": sector,
+                        "sl_price": sl_price,
+                        "tp1_price": tp1_price,
+                        "tp2_price": tp2_price,
+                    }
+                )
             continue
 
         if total_buy_qty == 0:
             continue
 
-        avg_entry = sum(b['price'] * b['qty'] for b in fills['buys']) / total_buy_qty
-        buy_commission = sum(b['commission'] for b in fills['buys'])
+        avg_entry = sum(b["price"] * b["qty"] for b in fills["buys"]) / total_buy_qty
+        buy_commission = sum(b["commission"] for b in fills["buys"])
 
         # Process each sell fill as a separate trade leg
-        for sell in fills['sells']:
-            exit_type = classify_exit_by_ref(sell.get('order_ref', ''))
+        for sell in fills["sells"]:
+            exit_type = classify_exit_by_ref(sell.get("order_ref", ""))
             if exit_type is None:
-                exit_type = classify_exit(sell['price'], sl_price, tp1_price, tp2_price)
-            pnl = (sell['price'] - avg_entry) * sell['qty']
-            pnl_pct = ((sell['price'] / avg_entry) - 1) * 100 if avg_entry else 0
+                exit_type = classify_exit(sell["price"], sl_price, tp1_price, tp2_price)
+            pnl = (sell["price"] - avg_entry) * sell["qty"]
+            pnl_pct = ((sell["price"] / avg_entry) - 1) * 100 if avg_entry else 0
             # Proportional buy commission
-            prop_commission = (buy_commission * sell['qty'] / total_buy_qty) if total_buy_qty else 0
+            prop_commission = (buy_commission * sell["qty"] / total_buy_qty) if total_buy_qty else 0
 
             trade_record = {
-                'date': date.today().isoformat(),
-                'ticker': sym,
-                'direction': 'LONG',
-                'entry_price': round(avg_entry, 2),
-                'entry_qty': sell['qty'],
-                'exit_price': round(sell['price'], 2),
-                'exit_qty': sell['qty'],
-                'exit_type': exit_type,
-                'pnl': round(pnl, 2),
-                'pnl_pct': round(pnl_pct, 2),
-                'commission': round(sell['commission'] + prop_commission, 2),
-                'score': score,
-                'sector': sector,
-                'sl_price': sl_price,
-                'tp1_price': tp1_price,
-                'tp2_price': tp2_price,
+                "date": date.today().isoformat(),
+                "ticker": sym,
+                "direction": "LONG",
+                "entry_price": round(avg_entry, 2),
+                "entry_qty": sell["qty"],
+                "exit_price": round(sell["price"], 2),
+                "exit_qty": sell["qty"],
+                "exit_type": exit_type,
+                "pnl": round(pnl, 2),
+                "pnl_pct": round(pnl_pct, 2),
+                "commission": round(sell["commission"] + prop_commission, 2),
+                "score": score,
+                "sector": sector,
+                "sl_price": sl_price,
+                "tp1_price": tp1_price,
+                "tp2_price": tp2_price,
             }
             trades.append(trade_record)
             if evt:
                 evt.log(
-                    "eod", "trade_closed", ticker=sym,
-                    entry_price=trade_record['entry_price'],
-                    exit_price=trade_record['exit_price'],
-                    qty=trade_record['exit_qty'],
-                    exit_type=exit_type, pnl=trade_record['pnl'],
-                    pnl_pct=trade_record['pnl_pct'],
+                    "eod",
+                    "trade_closed",
+                    ticker=sym,
+                    entry_price=trade_record["entry_price"],
+                    exit_price=trade_record["exit_price"],
+                    qty=trade_record["exit_qty"],
+                    exit_type=exit_type,
+                    pnl=trade_record["pnl"],
+                    pnl_pct=trade_record["pnl_pct"],
                 )
 
     return trades
@@ -274,12 +286,25 @@ def save_daily_csv(trades, today_str):
     csv_path = Path(LOG_DIR) / f"trades_{today_str}.csv"
 
     fieldnames = [
-        'date', 'ticker', 'direction', 'entry_price', 'entry_qty',
-        'exit_price', 'exit_qty', 'exit_type', 'pnl', 'pnl_pct',
-        'commission', 'score', 'sector', 'sl_price', 'tp1_price', 'tp2_price',
+        "date",
+        "ticker",
+        "direction",
+        "entry_price",
+        "entry_qty",
+        "exit_price",
+        "exit_qty",
+        "exit_type",
+        "pnl",
+        "pnl_pct",
+        "commission",
+        "score",
+        "sector",
+        "sl_price",
+        "tp1_price",
+        "tp2_price",
     ]
 
-    with open(csv_path, 'w', newline='') as f:
+    with open(csv_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(trades)
@@ -303,65 +328,72 @@ def update_cumulative_pnl(trades, today_str):
             data = json.load(f)
     else:
         data = {
-            'start_date': today_str,
-            'initial_capital': INITIAL_CAPITAL,
-            'trading_days': 0,
-            'cumulative_pnl': 0.0,
-            'cumulative_pnl_pct': 0.0,
-            'daily_history': [],
+            "start_date": today_str,
+            "initial_capital": INITIAL_CAPITAL,
+            "trading_days": 0,
+            "cumulative_pnl": 0.0,
+            "cumulative_pnl_pct": 0.0,
+            "daily_history": [],
         }
 
     # Idempotency guard — skip if date already recorded
-    existing_dates = {d['date'] for d in data.get('daily_history', [])}
+    existing_dates = {d["date"] for d in data.get("daily_history", [])}
     if today_str in existing_dates:
         logger.warning(f"EOD idempotency: {today_str} already in history — skipping update")
-        daily_pnl = sum(t['pnl'] for t in trades)
+        daily_pnl = sum(t["pnl"] for t in trades)
         return data, daily_pnl
 
     # Calculate daily stats
-    daily_pnl = sum(t['pnl'] for t in trades)
-    daily_commission = round(sum(t.get('commission', 0.0) for t in trades), 4)
+    daily_pnl = sum(t["pnl"] for t in trades)
+    daily_commission = round(sum(t.get("commission", 0.0) for t in trades), 4)
     total_trades = len(trades)
-    filled = len([t for t in trades if t['exit_type'] != 'UNFILLED'])
-    tp1_hits = len([t for t in trades if t['exit_type'] == 'TP1'])
-    tp2_hits = len([t for t in trades if t['exit_type'] == 'TP2'])
-    sl_hits = len([t for t in trades if t['exit_type'] == 'SL'])
-    loss_exit_hits = len([t for t in trades if t['exit_type'] == 'LOSS_EXIT'])
-    trail_hits = len([t for t in trades if t['exit_type'] == 'TRAIL'])
-    moc_exits = len([t for t in trades if t['exit_type'] == 'MOC'])
+    filled = len([t for t in trades if t["exit_type"] != "UNFILLED"])
+    tp1_hits = len([t for t in trades if t["exit_type"] == "TP1"])
+    tp2_hits = len([t for t in trades if t["exit_type"] == "TP2"])
+    sl_hits = len([t for t in trades if t["exit_type"] == "SL"])
+    loss_exit_hits = len([t for t in trades if t["exit_type"] == "LOSS_EXIT"])
+    trail_hits = len([t for t in trades if t["exit_type"] == "TRAIL"])
+    moc_exits = len([t for t in trades if t["exit_type"] == "MOC"])
 
     # Update cumulative
-    data['trading_days'] += 1
-    data['cumulative_pnl'] = round(data['cumulative_pnl'] + daily_pnl, 2)
-    data['cumulative_pnl_pct'] = round(
-        data['cumulative_pnl'] / INITIAL_CAPITAL * 100, 3
+    data["trading_days"] += 1
+    data["cumulative_pnl"] = round(data["cumulative_pnl"] + daily_pnl, 2)
+    data["cumulative_pnl_pct"] = round(data["cumulative_pnl"] / INITIAL_CAPITAL * 100, 3)
+
+    data["daily_history"].append(
+        {
+            "date": today_str,
+            "pnl": round(daily_pnl, 2),
+            "commission": daily_commission,
+            "trades": total_trades,
+            "filled": filled,
+            "tp1_hits": tp1_hits,
+            "tp2_hits": tp2_hits,
+            "sl_hits": sl_hits,
+            "loss_exit_hits": loss_exit_hits,
+            "trail_hits": trail_hits,
+            "moc_exits": moc_exits,
+        }
     )
 
-    data['daily_history'].append({
-        'date': today_str,
-        'pnl': round(daily_pnl, 2),
-        'commission': daily_commission,
-        'trades': total_trades,
-        'filled': filled,
-        'tp1_hits': tp1_hits,
-        'tp2_hits': tp2_hits,
-        'sl_hits': sl_hits,
-        'loss_exit_hits': loss_exit_hits,
-        'trail_hits': trail_hits,
-        'moc_exits': moc_exits,
-    })
-
-    with open(CUMULATIVE_PNL_FILE, 'w') as f:
+    with open(CUMULATIVE_PNL_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
     if evt:
         evt.log(
-            "eod", "daily_pnl", pnl=round(daily_pnl, 2),
-            cumulative=data['cumulative_pnl'],
-            cum_pct=data['cumulative_pnl_pct'],
-            day=data['trading_days'],
-            trades=total_trades, tp1=tp1_hits, tp2=tp2_hits,
-            sl=sl_hits, loss_exit=loss_exit_hits, trail=trail_hits, moc=moc_exits,
+            "eod",
+            "daily_pnl",
+            pnl=round(daily_pnl, 2),
+            cumulative=data["cumulative_pnl"],
+            cum_pct=data["cumulative_pnl_pct"],
+            day=data["trading_days"],
+            trades=total_trades,
+            tp1=tp1_hits,
+            tp2=tp2_hits,
+            sl=sl_hits,
+            loss_exit=loss_exit_hits,
+            trail=trail_hits,
+            moc=moc_exits,
         )
 
     return data, daily_pnl
@@ -380,27 +412,29 @@ def load_latest_trades_csv():
         return [], None
     csv_path = files[-1]
     trades = []
-    with open(csv_path, newline='') as f:
+    with open(csv_path, newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            trades.append({
-                'date': row['date'],
-                'ticker': row['ticker'],
-                'direction': row['direction'],
-                'entry_price': float(row['entry_price']),
-                'entry_qty': int(row['entry_qty']),
-                'exit_price': float(row['exit_price']),
-                'exit_qty': int(row['exit_qty']),
-                'exit_type': row['exit_type'],
-                'pnl': float(row['pnl']),
-                'pnl_pct': float(row['pnl_pct']),
-                'commission': float(row['commission']),
-                'score': float(row['score']),
-                'sector': row['sector'],
-                'sl_price': float(row['sl_price']),
-                'tp1_price': float(row['tp1_price']),
-                'tp2_price': float(row['tp2_price']),
-            })
+            trades.append(
+                {
+                    "date": row["date"],
+                    "ticker": row["ticker"],
+                    "direction": row["direction"],
+                    "entry_price": float(row["entry_price"]),
+                    "entry_qty": int(row["entry_qty"]),
+                    "exit_price": float(row["exit_price"]),
+                    "exit_qty": int(row["exit_qty"]),
+                    "exit_type": row["exit_type"],
+                    "pnl": float(row["pnl"]),
+                    "pnl_pct": float(row["pnl_pct"]),
+                    "commission": float(row["commission"]),
+                    "score": float(row["score"]),
+                    "sector": row["sector"],
+                    "sl_price": float(row["sl_price"]),
+                    "tp1_price": float(row["tp1_price"]),
+                    "tp2_price": float(row["tp2_price"]),
+                }
+            )
     return trades, csv_path
 
 
@@ -408,28 +442,56 @@ def make_dummy_trades():
     """Generate dummy trades for Telegram format testing."""
     today_str = date.today().isoformat()
     return [
-        {'date': today_str, 'ticker': 'TEST1', 'direction': 'LONG',
-         'entry_price': 100.0, 'entry_qty': 10, 'exit_price': 103.0,
-         'exit_qty': 10, 'exit_type': 'TP1', 'pnl': 30.0, 'pnl_pct': 3.0,
-         'commission': 1.0, 'score': 85.0, 'sector': 'Technology',
-         'sl_price': 97.0, 'tp1_price': 103.0, 'tp2_price': 106.0},
-        {'date': today_str, 'ticker': 'TEST2', 'direction': 'LONG',
-         'entry_price': 50.0, 'entry_qty': 20, 'exit_price': 48.5,
-         'exit_qty': 20, 'exit_type': 'SL', 'pnl': -30.0, 'pnl_pct': -3.0,
-         'commission': 1.0, 'score': 72.0, 'sector': 'Healthcare',
-         'sl_price': 48.5, 'tp1_price': 52.0, 'tp2_price': 54.0},
+        {
+            "date": today_str,
+            "ticker": "TEST1",
+            "direction": "LONG",
+            "entry_price": 100.0,
+            "entry_qty": 10,
+            "exit_price": 103.0,
+            "exit_qty": 10,
+            "exit_type": "TP1",
+            "pnl": 30.0,
+            "pnl_pct": 3.0,
+            "commission": 1.0,
+            "score": 85.0,
+            "sector": "Technology",
+            "sl_price": 97.0,
+            "tp1_price": 103.0,
+            "tp2_price": 106.0,
+        },
+        {
+            "date": today_str,
+            "ticker": "TEST2",
+            "direction": "LONG",
+            "entry_price": 50.0,
+            "entry_qty": 20,
+            "exit_price": 48.5,
+            "exit_qty": 20,
+            "exit_type": "SL",
+            "pnl": -30.0,
+            "pnl_pct": -3.0,
+            "commission": 1.0,
+            "score": 72.0,
+            "sector": "Healthcare",
+            "sl_price": 48.5,
+            "tp1_price": 52.0,
+            "tp2_price": 54.0,
+        },
     ]
 
 
 def main():
     try:
         from lib.trading_day_guard import check_trading_day
+
         check_trading_day(logger)
     except ModuleNotFoundError:
         pass
-    parser = argparse.ArgumentParser(description='IBKR Paper Trading — EOD Report')
-    parser.add_argument('--dry-run', action='store_true',
-                        help='Send test Telegram report without IBKR connection')
+    parser = argparse.ArgumentParser(description="IBKR Paper Trading — EOD Report")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Send test Telegram report without IBKR connection"
+    )
     args = parser.parse_args()
 
     today_str = date.today().isoformat()
@@ -446,16 +508,18 @@ def main():
             logger.info("No trades CSV found — using dummy data")
 
         for t in trades:
-            pnl_sign = '+' if t['pnl'] >= 0 else ''
-            logger.info(f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}")
+            pnl_sign = "+" if t["pnl"] >= 0 else ""
+            logger.info(
+                f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}"
+            )
 
-        daily_pnl = sum(t['pnl'] for t in trades)
+        daily_pnl = sum(t["pnl"] for t in trades)
         total_trades = len(trades)
-        tp1_hits = len([t for t in trades if t['exit_type'] == 'TP1'])
-        tp2_hits = len([t for t in trades if t['exit_type'] == 'TP2'])
-        sl_hits = len([t for t in trades if t['exit_type'] == 'SL'])
-        moc_exits = len([t for t in trades if t['exit_type'] == 'MOC'])
-        filled = len([t for t in trades if t['exit_type'] != 'UNFILLED'])
+        tp1_hits = len([t for t in trades if t["exit_type"] == "TP1"])
+        tp2_hits = len([t for t in trades if t["exit_type"] == "TP2"])
+        sl_hits = len([t for t in trades if t["exit_type"] == "SL"])
+        moc_exits = len([t for t in trades if t["exit_type"] == "MOC"])
+        filled = len([t for t in trades if t["exit_type"] != "UNFILLED"])
 
         # Load cumulative P&L if available
         cum_pnl = 0.0
@@ -464,15 +528,15 @@ def main():
         if os.path.exists(CUMULATIVE_PNL_FILE):
             with open(CUMULATIVE_PNL_FILE) as f:
                 cum_data = json.load(f)
-            cum_pnl = cum_data.get('cumulative_pnl', 0.0)
-            cum_pct = cum_data.get('cumulative_pnl_pct', 0.0)
-            trading_days = cum_data.get('trading_days', 0)
+            cum_pnl = cum_data.get("cumulative_pnl", 0.0)
+            cum_pct = cum_data.get("cumulative_pnl_pct", 0.0)
+            trading_days = cum_data.get("trading_days", 0)
 
         logger.info(f"P&L today: ${daily_pnl:+,.2f}")
         logger.info(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]")
 
-        loss_exit_hits = len([t for t in trades if t['exit_type'] == 'LOSS_EXIT'])
-        trail_hits_count = len([t for t in trades if t['exit_type'] == 'TRAIL'])
+        loss_exit_hits = len([t for t in trades if t["exit_type"] == "LOSS_EXIT"])
+        trail_hits_count = len([t for t in trades if t["exit_type"] == "TRAIL"])
 
         tg_lines = [
             f"📊 PAPER TRADING EOD [DRY RUN] — {today_str}",
@@ -483,17 +547,15 @@ def main():
         if loss_exit_hits or trail_hits_count:
             tg_lines.append(f"LOSS: {loss_exit_hits} | TRAIL: {trail_hits_count}")
         if trades:
-            sorted_trades = sorted(trades, key=lambda t: t['pnl'], reverse=True)
+            sorted_trades = sorted(trades, key=lambda t: t["pnl"], reverse=True)
             ticker_lines = []
             for t in sorted_trades:
                 icon = ""
-                if t == sorted_trades[0] and t['pnl'] > 0:
+                if t == sorted_trades[0] and t["pnl"] > 0:
                     icon = " ✅"
-                elif t == sorted_trades[-1] and t['pnl'] < 0:
+                elif t == sorted_trades[-1] and t["pnl"] < 0:
                     icon = " ❌"
-                ticker_lines.append(
-                    f"{t['ticker']:<6} ${t['pnl']:>+8.2f}  {t['exit_type']}{icon}"
-                )
+                ticker_lines.append(f"{t['ticker']:<6} ${t['pnl']:>+8.2f}  {t['exit_type']}{icon}")
             tg_lines.append(f"\n<pre>{chr(10).join(ticker_lines)}</pre>")
         send_telegram("\n".join(tg_lines))
         logger.info("Telegram sent.")
@@ -509,17 +571,12 @@ def main():
 
     # Filter to today
     today_date = date.today()
-    todays_fills = [
-        e for e in executions
-        if e.execution.time.date() == today_date
-    ]
+    todays_fills = [e for e in executions if e.execution.time.date() == today_date]
 
     # Portfolio P&L for MOC closes (entry on previous day, orderRef='')
     portfolio = ib.portfolio()
     pnl_by_symbol = {
-        item.contract.symbol: item.realizedPNL
-        for item in portfolio
-        if item.realizedPNL != 0.0
+        item.contract.symbol: item.realizedPNL for item in portfolio if item.realizedPNL != 0.0
     }
 
     if not todays_fills:
@@ -536,8 +593,10 @@ def main():
         # Print trade summary
         logger.info(f"Trades: {len(trades)}")
         for t in trades:
-            pnl_sign = '+' if t['pnl'] >= 0 else ''
-            logger.info(f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}")
+            pnl_sign = "+" if t["pnl"] >= 0 else ""
+            logger.info(
+                f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}"
+            )
 
     # --- Save daily CSV ---
     if trades:
@@ -546,9 +605,9 @@ def main():
     # --- Update cumulative P&L ---
     cum_data, daily_pnl = update_cumulative_pnl(trades, today_str)
 
-    cum_pnl = cum_data['cumulative_pnl']
-    cum_pct = cum_data['cumulative_pnl_pct']
-    trading_days = cum_data['trading_days']
+    cum_pnl = cum_data["cumulative_pnl"]
+    cum_pct = cum_data["cumulative_pnl_pct"]
+    trading_days = cum_data["trading_days"]
 
     logger.info(f"P&L today: ${daily_pnl:+,.2f}")
     logger.info(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]")
@@ -569,12 +628,10 @@ def main():
 
     # --- Verify clean state ---
     positions = [
-        p for p in ib.positions()
-        if p.position != 0 and p.contract.symbol not in IGNORED_POSITIONS
+        p for p in ib.positions() if p.position != 0 and p.contract.symbol not in IGNORED_POSITIONS
     ]
     ignored = [
-        p for p in ib.positions()
-        if p.position != 0 and p.contract.symbol in IGNORED_POSITIONS
+        p for p in ib.positions() if p.position != 0 and p.contract.symbol in IGNORED_POSITIONS
     ]
     if ignored:
         logger.info(
@@ -597,6 +654,7 @@ def main():
     swing_tg_sent = False
     try:
         import sys as _sys
+
         _sys.path.insert(0, str(Path(__file__).parent))
         from daily_metrics import build_daily_metrics
         from ifds.output.swing_telegram import format_swing_compact_telegram
@@ -635,29 +693,27 @@ def main():
         return
 
     # Legacy intraday Telegram template (fallback only)
-    daily_stats = cum_data['daily_history'][-1] if cum_data['daily_history'] else {}
+    daily_stats = cum_data["daily_history"][-1] if cum_data["daily_history"] else {}
     tg_lines = [
         f"📊 PAPER TRADING EOD — {today_str}",
         "",
         f"P&L: ${daily_pnl:+,.2f} ({daily_pnl / INITIAL_CAPITAL * 100:+.2f}%) | Cum: ${cum_pnl:+,.0f} ({cum_pct:+.2f}%) [Day {trading_days}/63]",
         f"TP1: {daily_stats.get('tp1_hits', 0)} | SL: {daily_stats.get('sl_hits', 0)} | MOC: {daily_stats.get('moc_exits', 0)}",
     ]
-    ds_loss = daily_stats.get('loss_exit_hits', 0)
-    ds_trail = daily_stats.get('trail_hits', 0)
+    ds_loss = daily_stats.get("loss_exit_hits", 0)
+    ds_trail = daily_stats.get("trail_hits", 0)
     if ds_loss or ds_trail:
         tg_lines.append(f"LOSS: {ds_loss} | TRAIL: {ds_trail}")
     if trades:
-        sorted_trades = sorted(trades, key=lambda t: t['pnl'], reverse=True)
+        sorted_trades = sorted(trades, key=lambda t: t["pnl"], reverse=True)
         ticker_lines = []
         for t in sorted_trades:
             icon = ""
-            if t == sorted_trades[0] and t['pnl'] > 0:
+            if t == sorted_trades[0] and t["pnl"] > 0:
                 icon = " ✅"
-            elif t == sorted_trades[-1] and t['pnl'] < 0:
+            elif t == sorted_trades[-1] and t["pnl"] < 0:
                 icon = " ❌"
-            ticker_lines.append(
-                f"{t['ticker']:<6} ${t['pnl']:>+8.2f}  {t['exit_type']}{icon}"
-            )
+            ticker_lines.append(f"{t['ticker']:<6} ${t['pnl']:>+8.2f}  {t['exit_type']}{icon}")
         tg_lines.append(f"\n<pre>{chr(10).join(ticker_lines)}</pre>")
     leftover_msg = "nincs ✅" if not positions else f"{len(positions)} ⚠️"
     tg_lines.append(f"\nLeftover: {leftover_msg}")
@@ -671,5 +727,5 @@ def main():
     logger.info("Done.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -26,10 +26,10 @@ from ifds.models.market import (
 )
 from ifds.data.adapters import _aggregate_dp_records
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def config(monkeypatch):
@@ -49,6 +49,7 @@ def logger(tmp_path):
 # Helpers
 # ============================================================================
 
+
 def _make_bar(close, high=None, low=None, volume=1000, open_price=None):
     if high is None:
         high = close + 1
@@ -66,6 +67,7 @@ def _make_bars(closes, volume=1000):
 # ============================================================================
 # TestRSIIdealZone — 6 tests
 # ============================================================================
+
 
 class TestRSIIdealZone:
     """Test _score_rsi ideal zone gradient scoring.
@@ -101,6 +103,7 @@ class TestRSIIdealZone:
 # ============================================================================
 # TestSMA50AndRSvsSPY — 5 tests
 # ============================================================================
+
 
 class TestSMA50AndRSvsSPY:
     """Test SMA50 bonus and Relative Strength vs SPY in _analyze_technical."""
@@ -141,8 +144,7 @@ class TestSMA50AndRSvsSPY:
         # Ticker 3m return: (closes[-1] - closes[-63]) / closes[-63]
         # = (199 - 137) / 137 = 0.4526 (45.3%)
         spy_3m_return = 0.05  # SPY only returned 5%
-        tech = _analyze_technical(bars, StrategyMode.LONG, config,
-                                  spy_3m_return=spy_3m_return)
+        tech = _analyze_technical(bars, StrategyMode.LONG, config, spy_3m_return=spy_3m_return)
         assert tech.rs_spy_score == 15  # BC23: reduced from 40
         assert tech.rs_vs_spy is not None
         assert tech.rs_vs_spy > 0
@@ -155,8 +157,7 @@ class TestSMA50AndRSvsSPY:
         # Ticker 3m return: (closes[-1] - closes[-63]) / closes[-63]
         # = (99.01 - 99.37) / 99.37 < 0 (negative)
         spy_3m_return = 0.05  # SPY returned 5%
-        tech = _analyze_technical(bars, StrategyMode.LONG, config,
-                                  spy_3m_return=spy_3m_return)
+        tech = _analyze_technical(bars, StrategyMode.LONG, config, spy_3m_return=spy_3m_return)
         assert tech.rs_spy_score == 0
         assert tech.rs_vs_spy is not None
         assert tech.rs_vs_spy < 0
@@ -165,8 +166,7 @@ class TestSMA50AndRSvsSPY:
         """spy_3m_return=None -> rs_vs_spy=None, rs_spy_score=0."""
         closes = [100.0 + i * 0.5 for i in range(100)]
         bars = _make_bars(closes)
-        tech = _analyze_technical(bars, StrategyMode.LONG, config,
-                                  spy_3m_return=None)
+        tech = _analyze_technical(bars, StrategyMode.LONG, config, spy_3m_return=None)
         assert tech.rs_vs_spy is None
         assert tech.rs_spy_score == 0
 
@@ -174,6 +174,7 @@ class TestSMA50AndRSvsSPY:
 # ============================================================================
 # TestPCRScoring — 4 tests
 # ============================================================================
+
 
 class TestPCRScoring:
     """Test Put/Call Ratio scoring in _analyze_flow_from_data."""
@@ -185,14 +186,11 @@ class TestPCRScoring:
     def test_pcr_bullish(self, config):
         """Many calls, few puts -> PCR < 0.7 -> pcr_score = +15."""
         options_data = [
-            {"details": {"contract_type": "call", "strike_price": 105.0},
-             "day": {"volume": 5000}},
-            {"details": {"contract_type": "put", "strike_price": 95.0},
-             "day": {"volume": 500}},
+            {"details": {"contract_type": "call", "strike_price": 105.0}, "day": {"volume": 5000}},
+            {"details": {"contract_type": "put", "strike_price": 95.0}, "day": {"volume": 500}},
         ]
         bars = self._basic_bars()
-        flow = _analyze_flow_from_data("TEST", bars, None, config,
-                                       options_data=options_data)
+        flow = _analyze_flow_from_data("TEST", bars, None, config, options_data=options_data)
         assert flow.pcr is not None
         assert flow.pcr < 0.7
         assert flow.pcr_score == 15
@@ -200,14 +198,11 @@ class TestPCRScoring:
     def test_pcr_bearish(self, config):
         """Few calls, many puts -> PCR > 1.3 -> pcr_score = -10."""
         options_data = [
-            {"details": {"contract_type": "call", "strike_price": 105.0},
-             "day": {"volume": 500}},
-            {"details": {"contract_type": "put", "strike_price": 95.0},
-             "day": {"volume": 5000}},
+            {"details": {"contract_type": "call", "strike_price": 105.0}, "day": {"volume": 500}},
+            {"details": {"contract_type": "put", "strike_price": 95.0}, "day": {"volume": 5000}},
         ]
         bars = self._basic_bars()
-        flow = _analyze_flow_from_data("TEST", bars, None, config,
-                                       options_data=options_data)
+        flow = _analyze_flow_from_data("TEST", bars, None, config, options_data=options_data)
         assert flow.pcr is not None
         assert flow.pcr > 1.3
         assert flow.pcr_score == -10
@@ -215,14 +210,11 @@ class TestPCRScoring:
     def test_pcr_neutral(self, config):
         """PCR between 0.7 and 1.3 -> pcr_score = 0."""
         options_data = [
-            {"details": {"contract_type": "call", "strike_price": 105.0},
-             "day": {"volume": 1000}},
-            {"details": {"contract_type": "put", "strike_price": 95.0},
-             "day": {"volume": 1000}},
+            {"details": {"contract_type": "call", "strike_price": 105.0}, "day": {"volume": 1000}},
+            {"details": {"contract_type": "put", "strike_price": 95.0}, "day": {"volume": 1000}},
         ]
         bars = self._basic_bars()
-        flow = _analyze_flow_from_data("TEST", bars, None, config,
-                                       options_data=options_data)
+        flow = _analyze_flow_from_data("TEST", bars, None, config, options_data=options_data)
         assert flow.pcr is not None
         assert 0.7 <= flow.pcr <= 1.3
         assert flow.pcr_score == 0
@@ -230,8 +222,7 @@ class TestPCRScoring:
     def test_no_options_data(self, config):
         """options_data=None -> pcr=None, pcr_score=0."""
         bars = self._basic_bars()
-        flow = _analyze_flow_from_data("TEST", bars, None, config,
-                                       options_data=None)
+        flow = _analyze_flow_from_data("TEST", bars, None, config, options_data=None)
         assert flow.pcr is None
         assert flow.pcr_score == 0
 
@@ -239,6 +230,7 @@ class TestPCRScoring:
 # ============================================================================
 # TestOTMCallRatio — 3 tests
 # ============================================================================
+
 
 class TestOTMCallRatio:
     """Test OTM call ratio scoring in _analyze_flow_from_data."""
@@ -251,14 +243,11 @@ class TestOTMCallRatio:
         # Current price = 100. OTM calls have strike > 100.
         # 3000 OTM call volume out of 4000 total call volume = 75%
         options_data = [
-            {"details": {"contract_type": "call", "strike_price": 110.0},
-             "day": {"volume": 3000}},
-            {"details": {"contract_type": "call", "strike_price": 95.0},
-             "day": {"volume": 1000}},
+            {"details": {"contract_type": "call", "strike_price": 110.0}, "day": {"volume": 3000}},
+            {"details": {"contract_type": "call", "strike_price": 95.0}, "day": {"volume": 1000}},
         ]
         bars = self._basic_bars()
-        flow = _analyze_flow_from_data("TEST", bars, None, config,
-                                       options_data=options_data)
+        flow = _analyze_flow_from_data("TEST", bars, None, config, options_data=options_data)
         assert flow.otm_call_ratio is not None
         assert flow.otm_call_ratio > 0.4
         assert flow.otm_score == 10
@@ -267,14 +256,11 @@ class TestOTMCallRatio:
         """<40% OTM calls -> otm_score = 0."""
         # 500 OTM call volume out of 5000 total call volume = 10%
         options_data = [
-            {"details": {"contract_type": "call", "strike_price": 110.0},
-             "day": {"volume": 500}},
-            {"details": {"contract_type": "call", "strike_price": 90.0},
-             "day": {"volume": 4500}},
+            {"details": {"contract_type": "call", "strike_price": 110.0}, "day": {"volume": 500}},
+            {"details": {"contract_type": "call", "strike_price": 90.0}, "day": {"volume": 4500}},
         ]
         bars = self._basic_bars()
-        flow = _analyze_flow_from_data("TEST", bars, None, config,
-                                       options_data=options_data)
+        flow = _analyze_flow_from_data("TEST", bars, None, config, options_data=options_data)
         assert flow.otm_call_ratio is not None
         assert flow.otm_call_ratio < 0.4
         assert flow.otm_score == 0
@@ -283,12 +269,10 @@ class TestOTMCallRatio:
         """0 call volume -> no division error, otm_call_ratio=None."""
         # Only puts, no calls
         options_data = [
-            {"details": {"contract_type": "put", "strike_price": 90.0},
-             "day": {"volume": 5000}},
+            {"details": {"contract_type": "put", "strike_price": 90.0}, "day": {"volume": 5000}},
         ]
         bars = self._basic_bars()
-        flow = _analyze_flow_from_data("TEST", bars, None, config,
-                                       options_data=options_data)
+        flow = _analyze_flow_from_data("TEST", bars, None, config, options_data=options_data)
         assert flow.otm_call_ratio is None
         assert flow.otm_score == 0
 
@@ -296,6 +280,7 @@ class TestOTMCallRatio:
 # ============================================================================
 # TestBlockTrade — 4 tests
 # ============================================================================
+
 
 class TestBlockTrade:
     """Test block trade counting in _aggregate_dp_records and scoring in flow analysis."""
@@ -315,9 +300,9 @@ class TestBlockTrade:
     def test_block_count_in_aggregate(self):
         """Verify _aggregate_dp_records counts block trades ($500K+ notional)."""
         records = [
-            self._make_dp_record(10000, 100.0),   # 10000*100 = 1M > 500K -> block
-            self._make_dp_record(100, 100.0),      # 100*100 = 10K < 500K -> not block
-            self._make_dp_record(5000, 200.0),     # 5000*200 = 1M > 500K -> block
+            self._make_dp_record(10000, 100.0),  # 10000*100 = 1M > 500K -> block
+            self._make_dp_record(100, 100.0),  # 100*100 = 10K < 500K -> not block
+            self._make_dp_record(5000, 200.0),  # 5000*200 = 1M > 500K -> block
         ]
         result = _aggregate_dp_records(records)
         assert result["block_trade_count"] == 2
@@ -351,6 +336,7 @@ class TestBlockTrade:
 # TestSharkDetector — 5 tests
 # ============================================================================
 
+
 class TestSharkDetector:
     """Test _detect_shark insider cluster detection."""
 
@@ -369,14 +355,20 @@ class TestSharkDetector:
     def test_cluster_detected(self, config):
         """2 unique insiders, recent, total > $100K -> True."""
         insider_data = [
-            {"transactionDate": self._recent_date(1),
-             "acquistionOrDisposition": "A",
-             "reportingCik": "CIK001",
-             "securitiesTransacted": 1000, "price": 60.0},
-            {"transactionDate": self._recent_date(2),
-             "acquistionOrDisposition": "A",
-             "reportingCik": "CIK002",
-             "securitiesTransacted": 1000, "price": 60.0},
+            {
+                "transactionDate": self._recent_date(1),
+                "acquistionOrDisposition": "A",
+                "reportingCik": "CIK001",
+                "securitiesTransacted": 1000,
+                "price": 60.0,
+            },
+            {
+                "transactionDate": self._recent_date(2),
+                "acquistionOrDisposition": "A",
+                "reportingCik": "CIK002",
+                "securitiesTransacted": 1000,
+                "price": 60.0,
+            },
         ]
         # Total value: 1000*60 + 1000*60 = 120K > 100K, 2 unique insiders
         assert _detect_shark(insider_data, config) is True
@@ -384,10 +376,13 @@ class TestSharkDetector:
     def test_single_insider_not_enough(self, config):
         """1 insider (even with high value) -> False."""
         insider_data = [
-            {"transactionDate": self._recent_date(1),
-             "acquistionOrDisposition": "A",
-             "reportingCik": "CIK001",
-             "securitiesTransacted": 5000, "price": 100.0},
+            {
+                "transactionDate": self._recent_date(1),
+                "acquistionOrDisposition": "A",
+                "reportingCik": "CIK001",
+                "securitiesTransacted": 5000,
+                "price": 100.0,
+            },
         ]
         # Total value: 500K, but only 1 unique insider
         assert _detect_shark(insider_data, config) is False
@@ -395,14 +390,20 @@ class TestSharkDetector:
     def test_low_value_not_enough(self, config):
         """2 insiders but total < $100K -> False."""
         insider_data = [
-            {"transactionDate": self._recent_date(1),
-             "acquistionOrDisposition": "A",
-             "reportingCik": "CIK001",
-             "securitiesTransacted": 100, "price": 10.0},
-            {"transactionDate": self._recent_date(2),
-             "acquistionOrDisposition": "A",
-             "reportingCik": "CIK002",
-             "securitiesTransacted": 100, "price": 10.0},
+            {
+                "transactionDate": self._recent_date(1),
+                "acquistionOrDisposition": "A",
+                "reportingCik": "CIK001",
+                "securitiesTransacted": 100,
+                "price": 10.0,
+            },
+            {
+                "transactionDate": self._recent_date(2),
+                "acquistionOrDisposition": "A",
+                "reportingCik": "CIK002",
+                "securitiesTransacted": 100,
+                "price": 10.0,
+            },
         ]
         # Total value: 100*10 + 100*10 = 2K < 100K
         assert _detect_shark(insider_data, config) is False
@@ -410,14 +411,20 @@ class TestSharkDetector:
     def test_old_trades_excluded(self, config):
         """2 insiders but transactionDate is old (before cutoff) -> False."""
         insider_data = [
-            {"transactionDate": self._old_date(30),
-             "acquistionOrDisposition": "A",
-             "reportingCik": "CIK001",
-             "securitiesTransacted": 2000, "price": 100.0},
-            {"transactionDate": self._old_date(25),
-             "acquistionOrDisposition": "A",
-             "reportingCik": "CIK002",
-             "securitiesTransacted": 2000, "price": 100.0},
+            {
+                "transactionDate": self._old_date(30),
+                "acquistionOrDisposition": "A",
+                "reportingCik": "CIK001",
+                "securitiesTransacted": 2000,
+                "price": 100.0,
+            },
+            {
+                "transactionDate": self._old_date(25),
+                "acquistionOrDisposition": "A",
+                "reportingCik": "CIK002",
+                "securitiesTransacted": 2000,
+                "price": 100.0,
+            },
         ]
         # Dates are 25-30 days old, shark_lookback_days=10 -> excluded
         assert _detect_shark(insider_data, config) is False
@@ -425,18 +432,23 @@ class TestSharkDetector:
     def test_shark_bonus_in_fundamental(self, config):
         """Fundamental scoring includes +10 shark bonus when cluster detected."""
         insider_data = [
-            {"transactionDate": self._recent_date(1),
-             "acquistionOrDisposition": "A",
-             "reportingCik": "CIK001",
-             "securitiesTransacted": 1000, "price": 60.0},
-            {"transactionDate": self._recent_date(2),
-             "acquistionOrDisposition": "A",
-             "reportingCik": "CIK002",
-             "securitiesTransacted": 1000, "price": 60.0},
+            {
+                "transactionDate": self._recent_date(1),
+                "acquistionOrDisposition": "A",
+                "reportingCik": "CIK001",
+                "securitiesTransacted": 1000,
+                "price": 60.0,
+            },
+            {
+                "transactionDate": self._recent_date(2),
+                "acquistionOrDisposition": "A",
+                "reportingCik": "CIK002",
+                "securitiesTransacted": 1000,
+                "price": 60.0,
+            },
         ]
         # No growth/metrics data -> base funda_score=0 before shark bonus
-        funda = _analyze_fundamental_from_data("TEST", None, None,
-                                               insider_data, config)
+        funda = _analyze_fundamental_from_data("TEST", None, None, insider_data, config)
         assert funda.shark_detected is True
         assert funda.funda_score >= 10  # At least +10 from shark bonus
 
@@ -444,6 +456,7 @@ class TestSharkDetector:
 # ============================================================================
 # TestCombinedScoreBC9 — 3 tests
 # ============================================================================
+
 
 class TestCombinedScoreBC9:
     """Test combined score formula includes new BC9 components."""
@@ -455,9 +468,16 @@ class TestCombinedScoreBC9:
         combined = 0.4*50 + 0.3*50 + 0.3*70 = 20 + 15 + 21 = 56.0
         """
         tech = TechnicalAnalysis(
-            price=100, sma_200=90, sma_20=95, rsi_14=55,
-            atr_14=2.0, trend_pass=True, rsi_score=0,
-            sma_50=95.0, sma50_bonus=30, rs_spy_score=40,
+            price=100,
+            sma_200=90,
+            sma_20=95,
+            rsi_14=55,
+            atr_14=2.0,
+            trend_pass=True,
+            rsi_score=0,
+            sma_50=95.0,
+            sma50_bonus=30,
+            rs_spy_score=40,
         )
         flow = FlowAnalysis(rvol_score=0)
         funda = FundamentalScoring(funda_score=0, insider_multiplier=1.0)
@@ -471,8 +491,13 @@ class TestCombinedScoreBC9:
         combined = 0.6*90 + 0.1*50 + 0.3*0 = 54 + 5 + 0 = 59.0 (BC23 weights)
         """
         tech = TechnicalAnalysis(
-            price=100, sma_200=90, sma_20=95, rsi_14=55,
-            atr_14=2.0, trend_pass=True, rsi_score=0,
+            price=100,
+            sma_200=90,
+            sma_20=95,
+            rsi_14=55,
+            atr_14=2.0,
+            trend_pass=True,
+            rsi_score=0,
         )
         flow = FlowAnalysis(rvol_score=40)  # e.g. 15(pcr) + 15(block) + 10(otm) = 40
         funda = FundamentalScoring(funda_score=0, insider_multiplier=1.0)
@@ -482,8 +507,13 @@ class TestCombinedScoreBC9:
     def test_backward_compat_neutral(self, config):
         """All zeros -> flow=50, funda=50, tech=0 → combined=35."""
         tech = TechnicalAnalysis(
-            price=100, sma_200=90, sma_20=95, rsi_14=50,
-            atr_14=2.0, trend_pass=True, rsi_score=0,
+            price=100,
+            sma_200=90,
+            sma_20=95,
+            rsi_14=50,
+            atr_14=2.0,
+            trend_pass=True,
+            rsi_score=0,
         )
         flow = FlowAnalysis(rvol_score=0)
         funda = FundamentalScoring(funda_score=0, insider_multiplier=1.0)

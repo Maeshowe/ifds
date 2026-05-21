@@ -14,10 +14,10 @@ from ifds.data.async_clients import (
 )
 from ifds.models.market import APIStatus
 
-
 # ============================================================================
 # AsyncBaseAPIClient
 # ============================================================================
+
 
 class TestAsyncBaseClient:
     """Tests for the async base client."""
@@ -124,18 +124,21 @@ class TestAsyncBaseClient:
 # AsyncPolygonClient
 # ============================================================================
 
+
 class TestAsyncPolygonClient:
 
     @pytest.mark.asyncio
     async def test_get_aggregates(self):
         """get_aggregates extracts results from response."""
         client = AsyncPolygonClient(api_key="test_key")
-        client._get = AsyncMock(return_value={
-            "results": [
-                {"o": 100, "h": 105, "l": 99, "c": 103, "v": 10000},
-            ],
-            "resultsCount": 1,
-        })
+        client._get = AsyncMock(
+            return_value={
+                "results": [
+                    {"o": 100, "h": 105, "l": 99, "c": 103, "v": 10000},
+                ],
+                "resultsCount": 1,
+            }
+        )
 
         result = await client.get_aggregates("AAPL", "2026-01-01", "2026-02-01")
         assert len(result) == 1
@@ -156,9 +159,11 @@ class TestAsyncPolygonClient:
     async def test_get_options_snapshot(self):
         """get_options_snapshot extracts results."""
         client = AsyncPolygonClient(api_key="test_key")
-        client._get = AsyncMock(return_value={
-            "results": [{"details": {"strike_price": 150}}],
-        })
+        client._get = AsyncMock(
+            return_value={
+                "results": [{"details": {"strike_price": 150}}],
+            }
+        )
 
         result = await client.get_options_snapshot("AAPL")
         assert len(result) == 1
@@ -176,15 +181,18 @@ class TestAsyncPolygonClient:
 # AsyncFMPClient
 # ============================================================================
 
+
 class TestAsyncFMPClient:
 
     @pytest.mark.asyncio
     async def test_get_financial_growth(self):
         """get_financial_growth returns first element."""
         client = AsyncFMPClient(api_key="test_key")
-        client._get = AsyncMock(return_value=[
-            {"revenueGrowth": 0.15, "epsgrowth": 0.20},
-        ])
+        client._get = AsyncMock(
+            return_value=[
+                {"revenueGrowth": 0.15, "epsgrowth": 0.20},
+            ]
+        )
 
         result = await client.get_financial_growth("AAPL")
         assert result["revenueGrowth"] == 0.15
@@ -194,9 +202,11 @@ class TestAsyncFMPClient:
     async def test_get_key_metrics(self):
         """get_key_metrics returns first element."""
         client = AsyncFMPClient(api_key="test_key")
-        client._get = AsyncMock(return_value=[
-            {"roeTTM": 0.25, "debtToEquityTTM": 1.5},
-        ])
+        client._get = AsyncMock(
+            return_value=[
+                {"roeTTM": 0.25, "debtToEquityTTM": 1.5},
+            ]
+        )
 
         result = await client.get_key_metrics("AAPL")
         assert result["roeTTM"] == 0.25
@@ -206,9 +216,11 @@ class TestAsyncFMPClient:
     async def test_get_insider_trading(self):
         """get_insider_trading returns list."""
         client = AsyncFMPClient(api_key="test_key")
-        client._get = AsyncMock(return_value=[
-            {"transactionDate": "2026-01-15", "acquistionOrDisposition": "A"},
-        ])
+        client._get = AsyncMock(
+            return_value=[
+                {"transactionDate": "2026-01-15", "acquistionOrDisposition": "A"},
+            ]
+        )
 
         result = await client.get_insider_trading("AAPL")
         assert len(result) == 1
@@ -229,15 +241,18 @@ class TestAsyncFMPClient:
 # AsyncUWClient
 # ============================================================================
 
+
 class TestAsyncUWClient:
 
     @pytest.mark.asyncio
     async def test_get_dark_pool(self):
         """get_dark_pool returns data from response."""
         client = AsyncUWClient(api_key="test_key")
-        client._get = AsyncMock(return_value={
-            "data": [{"ticker": "AAPL", "size": 10000}],
-        })
+        client._get = AsyncMock(
+            return_value={
+                "data": [{"ticker": "AAPL", "size": 10000}],
+            }
+        )
 
         result = await client.get_dark_pool("AAPL")
         assert len(result) == 1
@@ -256,9 +271,11 @@ class TestAsyncUWClient:
     async def test_get_greeks(self):
         """get_greeks unwraps data field."""
         client = AsyncUWClient(api_key="test_key")
-        client._get = AsyncMock(return_value={
-            "data": [{"call_gamma": 1500.0, "put_gamma": 800.0}],
-        })
+        client._get = AsyncMock(
+            return_value={
+                "data": [{"call_gamma": 1500.0, "put_gamma": 800.0}],
+            }
+        )
 
         result = await client.get_greeks("AAPL")
         assert result["call_gamma"] == 1500.0
@@ -286,15 +303,18 @@ class TestAsyncUWClient:
 # AsyncFREDClient
 # ============================================================================
 
+
 class TestAsyncFREDClient:
 
     @pytest.mark.asyncio
     async def test_get_vix(self):
         """get_vix extracts observations."""
         client = AsyncFREDClient(api_key="test_key")
-        client._get = AsyncMock(return_value={
-            "observations": [{"date": "2026-02-07", "value": "17.80"}],
-        })
+        client._get = AsyncMock(
+            return_value={
+                "observations": [{"date": "2026-02-07", "value": "17.80"}],
+            }
+        )
 
         result = await client.get_vix(limit=1)
         assert len(result) == 1
@@ -305,9 +325,11 @@ class TestAsyncFREDClient:
     async def test_get_tnx(self):
         """get_tnx extracts observations."""
         client = AsyncFREDClient(api_key="test_key")
-        client._get = AsyncMock(return_value={
-            "observations": [{"date": "2026-02-07", "value": "4.21"}],
-        })
+        client._get = AsyncMock(
+            return_value={
+                "observations": [{"date": "2026-02-07", "value": "4.21"}],
+            }
+        )
 
         result = await client.get_tnx(limit=1)
         assert result[0]["value"] == "4.21"

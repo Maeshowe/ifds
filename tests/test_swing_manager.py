@@ -88,7 +88,9 @@ class TestBreakeven:
         tracker.add_position(_make_pos("AAPL", breakeven_triggered=True))
         decisions = run_swing_management(tracker, {"AAPL": 155.0})
 
-        sl_mods = [d for d in decisions if d.action == SwingAction.MODIFY_SL and d.reason == "breakeven"]
+        sl_mods = [
+            d for d in decisions if d.action == SwingAction.MODIFY_SL and d.reason == "breakeven"
+        ]
         assert len(sl_mods) == 0
 
     def test_below_threshold_no_breakeven(self, tracker):
@@ -117,8 +119,9 @@ class TestTrailActivation:
 
     def test_trail_already_active_no_reactivation(self, tracker):
         """Trail already active → no reactivation."""
-        tracker.add_position(_make_pos("AAPL", tp1_triggered=True,
-                                        trail_amount_usd=3.0, current_trail_stop=152.0))
+        tracker.add_position(
+            _make_pos("AAPL", tp1_triggered=True, trail_amount_usd=3.0, current_trail_stop=152.0)
+        )
         decisions = run_swing_management(tracker, {"AAPL": 155.0})
 
         trail = [d for d in decisions if d.action == SwingAction.ACTIVATE_TRAIL]
@@ -129,9 +132,15 @@ class TestTrailUpdate:
 
     def test_trail_tighten_upward(self, tracker):
         """Price rises → trail stop rises."""
-        tracker.add_position(_make_pos("AAPL", tp1_triggered=True,
-                                        trail_amount_usd=3.0, current_trail_stop=152.0,
-                                        remaining_qty=50))
+        tracker.add_position(
+            _make_pos(
+                "AAPL",
+                tp1_triggered=True,
+                trail_amount_usd=3.0,
+                current_trail_stop=152.0,
+                remaining_qty=50,
+            )
+        )
         # Price 158 → new trail = 158 - 3 = 155 > 152 → update
         decisions = run_swing_management(tracker, {"AAPL": 158.0})
 
@@ -141,9 +150,15 @@ class TestTrailUpdate:
 
     def test_trail_no_update_downward(self, tracker):
         """Price drops → trail stop stays (only upward)."""
-        tracker.add_position(_make_pos("AAPL", tp1_triggered=True,
-                                        trail_amount_usd=3.0, current_trail_stop=155.0,
-                                        remaining_qty=50))
+        tracker.add_position(
+            _make_pos(
+                "AAPL",
+                tp1_triggered=True,
+                trail_amount_usd=3.0,
+                current_trail_stop=155.0,
+                remaining_qty=50,
+            )
+        )
         # Price 156 → new trail = 156 - 3 = 153 < 155 → no update
         decisions = run_swing_management(tracker, {"AAPL": 156.0})
 
@@ -157,12 +172,15 @@ class TestEarningsRisk:
         tracker.add_position(_make_pos("AAPL"))
         tomorrow = date(2026, 4, 2).isoformat()
         decisions = run_swing_management(
-            tracker, {"AAPL": 152.0},
+            tracker,
+            {"AAPL": 152.0},
             earnings_dates={"AAPL": tomorrow},
             today=date(2026, 4, 1),
         )
 
-        moc = [d for d in decisions if d.action == SwingAction.MOC_EXIT and d.reason == "earnings_risk"]
+        moc = [
+            d for d in decisions if d.action == SwingAction.MOC_EXIT and d.reason == "earnings_risk"
+        ]
         assert len(moc) == 1
 
     def test_no_earnings_no_exit(self, tracker):
@@ -175,7 +193,8 @@ class TestEarningsRisk:
     def test_earnings_far_away_no_exit(self, tracker):
         tracker.add_position(_make_pos("AAPL"))
         decisions = run_swing_management(
-            tracker, {"AAPL": 152.0},
+            tracker,
+            {"AAPL": 152.0},
             earnings_dates={"AAPL": "2026-12-31"},
             today=date(2026, 4, 1),
         )
@@ -200,4 +219,6 @@ class TestMultiplePositions:
         # EXPIRED: max_hold
         assert any(d.ticker == "EXPIRED" and d.action == SwingAction.MOC_EXIT for d in decisions)
         # TRAILING: activate trail
-        assert any(d.ticker == "TRAILING" and d.action == SwingAction.ACTIVATE_TRAIL for d in decisions)
+        assert any(
+            d.ticker == "TRAILING" and d.action == SwingAction.ACTIVATE_TRAIL for d in decisions
+        )

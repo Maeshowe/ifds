@@ -9,6 +9,7 @@ Usage:
     python scripts/analysis/weekly_metrics.py                  # current week
     python scripts/analysis/weekly_metrics.py --week 2026-04-14  # specific Monday
 """
+
 from __future__ import annotations
 
 import argparse
@@ -56,9 +57,7 @@ def aggregate_week(days: list[dict]) -> dict:
 
     total_positions = sum(d["positions"]["opened"] for d in days)
     avg_positions = total_positions / n if n else 0
-    qualified_avg = mean(
-        d["positions"]["qualified_above_threshold"] for d in days
-    ) if n else 0
+    qualified_avg = mean(d["positions"]["qualified_above_threshold"] for d in days) if n else 0
 
     # P&L
     gross_pnl = sum(d["pnl"]["gross"] for d in days)
@@ -70,9 +69,7 @@ def aggregate_week(days: list[dict]) -> dict:
 
     # SPY excess
     spy_returns = [
-        d["market"]["spy_return_pct"]
-        for d in days
-        if d["market"]["spy_return_pct"] is not None
+        d["market"]["spy_return_pct"] for d in days if d["market"]["spy_return_pct"] is not None
     ]
     spy_weekly = sum(spy_returns) if spy_returns else None
     portfolio_weekly = gross_pnl / INITIAL_CAPITAL * 100
@@ -99,9 +96,7 @@ def aggregate_week(days: list[dict]) -> dict:
     avg_score = mean(all_scores) if all_scores else 0
 
     # Score → P&L correlation (simple, within-week)
-    score_pnl_pairs = [
-        (t["score"], t["pnl"]) for t in all_trades if t.get("score", 0) > 0
-    ]
+    score_pnl_pairs = [(t["score"], t["pnl"]) for t in all_trades if t.get("score", 0) > 0]
     week_corr = _simple_correlation(score_pnl_pairs)
 
     # Slippage
@@ -139,8 +134,7 @@ def aggregate_week(days: list[dict]) -> dict:
         "avg_slippage_pct": round(avg_slippage, 2),
         "worst_slippage_pct": round(worst_slippage, 2),
         "commission_pct_of_gross": (
-            round(commission / abs(gross_pnl) * 100, 1)
-            if gross_pnl != 0 else 0
+            round(commission / abs(gross_pnl) * 100, 1) if gross_pnl != 0 else 0
         ),
         "zero_position_days": zero_position_days,
         "low_position_days": low_position_days,
@@ -153,6 +147,7 @@ def _simple_correlation(pairs: list[tuple[float, float]]) -> float | None:
         return None
     try:
         from scipy.stats import pearsonr
+
         xs, ys = zip(*pairs)
         # Constant input → undefined correlation
         if len(set(xs)) < 2 or len(set(ys)) < 2:
@@ -211,9 +206,12 @@ def generate_markdown(week_start: date, agg: dict) -> str:
 
     # TP1
     lines.append("## TP1 Performance")
-    lines.append(f"- TP1 hits: {agg['tp1_count']}/{agg['total_positions']} "
-                 f"({agg['tp1_count']/agg['total_positions']*100:.0f}%)"
-                 if agg["total_positions"] > 0 else "- No positions")
+    lines.append(
+        f"- TP1 hits: {agg['tp1_count']}/{agg['total_positions']} "
+        f"({agg['tp1_count']/agg['total_positions']*100:.0f}%)"
+        if agg["total_positions"] > 0
+        else "- No positions"
+    )
     lines.append(f"- TP1 avg profit: ${agg['tp1_avg_pnl']:+,.2f}")
     lines.append(f"- R:R realized: 1:{agg['rr_ratio']:.2f}")
     lines.append("")
@@ -222,7 +220,9 @@ def generate_markdown(week_start: date, agg: dict) -> str:
     lines.append("## Scoring Quality")
     lines.append(f"- Avg score: {agg['avg_score']:.1f}")
     corr = agg.get("week_score_pnl_corr")
-    lines.append(f"- Score→P&L correlation (week): r={corr:+.3f}" if corr else "- Score→P&L correlation: n/a")
+    lines.append(
+        f"- Score→P&L correlation (week): r={corr:+.3f}" if corr else "- Score→P&L correlation: n/a"
+    )
     lines.append(f"- Qualified avg: {agg['qualified_avg_per_day']:.1f}/day")
     lines.append("")
 
@@ -230,8 +230,10 @@ def generate_markdown(week_start: date, agg: dict) -> str:
     lines.append("## Slippage & Commission")
     lines.append(f"- Avg MKT fill slippage: {agg['avg_slippage_pct']:+.2f}%")
     lines.append(f"- Worst slippage: {agg['worst_slippage_pct']:+.2f}%")
-    lines.append(f"- Commission: ${agg['commission']:,.2f} "
-                 f"({agg['commission_pct_of_gross']:.0f}% of gross P&L)")
+    lines.append(
+        f"- Commission: ${agg['commission']:,.2f} "
+        f"({agg['commission_pct_of_gross']:.0f}% of gross P&L)"
+    )
     lines.append("")
 
     # Dynamic threshold
@@ -252,7 +254,8 @@ def telegram_summary(week_start: date, agg: dict) -> str:
     tp1_rate = (
         f"{agg['tp1_count']}/{agg['total_positions']} "
         f"({agg['tp1_count']/agg['total_positions']*100:.0f}%)"
-        if agg["total_positions"] > 0 else "0"
+        if agg["total_positions"] > 0
+        else "0"
     )
     excess = f"{agg['excess_pct']:+.2f}%" if agg["excess_pct"] is not None else "n/a"
     return (
@@ -269,6 +272,7 @@ def _send_telegram(message: str) -> None:
     """Send via Telegram Bot API. Non-blocking."""
     try:
         import requests
+
         token = os.environ.get("IFDS_TELEGRAM_BOT_TOKEN")
         chat_id = os.environ.get("IFDS_TELEGRAM_CHAT_ID")
         if not token or not chat_id:
@@ -290,8 +294,7 @@ def _send_telegram(message: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="IFDS Weekly Metrics Aggregation")
     parser.add_argument("--week", help="Monday of the week (YYYY-MM-DD)")
-    parser.add_argument("--no-telegram", action="store_true",
-                        help="Skip Telegram notification")
+    parser.add_argument("--no-telegram", action="store_true", help="Skip Telegram notification")
     args = parser.parse_args()
 
     if args.week:
@@ -304,8 +307,10 @@ def main() -> None:
     days = _load_week_metrics(week_start)
 
     if not days:
-        print(f"No daily metrics found for week {week_start}. "
-              f"Run daily_metrics.py first or check --week date.")
+        print(
+            f"No daily metrics found for week {week_start}. "
+            f"Run daily_metrics.py first or check --week date."
+        )
         sys.exit(0)
 
     print(f"  Found {len(days)} trading days with metrics")

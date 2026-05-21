@@ -41,10 +41,10 @@ from ifds.phases.phase6_sizing import (
     run_phase6,
 )
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def config(monkeypatch):
@@ -67,15 +67,18 @@ def logger(tmp_path):
     return EventLogger(log_dir=str(tmp_path), run_id="test-bc13")
 
 
-def _make_stock(ticker="AAPL", price=150.0, atr=3.0, combined=80.0,
-                flow_score=10, funda_score=15):
+def _make_stock(ticker="AAPL", price=150.0, atr=3.0, combined=80.0, flow_score=10, funda_score=15):
     """Helper to create a StockAnalysis for testing."""
     return StockAnalysis(
         ticker=ticker,
         sector="Technology",
         technical=TechnicalAnalysis(
-            price=price, sma_200=140.0, sma_20=148.0,
-            rsi_14=55.0, atr_14=atr, trend_pass=True,
+            price=price,
+            sma_200=140.0,
+            sma_20=148.0,
+            rsi_14=55.0,
+            atr_14=atr,
+            trend_pass=True,
         ),
         flow=FlowAnalysis(rvol_score=flow_score),
         fundamental=FundamentalScoring(funda_score=funda_score),
@@ -132,19 +135,33 @@ def _make_position(ticker="AAPL", price=150.0, quantity=22, sector="Technology")
 # Feature 1: Survivorship Bias Protection
 # ============================================================================
 
+
 class TestSurvivorshipBias:
     """Test universe snapshot saving and diff logging."""
 
     def test_snapshot_saved(self, tmp_path, config, logger):
         """Universe snapshot is saved as JSON."""
         from ifds.phases.phase2_universe import _save_universe_snapshot
+
         config.runtime["survivorship_snapshot_dir"] = str(tmp_path / "snaps")
 
         tickers = [
-            Ticker(symbol="AAPL", company_name="Apple", sector="Technology",
-                   market_cap=3_000_000_000_000, price=150.0, avg_volume=1_000_000),
-            Ticker(symbol="MSFT", company_name="Microsoft", sector="Technology",
-                   market_cap=2_800_000_000_000, price=380.0, avg_volume=800_000),
+            Ticker(
+                symbol="AAPL",
+                company_name="Apple",
+                sector="Technology",
+                market_cap=3_000_000_000_000,
+                price=150.0,
+                avg_volume=1_000_000,
+            ),
+            Ticker(
+                symbol="MSFT",
+                company_name="Microsoft",
+                sector="Technology",
+                market_cap=2_800_000_000_000,
+                price=380.0,
+                avg_volume=800_000,
+            ),
         ]
         _save_universe_snapshot(tickers, config, logger)
 
@@ -161,6 +178,7 @@ class TestSurvivorshipBias:
     def test_diff_logs_removed(self, tmp_path, config, logger):
         """Removed tickers are logged with [SURVIVORSHIP] WARNING."""
         from ifds.phases.phase2_universe import _save_universe_snapshot
+
         snap_dir = tmp_path / "snaps"
         config.runtime["survivorship_snapshot_dir"] = str(snap_dir)
 
@@ -176,20 +194,26 @@ class TestSurvivorshipBias:
 
         # Today: only AAPL (TSLA removed)
         tickers = [
-            Ticker(symbol="AAPL", company_name="Apple", sector="Technology",
-                   market_cap=3_000_000_000_000, price=150.0, avg_volume=1_000_000),
+            Ticker(
+                symbol="AAPL",
+                company_name="Apple",
+                sector="Technology",
+                market_cap=3_000_000_000_000,
+                price=150.0,
+                avg_volume=1_000_000,
+            ),
         ]
         _save_universe_snapshot(tickers, config, logger)
 
         # Check that logger received the survivorship warning
         events = logger.events
         surv_events = [e for e in events if "[SURVIVORSHIP]" in e.get("message", "")]
-        assert any("Removed" in e["message"] and "TSLA" in e["message"]
-                    for e in surv_events)
+        assert any("Removed" in e["message"] and "TSLA" in e["message"] for e in surv_events)
 
     def test_diff_logs_added(self, tmp_path, config, logger):
         """Newly added tickers are logged with [SURVIVORSHIP] INFO."""
         from ifds.phases.phase2_universe import _save_universe_snapshot
+
         snap_dir = tmp_path / "snaps"
         config.runtime["survivorship_snapshot_dir"] = str(snap_dir)
 
@@ -202,21 +226,33 @@ class TestSurvivorshipBias:
 
         # Today: AAPL + NVDA (NVDA added)
         tickers = [
-            Ticker(symbol="AAPL", company_name="Apple", sector="Technology",
-                   market_cap=3_000_000_000_000, price=150.0, avg_volume=1_000_000),
-            Ticker(symbol="NVDA", company_name="NVIDIA", sector="Technology",
-                   market_cap=2_000_000_000_000, price=875.0, avg_volume=500_000),
+            Ticker(
+                symbol="AAPL",
+                company_name="Apple",
+                sector="Technology",
+                market_cap=3_000_000_000_000,
+                price=150.0,
+                avg_volume=1_000_000,
+            ),
+            Ticker(
+                symbol="NVDA",
+                company_name="NVIDIA",
+                sector="Technology",
+                market_cap=2_000_000_000_000,
+                price=875.0,
+                avg_volume=500_000,
+            ),
         ]
         _save_universe_snapshot(tickers, config, logger)
 
         events = logger.events
         surv_events = [e for e in events if "[SURVIVORSHIP]" in e.get("message", "")]
-        assert any("New" in e["message"] and "NVDA" in e["message"]
-                    for e in surv_events)
+        assert any("New" in e["message"] and "NVDA" in e["message"] for e in surv_events)
 
     def test_unchanged_universe(self, tmp_path, config, logger):
         """Unchanged universe logs [SURVIVORSHIP] Universe unchanged."""
         from ifds.phases.phase2_universe import _save_universe_snapshot
+
         snap_dir = tmp_path / "snaps"
         config.runtime["survivorship_snapshot_dir"] = str(snap_dir)
 
@@ -227,8 +263,14 @@ class TestSurvivorshipBias:
             json.dump(prev_data, f)
 
         tickers = [
-            Ticker(symbol="AAPL", company_name="Apple", sector="Technology",
-                   market_cap=3_000_000_000_000, price=150.0, avg_volume=1_000_000),
+            Ticker(
+                symbol="AAPL",
+                company_name="Apple",
+                sector="Technology",
+                market_cap=3_000_000_000_000,
+                price=150.0,
+                avg_volume=1_000_000,
+            ),
         ]
         _save_universe_snapshot(tickers, config, logger)
 
@@ -238,6 +280,7 @@ class TestSurvivorshipBias:
     def test_pruning(self, tmp_path, config, logger):
         """Old snapshots beyond max are pruned."""
         from ifds.phases.phase2_universe import _save_universe_snapshot
+
         snap_dir = tmp_path / "snaps"
         config.runtime["survivorship_snapshot_dir"] = str(snap_dir)
         config.runtime["survivorship_max_snapshots"] = 3
@@ -251,8 +294,14 @@ class TestSurvivorshipBias:
                 json.dump([{"symbol": "AAPL", "market_cap": 3e12, "sector": "Tech"}], f)
 
         tickers = [
-            Ticker(symbol="AAPL", company_name="Apple", sector="Technology",
-                   market_cap=3_000_000_000_000, price=150.0, avg_volume=1_000_000),
+            Ticker(
+                symbol="AAPL",
+                company_name="Apple",
+                sector="Technology",
+                market_cap=3_000_000_000_000,
+                price=150.0,
+                avg_volume=1_000_000,
+            ),
         ]
         _save_universe_snapshot(tickers, config, logger)
 
@@ -263,12 +312,19 @@ class TestSurvivorshipBias:
     def test_no_previous_snapshot(self, tmp_path, config, logger):
         """First run with no previous snapshot: no diff logged."""
         from ifds.phases.phase2_universe import _save_universe_snapshot
+
         snap_dir = tmp_path / "snaps"
         config.runtime["survivorship_snapshot_dir"] = str(snap_dir)
 
         tickers = [
-            Ticker(symbol="AAPL", company_name="Apple", sector="Technology",
-                   market_cap=3_000_000_000_000, price=150.0, avg_volume=1_000_000),
+            Ticker(
+                symbol="AAPL",
+                company_name="Apple",
+                sector="Technology",
+                market_cap=3_000_000_000_000,
+                price=150.0,
+                avg_volume=1_000_000,
+            ),
         ]
         _save_universe_snapshot(tickers, config, logger)
 
@@ -280,6 +336,7 @@ class TestSurvivorshipBias:
 # ============================================================================
 # Feature 2: Telegram Daily Report
 # ============================================================================
+
 
 def _make_ctx(positions=None):
     """Helper to build a minimal PipelineContext for telegram tests."""
@@ -330,6 +387,7 @@ class TestTelegramDailyReport:
     def test_disabled_no_token(self, config, logger):
         """Returns False when no token configured."""
         from ifds.output.telegram import send_daily_report
+
         config.runtime["telegram_bot_token"] = None
         config.runtime["telegram_chat_id"] = None
 
@@ -340,6 +398,7 @@ class TestTelegramDailyReport:
     def test_disabled_no_chat_id(self, config, logger):
         """Returns False when token set but no chat_id."""
         from ifds.output.telegram import send_daily_report
+
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = None
 
@@ -350,6 +409,7 @@ class TestTelegramDailyReport:
     def test_sends_with_zero_positions(self, config, logger):
         """Always sends even with 0 positions (health report)."""
         from ifds.output.telegram import send_daily_report
+
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
 
@@ -366,6 +426,7 @@ class TestTelegramDailyReport:
     def test_successful_send(self, mock_post, config, logger):
         """Sends unified message with all phases."""
         from ifds.output.telegram import send_daily_report
+
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
 
@@ -393,6 +454,7 @@ class TestTelegramDailyReport:
     def test_failure_returns_false(self, mock_post, config, logger):
         """Returns False on network failure."""
         from ifds.output.telegram import send_daily_report
+
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
 
@@ -403,6 +465,7 @@ class TestTelegramDailyReport:
     def test_format_success_content(self, config):
         """Format includes all phase headers and HTML tags."""
         from ifds.output.telegram import _format_success
+
         positions = [_make_position(), _make_position(ticker="MSFT", sector="Technology")]
         ctx = _make_ctx(positions=positions)
         part1, part2 = _format_success(ctx, 33.7, config)
@@ -430,6 +493,7 @@ class TestTelegramDailyReport:
     def test_format_html_parse_mode(self, config, logger):
         """Verify HTML parse_mode is used instead of Markdown."""
         from ifds.output.telegram import send_daily_report
+
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
 
@@ -444,6 +508,7 @@ class TestTelegramDailyReport:
     def test_format_phase_structure(self, config):
         """All 7 phase headers appear in the formatted output."""
         from ifds.output.telegram import _format_success
+
         ctx = _make_ctx(positions=[_make_position()])
         part1, part2 = _format_success(ctx, 10.0, config)
         full = part1 + part2
@@ -454,6 +519,7 @@ class TestTelegramDailyReport:
     def test_failure_report(self, mock_post, config, logger):
         """Failure report sends error message with HTML."""
         from ifds.output.telegram import send_failure_report
+
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
 
@@ -472,15 +538,13 @@ class TestTelegramDailyReport:
     def test_message_splitting(self, mock_post, config, logger):
         """Long messages are split into 2 sends."""
         from ifds.output.telegram import send_daily_report, _MAX_MSG_LEN
+
         config.runtime["telegram_bot_token"] = "123:ABC"
         config.runtime["telegram_chat_id"] = "456"
         mock_post.return_value = MagicMock()
 
         # Create many positions to push message over 4096
-        positions = [
-            _make_position(ticker=f"T{i:03d}", price=100.0 + i)
-            for i in range(60)
-        ]
+        positions = [_make_position(ticker=f"T{i:03d}", price=100.0 + i) for i in range(60)]
         ctx = _make_ctx(positions=positions)
         result = send_daily_report(ctx, config, logger, 99.0)
 
@@ -497,6 +561,7 @@ class TestTelegramDailyReport:
 # Feature 3: Max Daily Trades
 # ============================================================================
 
+
 class TestDailyTradeCounter:
     """Test daily trade state file loading and saving."""
 
@@ -509,10 +574,14 @@ class TestDailyTradeCounter:
     def test_load_today(self, tmp_path):
         """Today's file returns stored count."""
         state_file = tmp_path / "trades.json"
-        state_file.write_text(json.dumps({
-            "date": date.today().isoformat(),
-            "count": 5,
-        }))
+        state_file.write_text(
+            json.dumps(
+                {
+                    "date": date.today().isoformat(),
+                    "count": 5,
+                }
+            )
+        )
         result = _load_daily_counter(str(state_file))
         assert result["count"] == 5
 
@@ -562,10 +631,14 @@ class TestMaxDailyTrades:
 
         # Create state file with 2 trades already today
         trades_file = tmp_path / "daily_trades.json"
-        trades_file.write_text(json.dumps({
-            "date": date.today().isoformat(),
-            "count": 2,
-        }))
+        trades_file.write_text(
+            json.dumps(
+                {
+                    "date": date.today().isoformat(),
+                    "count": 2,
+                }
+            )
+        )
         config.runtime["daily_trades_file"] = str(trades_file)
         config.runtime["daily_notional_file"] = str(tmp_path / "notional.json")
 
@@ -573,8 +646,12 @@ class TestMaxDailyTrades:
         gex_list = [_make_gex(f"T{i}") for i in range(3)]
 
         result = run_phase6(
-            config, logger, stocks, gex_list,
-            _make_macro(), StrategyMode.LONG,
+            config,
+            logger,
+            stocks,
+            gex_list,
+            _make_macro(),
+            StrategyMode.LONG,
         )
 
         # All 3 should be excluded by daily limit
@@ -597,8 +674,12 @@ class TestMaxDailyTrades:
         gex_list = [_make_gex(f"T{i}") for i in range(5)]
 
         result = run_phase6(
-            config, logger, stocks, gex_list,
-            _make_macro(), StrategyMode.LONG,
+            config,
+            logger,
+            stocks,
+            gex_list,
+            _make_macro(),
+            StrategyMode.LONG,
         )
 
         # 2 pass, 3 excluded by daily limit
@@ -609,6 +690,7 @@ class TestMaxDailyTrades:
 # ============================================================================
 # Feature 4: Notional Limits
 # ============================================================================
+
 
 class TestNotionalLimits:
     """Test per-position and daily notional limit enforcement."""
@@ -627,8 +709,12 @@ class TestNotionalLimits:
         gex_list = [_make_gex("AAPL")]
 
         result = run_phase6(
-            config, logger, stocks, gex_list,
-            _make_macro(), StrategyMode.LONG,
+            config,
+            logger,
+            stocks,
+            gex_list,
+            _make_macro(),
+            StrategyMode.LONG,
         )
 
         if result.positions:
@@ -649,8 +735,12 @@ class TestNotionalLimits:
         gex_list = [_make_gex(f"T{i}") for i in range(3)]
 
         result = run_phase6(
-            config, logger, stocks, gex_list,
-            _make_macro(), StrategyMode.LONG,
+            config,
+            logger,
+            stocks,
+            gex_list,
+            _make_macro(),
+            StrategyMode.LONG,
         )
 
         # Some positions should be excluded by daily notional
@@ -669,8 +759,12 @@ class TestNotionalLimits:
         gex_list = [_make_gex("AAPL")]
 
         run_phase6(
-            config, logger, stocks, gex_list,
-            _make_macro(), StrategyMode.LONG,
+            config,
+            logger,
+            stocks,
+            gex_list,
+            _make_macro(),
+            StrategyMode.LONG,
         )
 
         # Notional file should now exist with today's data
@@ -684,6 +778,7 @@ class TestNotionalLimits:
 # ============================================================================
 # Replace Quantity Helper
 # ============================================================================
+
 
 class TestReplaceQuantity:
     """Test PositionSizing quantity replacement."""
@@ -713,6 +808,7 @@ class TestReplaceQuantity:
 # Phase6Result Model Extensions
 # ============================================================================
 
+
 class TestPhase6ResultFields:
     """Test new Phase6Result fields for BC13."""
 
@@ -736,6 +832,7 @@ class TestPhase6ResultFields:
 # Integration: GLOBALGUARD logging
 # ============================================================================
 
+
 class TestGlobalGuardLogging:
     """Test [GLOBALGUARD] logging for trade and notional limits."""
 
@@ -752,14 +849,21 @@ class TestGlobalGuardLogging:
         gex_list = [_make_gex(f"T{i}") for i in range(3)]
 
         run_phase6(
-            config, logger, stocks, gex_list,
-            _make_macro(), StrategyMode.LONG,
+            config,
+            logger,
+            stocks,
+            gex_list,
+            _make_macro(),
+            StrategyMode.LONG,
         )
 
         events = logger.events
-        globalguard = [e for e in events
-                       if "[GLOBALGUARD]" in e.get("message", "")
-                       and "Daily trade limit" in e.get("message", "")]
+        globalguard = [
+            e
+            for e in events
+            if "[GLOBALGUARD]" in e.get("message", "")
+            and "Daily trade limit" in e.get("message", "")
+        ]
         assert len(globalguard) >= 1
 
     def test_position_notional_cap_log(self, config, logger, tmp_path):
@@ -775,12 +879,19 @@ class TestGlobalGuardLogging:
         gex_list = [_make_gex("AAPL")]
 
         run_phase6(
-            config, logger, stocks, gex_list,
-            _make_macro(), StrategyMode.LONG,
+            config,
+            logger,
+            stocks,
+            gex_list,
+            _make_macro(),
+            StrategyMode.LONG,
         )
 
         events = logger.events
-        cap_events = [e for e in events
-                      if "[GLOBALGUARD]" in e.get("message", "")
-                      and "notional capped" in e.get("message", "").lower()]
+        cap_events = [
+            e
+            for e in events
+            if "[GLOBALGUARD]" in e.get("message", "")
+            and "notional capped" in e.get("message", "").lower()
+        ]
         assert len(cap_events) >= 1

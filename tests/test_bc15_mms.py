@@ -57,10 +57,10 @@ from ifds.phases.phase5_mms import (
     run_mms_analysis,
 )
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def config(monkeypatch):
@@ -87,13 +87,15 @@ def _make_bars(n=100, base_price=100.0, volume=1_000_000):
     bars = []
     for i in range(n):
         c = base_price + i * 0.1
-        bars.append({
-            "o": c - 0.5,
-            "h": c + 1.0,
-            "l": c - 1.0,
-            "c": c,
-            "v": volume + i * 1000,
-        })
+        bars.append(
+            {
+                "o": c - 0.5,
+                "h": c + 1.0,
+                "l": c - 1.0,
+                "c": c,
+                "v": volume + i * 1000,
+            }
+        )
     return bars
 
 
@@ -103,8 +105,12 @@ def _make_stock(ticker="AAPL", price=150.0, dp_pct=42.0, block_count=8):
         ticker=ticker,
         sector="Technology",
         technical=TechnicalAnalysis(
-            price=price, sma_200=140.0, sma_20=148.0,
-            rsi_14=55.0, atr_14=3.0, trend_pass=True,
+            price=price,
+            sma_200=140.0,
+            sma_20=148.0,
+            rsi_14=55.0,
+            atr_14=3.0,
+            trend_pass=True,
         ),
         flow=FlowAnalysis(
             dark_pool_pct=dp_pct,
@@ -121,19 +127,21 @@ def _make_options(n=20, current_price=150.0):
     for i in range(n):
         strike = current_price - 10 + i
         is_call = i % 2 == 0
-        options.append({
-            "details": {
-                "strike_price": strike,
-                "contract_type": "call" if is_call else "put",
-            },
-            "greeks": {
-                "gamma": 0.02 + i * 0.001,
-                "delta": 0.5 if is_call else -0.4,
-            },
-            "open_interest": 1000 + i * 100,
-            "implied_volatility": 0.25 + i * 0.01,
-            "underlying_asset": {"price": current_price},
-        })
+        options.append(
+            {
+                "details": {
+                    "strike_price": strike,
+                    "contract_type": "call" if is_call else "put",
+                },
+                "greeks": {
+                    "gamma": 0.02 + i * 0.001,
+                    "delta": 0.5 if is_call else -0.4,
+                },
+                "open_interest": 1000 + i * 100,
+                "implied_volatility": 0.25 + i * 0.01,
+                "underlying_asset": {"price": current_price},
+            }
+        )
     return options
 
 
@@ -141,13 +149,21 @@ def _make_options(n=20, current_price=150.0):
 # TestMMRegimeEnum
 # ============================================================================
 
+
 class TestMMRegimeEnum:
     def test_all_8_regimes_exist(self):
         assert len(MMRegime) == 8
         values = {r.value for r in MMRegime}
-        expected = {"gamma_positive", "gamma_negative", "dark_dominant",
-                    "absorption", "distribution", "neutral", "undetermined",
-                    "volatile"}  # BC16
+        expected = {
+            "gamma_positive",
+            "gamma_negative",
+            "dark_dominant",
+            "absorption",
+            "distribution",
+            "neutral",
+            "undetermined",
+            "volatile",
+        }  # BC16
         assert values == expected
 
     def test_baseline_state_values(self):
@@ -160,6 +176,7 @@ class TestMMRegimeEnum:
 # ============================================================================
 # TestFeatureExtraction
 # ============================================================================
+
 
 class TestFeatureExtraction:
     def test_extract_from_bars_basic(self):
@@ -195,19 +212,28 @@ class TestFeatureExtraction:
 # TestDEXComputation
 # ============================================================================
 
+
 class TestDEXComputation:
     def test_dex_calls_only(self):
         options = [
-            {"details": {"contract_type": "call"},
-             "greeks": {"delta": 0.5}, "open_interest": 1000, "day": {}},
+            {
+                "details": {"contract_type": "call"},
+                "greeks": {"delta": 0.5},
+                "open_interest": 1000,
+                "day": {},
+            },
         ]
         dex = _compute_dex(options, 150.0)
         assert dex == 0.5 * 1000 * 100  # = 50000
 
     def test_dex_puts_only(self):
         options = [
-            {"details": {"contract_type": "put"},
-             "greeks": {"delta": -0.4}, "open_interest": 1000, "day": {}},
+            {
+                "details": {"contract_type": "put"},
+                "greeks": {"delta": -0.4},
+                "open_interest": 1000,
+                "day": {},
+            },
         ]
         dex = _compute_dex(options, 150.0)
         assert dex == -(0.4 * 1000 * 100)  # = -40000
@@ -220,6 +246,7 @@ class TestDEXComputation:
 # ============================================================================
 # TestIVComputation
 # ============================================================================
+
 
 class TestIVComputation:
     def test_aggregate_iv_atm(self):
@@ -237,6 +264,7 @@ class TestIVComputation:
 # ============================================================================
 # TestZScoreComputation
 # ============================================================================
+
 
 class TestZScoreComputation:
     def test_z_score_valid(self):
@@ -262,14 +290,16 @@ class TestZScoreComputation:
         # Build historical entries with 25 entries
         history = []
         for i in range(25):
-            history.append({
-                "date": f"2026-01-{i+1:02d}",
-                "dark_share": 0.3 + i * 0.01,
-                "gex": 1000000 + i * 10000,
-                "dex": 50000 + i * 1000,
-                "block_count": 5 + i,
-                "iv_rank": 0.25 + i * 0.005,
-            })
+            history.append(
+                {
+                    "date": f"2026-01-{i+1:02d}",
+                    "dark_share": 0.3 + i * 0.01,
+                    "gex": 1000000 + i * 10000,
+                    "dex": 50000 + i * 1000,
+                    "block_count": 5 + i,
+                    "iv_rank": 0.25 + i * 0.005,
+                }
+            )
 
         today = {
             "efficiency": bar_features["efficiency_today"],
@@ -293,6 +323,7 @@ class TestZScoreComputation:
 # TestClassifyRegime
 # ============================================================================
 
+
 class TestClassifyRegime:
     """Test each of the 7 regimes fires under correct conditions."""
 
@@ -313,7 +344,12 @@ class TestClassifyRegime:
         raw = {"dark_share": 0.3, "efficiency": 0.001, "impact": 0.001}
         medians = {"efficiency": 0.005, "impact": 0.002}  # efficiency < median_eff
         regime, cond = _classify_regime(
-            z, raw, medians, 0.0, BaselineState.COMPLETE, self._default_core(),
+            z,
+            raw,
+            medians,
+            0.0,
+            BaselineState.COMPLETE,
+            self._default_core(),
         )
         assert regime == MMRegime.GAMMA_POSITIVE
         assert "z_gex" in cond
@@ -324,7 +360,12 @@ class TestClassifyRegime:
         raw = {"dark_share": 0.3, "efficiency": 0.005, "impact": 0.01}
         medians = {"efficiency": 0.005, "impact": 0.002}  # impact > median_imp
         regime, cond = _classify_regime(
-            z, raw, medians, 0.0, BaselineState.COMPLETE, self._default_core(),
+            z,
+            raw,
+            medians,
+            0.0,
+            BaselineState.COMPLETE,
+            self._default_core(),
         )
         assert regime == MMRegime.GAMMA_NEGATIVE
 
@@ -334,7 +375,12 @@ class TestClassifyRegime:
         raw = {"dark_share": 0.75, "efficiency": 0.005, "impact": 0.002}
         medians = {"efficiency": 0.005, "impact": 0.002}
         regime, cond = _classify_regime(
-            z, raw, medians, 0.0, BaselineState.COMPLETE, self._default_core(),
+            z,
+            raw,
+            medians,
+            0.0,
+            BaselineState.COMPLETE,
+            self._default_core(),
         )
         assert regime == MMRegime.DARK_DOMINANT
 
@@ -344,7 +390,12 @@ class TestClassifyRegime:
         raw = {"dark_share": 0.55, "efficiency": 0.005, "impact": 0.002}
         medians = {"efficiency": 0.005, "impact": 0.002}
         regime, cond = _classify_regime(
-            z, raw, medians, -0.003, BaselineState.COMPLETE, self._default_core(),
+            z,
+            raw,
+            medians,
+            -0.003,
+            BaselineState.COMPLETE,
+            self._default_core(),
         )
         assert regime == MMRegime.ABSORPTION
 
@@ -354,7 +405,12 @@ class TestClassifyRegime:
         raw = {"dark_share": 0.3, "efficiency": 0.005, "impact": 0.002}
         medians = {"efficiency": 0.005, "impact": 0.002}
         regime, cond = _classify_regime(
-            z, raw, medians, 0.003, BaselineState.COMPLETE, self._default_core(),
+            z,
+            raw,
+            medians,
+            0.003,
+            BaselineState.COMPLETE,
+            self._default_core(),
         )
         assert regime == MMRegime.DISTRIBUTION
 
@@ -364,7 +420,12 @@ class TestClassifyRegime:
         raw = {"dark_share": 0.3, "efficiency": 0.005, "impact": 0.002}
         medians = {"efficiency": 0.005, "impact": 0.002}
         regime, cond = _classify_regime(
-            z, raw, medians, 0.0, BaselineState.COMPLETE, self._default_core(),
+            z,
+            raw,
+            medians,
+            0.0,
+            BaselineState.COMPLETE,
+            self._default_core(),
         )
         assert regime == MMRegime.NEUTRAL
 
@@ -374,7 +435,12 @@ class TestClassifyRegime:
         raw = {"dark_share": 0.3, "efficiency": 0.005, "impact": 0.002}
         medians = {"efficiency": 0.005, "impact": 0.002}
         regime, cond = _classify_regime(
-            z, raw, medians, 0.0, BaselineState.EMPTY, self._default_core(),
+            z,
+            raw,
+            medians,
+            0.0,
+            BaselineState.EMPTY,
+            self._default_core(),
         )
         assert regime == MMRegime.UNDETERMINED
 
@@ -382,6 +448,7 @@ class TestClassifyRegime:
 # ============================================================================
 # TestPriorityOrdering
 # ============================================================================
+
 
 class TestPriorityOrdering:
     """Test that higher-priority rules fire first."""
@@ -403,7 +470,12 @@ class TestPriorityOrdering:
         raw = {"dark_share": 0.75, "efficiency": 0.001, "impact": 0.001}
         medians = {"efficiency": 0.005, "impact": 0.002}
         regime, _ = _classify_regime(
-            z, raw, medians, 0.0, BaselineState.COMPLETE, self._default_core(),
+            z,
+            raw,
+            medians,
+            0.0,
+            BaselineState.COMPLETE,
+            self._default_core(),
         )
         assert regime == MMRegime.GAMMA_POSITIVE
 
@@ -413,7 +485,12 @@ class TestPriorityOrdering:
         raw = {"dark_share": 0.3, "efficiency": 0.005, "impact": 0.01}
         medians = {"efficiency": 0.005, "impact": 0.002}
         regime, _ = _classify_regime(
-            z, raw, medians, 0.003, BaselineState.COMPLETE, self._default_core(),
+            z,
+            raw,
+            medians,
+            0.003,
+            BaselineState.COMPLETE,
+            self._default_core(),
         )
         assert regime == MMRegime.GAMMA_NEGATIVE
 
@@ -421,6 +498,7 @@ class TestPriorityOrdering:
 # ============================================================================
 # TestUnusualnessScore
 # ============================================================================
+
 
 class TestUnusualnessScore:
     def test_unusualness_normal(self):
@@ -446,6 +524,7 @@ class TestUnusualnessScore:
 # ============================================================================
 # TestMMSStore
 # ============================================================================
+
 
 class TestMMSStore:
     def test_load_empty(self, store):
@@ -493,6 +572,7 @@ class TestMMSStore:
 # TestRegimeMultiplier
 # ============================================================================
 
+
 class TestRegimeMultiplier:
     def test_all_regime_multipliers(self):
         tuning = {
@@ -523,6 +603,7 @@ class TestRegimeMultiplier:
 # TestRunMMSAnalysis
 # ============================================================================
 
+
 class TestRunMMSAnalysis:
     def test_full_analysis_cold_start(self, config, store):
         """Day 1: no history → UND regime."""
@@ -531,8 +612,14 @@ class TestRunMMSAnalysis:
         stock = _make_stock()
 
         result = run_mms_analysis(
-            config.core, config.tuning,
-            "AAPL", bars, options, stock, {"net_gex": 500000}, store,
+            config.core,
+            config.tuning,
+            "AAPL",
+            bars,
+            options,
+            stock,
+            {"net_gex": 500000},
+            store,
         )
         assert isinstance(result, MMSAnalysis)
         assert result.ticker == "AAPL"
@@ -545,8 +632,14 @@ class TestRunMMSAnalysis:
         """No bars → UND with EMPTY baseline."""
         stock = _make_stock()
         result = run_mms_analysis(
-            config.core, config.tuning,
-            "AAPL", None, None, stock, None, store,
+            config.core,
+            config.tuning,
+            "AAPL",
+            None,
+            None,
+            stock,
+            None,
+            store,
         )
         assert result.mm_regime == MMRegime.UNDETERMINED
         assert result.baseline_state == BaselineState.EMPTY
@@ -556,8 +649,14 @@ class TestRunMMSAnalysis:
         bars = _make_bars(100)
         stock = _make_stock()
         run_mms_analysis(
-            config.core, config.tuning,
-            "AAPL", bars, None, stock, None, store,
+            config.core,
+            config.tuning,
+            "AAPL",
+            bars,
+            None,
+            stock,
+            None,
+            store,
         )
         entries = store.load("AAPL")
         assert len(entries) == 1
@@ -570,6 +669,7 @@ class TestRunMMSAnalysis:
 # TestPhase5Integration
 # ============================================================================
 
+
 class TestPhase5Integration:
     def test_mms_disabled_no_polygon(self, config, logger):
         """When MMS disabled and no polygon → no MMS analyses."""
@@ -577,8 +677,12 @@ class TestPhase5Integration:
 
         mock_gex = MagicMock()
         mock_gex.get_gex.return_value = {
-            "net_gex": 500000, "call_wall": 160, "put_wall": 140,
-            "zero_gamma": 150, "gex_by_strike": [], "source": "test",
+            "net_gex": 500000,
+            "call_wall": 160,
+            "put_wall": 140,
+            "zero_gamma": 150,
+            "gex_by_strike": [],
+            "source": "test",
         }
 
         stocks = [_make_stock("AAPL")]
@@ -586,8 +690,7 @@ class TestPhase5Integration:
         config.tuning["mms_enabled"] = False
         config.tuning["mms_store_always_collect"] = False
 
-        result = run_phase5(config, logger, mock_gex, stocks, StrategyMode.LONG,
-                            polygon=None)
+        result = run_phase5(config, logger, mock_gex, stocks, StrategyMode.LONG, polygon=None)
         assert result.mms_analyses == []
         assert result.mms_enabled is False
 
@@ -601,8 +704,12 @@ class TestPhase5Integration:
 
         mock_gex = MagicMock()
         mock_gex.get_gex.return_value = {
-            "net_gex": 500000, "call_wall": 160, "put_wall": 140,
-            "zero_gamma": 150, "gex_by_strike": [], "source": "test",
+            "net_gex": 500000,
+            "call_wall": 160,
+            "put_wall": 140,
+            "zero_gamma": 150,
+            "gex_by_strike": [],
+            "source": "test",
         }
 
         mock_polygon = MagicMock()
@@ -610,8 +717,9 @@ class TestPhase5Integration:
         mock_polygon.get_options_snapshot.return_value = _make_options(20)
 
         stocks = [_make_stock("AAPL")]
-        result = run_phase5(config, logger, mock_gex, stocks, StrategyMode.LONG,
-                            polygon=mock_polygon)
+        result = run_phase5(
+            config, logger, mock_gex, stocks, StrategyMode.LONG, polygon=mock_polygon
+        )
         assert len(result.mms_analyses) == 1
         assert result.mms_enabled is False
         # Store should have data
@@ -629,8 +737,12 @@ class TestPhase5Integration:
 
         mock_gex = MagicMock()
         mock_gex.get_gex.return_value = {
-            "net_gex": 500000, "call_wall": 160, "put_wall": 140,
-            "zero_gamma": 150, "gex_by_strike": [], "source": "test",
+            "net_gex": 500000,
+            "call_wall": 160,
+            "put_wall": 140,
+            "zero_gamma": 150,
+            "gex_by_strike": [],
+            "source": "test",
         }
 
         mock_polygon = MagicMock()
@@ -638,8 +750,9 @@ class TestPhase5Integration:
         mock_polygon.get_options_snapshot.return_value = _make_options(20)
 
         stocks = [_make_stock("AAPL")]
-        result = run_phase5(config, logger, mock_gex, stocks, StrategyMode.LONG,
-                            polygon=mock_polygon)
+        result = run_phase5(
+            config, logger, mock_gex, stocks, StrategyMode.LONG, polygon=mock_polygon
+        )
         assert result.mms_enabled is True
         assert len(result.mms_analyses) == 1
         # The gex_multiplier on the passed GEXAnalysis should reflect MMS
@@ -656,8 +769,12 @@ class TestPhase5Integration:
 
         mock_gex = MagicMock()
         mock_gex.get_gex.return_value = {
-            "net_gex": 500000, "call_wall": 160.0, "put_wall": 140.0,
-            "zero_gamma": 150.0, "gex_by_strike": [], "source": "unusual_whales",
+            "net_gex": 500000,
+            "call_wall": 160.0,
+            "put_wall": 140.0,
+            "zero_gamma": 150.0,
+            "gex_by_strike": [],
+            "source": "unusual_whales",
         }
 
         mock_polygon = MagicMock()
@@ -665,8 +782,9 @@ class TestPhase5Integration:
         mock_polygon.get_options_snapshot.return_value = _make_options(20)
 
         stocks = [_make_stock("AAPL")]
-        result = run_phase5(config, logger, mock_gex, stocks, StrategyMode.LONG,
-                            polygon=mock_polygon)
+        result = run_phase5(
+            config, logger, mock_gex, stocks, StrategyMode.LONG, polygon=mock_polygon
+        )
         obs = result.mms_analyses[0]
         assert obs.call_wall == 160.0
         assert obs.put_wall == 140.0
@@ -678,6 +796,7 @@ class TestPhase5Integration:
 # TestPhase6Integration
 # ============================================================================
 
+
 class TestPhase6Integration:
     def test_mm_regime_on_position_sizing(self, config, logger):
         """PositionSizing includes mm_regime from MMS."""
@@ -686,12 +805,19 @@ class TestPhase6Integration:
         stock = _make_stock("AAPL", price=150.0)
         stock.combined_score = 85.0
         gex = GEXAnalysis(
-            ticker="AAPL", net_gex=500000, call_wall=160, put_wall=140,
-            gex_regime=GEXRegime.POSITIVE, gex_multiplier=1.0,
+            ticker="AAPL",
+            net_gex=500000,
+            call_wall=160,
+            put_wall=140,
+            gex_regime=GEXRegime.POSITIVE,
+            gex_multiplier=1.0,
         )
         macro = MacroRegime(
-            vix_value=18.0, vix_regime=MarketVolatilityRegime.NORMAL,
-            vix_multiplier=1.0, tnx_value=4.0, tnx_sma20=3.9,
+            vix_value=18.0,
+            vix_regime=MarketVolatilityRegime.NORMAL,
+            vix_multiplier=1.0,
+            tnx_value=4.0,
+            tnx_sma20=3.9,
             tnx_rate_sensitive=False,
         )
         mms_map = {
@@ -703,7 +829,11 @@ class TestPhase6Integration:
         }
 
         pos = _calculate_position(
-            stock, gex, macro, config, StrategyMode.LONG,
+            stock,
+            gex,
+            macro,
+            config,
+            StrategyMode.LONG,
             mms_map=mms_map,
         )
         assert pos is not None
@@ -717,17 +847,28 @@ class TestPhase6Integration:
         stock = _make_stock("AAPL", price=150.0)
         stock.combined_score = 85.0
         gex = GEXAnalysis(
-            ticker="AAPL", net_gex=500000, call_wall=160, put_wall=140,
-            gex_regime=GEXRegime.POSITIVE, gex_multiplier=1.0,
+            ticker="AAPL",
+            net_gex=500000,
+            call_wall=160,
+            put_wall=140,
+            gex_regime=GEXRegime.POSITIVE,
+            gex_multiplier=1.0,
         )
         macro = MacroRegime(
-            vix_value=18.0, vix_regime=MarketVolatilityRegime.NORMAL,
-            vix_multiplier=1.0, tnx_value=4.0, tnx_sma20=3.9,
+            vix_value=18.0,
+            vix_regime=MarketVolatilityRegime.NORMAL,
+            vix_multiplier=1.0,
+            tnx_value=4.0,
+            tnx_sma20=3.9,
             tnx_rate_sensitive=False,
         )
 
         pos = _calculate_position(
-            stock, gex, macro, config, StrategyMode.LONG,
+            stock,
+            gex,
+            macro,
+            config,
+            StrategyMode.LONG,
         )
         assert pos is not None
         assert pos.mm_regime == ""
@@ -737,6 +878,7 @@ class TestPhase6Integration:
 # ============================================================================
 # TestBaselineState
 # ============================================================================
+
 
 class TestBaselineState:
     def test_empty_state(self):
@@ -758,6 +900,7 @@ class TestBaselineState:
 # ============================================================================
 # TestHelperFunctions
 # ============================================================================
+
 
 class TestHelperFunctions:
     def test_mean(self):
@@ -783,6 +926,7 @@ class TestHelperFunctions:
 # TestMMSAnalysisDataclass
 # ============================================================================
 
+
 class TestMMSAnalysisDataclass:
     def test_default_values(self):
         obs = MMSAnalysis(ticker="AAPL")
@@ -803,6 +947,7 @@ class TestMMSAnalysisDataclass:
 # TestPhase5AsyncMMS
 # ============================================================================
 
+
 class TestPhase5AsyncMMS:
     """Test the async Phase 5 path with MMS enabled."""
 
@@ -817,8 +962,10 @@ class TestPhase5AsyncMMS:
 
         stocks = [_make_stock("AAPL")]
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncUWClient"):
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncUWClient"),
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_options_snapshot = AsyncMock(return_value=None)
@@ -827,7 +974,10 @@ class TestPhase5AsyncMMS:
             MockPoly.return_value = mock_poly
 
             result = await _run_phase5_async(
-                config, logger, stocks, StrategyMode.LONG,
+                config,
+                logger,
+                stocks,
+                StrategyMode.LONG,
                 run_mms=True,
             )
 
@@ -849,13 +999,19 @@ class TestPhase5AsyncMMS:
         stocks = [_make_stock("AAPL")]
 
         mock_gex_result = {
-            "net_gex": 500000, "call_wall": 160.0, "put_wall": 140.0,
-            "zero_gamma": 150.0, "gex_by_strike": [], "source": "polygon_calculated",
+            "net_gex": 500000,
+            "call_wall": 160.0,
+            "put_wall": 140.0,
+            "zero_gamma": 150.0,
+            "gex_by_strike": [],
+            "source": "polygon_calculated",
         }
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncUWClient"), \
-             patch("ifds.data.async_adapters.AsyncPolygonGEXProvider") as MockGEX:
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncUWClient"),
+            patch("ifds.data.async_adapters.AsyncPolygonGEXProvider") as MockGEX,
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_options_snapshot = AsyncMock(return_value=_make_options(20))
@@ -868,7 +1024,10 @@ class TestPhase5AsyncMMS:
             MockGEX.return_value = mock_gex_prov
 
             result = await _run_phase5_async(
-                config, logger, stocks, StrategyMode.LONG,
+                config,
+                logger,
+                stocks,
+                StrategyMode.LONG,
                 run_mms=True,
             )
 
@@ -886,8 +1045,10 @@ class TestPhase5AsyncMMS:
 
         stocks = [_make_stock("AAPL")]
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncUWClient"):
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncUWClient"),
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_options_snapshot = AsyncMock(return_value=None)
@@ -896,7 +1057,10 @@ class TestPhase5AsyncMMS:
             MockPoly.return_value = mock_poly
 
             result = await _run_phase5_async(
-                config, logger, stocks, StrategyMode.LONG,
+                config,
+                logger,
+                stocks,
+                StrategyMode.LONG,
                 run_mms=False,
             )
 
@@ -914,8 +1078,10 @@ class TestPhase5AsyncMMS:
 
         stocks = [_make_stock("AAPL")]
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncUWClient"):
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncUWClient"),
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_options_snapshot = AsyncMock(return_value=None)
@@ -925,7 +1091,10 @@ class TestPhase5AsyncMMS:
             MockPoly.return_value = mock_poly
 
             result = await _run_phase5_async(
-                config, logger, stocks, StrategyMode.LONG,
+                config,
+                logger,
+                stocks,
+                StrategyMode.LONG,
                 run_mms=True,
             )
 
@@ -944,8 +1113,10 @@ class TestPhase5AsyncMMS:
 
         stocks = [_make_stock("AAPL")]
 
-        with patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly, \
-             patch("ifds.data.async_clients.AsyncUWClient"):
+        with (
+            patch("ifds.data.async_clients.AsyncPolygonClient") as MockPoly,
+            patch("ifds.data.async_clients.AsyncUWClient"),
+        ):
 
             mock_poly = AsyncMock()
             mock_poly.get_options_snapshot = AsyncMock(return_value=_make_options(20))
@@ -954,7 +1125,10 @@ class TestPhase5AsyncMMS:
             MockPoly.return_value = mock_poly
 
             result = await _run_phase5_async(
-                config, logger, stocks, StrategyMode.LONG,
+                config,
+                logger,
+                stocks,
+                StrategyMode.LONG,
                 run_mms=True,
             )
 
@@ -970,15 +1144,23 @@ class TestPhase5AsyncMMS:
 # TestVenueMix
 # ============================================================================
 
+
 class TestVenueMix:
     """Venue entropy (Shannon entropy from DP market_center) tests."""
 
     def test_venue_entropy_single_venue(self):
         """All prints on same venue → entropy = 0."""
         from ifds.data.adapters import _aggregate_dp_records
+
         records = [
-            {"size": "1000", "price": "150.0", "volume": "5000000",
-             "market_center": "FINRA", "nbbo_ask": "150.1", "nbbo_bid": "149.9"},
+            {
+                "size": "1000",
+                "price": "150.0",
+                "volume": "5000000",
+                "market_center": "FINRA",
+                "nbbo_ask": "150.1",
+                "nbbo_bid": "149.9",
+            },
         ] * 10
         result = _aggregate_dp_records(records)
         assert "venue_entropy" in result
@@ -987,12 +1169,19 @@ class TestVenueMix:
     def test_venue_entropy_equal_distribution(self):
         """Equal distribution across N venues → entropy = log(N)."""
         from ifds.data.adapters import _aggregate_dp_records
+
         records = []
         for venue in ["FINRA", "NYSE", "NASDAQ", "ARCA"]:
-            records.append({
-                "size": "1000", "price": "150.0", "volume": "5000000",
-                "market_center": venue, "nbbo_ask": "150.1", "nbbo_bid": "149.9",
-            })
+            records.append(
+                {
+                    "size": "1000",
+                    "price": "150.0",
+                    "volume": "5000000",
+                    "market_center": venue,
+                    "nbbo_ask": "150.1",
+                    "nbbo_bid": "149.9",
+                }
+            )
         result = _aggregate_dp_records(records)
         assert abs(result["venue_entropy"] - math.log(4)) < 0.01
 
@@ -1001,8 +1190,7 @@ class TestVenueMix:
         bars = _make_bars(100)
         stock = _make_stock(dp_pct=42.0)
         stock.flow.venue_entropy = 1.38
-        run_mms_analysis(config.core, config.tuning,
-                         "AAPL", bars, None, stock, None, store)
+        run_mms_analysis(config.core, config.tuning, "AAPL", bars, None, stock, None, store)
         entries = store.load("AAPL")
         assert "venue_entropy" in entries[0]
         assert entries[0]["venue_entropy"] == pytest.approx(1.38, abs=0.01)
@@ -1012,8 +1200,7 @@ class TestVenueMix:
         bars = _make_bars(100)
         stock = _make_stock(dp_pct=0.0)
         stock.flow.venue_entropy = 0.0
-        run_mms_analysis(config.core, config.tuning,
-                         "AAPL", bars, None, stock, None, store)
+        run_mms_analysis(config.core, config.tuning, "AAPL", bars, None, stock, None, store)
         entries = store.load("AAPL")
         assert entries[0]["venue_entropy"] == 0.0
 
@@ -1022,38 +1209,53 @@ class TestVenueMix:
 # TestIVSkew
 # ============================================================================
 
+
 class TestIVSkew:
     """IV Skew (ATM put IV - call IV) feature tests."""
 
     def test_iv_skew_puts_expensive(self):
         """Puts more expensive → positive skew."""
         options = [
-            {"details": {"strike_price": 150.0, "contract_type": "put"},
-             "implied_volatility": 0.35},
-            {"details": {"strike_price": 150.0, "contract_type": "call"},
-             "implied_volatility": 0.25},
+            {
+                "details": {"strike_price": 150.0, "contract_type": "put"},
+                "implied_volatility": 0.35,
+            },
+            {
+                "details": {"strike_price": 150.0, "contract_type": "call"},
+                "implied_volatility": 0.25,
+            },
         ]
         assert _compute_iv_skew(options, 150.0) == pytest.approx(0.10, abs=0.001)
 
     def test_iv_skew_calls_expensive(self):
         """Calls more expensive → negative skew."""
         options = [
-            {"details": {"strike_price": 150.0, "contract_type": "put"},
-             "implied_volatility": 0.20},
-            {"details": {"strike_price": 150.0, "contract_type": "call"},
-             "implied_volatility": 0.30},
+            {
+                "details": {"strike_price": 150.0, "contract_type": "put"},
+                "implied_volatility": 0.20,
+            },
+            {
+                "details": {"strike_price": 150.0, "contract_type": "call"},
+                "implied_volatility": 0.30,
+            },
         ]
         assert _compute_iv_skew(options, 150.0) == pytest.approx(-0.10, abs=0.001)
 
     def test_iv_skew_otm_filtered(self):
         """OTM options excluded from ATM band."""
         options = [
-            {"details": {"strike_price": 200.0, "contract_type": "put"},
-             "implied_volatility": 0.80},   # OTM — excluded
-            {"details": {"strike_price": 150.0, "contract_type": "put"},
-             "implied_volatility": 0.30},   # ATM
-            {"details": {"strike_price": 150.0, "contract_type": "call"},
-             "implied_volatility": 0.25},   # ATM
+            {
+                "details": {"strike_price": 200.0, "contract_type": "put"},
+                "implied_volatility": 0.80,
+            },  # OTM — excluded
+            {
+                "details": {"strike_price": 150.0, "contract_type": "put"},
+                "implied_volatility": 0.30,
+            },  # ATM
+            {
+                "details": {"strike_price": 150.0, "contract_type": "call"},
+                "implied_volatility": 0.25,
+            },  # ATM
         ]
         assert _compute_iv_skew(options, 150.0) == pytest.approx(0.05, abs=0.001)
 
@@ -1066,14 +1268,17 @@ class TestIVSkew:
         """iv_skew is stored in MMS store entry."""
         bars = _make_bars(100)
         options = [
-            {"details": {"strike_price": 150.0, "contract_type": "put"},
-             "implied_volatility": 0.35},
-            {"details": {"strike_price": 150.0, "contract_type": "call"},
-             "implied_volatility": 0.25},
+            {
+                "details": {"strike_price": 150.0, "contract_type": "put"},
+                "implied_volatility": 0.35,
+            },
+            {
+                "details": {"strike_price": 150.0, "contract_type": "call"},
+                "implied_volatility": 0.25,
+            },
         ]
         stock = _make_stock(price=150.0)
-        run_mms_analysis(config.core, config.tuning,
-                         "AAPL", bars, options, stock, None, store)
+        run_mms_analysis(config.core, config.tuning, "AAPL", bars, options, stock, None, store)
         entries = store.load("AAPL")
         assert "iv_skew" in entries[0]
         assert entries[0]["iv_skew"] == pytest.approx(0.10, abs=0.001)
@@ -1083,29 +1288,43 @@ class TestIVSkew:
         bars = _make_bars(100)
         stock = _make_stock(price=150.0)
         for i in range(25):
-            store.append_and_save("AAPL", {
-                "date": f"2026-01-{i+1:02d}",
-                "dark_share": 0.3 + i * 0.01, "gex": 1000000.0 + i * 10000,
-                "dex": 50000.0 + i * 1000, "block_count": 5.0 + i,
-                "iv_rank": 0.30 + i * 0.005,
-                "venue_entropy": 1.0 + i * 0.02, "iv_skew": 0.05 + i * 0.002,
-                "efficiency": 1e-7, "impact": 5e-8,
-                "daily_return": 0.01, "raw_score": 0.0,
-            })
+            store.append_and_save(
+                "AAPL",
+                {
+                    "date": f"2026-01-{i+1:02d}",
+                    "dark_share": 0.3 + i * 0.01,
+                    "gex": 1000000.0 + i * 10000,
+                    "dex": 50000.0 + i * 1000,
+                    "block_count": 5.0 + i,
+                    "iv_rank": 0.30 + i * 0.005,
+                    "venue_entropy": 1.0 + i * 0.02,
+                    "iv_skew": 0.05 + i * 0.002,
+                    "efficiency": 1e-7,
+                    "impact": 5e-8,
+                    "daily_return": 0.01,
+                    "raw_score": 0.0,
+                },
+            )
         options = [
-            {"details": {"strike_price": 150.0, "contract_type": "put"},
-             "implied_volatility": 0.40},
-            {"details": {"strike_price": 150.0, "contract_type": "call"},
-             "implied_volatility": 0.25},
+            {
+                "details": {"strike_price": 150.0, "contract_type": "put"},
+                "implied_volatility": 0.40,
+            },
+            {
+                "details": {"strike_price": 150.0, "contract_type": "call"},
+                "implied_volatility": 0.25,
+            },
         ]
-        result = run_mms_analysis(config.core, config.tuning,
-                                  "AAPL", bars, options, stock, None, store)
+        result = run_mms_analysis(
+            config.core, config.tuning, "AAPL", bars, options, stock, None, store
+        )
         assert result.baseline_state in (BaselineState.PARTIAL, BaselineState.COMPLETE)
 
 
 # ============================================================================
 # TestZScoresWithNewFeatures
 # ============================================================================
+
 
 class TestZScoresWithNewFeatures:
     """Tests for venue_entropy and iv_skew z-score computation."""
@@ -1116,18 +1335,28 @@ class TestZScoresWithNewFeatures:
         bar_features = _extract_features_from_bars(bars, window=63)
         history = []
         for i in range(25):
-            history.append({
-                "date": f"2026-01-{i+1:02d}",
-                "dark_share": 0.3 + i * 0.01, "gex": 1000000 + i * 10000,
-                "dex": 50000.0, "block_count": 5.0, "iv_rank": 0.25,
-                "venue_entropy": 1.0 + i * 0.02, "iv_skew": 0.05 + i * 0.002,
-            })
+            history.append(
+                {
+                    "date": f"2026-01-{i+1:02d}",
+                    "dark_share": 0.3 + i * 0.01,
+                    "gex": 1000000 + i * 10000,
+                    "dex": 50000.0,
+                    "block_count": 5.0,
+                    "iv_rank": 0.25,
+                    "venue_entropy": 1.0 + i * 0.02,
+                    "iv_skew": 0.05 + i * 0.002,
+                }
+            )
         today = {
             "efficiency": bar_features["efficiency_today"],
             "impact": bar_features["impact_today"],
-            "dark_share": 0.55, "gex": 1500000.0, "dex": 80000.0,
-            "block_count": 30.0, "iv_rank": 0.40,
-            "venue_entropy": 1.8, "iv_skew": 0.12,
+            "dark_share": 0.55,
+            "gex": 1500000.0,
+            "dex": 80000.0,
+            "block_count": 30.0,
+            "iv_rank": 0.40,
+            "venue_entropy": 1.8,
+            "iv_skew": 0.12,
         }
         z = _compute_z_scores(today, history, bar_features, min_periods=21)
         assert z.get("venue_entropy") is not None
@@ -1139,21 +1368,30 @@ class TestZScoresWithNewFeatures:
         bar_features = _extract_features_from_bars(bars, window=63)
         history = []
         for i in range(25):
-            history.append({
-                "date": f"2026-01-{i+1:02d}",
-                "dark_share": 0.3 + i * 0.01, "gex": 1000000 + i * 10000,
-                "dex": 50000.0, "block_count": 5.0, "iv_rank": 0.25,
-                # No venue_entropy, no iv_skew — legacy entries
-            })
+            history.append(
+                {
+                    "date": f"2026-01-{i+1:02d}",
+                    "dark_share": 0.3 + i * 0.01,
+                    "gex": 1000000 + i * 10000,
+                    "dex": 50000.0,
+                    "block_count": 5.0,
+                    "iv_rank": 0.25,
+                    # No venue_entropy, no iv_skew — legacy entries
+                }
+            )
         today = {
             "efficiency": bar_features["efficiency_today"],
             "impact": bar_features["impact_today"],
-            "dark_share": 0.55, "gex": 1500000.0, "dex": 80000.0,
-            "block_count": 30.0, "iv_rank": 0.40,
-            "venue_entropy": 1.8, "iv_skew": 0.12,
+            "dark_share": 0.55,
+            "gex": 1500000.0,
+            "dex": 80000.0,
+            "block_count": 30.0,
+            "iv_rank": 0.40,
+            "venue_entropy": 1.8,
+            "iv_skew": 0.12,
         }
         z = _compute_z_scores(today, history, bar_features, min_periods=21)
-        assert z.get("venue_entropy") is None   # 0 valid values in history
+        assert z.get("venue_entropy") is None  # 0 valid values in history
         assert z.get("iv_skew") is None
 
 
@@ -1161,23 +1399,33 @@ class TestZScoresWithNewFeatures:
 # TestFeatureWeights
 # ============================================================================
 
+
 class TestFeatureWeights:
     """mms_feature_weights config parameterization tests."""
 
     def _weights(self, **overrides):
         """Base 6-feature weight set with optional overrides."""
         base = {
-            "dark_share": 0.25, "gex": 0.25,
-            "venue_entropy": 0.15, "block_intensity": 0.15,
-            "iv_rank": 0.10, "iv_skew": 0.10,
+            "dark_share": 0.25,
+            "gex": 0.25,
+            "venue_entropy": 0.15,
+            "block_intensity": 0.15,
+            "iv_rank": 0.10,
+            "iv_skew": 0.10,
         }
         base.update(overrides)
         return base
 
     def test_unusualness_proportional_to_weight(self):
         """Higher weight → higher unusualness contribution."""
-        z = {"dark_share": 2.0, "gex": 0.0, "block_count": 0.0,
-             "iv_rank": 0.0, "venue_entropy": 0.0, "iv_skew": 0.0}
+        z = {
+            "dark_share": 2.0,
+            "gex": 0.0,
+            "block_count": 0.0,
+            "iv_rank": 0.0,
+            "venue_entropy": 0.0,
+            "iv_skew": 0.0,
+        }
 
         low_weights = self._weights(dark_share=0.10)
         high_weights = self._weights(dark_share=0.40)
@@ -1189,8 +1437,14 @@ class TestFeatureWeights:
 
     def test_unusualness_zero_weight_feature_ignored(self):
         """Zero-weight feature does not contribute to score."""
-        z = {"dark_share": 3.0, "gex": 0.0, "block_count": 0.0,
-             "iv_rank": 0.0, "venue_entropy": 0.0, "iv_skew": 0.0}
+        z = {
+            "dark_share": 3.0,
+            "gex": 0.0,
+            "block_count": 0.0,
+            "iv_rank": 0.0,
+            "venue_entropy": 0.0,
+            "iv_skew": 0.0,
+        }
 
         weights_with = self._weights(dark_share=0.25)
         weights_zero = self._weights(dark_share=0.0)
@@ -1203,8 +1457,14 @@ class TestFeatureWeights:
 
     def test_unusualness_unknown_feature_in_weights_ignored(self):
         """Unknown feature name in weights dict does not cause errors."""
-        z = {"dark_share": 2.0, "gex": 0.0, "block_count": 0.0,
-             "iv_rank": 0.0, "venue_entropy": 0.0, "iv_skew": 0.0}
+        z = {
+            "dark_share": 2.0,
+            "gex": 0.0,
+            "block_count": 0.0,
+            "iv_rank": 0.0,
+            "venue_entropy": 0.0,
+            "iv_skew": 0.0,
+        }
         weights_typo = self._weights(typo_feature=0.99)
 
         u = _compute_unusualness(z, [], weights_typo, [])
@@ -1212,8 +1472,14 @@ class TestFeatureWeights:
 
     def test_unusualness_missing_weight_treats_as_zero(self):
         """Missing weight key for a scoring feature → 0 contribution."""
-        z = {"dark_share": 3.0, "gex": 0.0, "block_count": 0.0,
-             "iv_rank": 0.0, "venue_entropy": 0.0, "iv_skew": 0.0}
+        z = {
+            "dark_share": 3.0,
+            "gex": 0.0,
+            "block_count": 0.0,
+            "iv_rank": 0.0,
+            "venue_entropy": 0.0,
+            "iv_skew": 0.0,
+        }
         weights_no_ds = {"gex": 0.50}  # dark_share missing → 0
 
         u = _compute_unusualness(z, [], weights_no_ds, [])
@@ -1233,17 +1499,20 @@ class TestFeatureWeights:
             ("venue_entropy", "venue_entropy"),
             ("iv_skew", "iv_skew"),
         ]:
-            z_single = {f: (2.0 if f == feat else 0.0)
-                        for f in ["dark_share", "gex", "block_count",
-                                  "iv_rank", "venue_entropy", "iv_skew"]}
+            z_single = {
+                f: (2.0 if f == feat else 0.0)
+                for f in ["dark_share", "gex", "block_count", "iv_rank", "venue_entropy", "iv_skew"]
+            }
             u = _compute_unusualness(z_single, excluded, weights, [])
             scores.append((feat, u))
 
         for feat, u in scores:
             assert u > 0, f"{feat} should be > 0 but got {u}"
 
-        z_all = {f: 2.0 for f in ["dark_share", "gex", "block_count",
-                                   "iv_rank", "venue_entropy", "iv_skew"]}
+        z_all = {
+            f: 2.0
+            for f in ["dark_share", "gex", "block_count", "iv_rank", "venue_entropy", "iv_skew"]
+        }
         u_all = _compute_unusualness(z_all, excluded, weights, [])
         for feat, u_single in scores:
             assert u_all >= u_single, f"u_all ({u_all}) < u_single({feat}={u_single})"
@@ -1259,14 +1528,23 @@ class TestFeatureWeights:
         bars = _make_bars(100)
         stock = _make_stock()
         for i in range(25):
-            store.append_and_save("AAPL", {
-                "date": f"2026-01-{i+1:02d}",
-                "dark_share": 0.3 + i * 0.01, "gex": float(1000000 + i * 10000),
-                "dex": 50000.0, "block_count": 5.0, "iv_rank": 0.25,
-                "venue_entropy": 1.0, "iv_skew": 0.05,
-                "efficiency": 1e-7, "impact": 5e-8,
-                "daily_return": 0.01, "raw_score": 0.0,
-            })
+            store.append_and_save(
+                "AAPL",
+                {
+                    "date": f"2026-01-{i+1:02d}",
+                    "dark_share": 0.3 + i * 0.01,
+                    "gex": float(1000000 + i * 10000),
+                    "dex": 50000.0,
+                    "block_count": 5.0,
+                    "iv_rank": 0.25,
+                    "venue_entropy": 1.0,
+                    "iv_skew": 0.05,
+                    "efficiency": 1e-7,
+                    "impact": 5e-8,
+                    "daily_return": 0.01,
+                    "raw_score": 0.0,
+                },
+            )
 
         config_a = dict(config.tuning)
         config_a["mms_feature_weights"] = self._weights(gex=0.50, dark_share=0.10)
@@ -1274,11 +1552,9 @@ class TestFeatureWeights:
         config_b = dict(config.tuning)
         config_b["mms_feature_weights"] = self._weights(gex=0.10, dark_share=0.50)
 
-        result_a = run_mms_analysis(config.core, config_a, "AAPL",
-                                    bars, None, stock, None, store)
+        result_a = run_mms_analysis(config.core, config_a, "AAPL", bars, None, stock, None, store)
         store_b = MMSStore(store_dir=store._store_dir, max_entries=100)
-        result_b = run_mms_analysis(config.core, config_b, "AAPL",
-                                    bars, None, stock, None, store_b)
+        result_b = run_mms_analysis(config.core, config_b, "AAPL", bars, None, stock, None, store_b)
 
         assert 0 <= result_a.unusualness_score <= 100
         assert 0 <= result_b.unusualness_score <= 100

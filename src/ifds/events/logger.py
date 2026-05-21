@@ -30,9 +30,15 @@ class EventLogger:
         self._log_file = self._log_dir / f"ifds_run_{timestamp}.jsonl"
         self._file_handle = open(self._log_file, "a")
 
-    def log(self, event_type: EventType, severity: Severity = Severity.INFO,
-            phase: int | None = None, ticker: str | None = None,
-            data: dict[str, Any] | None = None, message: str = "") -> None:
+    def log(
+        self,
+        event_type: EventType,
+        severity: Severity = Severity.INFO,
+        phase: int | None = None,
+        ticker: str | None = None,
+        data: dict[str, Any] | None = None,
+        message: str = "",
+    ) -> None:
         """Log a structured event.
 
         Args:
@@ -69,12 +75,20 @@ class EventLogger:
         if input_count is not None:
             data["input_count"] = input_count
         self.log(
-            EventType.PHASE_START, Severity.INFO,
-            phase=phase, message=f"Phase {phase} started: {name}", data=data,
+            EventType.PHASE_START,
+            Severity.INFO,
+            phase=phase,
+            message=f"Phase {phase} started: {name}",
+            data=data,
         )
 
-    def phase_complete(self, phase: int, name: str, output_count: int | None = None,
-                       duration_ms: float | None = None) -> None:
+    def phase_complete(
+        self,
+        phase: int,
+        name: str,
+        output_count: int | None = None,
+        duration_ms: float | None = None,
+    ) -> None:
         """Log the completion of a pipeline phase."""
         data = {"phase_name": name}
         if output_count is not None:
@@ -82,28 +96,40 @@ class EventLogger:
         if duration_ms is not None:
             data["duration_ms"] = round(duration_ms, 1)
         self.log(
-            EventType.PHASE_COMPLETE, Severity.INFO,
-            phase=phase, message=f"Phase {phase} complete: {name}", data=data,
+            EventType.PHASE_COMPLETE,
+            Severity.INFO,
+            phase=phase,
+            message=f"Phase {phase} complete: {name}",
+            data=data,
         )
 
     def phase_error(self, phase: int, name: str, error: str) -> None:
         """Log a phase error."""
         self.log(
-            EventType.PHASE_ERROR, Severity.ERROR,
-            phase=phase, message=f"Phase {phase} error: {error}",
+            EventType.PHASE_ERROR,
+            Severity.ERROR,
+            phase=phase,
+            message=f"Phase {phase} error: {error}",
             data={"phase_name": name, "error": error},
         )
 
     def halt(self, reason: str) -> None:
         """Log a pipeline halt."""
         self.log(
-            EventType.PIPELINE_HALT, Severity.CRITICAL,
-            message=f"PIPELINE HALT: {reason}", data={"reason": reason},
+            EventType.PIPELINE_HALT,
+            Severity.CRITICAL,
+            message=f"PIPELINE HALT: {reason}",
+            data={"reason": reason},
         )
 
-    def api_health(self, provider: str, endpoint: str, status: str,
-                   response_time_ms: float | None = None,
-                   error: str | None = None) -> None:
+    def api_health(
+        self,
+        provider: str,
+        endpoint: str,
+        status: str,
+        response_time_ms: float | None = None,
+        error: str | None = None,
+    ) -> None:
         """Log an API health check result."""
         data = {"provider": provider, "endpoint": endpoint, "status": status}
         if response_time_ms is not None:
@@ -112,14 +138,18 @@ class EventLogger:
             data["error"] = error
         severity = Severity.INFO if status == "ok" else Severity.WARNING
         self.log(
-            EventType.API_HEALTH_CHECK, severity,
-            phase=0, message=f"API {provider}: {status}", data=data,
+            EventType.API_HEALTH_CHECK,
+            severity,
+            phase=0,
+            message=f"API {provider}: {status}",
+            data=data,
         )
 
     def api_fallback(self, primary: str, fallback: str, reason: str) -> None:
         """Log an API fallback (e.g., UW → Polygon)."""
         self.log(
-            EventType.API_FALLBACK, Severity.WARNING,
+            EventType.API_FALLBACK,
+            Severity.WARNING,
             message=f"Fallback: {primary} → {fallback} ({reason})",
             data={"primary": primary, "fallback": fallback, "reason": reason},
         )

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 class ConfigValidationError(Exception):
     """Raised when configuration is invalid. Pipeline must HALT."""
+
     pass
 
 
@@ -82,8 +83,14 @@ def validate_config(config: Config) -> None:
 
     # --- MMS regime multiplier keys ---
     VALID_MMS_REGIMES = {
-        "gamma_positive", "gamma_negative", "dark_dominant",
-        "absorption", "distribution", "volatile", "neutral", "undetermined",
+        "gamma_positive",
+        "gamma_negative",
+        "dark_dominant",
+        "absorption",
+        "distribution",
+        "volatile",
+        "neutral",
+        "undetermined",
     }
     mms_multipliers = config.tuning.get("mms_regime_multipliers", {})
     if mms_multipliers:
@@ -101,9 +108,7 @@ def validate_config(config: Config) -> None:
 
     # --- Report ---
     if errors:
-        msg = "Configuration validation failed:\n" + "\n".join(
-            f"  - {e}" for e in errors
-        )
+        msg = "Configuration validation failed:\n" + "\n".join(f"  - {e}" for e in errors)
         raise ConfigValidationError(msg)
 
 
@@ -113,8 +118,7 @@ def _check_positive(d: dict, key: str, errors: list[str]) -> None:
         errors.append(f"{key} must be positive, got {val}")
 
 
-def _check_range(d: dict, key: str, min_val: float, max_val: float,
-                 errors: list[str]) -> None:
+def _check_range(d: dict, key: str, min_val: float, max_val: float, errors: list[str]) -> None:
     val = d.get(key)
     if val is None or val < min_val or val > max_val:
         errors.append(f"{key} must be between {min_val} and {max_val}, got {val}")

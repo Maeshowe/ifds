@@ -9,6 +9,7 @@ Usage:
     python scripts/paper_trading/daily_metrics.py
     python scripts/paper_trading/daily_metrics.py --date 2026-04-10  # backfill
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,12 +28,14 @@ load_dotenv()
 
 try:
     from lib.log_setup import setup_pt_logger
+
     logger = setup_pt_logger("daily_metrics")
 except ModuleNotFoundError:
     import logging
-    logging.basicConfig(level=logging.INFO,
-                        format="%(asctime)s [%(levelname)s] %(message)s",
-                        datefmt="%H:%M:%S")
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    )
     logger = logging.getLogger("daily_metrics")
 
 # ---------------------------------------------------------------------------
@@ -78,17 +81,19 @@ def _load_trades(target_date: str) -> list[dict]:
     with open(path, newline="") as f:
         for row in csv.DictReader(f):
             try:
-                trades.append({
-                    "ticker": row["ticker"],
-                    "score": float(row.get("score", 0) or 0),
-                    "entry_price": float(row["entry_price"]),
-                    "exit_price": float(row["exit_price"]),
-                    "pnl": float(row["pnl"]),
-                    "pnl_pct": float(row["pnl_pct"]),
-                    "exit_type": row["exit_type"],
-                    "sector": row.get("sector", ""),
-                    "commission": float(row.get("commission", 0) or 0),
-                })
+                trades.append(
+                    {
+                        "ticker": row["ticker"],
+                        "score": float(row.get("score", 0) or 0),
+                        "entry_price": float(row["entry_price"]),
+                        "exit_price": float(row["exit_price"]),
+                        "pnl": float(row["pnl"]),
+                        "pnl_pct": float(row["pnl_pct"]),
+                        "exit_type": row["exit_type"],
+                        "sector": row.get("sector", ""),
+                        "commission": float(row.get("commission", 0) or 0),
+                    }
+                )
             except (KeyError, ValueError):
                 continue
     return trades
@@ -152,7 +157,8 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
     try:
         cfg = Config()
         state_file = cfg.tuning.get(
-            "swing_positions_state_file", "state/swing_positions.json",
+            "swing_positions_state_file",
+            "state/swing_positions.json",
         )
         max_concurrent = int(cfg.tuning.get("swing_max_concurrent", 12))
         threshold = float(cfg.tuning.get("swing_score_threshold", 50.0))
@@ -177,8 +183,7 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
             sector_distribution.get(sector, 0.0) + p.entry_price * p.qty_remaining
         )
     sector_observed_max_pct = (
-        max(v / equity * 100 for v in sector_distribution.values())
-        if sector_distribution else 0.0
+        max(v / equity * 100 for v in sector_distribution.values()) if sector_distribution else 0.0
     )
 
     if positions:
@@ -209,11 +214,13 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
         scored = sorted(rows, key=lambda r: float(r.get("combined_score", 0.0)), reverse=True)
         qualifying = sum(1 for r in scored if float(r.get("combined_score", 0.0)) >= threshold)
         for r in scored[:3]:
-            top_scores.append({
-                "ticker": r.get("ticker", "?"),
-                "S_j": round(float(r.get("combined_score", 0.0)), 1),
-                "sector": r.get("sector", ""),
-            })
+            top_scores.append(
+                {
+                    "ticker": r.get("ticker", "?"),
+                    "S_j": round(float(r.get("combined_score", 0.0)), 1),
+                    "sector": r.get("sector", ""),
+                }
+            )
 
     return {
         "open_positions": len(positions),
@@ -271,6 +278,7 @@ def _load_uw_shadow_summary(target_date: str) -> dict:
 
     sys.path.insert(0, str(PROJECT_ROOT / "src"))
     from ifds.data.uw_shadow import summarize_shadow_snapshot
+
     summary = summarize_shadow_snapshot(snapshot)
     summary["snapshot_path"] = str(path)
     return summary
@@ -451,8 +459,7 @@ def build_daily_metrics(target_date: str) -> dict:
                 "slippage_pct": round((f - p) / p * 100, 2) if p > 0 else 0,
             }
     avg_slippage = (
-        sum(s["slippage_pct"] for s in slippage.values()) / len(slippage)
-        if slippage else 0
+        sum(s["slippage_pct"] for s in slippage.values()) / len(slippage) if slippage else 0
     )
 
     # --- Commission ---
@@ -492,34 +499,29 @@ def build_daily_metrics(target_date: str) -> dict:
     return {
         "date": target_date,
         "day_number": cum_data.get("trading_days", 0),
-
         "positions": {
             "opened": len(trades),
             "qualified_above_threshold": qualified_count,
             "threshold": threshold,
             "max_allowed": 5,
         },
-
         "market": {
             "spy_return_pct": round(spy_return, 2) if spy_return is not None else None,
             "vix_close": round(vix_close, 2) if vix_close is not None else None,
             "vix_delta_pct": round(vix_delta_pct, 2) if vix_delta_pct is not None else None,
             "strategy": "LONG",
         },
-
         "scoring": {
             "avg_score": round(avg_score, 1),
             "min_score": round(min_score, 1),
             "max_score": round(max_score, 1),
             "scores": {k: round(v, 1) for k, v in scores.items()},
         },
-
         "execution": {
             "avg_fill_slippage_pct": round(avg_slippage, 2),
             "slippage_per_ticker": slippage,
             "commission_total": round(commission_total, 2),
         },
-
         "exits": {
             "tp1": exit_counts.get("TP1", 0),
             "tp2": exit_counts.get("TP2", 0),
@@ -528,7 +530,6 @@ def build_daily_metrics(target_date: str) -> dict:
             "trail": exit_counts.get("TRAIL", 0),
             "moc": exit_counts.get("MOC", 0),
         },
-
         "pnl": {
             "gross": round(gross_pnl, 2),
             "commission": round(commission_total, 2),
@@ -536,30 +537,34 @@ def build_daily_metrics(target_date: str) -> dict:
             "cumulative": round(cum_pnl, 2),
             "cumulative_pct": round(cum_pct, 2),
         },
-
         "excess_return": {
             "portfolio_return_pct": round(portfolio_return, 2),
             "spy_return_pct": round(spy_return, 2) if spy_return is not None else None,
             "excess_pct": round(excess, 2) if excess is not None else None,
         },
-
         "uw_shadow_summary": uw_shadow_summary,
-
         "swing_state": swing_state,
-
         "trades": {
-            "best": {
-                "ticker": best["ticker"],
-                "pnl": round(best["pnl"], 2),
-                "pnl_pct": round(best["pnl_pct"], 2),
-                "exit_type": best["exit_type"],
-            } if best else None,
-            "worst": {
-                "ticker": worst["ticker"],
-                "pnl": round(worst["pnl"], 2),
-                "pnl_pct": round(worst["pnl_pct"], 2),
-                "exit_type": worst["exit_type"],
-            } if worst else None,
+            "best": (
+                {
+                    "ticker": best["ticker"],
+                    "pnl": round(best["pnl"], 2),
+                    "pnl_pct": round(best["pnl_pct"], 2),
+                    "exit_type": best["exit_type"],
+                }
+                if best
+                else None
+            ),
+            "worst": (
+                {
+                    "ticker": worst["ticker"],
+                    "pnl": round(worst["pnl"], 2),
+                    "pnl_pct": round(worst["pnl_pct"], 2),
+                    "exit_type": worst["exit_type"],
+                }
+                if worst
+                else None
+            ),
             "details": [
                 {
                     "ticker": t["ticker"],
@@ -583,6 +588,7 @@ def build_daily_metrics(target_date: str) -> dict:
 def main() -> None:
     try:
         from lib.trading_day_guard import check_trading_day
+
         check_trading_day(logger)
     except ModuleNotFoundError:
         pass

@@ -83,8 +83,13 @@ class TestEventLogger:
         assert event["severity"] == "CRITICAL"
 
     def test_ticker_field(self, logger):
-        logger.log(EventType.TICKER_SCORED, Severity.INFO,
-                    ticker="NVDA", message="scored", data={"score": 85})
+        logger.log(
+            EventType.TICKER_SCORED,
+            Severity.INFO,
+            ticker="NVDA",
+            message="scored",
+            data={"score": 85},
+        )
         event = logger.events[0]
         assert event["ticker"] == "NVDA"
         assert event["data"]["score"] == 85

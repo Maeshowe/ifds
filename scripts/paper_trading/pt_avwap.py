@@ -33,14 +33,19 @@ load_dotenv()
 
 try:
     from lib.log_setup import setup_pt_logger
+
     logger = setup_pt_logger("avwap")
 except ModuleNotFoundError:
     import logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S')
-    logger = logging.getLogger('avwap')
+
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
+    )
+    logger = logging.getLogger("avwap")
 
 try:
     from lib.event_logger import PTEventLogger
+
     evt = PTEventLogger()
 except ModuleNotFoundError:
     evt = None
@@ -57,6 +62,7 @@ def send_telegram(message: str) -> None:
     """Send message via Telegram Bot API with CET timestamp header."""
     from lib.telegram_helper import telegram_header
     from lib.telegram_helper import send_telegram as _send
+
     _send(f"{telegram_header('AVWAP')}\n{message}")
 
 
@@ -85,9 +91,7 @@ def calculate_avwap(ticker: str, market_open_utc: datetime) -> float | None:
     client = PolygonClient(api_key=os.getenv("IFDS_POLYGON_API_KEY"))
     today_str = date.today().strftime("%Y-%m-%d")
 
-    bars = client.get_aggregates(
-        ticker, today_str, today_str, timespan="minute", multiplier=1
-    )
+    bars = client.get_aggregates(ticker, today_str, today_str, timespan="minute", multiplier=1)
     if not bars:
         logger.warning(f"{ticker}: No 1-min bars from Polygon")
         return None
@@ -171,8 +175,9 @@ def wait_for_fill(ib, trade, timeout: int = 30) -> float | None:
     return None
 
 
-def get_vix_adaptive_sl_distance(fill_price: float, original_sl_distance: float,
-                                  vix: float | None, atr: float | None = None) -> tuple[float, str]:
+def get_vix_adaptive_sl_distance(
+    fill_price: float, original_sl_distance: float, vix: float | None, atr: float | None = None
+) -> tuple[float, str]:
     """Calculate VIX-adaptive SL distance.
 
     Args:
@@ -190,13 +195,13 @@ def get_vix_adaptive_sl_distance(fill_price: float, original_sl_distance: float,
     sl_distance = original_sl_distance
 
     if vix < 25:
-        max_pct = 0.020   # 2.0%
+        max_pct = 0.020  # 2.0%
         cap_label = f"VIX={vix:.1f}→2.0%_cap"
     elif vix < 30:
-        max_pct = 0.015   # 1.5%
+        max_pct = 0.015  # 1.5%
         cap_label = f"VIX={vix:.1f}→1.5%_cap"
     else:
-        max_pct = 0.010   # 1.0%
+        max_pct = 0.010  # 1.0%
         cap_label = f"VIX={vix:.1f}→1.0%_cap"
         if atr is not None:
             sl_distance = min(sl_distance, 1.0 * atr)
@@ -210,6 +215,7 @@ def _fetch_vix_for_avwap() -> float | None:
     """Fetch current VIX from FRED (VIXCLS). Returns None on error."""
     try:
         from ifds.data.fred import FREDClient
+
         fred = FREDClient(api_key=os.getenv("IFDS_FRED_API_KEY", ""))
         observations = fred.get_vix(limit=5)
         fred.close()
@@ -257,8 +263,12 @@ def convert_to_market(ib, sym: str, s: dict) -> bool:
     slippage_pct = round((fill_price / s["entry_price"] - 1) * 100, 2) if s["entry_price"] else 0
     if evt:
         evt.log(
-            "avwap", "avwap_fill", ticker=sym, qty=s["total_qty"],
-            fill_price=fill_price, plan_price=s["entry_price"],
+            "avwap",
+            "avwap_fill",
+            ticker=sym,
+            qty=s["total_qty"],
+            fill_price=fill_price,
+            plan_price=s["entry_price"],
             slippage_pct=slippage_pct,
         )
 
@@ -286,15 +296,27 @@ def convert_to_market(ib, sym: str, s: dict) -> bool:
     ib.qualifyContracts(contract_qual)
 
     bracket_a = create_day_bracket(
-        ib, contract_qual, "BUY", qty_tp1,
-        fill_price, new_tp1, new_sl, account,
+        ib,
+        contract_qual,
+        "BUY",
+        qty_tp1,
+        fill_price,
+        new_tp1,
+        new_sl,
+        account,
         tag_suffix=f"{sym}_AVWAP_A",
     )
     submit_bracket(ib, contract_qual, bracket_a)
 
     bracket_b = create_day_bracket(
-        ib, contract_qual, "BUY", qty_tp2,
-        fill_price, new_tp2, new_sl, account,
+        ib,
+        contract_qual,
+        "BUY",
+        qty_tp2,
+        fill_price,
+        new_tp2,
+        new_sl,
+        account,
         tag_suffix=f"{sym}_AVWAP_B",
     )
     submit_bracket(ib, contract_qual, bracket_b)
@@ -321,10 +343,17 @@ def convert_to_market(ib, sym: str, s: dict) -> bool:
 
     if evt:
         evt.log(
-            "avwap", "avwap_bracket_rebuild", ticker=sym,
-            fill_price=fill_price, new_sl=new_sl, new_tp1=new_tp1, new_tp2=new_tp2,
-            sl_cap=cap_label, vix=vix,
-            bracket_a_qty=qty_tp1, bracket_b_qty=qty_tp2,
+            "avwap",
+            "avwap_bracket_rebuild",
+            ticker=sym,
+            fill_price=fill_price,
+            new_sl=new_sl,
+            new_tp1=new_tp1,
+            new_tp2=new_tp2,
+            sl_cap=cap_label,
+            vix=vix,
+            bracket_a_qty=qty_tp1,
+            bracket_b_qty=qty_tp2,
         )
 
     return True
@@ -333,12 +362,14 @@ def convert_to_market(ib, sym: str, s: dict) -> bool:
 def main() -> None:
     try:
         from lib.trading_day_guard import check_trading_day
+
         check_trading_day(logger)
     except ModuleNotFoundError:
         pass
     parser = argparse.ArgumentParser(description="AVWAP Limit->MKT monitor")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="No IBKR connection, log state transitions only")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="No IBKR connection, log state transitions only"
+    )
     args = parser.parse_args()
 
     # Time window check (ET-aware)
@@ -362,7 +393,8 @@ def main() -> None:
 
     # Filter: only tickers not yet AVWAP-converted, not already filled
     watching = [
-        sym for sym, s in state.items()
+        sym
+        for sym, s in state.items()
         if not s.get("avwap_converted", False)
         and not s.get("tp1_filled", False)
         and s.get("avwap_state", "IDLE") in ("IDLE", "WATCHING", "DIPPED")
@@ -425,8 +457,7 @@ def main() -> None:
             continue
 
         logger.debug(
-            f"{sym}: price=${current_price:.2f} AVWAP=${avwap:.4f} "
-            f"state={s['avwap_state']}"
+            f"{sym}: price=${current_price:.2f} AVWAP=${avwap:.4f} " f"state={s['avwap_state']}"
         )
 
         # WATCHING → DIPPED

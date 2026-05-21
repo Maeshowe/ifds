@@ -39,9 +39,16 @@ def fake_sleep():
     return _sleep
 
 
-def _make_orchestrator(submit_callable, gateway_check=None, telegram=None,
-                       sleep=None, max_attempts=5, initial_backoff=15):
+def _make_orchestrator(
+    submit_callable,
+    gateway_check=None,
+    telegram=None,
+    sleep=None,
+    max_attempts=5,
+    initial_backoff=15,
+):
     from lib.retry_orchestrator import IBKRSubmitOrchestrator
+
     return IBKRSubmitOrchestrator(
         submit_callable=submit_callable,
         gateway_check=gateway_check,
@@ -55,6 +62,7 @@ def _make_orchestrator(submit_callable, gateway_check=None, telegram=None,
 # ---------------------------------------------------------------------------
 # 1. First attempt succeeds — no retries
 # ---------------------------------------------------------------------------
+
 
 class TestHappyPath:
 
@@ -79,6 +87,7 @@ class TestHappyPath:
 # ---------------------------------------------------------------------------
 # 2. Retryable failure twice, then succeed
 # ---------------------------------------------------------------------------
+
 
 class TestRetryableFailure:
 
@@ -107,6 +116,7 @@ class TestRetryableFailure:
 # ---------------------------------------------------------------------------
 # 3. All retries exhausted → SubmitExhaustedError + Telegram
 # ---------------------------------------------------------------------------
+
 
 class TestRetriesExhausted:
 
@@ -140,10 +150,12 @@ class TestRetriesExhausted:
 # 4. Non-retryable exception propagates immediately
 # ---------------------------------------------------------------------------
 
+
 class TestNonRetryablePropagates:
 
     def test_value_error_propagates_no_retry(self, fake_sleep):
         """ValueError (not in retryable_exceptions) propagates on first attempt."""
+
         def submit(**kwargs):
             raise ValueError("malformed execution plan: missing 'limit_price' column")
 
@@ -159,6 +171,7 @@ class TestNonRetryablePropagates:
 # ---------------------------------------------------------------------------
 # 5. Gateway probe gates the attempt
 # ---------------------------------------------------------------------------
+
 
 class TestGatewayProbe:
 
@@ -182,9 +195,7 @@ class TestGatewayProbe:
         result = orch.submit_with_retry()
 
         assert result == {"submitted": []}
-        assert len(submit_calls) == 1, (
-            "Submit should run only after probe returns True (attempt 3)"
-        )
+        assert len(submit_calls) == 1, "Submit should run only after probe returns True (attempt 3)"
         # Probe was called 3 times. First two probes returned False → backoff after
         # each. Third probe returned True → submit ran → no further backoff.
         assert probe_calls["n"] == 3
@@ -201,7 +212,10 @@ class TestGatewayProbe:
             raise OSError("socket refused")
 
         orch = _make_orchestrator(
-            submit, gateway_check=probe, sleep=fake_sleep, max_attempts=2,
+            submit,
+            gateway_check=probe,
+            sleep=fake_sleep,
+            max_attempts=2,
         )
         with pytest.raises(SubmitExhaustedError):
             orch.submit_with_retry()
@@ -212,6 +226,7 @@ class TestGatewayProbe:
 # ---------------------------------------------------------------------------
 # 6. Exponential backoff schedule (15s → 30s → 60s → 120s → 240s)
 # ---------------------------------------------------------------------------
+
 
 class TestBackoffSchedule:
 
@@ -234,6 +249,7 @@ class TestBackoffSchedule:
 #    kwargs each time, so its inner load_swing_positions runs fresh.
 # ---------------------------------------------------------------------------
 
+
 class TestStateReloadBetweenAttempts:
 
     def test_kwargs_passed_unchanged_every_attempt(self, fake_sleep):
@@ -252,7 +268,9 @@ class TestStateReloadBetweenAttempts:
 
         orch = _make_orchestrator(submit, sleep=fake_sleep)
         orch.submit_with_retry(
-            tickers=[{"symbol": "VLO"}], today_str="2026-05-21", cfg=None,
+            tickers=[{"symbol": "VLO"}],
+            today_str="2026-05-21",
+            cfg=None,
         )
 
         assert len(seen_kwargs) == 2
@@ -265,6 +283,7 @@ class TestStateReloadBetweenAttempts:
 # ---------------------------------------------------------------------------
 # 8. Telegram notify failure does NOT mask the SubmitExhaustedError
 # ---------------------------------------------------------------------------
+
 
 class TestTelegramFailureNonBlocking:
 
@@ -280,7 +299,10 @@ class TestTelegramFailureNonBlocking:
             raise RuntimeError("telegram API outage")
 
         orch = _make_orchestrator(
-            submit, telegram=bad_telegram, sleep=fake_sleep, max_attempts=2,
+            submit,
+            telegram=bad_telegram,
+            sleep=fake_sleep,
+            max_attempts=2,
         )
         with pytest.raises(SubmitExhaustedError):
             orch.submit_with_retry()

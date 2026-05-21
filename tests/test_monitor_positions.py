@@ -41,9 +41,7 @@ def _make_position(symbol, qty, sec_type="STK"):
 def _import_module(tmp_path):
     """Import monitor_positions with EXECUTION_PLAN_DIR pointed at tmp_path."""
     # Add scripts/paper_trading to path for lib.connection import
-    scripts_dir = os.path.join(
-        os.path.dirname(__file__), "..", "scripts", "paper_trading"
-    )
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts", "paper_trading")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
 
@@ -63,10 +61,12 @@ def test_no_leftover(tmp_path):
         _make_position("MSFT", 200),
     ]
 
-    with patch.object(mod, "load_swing_state_tickers", return_value={"AAPL", "MSFT"}), \
-         patch.object(mod, "send_telegram") as mock_tg, \
-         patch("lib.connection.connect", return_value=mock_ib), \
-         patch("lib.connection.disconnect"):
+    with (
+        patch.object(mod, "load_swing_state_tickers", return_value={"AAPL", "MSFT"}),
+        patch.object(mod, "send_telegram") as mock_tg,
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+    ):
         mod.main()
 
     mock_tg.assert_not_called()
@@ -82,10 +82,12 @@ def test_leftover_detected(tmp_path):
         _make_position("CRGY", 672),
     ]
 
-    with patch.object(mod, "load_swing_state_tickers", return_value={"AAPL"}), \
-         patch.object(mod, "send_telegram") as mock_tg, \
-         patch("lib.connection.connect", return_value=mock_ib), \
-         patch("lib.connection.disconnect"):
+    with (
+        patch.object(mod, "load_swing_state_tickers", return_value={"AAPL"}),
+        patch.object(mod, "send_telegram") as mock_tg,
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+    ):
         mod.main()
 
     mock_tg.assert_called_once()
@@ -102,10 +104,12 @@ def test_no_swing_state_all_leftover(tmp_path):
     mock_ib = MagicMock()
     mock_ib.positions.return_value = [_make_position("AAPL", 100)]
 
-    with patch.object(mod, "load_swing_state_tickers", return_value=set()), \
-         patch.object(mod, "send_telegram") as mock_tg, \
-         patch("lib.connection.connect", return_value=mock_ib), \
-         patch("lib.connection.disconnect"):
+    with (
+        patch.object(mod, "load_swing_state_tickers", return_value=set()),
+        patch.object(mod, "send_telegram") as mock_tg,
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+    ):
         mod.main()
 
     mock_tg.assert_called_once()
@@ -123,10 +127,12 @@ def test_cvr_permanent_orphan_excluded(tmp_path):
         _make_position("AVDL.CVR", 50),
     ]
 
-    with patch.object(mod, "load_swing_state_tickers", return_value={"AAPL"}), \
-         patch.object(mod, "send_telegram") as mock_tg, \
-         patch("lib.connection.connect", return_value=mock_ib), \
-         patch("lib.connection.disconnect"):
+    with (
+        patch.object(mod, "load_swing_state_tickers", return_value={"AAPL"}),
+        patch.object(mod, "send_telegram") as mock_tg,
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+    ):
         mod.main()
 
     mock_tg.assert_not_called()
@@ -142,10 +148,12 @@ def test_zero_position_skipped(tmp_path):
         _make_position("CRGY", 0),  # closed, qty=0
     ]
 
-    with patch.object(mod, "load_swing_state_tickers", return_value={"AAPL"}), \
-         patch.object(mod, "send_telegram") as mock_tg, \
-         patch("lib.connection.connect", return_value=mock_ib), \
-         patch("lib.connection.disconnect"):
+    with (
+        patch.object(mod, "load_swing_state_tickers", return_value={"AAPL"}),
+        patch.object(mod, "send_telegram") as mock_tg,
+        patch("lib.connection.connect", return_value=mock_ib),
+        patch("lib.connection.disconnect"),
+    ):
         mod.main()
 
     mock_tg.assert_not_called()

@@ -7,6 +7,7 @@ Covers:
 - snapshot_to_stock_analysis is backward compatible (loads legacy snapshots
   where the new fields are absent)
 """
+
 from __future__ import annotations
 
 import gzip
@@ -58,9 +59,15 @@ class TestStockAnalysisGexFields:
         stock = StockAnalysis(
             ticker="AAPL",
             sector="Technology",
-            technical=TechnicalAnalysis(price=150, sma_200=130, sma_50=140,
-                                        sma_20=145, rsi_14=55, atr_14=3.0,
-                                        trend_pass=True),
+            technical=TechnicalAnalysis(
+                price=150,
+                sma_200=130,
+                sma_50=140,
+                sma_20=145,
+                rsi_14=55,
+                atr_14=3.0,
+                trend_pass=True,
+            ),
             flow=FlowAnalysis(),
             fundamental=FundamentalScoring(),
         )
@@ -80,9 +87,15 @@ class TestStockAnalysisGexFields:
         stock = StockAnalysis(
             ticker="AAPL",
             sector="Technology",
-            technical=TechnicalAnalysis(price=150, sma_200=130, sma_50=140,
-                                        sma_20=145, rsi_14=55, atr_14=3.0,
-                                        trend_pass=True),
+            technical=TechnicalAnalysis(
+                price=150,
+                sma_200=130,
+                sma_50=140,
+                sma_20=145,
+                rsi_14=55,
+                atr_14=3.0,
+                trend_pass=True,
+            ),
             flow=FlowAnalysis(),
             fundamental=FundamentalScoring(),
             net_gex=-1_500_000.0,
@@ -111,9 +124,15 @@ class TestSnapshotRoundTrip:
         return StockAnalysis(
             ticker="NVDA",
             sector="Technology",
-            technical=TechnicalAnalysis(price=850, sma_200=700, sma_50=800,
-                                        sma_20=830, rsi_14=60, atr_14=15.0,
-                                        trend_pass=True),
+            technical=TechnicalAnalysis(
+                price=850,
+                sma_200=700,
+                sma_50=800,
+                sma_20=830,
+                rsi_14=60,
+                atr_14=15.0,
+                trend_pass=True,
+            ),
             flow=FlowAnalysis(
                 dp_volume_shares=500_000,
                 total_volume=50_000_000,
@@ -134,8 +153,10 @@ class TestSnapshotRoundTrip:
         )
 
         stock = self._make_stock(
-            net_gex=1_000_000.0, call_wall=900.0,
-            put_wall=800.0, zero_gamma=855.5,
+            net_gex=1_000_000.0,
+            call_wall=900.0,
+            put_wall=800.0,
+            zero_gamma=855.5,
         )
         out = save_phase4_snapshot([stock], snapshot_dir=str(tmp_path))
         assert out.exists()

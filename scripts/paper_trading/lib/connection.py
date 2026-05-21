@@ -1,4 +1,5 @@
 """IBKR Paper Trading — Connection Manager"""
+
 import asyncio
 import logging
 import os
@@ -62,6 +63,7 @@ def _send_telegram_alert(message: str) -> None:
         return
     try:
         import requests
+
         response = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
             json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"},
@@ -121,9 +123,7 @@ def connect(
             )
             ib.connect(host, port, clientId=client_id, timeout=timeout)
             ib.sleep(2)  # Wait for initial synchronization
-            logger.info(
-                f"Connected to IBKR: {host}:{port} (clientId={client_id})"
-            )
+            logger.info(f"Connected to IBKR: {host}:{port} (clientId={client_id})")
             return ib
 
         except Exception as e:

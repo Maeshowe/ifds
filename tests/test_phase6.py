@@ -56,25 +56,40 @@ def logger(tmp_path):
 @pytest.fixture
 def macro():
     return MacroRegime(
-        vix_value=18.0, vix_regime=MarketVolatilityRegime.NORMAL,
-        vix_multiplier=1.0, tnx_value=4.2, tnx_sma20=4.1,
+        vix_value=18.0,
+        vix_regime=MarketVolatilityRegime.NORMAL,
+        vix_multiplier=1.0,
+        tnx_value=4.2,
+        tnx_sma20=4.1,
         tnx_rate_sensitive=False,
     )
 
 
-def _make_stock(ticker, sector="Technology", price=150.0, atr=3.0,
-                combined_score=90.0, rvol_score=0, funda_score=15,
-                insider_multiplier=1.0):
+def _make_stock(
+    ticker,
+    sector="Technology",
+    price=150.0,
+    atr=3.0,
+    combined_score=90.0,
+    rvol_score=0,
+    funda_score=15,
+    insider_multiplier=1.0,
+):
     """Create a StockAnalysis for Phase 6 input.
 
     Note: funda_score default=15 so base+score=50+15=65 >= threshold(60) → M_funda=1.0
     BC23: combined_score default=90 (was 75) to pass dynamic_position_score_threshold=85
     """
     return StockAnalysis(
-        ticker=ticker, sector=sector,
+        ticker=ticker,
+        sector=sector,
         technical=TechnicalAnalysis(
-            price=price, sma_200=140.0, sma_20=148.0,
-            rsi_14=55.0, atr_14=atr, trend_pass=True,
+            price=price,
+            sma_200=140.0,
+            sma_20=148.0,
+            rsi_14=55.0,
+            atr_14=atr,
+            trend_pass=True,
         ),
         flow=FlowAnalysis(rvol_score=rvol_score),
         fundamental=FundamentalScoring(
@@ -85,19 +100,26 @@ def _make_stock(ticker, sector="Technology", price=150.0, atr=3.0,
     )
 
 
-def _make_gex(ticker, regime=GEXRegime.POSITIVE, multiplier=1.0,
-              call_wall=0.0, put_wall=0.0, price=150.0):
+def _make_gex(
+    ticker, regime=GEXRegime.POSITIVE, multiplier=1.0, call_wall=0.0, put_wall=0.0, price=150.0
+):
     """Create a GEXAnalysis for Phase 6 input."""
     return GEXAnalysis(
-        ticker=ticker, net_gex=500.0, call_wall=call_wall,
-        put_wall=put_wall, zero_gamma=140.0, current_price=price,
-        gex_regime=regime, gex_multiplier=multiplier,
+        ticker=ticker,
+        net_gex=500.0,
+        call_wall=call_wall,
+        put_wall=put_wall,
+        zero_gamma=140.0,
+        current_price=price,
+        gex_regime=regime,
+        gex_multiplier=multiplier,
     )
 
 
 # ============================================================================
 # Stock-GEX Join Tests
 # ============================================================================
+
 
 class TestStockGexJoin:
     def test_inner_join_by_ticker(self):
@@ -130,6 +152,7 @@ class TestStockGexJoin:
 # ============================================================================
 # Multiplier Calculation Tests
 # ============================================================================
+
 
 class TestMultiplierCalculation:
     def test_m_flow_always_one(self, config, macro):
@@ -215,8 +238,11 @@ class TestMultiplierCalculation:
         # this regression test verifies the underlying multiplier when active.
         config.tuning["m_vix_enabled"] = True
         macro_high = MacroRegime(
-            vix_value=30.0, vix_regime=MarketVolatilityRegime.ELEVATED,
-            vix_multiplier=0.80, tnx_value=4.2, tnx_sma20=4.1,
+            vix_value=30.0,
+            vix_regime=MarketVolatilityRegime.ELEVATED,
+            vix_multiplier=0.80,
+            tnx_value=4.2,
+            tnx_sma20=4.1,
             tnx_rate_sensitive=False,
         )
         stock = _make_stock("T")
@@ -246,8 +272,11 @@ class TestMultiplierCalculation:
         config.tuning["uw_gex_sizing_enabled"] = True
         config.tuning["m_vix_enabled"] = True
         macro_panic = MacroRegime(
-            vix_value=50.0, vix_regime=MarketVolatilityRegime.PANIC,
-            vix_multiplier=0.25, tnx_value=5.0, tnx_sma20=4.0,
+            vix_value=50.0,
+            vix_regime=MarketVolatilityRegime.PANIC,
+            vix_multiplier=0.25,
+            tnx_value=5.0,
+            tnx_sma20=4.0,
             tnx_rate_sensitive=True,
         )
         stock = _make_stock("T", insider_multiplier=0.75, funda_score=-20)
@@ -257,8 +286,9 @@ class TestMultiplierCalculation:
 
     def test_m_total_clamped_max(self, config, macro):
         """All multipliers boosting — total should not exceed 2.0."""
-        stock = _make_stock("T", rvol_score=35, insider_multiplier=1.25,
-                            funda_score=15, combined_score=90.0)
+        stock = _make_stock(
+            "T", rvol_score=35, insider_multiplier=1.25, funda_score=15, combined_score=90.0
+        )
         gex = _make_gex("T", multiplier=1.0)
         m_total, _ = _calculate_multiplier_total(stock, gex, macro, config)
         assert m_total <= 2.0
@@ -267,6 +297,7 @@ class TestMultiplierCalculation:
 # ============================================================================
 # Position Sizing Tests
 # ============================================================================
+
 
 class TestPositionSizing:
     def test_basic_long_position(self, config, macro):
@@ -325,8 +356,8 @@ class TestPositionSizing:
         stock = _make_stock("T", price=150.0, atr=3.0)
         gex = _make_gex("T")
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
-        assert pos.take_profit_2 == 156.0    # 150 + 2.0*3
-        assert pos.take_profit_1 == 153.75   # 150 + 1.25*3
+        assert pos.take_profit_2 == 156.0  # 150 + 2.0*3
+        assert pos.take_profit_1 == 153.75  # 150 + 1.25*3
         assert pos.take_profit_2 > pos.take_profit_1
 
     def test_tp2_always_below_tp1_short(self, config, macro):
@@ -334,8 +365,8 @@ class TestPositionSizing:
         stock = _make_stock("TSLA", price=200.0, atr=5.0)
         gex = _make_gex("TSLA", price=200.0)
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.SHORT)
-        assert pos.take_profit_2 == 190.0    # 200 - 2.0*5
-        assert pos.take_profit_1 == 193.75   # 200 - 1.25*5
+        assert pos.take_profit_2 == 190.0  # 200 - 2.0*5
+        assert pos.take_profit_1 == 193.75  # 200 - 1.25*5
         assert pos.take_profit_2 < pos.take_profit_1
 
     def test_tp1_ratio_to_sl(self, config, macro):
@@ -371,8 +402,7 @@ class TestPositionSizing:
 
     def test_multiplier_affects_quantity(self, config, macro):
         """Higher multiplier → higher adjusted risk → more shares."""
-        stock = _make_stock("T", price=100.0, atr=2.0, rvol_score=35,
-                            insider_multiplier=1.25)
+        stock = _make_stock("T", price=100.0, atr=2.0, rvol_score=35, insider_multiplier=1.25)
         gex = _make_gex("T")
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
         # M_flow=1.25, M_insider=1.25 → M_total = 1.5625
@@ -385,15 +415,23 @@ class TestPositionSizing:
 # Position Limits Tests
 # ============================================================================
 
+
 class TestPositionLimits:
     def _make_positions(self, n, sector="Technology", price=100.0, score=95.0):
         return [
             PositionSizing(
-                ticker=f"T{i:02d}", sector=sector, direction="BUY",
-                entry_price=price, quantity=50, stop_loss=95.0,
-                take_profit_1=106.0, take_profit_2=109.0,
-                risk_usd=400.0, combined_score=score - i,
-                gex_regime="POSITIVE", multiplier_total=1.0,
+                ticker=f"T{i:02d}",
+                sector=sector,
+                direction="BUY",
+                entry_price=price,
+                quantity=50,
+                stop_loss=95.0,
+                take_profit_1=106.0,
+                take_profit_2=109.0,
+                risk_usd=400.0,
+                combined_score=score - i,
+                gex_regime="POSITIVE",
+                multiplier_total=1.0,
             )
             for i in range(n)
         ]
@@ -403,13 +441,22 @@ class TestPositionLimits:
         sectors = ["S0", "S1", "S2", "S3", "S4", "S5"]
         positions = []
         for i in range(12):
-            positions.append(PositionSizing(
-                ticker=f"T{i:02d}", sector=sectors[i % len(sectors)],
-                direction="BUY", entry_price=100.0, quantity=50,
-                stop_loss=95.0, take_profit_1=106.0, take_profit_2=109.0,
-                risk_usd=400.0, combined_score=95.0 - i,
-                gex_regime="POSITIVE", multiplier_total=1.0,
-            ))
+            positions.append(
+                PositionSizing(
+                    ticker=f"T{i:02d}",
+                    sector=sectors[i % len(sectors)],
+                    direction="BUY",
+                    entry_price=100.0,
+                    quantity=50,
+                    stop_loss=95.0,
+                    take_profit_1=106.0,
+                    take_profit_2=109.0,
+                    risk_usd=400.0,
+                    combined_score=95.0 - i,
+                    gex_regime="POSITIVE",
+                    multiplier_total=1.0,
+                )
+            )
         accepted, counts = _apply_position_limits(positions, config, logger)
         assert len(accepted) == 5  # BC23: max_positions=5
         # 12 positions: scores 95..84. Threshold=85 filters 1 (score=84) → 11 remain.
@@ -448,11 +495,18 @@ class TestPositionLimits:
         # risk_usd=2000 > max (100000 * 1.5% = 1500)
         positions = [
             PositionSizing(
-                ticker="BIG", sector="Technology", direction="BUY",
-                entry_price=100.0, quantity=50, stop_loss=95.0,
-                take_profit_1=106.0, take_profit_2=109.0,
-                risk_usd=2000.0, combined_score=90.0,
-                gex_regime="POSITIVE", multiplier_total=1.0,
+                ticker="BIG",
+                sector="Technology",
+                direction="BUY",
+                entry_price=100.0,
+                quantity=50,
+                stop_loss=95.0,
+                take_profit_1=106.0,
+                take_profit_2=109.0,
+                risk_usd=2000.0,
+                combined_score=90.0,
+                gex_regime="POSITIVE",
+                multiplier_total=1.0,
             )
         ]
         accepted, counts = _apply_position_limits(positions, config, logger)
@@ -463,11 +517,18 @@ class TestPositionLimits:
         # Each position: 50 * 2100 = $105K → exceeds max_gross($80K BC23)
         positions = [
             PositionSizing(
-                ticker="EXP", sector="Technology", direction="BUY",
-                entry_price=2100.0, quantity=50, stop_loss=2095.0,
-                take_profit_1=2106.0, take_profit_2=2109.0,
-                risk_usd=400.0, combined_score=90.0,
-                gex_regime="POSITIVE", multiplier_total=1.0,
+                ticker="EXP",
+                sector="Technology",
+                direction="BUY",
+                entry_price=2100.0,
+                quantity=50,
+                stop_loss=2095.0,
+                take_profit_1=2106.0,
+                take_profit_2=2109.0,
+                risk_usd=400.0,
+                combined_score=90.0,
+                gex_regime="POSITIVE",
+                multiplier_total=1.0,
             )
         ]
         accepted, counts = _apply_position_limits(positions, config, logger)
@@ -478,11 +539,18 @@ class TestPositionLimits:
         # 200 * 150 = $30K > max_single_ticker($20K) → reduce to 133
         positions = [
             PositionSizing(
-                ticker="RED", sector="Technology", direction="BUY",
-                entry_price=150.0, quantity=200, stop_loss=145.0,
-                take_profit_1=156.0, take_profit_2=159.0,
-                risk_usd=400.0, combined_score=90.0,
-                gex_regime="POSITIVE", multiplier_total=1.0,
+                ticker="RED",
+                sector="Technology",
+                direction="BUY",
+                entry_price=150.0,
+                quantity=200,
+                stop_loss=145.0,
+                take_profit_1=156.0,
+                take_profit_2=159.0,
+                risk_usd=400.0,
+                combined_score=90.0,
+                gex_regime="POSITIVE",
+                multiplier_total=1.0,
             )
         ]
         accepted, counts = _apply_position_limits(positions, config, logger)
@@ -506,9 +574,12 @@ class TestPositionLimits:
 # Freshness Alpha Tests
 # ============================================================================
 
-_has_pandas = pytest.importorskip("pandas", reason="pandas required for freshness tests") if False else None
+_has_pandas = (
+    pytest.importorskip("pandas", reason="pandas required for freshness tests") if False else None
+)
 try:
     import pandas as _pd
+
     _PANDAS_AVAILABLE = True
 except ImportError:
     _PANDAS_AVAILABLE = False
@@ -615,13 +686,13 @@ class TestFreshnessAlpha:
         df.to_parquet(history_path, index=False)
 
         candidates = [
-            (_make_stock("AAPL"), _make_gex("AAPL")),   # stale
-            (_make_stock("MSFT"), _make_gex("MSFT")),    # fresh
+            (_make_stock("AAPL"), _make_gex("AAPL")),  # stale
+            (_make_stock("MSFT"), _make_gex("MSFT")),  # fresh
         ]
         count, fresh_info = _apply_freshness_alpha(candidates, config, history_path, logger)
         assert count == 1
-        assert candidates[0][0].combined_score == 90.0       # AAPL unchanged (stale)
-        assert candidates[1][0].combined_score == 90.0   # BC23: MSFT unchanged (bonus=1.0)
+        assert candidates[0][0].combined_score == 90.0  # AAPL unchanged (stale)
+        assert candidates[1][0].combined_score == 90.0  # BC23: MSFT unchanged (bonus=1.0)
         assert "AAPL" not in fresh_info
         assert "MSFT" in fresh_info
 
@@ -629,6 +700,7 @@ class TestFreshnessAlpha:
 # ============================================================================
 # Phase 6 Integration Tests
 # ============================================================================
+
 
 class TestPhase6Integration:
     def test_full_flow_long(self, config, logger, macro):
@@ -641,8 +713,9 @@ class TestPhase6Integration:
             _make_gex("MSFT"),
         ]
 
-        result = run_phase6(config, logger, stocks, gex, macro,
-                            StrategyMode.LONG, signal_history_path=None)
+        result = run_phase6(
+            config, logger, stocks, gex, macro, StrategyMode.LONG, signal_history_path=None
+        )
 
         assert isinstance(result, Phase6Result)
         assert len(result.positions) == 2
@@ -655,52 +728,60 @@ class TestPhase6Integration:
         stocks = [_make_stock("TSLA", price=200.0, atr=5.0)]
         gex = [_make_gex("TSLA", put_wall=180.0, price=200.0)]
 
-        result = run_phase6(config, logger, stocks, gex, macro,
-                            StrategyMode.SHORT, signal_history_path=None)
+        result = run_phase6(
+            config, logger, stocks, gex, macro, StrategyMode.SHORT, signal_history_path=None
+        )
 
         assert len(result.positions) == 1
         assert result.positions[0].direction == "SELL_SHORT"
         assert result.positions[0].stop_loss > 200.0  # Above entry for SHORT
 
     def test_empty_input(self, config, logger, macro):
-        result = run_phase6(config, logger, [], [], macro,
-                            StrategyMode.LONG, signal_history_path=None)
+        result = run_phase6(
+            config, logger, [], [], macro, StrategyMode.LONG, signal_history_path=None
+        )
         assert len(result.positions) == 0
 
     def test_no_matching_gex(self, config, logger, macro):
         stocks = [_make_stock("AAPL")]
         gex = [_make_gex("MSFT")]  # Different ticker
-        result = run_phase6(config, logger, stocks, gex, macro,
-                            StrategyMode.LONG, signal_history_path=None)
+        result = run_phase6(
+            config, logger, stocks, gex, macro, StrategyMode.LONG, signal_history_path=None
+        )
         assert len(result.positions) == 0
 
     def test_position_limit_applied(self, config, logger, macro):
         """More than max_positions → limited by some limit (position or exposure)."""
         # Use low price so exposure doesn't hit limit first
-        stocks = [_make_stock(f"T{i:02d}", sector=f"S{i}", price=10.0,
-                              atr=0.5, combined_score=95 - i)
-                  for i in range(12)]
+        stocks = [
+            _make_stock(f"T{i:02d}", sector=f"S{i}", price=10.0, atr=0.5, combined_score=95 - i)
+            for i in range(12)
+        ]
         gex = [_make_gex(f"T{i:02d}", price=10.0) for i in range(12)]
 
-        result = run_phase6(config, logger, stocks, gex, macro,
-                            StrategyMode.LONG, signal_history_path=None)
+        result = run_phase6(
+            config, logger, stocks, gex, macro, StrategyMode.LONG, signal_history_path=None
+        )
 
         assert len(result.positions) <= 5  # BC23: max_positions=5
         # Some exclusion must have occurred
-        total_excluded = (result.excluded_position_limit +
-                          result.excluded_exposure_limit +
-                          result.excluded_sector_limit)
+        total_excluded = (
+            result.excluded_position_limit
+            + result.excluded_exposure_limit
+            + result.excluded_sector_limit
+        )
         assert total_excluded > 0
 
     def test_sector_limit_applied(self, config, logger, macro):
         """3+ stocks in same sector → sector limit kicks in (BC23: max=2)."""
-        stocks = [_make_stock(f"T{i}", sector="Technology",
-                              combined_score=95 - i)
-                  for i in range(5)]
+        stocks = [
+            _make_stock(f"T{i}", sector="Technology", combined_score=95 - i) for i in range(5)
+        ]
         gex = [_make_gex(f"T{i}") for i in range(5)]
 
-        result = run_phase6(config, logger, stocks, gex, macro,
-                            StrategyMode.LONG, signal_history_path=None)
+        result = run_phase6(
+            config, logger, stocks, gex, macro, StrategyMode.LONG, signal_history_path=None
+        )
 
         assert len(result.positions) == 2  # BC23: max_positions_per_sector=2
         assert result.excluded_sector_limit == 3
@@ -709,8 +790,9 @@ class TestPhase6Integration:
         stocks = [_make_stock("A", price=100.0, atr=2.0, combined_score=90)]
         gex = [_make_gex("A")]
 
-        result = run_phase6(config, logger, stocks, gex, macro,
-                            StrategyMode.LONG, signal_history_path=None)
+        result = run_phase6(
+            config, logger, stocks, gex, macro, StrategyMode.LONG, signal_history_path=None
+        )
 
         assert result.total_risk_usd == result.positions[0].risk_usd
         exposure = result.positions[0].quantity * result.positions[0].entry_price
@@ -725,8 +807,7 @@ class TestPhase6Integration:
         - M_gex=1.0, M_vix=1.0, M_target=1.0 (no analyst_target)
         - M_total = 1.0, BaseRisk=700
         """
-        stock = _make_stock("NVDA", price=875.0, atr=14.5,
-                            combined_score=88.0, rvol_score=35)
+        stock = _make_stock("NVDA", price=875.0, atr=14.5, combined_score=88.0, rvol_score=35)
         gex = _make_gex("NVDA")
 
         pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG)
@@ -750,8 +831,9 @@ class TestPhase6Integration:
         fresh_tickers = {"AAPL"}  # AAPL received freshness bonus
         stock = _make_stock("AAPL", combined_score=112.5)  # post-bonus: 75 * 1.5
         gex = _make_gex("AAPL")
-        pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG,
-                                  original_scores, fresh_tickers)
+        pos = _calculate_position(
+            stock, gex, macro, config, StrategyMode.LONG, original_scores, fresh_tickers
+        )
         assert pos is not None
         assert pos.is_fresh is True
         assert pos.original_score == 75.0
@@ -770,8 +852,9 @@ class TestPhase6Integration:
         ]
         gex = [_make_gex("A"), _make_gex("B"), _make_gex("C")]
 
-        result = run_phase6(config, logger, stocks, gex, macro,
-                            StrategyMode.LONG, signal_history_path=None)
+        result = run_phase6(
+            config, logger, stocks, gex, macro, StrategyMode.LONG, signal_history_path=None
+        )
 
         # All should be fresh (no history file → all are fresh)
         assert result.freshness_applied_count == 3
@@ -801,12 +884,20 @@ class TestDataclassesReplace:
     def test_replace_quantity_preserves_mm_regime(self):
         """_replace_quantity must not drop mm_regime or unusualness_score."""
         pos = PositionSizing(
-            ticker="AAPL", sector="Technology", direction="BUY",
-            entry_price=150.0, quantity=100, stop_loss=145.0,
-            take_profit_1=158.0, take_profit_2=163.0,
-            risk_usd=500.0, combined_score=80.0,
-            gex_regime="POSITIVE", multiplier_total=1.2,
-            mm_regime="gamma_positive", unusualness_score=0.75,
+            ticker="AAPL",
+            sector="Technology",
+            direction="BUY",
+            entry_price=150.0,
+            quantity=100,
+            stop_loss=145.0,
+            take_profit_1=158.0,
+            take_profit_2=163.0,
+            risk_usd=500.0,
+            combined_score=80.0,
+            gex_regime="POSITIVE",
+            multiplier_total=1.2,
+            mm_regime="gamma_positive",
+            unusualness_score=0.75,
         )
         updated = _replace_quantity(pos, new_qty=10)
         assert updated.quantity == 10
@@ -822,12 +913,20 @@ class TestDataclassesReplace:
         # Single position with notional > max_single_ticker_exposure ($20K)
         # but within risk_usd and gross exposure limits
         pos = PositionSizing(
-            ticker="NVDA", sector="Technology", direction="BUY",
-            entry_price=150.0, quantity=200, stop_loss=145.0,
-            take_profit_1=158.0, take_profit_2=163.0,
-            risk_usd=500.0, combined_score=90.0,
-            gex_regime="POSITIVE", multiplier_total=1.5,
-            mm_regime="dark_dominant", unusualness_score=0.62,
+            ticker="NVDA",
+            sector="Technology",
+            direction="BUY",
+            entry_price=150.0,
+            quantity=200,
+            stop_loss=145.0,
+            take_profit_1=158.0,
+            take_profit_2=163.0,
+            risk_usd=500.0,
+            combined_score=90.0,
+            gex_regime="POSITIVE",
+            multiplier_total=1.5,
+            mm_regime="dark_dominant",
+            unusualness_score=0.62,
         )
         # 200 * 150 = $30K > max_single_ticker_exposure ($20K) → reduced
         accepted, _ = _apply_position_limits([pos], config, logger)
@@ -845,8 +944,7 @@ class TestMTargetLoggerFix:
         stock = _make_stock("OVER", price=155.0, atr=3.0, combined_score=75.0)
         stock.analyst_target = 100.0  # 55% overshoot → severe penalty
         gex = _make_gex("OVER")
-        pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG,
-                                  logger=logger)
+        pos = _calculate_position(stock, gex, macro, config, StrategyMode.LONG, logger=logger)
         assert pos is not None
         assert pos.m_target == pytest.approx(0.60)
 

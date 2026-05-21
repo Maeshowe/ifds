@@ -135,6 +135,7 @@ class IBKRSubmitOrchestrator:
         if not self.retryable_exceptions:
             try:
                 from lib.connection import IBKRConnectionExhausted
+
                 self.retryable_exceptions = (IBKRConnectionExhausted, ConnectionError)
             except ImportError:
                 self.retryable_exceptions = (ConnectionError,)
@@ -171,11 +172,14 @@ class IBKRSubmitOrchestrator:
                     alive = False
                 if not alive:
                     duration = time.monotonic() - attempt_start
-                    self.history.append(SubmitAttemptResult(
-                        attempt=attempt, success=False,
-                        error=ConnectionError("gateway_check returned False"),
-                        duration_seconds=duration,
-                    ))
+                    self.history.append(
+                        SubmitAttemptResult(
+                            attempt=attempt,
+                            success=False,
+                            error=ConnectionError("gateway_check returned False"),
+                            duration_seconds=duration,
+                        )
+                    )
                     if attempt < self.max_attempts:
                         delay = self.backoff_seconds(attempt)
                         logger.warning(
@@ -189,9 +193,13 @@ class IBKRSubmitOrchestrator:
             try:
                 result = self.submit_callable(**kwargs)
                 duration = time.monotonic() - attempt_start
-                self.history.append(SubmitAttemptResult(
-                    attempt=attempt, success=True, duration_seconds=duration,
-                ))
+                self.history.append(
+                    SubmitAttemptResult(
+                        attempt=attempt,
+                        success=True,
+                        duration_seconds=duration,
+                    )
+                )
                 logger.info(
                     f"[SUBMIT_OK attempt={attempt}/{self.max_attempts}] "
                     f"completed in {duration:.1f}s"
@@ -201,10 +209,14 @@ class IBKRSubmitOrchestrator:
             except self.retryable_exceptions as exc:
                 duration = time.monotonic() - attempt_start
                 last_error = exc
-                self.history.append(SubmitAttemptResult(
-                    attempt=attempt, success=False, error=exc,
-                    duration_seconds=duration,
-                ))
+                self.history.append(
+                    SubmitAttemptResult(
+                        attempt=attempt,
+                        success=False,
+                        error=exc,
+                        duration_seconds=duration,
+                    )
+                )
                 logger.warning(
                     f"[RETRY {attempt}/{self.max_attempts}] "
                     f"{type(exc).__name__}: {exc} "
@@ -219,10 +231,14 @@ class IBKRSubmitOrchestrator:
                 # Non-retryable — propagate immediately so the operator
                 # can fix the root cause (malformed plan, config error, …).
                 duration = time.monotonic() - attempt_start
-                self.history.append(SubmitAttemptResult(
-                    attempt=attempt, success=False, error=exc,
-                    duration_seconds=duration,
-                ))
+                self.history.append(
+                    SubmitAttemptResult(
+                        attempt=attempt,
+                        success=False,
+                        error=exc,
+                        duration_seconds=duration,
+                    )
+                )
                 logger.error(
                     f"[SUBMIT_FATAL attempt={attempt}/{self.max_attempts}] "
                     f"non-retryable {type(exc).__name__}: {exc}"

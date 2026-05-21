@@ -19,7 +19,8 @@ def classify():
     """Load classify_freshness without executing main()."""
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
     spec = importlib.util.spec_from_file_location(
-        "check_phase13_freshness", "scripts/check_phase13_freshness.py",
+        "check_phase13_freshness",
+        "scripts/check_phase13_freshness.py",
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -41,6 +42,7 @@ def test_phase13_freshness_stale_file(tmp_path, classify):
     # Force mtime to 2 hours ago
     two_hours_ago = (datetime.now() - timedelta(hours=2)).timestamp()
     import os
+
     os.utime(ctx, (two_hours_ago, two_hours_ago))
 
     status, detail = classify(ctx, datetime.now(), max_age_hours=1.0)
@@ -55,6 +57,7 @@ def test_phase13_freshness_fresh_file(tmp_path, classify):
     # mtime: 15 minutes ago
     fifteen_min_ago = (datetime.now() - timedelta(minutes=15)).timestamp()
     import os
+
     os.utime(ctx, (fifteen_min_ago, fifteen_min_ago))
 
     status, detail = classify(ctx, datetime.now(), max_age_hours=1.0)
@@ -65,10 +68,9 @@ def test_phase13_freshness_just_over_threshold(tmp_path, classify):
     """File mtime = threshold + 1s → status='stale' (edge case)."""
     ctx = tmp_path / "phase13_ctx.json.gz"
     ctx.write_bytes(b"x" * 10)
-    one_hour_one_sec_ago = (
-        datetime.now() - timedelta(hours=1, seconds=1)
-    ).timestamp()
+    one_hour_one_sec_ago = (datetime.now() - timedelta(hours=1, seconds=1)).timestamp()
     import os
+
     os.utime(ctx, (one_hour_one_sec_ago, one_hour_one_sec_ago))
 
     status, _ = classify(ctx, datetime.now(), max_age_hours=1.0)
@@ -79,10 +81,9 @@ def test_phase13_freshness_just_under_threshold(tmp_path, classify):
     """File mtime = threshold - 1s → status='fresh' (edge case)."""
     ctx = tmp_path / "phase13_ctx.json.gz"
     ctx.write_bytes(b"x" * 10)
-    one_hour_minus_30s_ago = (
-        datetime.now() - timedelta(minutes=59, seconds=30)
-    ).timestamp()
+    one_hour_minus_30s_ago = (datetime.now() - timedelta(minutes=59, seconds=30)).timestamp()
     import os
+
     os.utime(ctx, (one_hour_minus_30s_ago, one_hour_minus_30s_ago))
 
     status, _ = classify(ctx, datetime.now(), max_age_hours=1.0)

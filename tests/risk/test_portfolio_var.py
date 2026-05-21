@@ -18,6 +18,7 @@ from ifds.risk.portfolio_var import calculate_portfolio_var, trim_positions_by_v
 @dataclass
 class FakePosition:
     """Minimal position-like object for VaR tests."""
+
     entry_price: float
     quantity: int
     stop_loss: float
@@ -46,7 +47,7 @@ class TestCalculatePortfolioVar:
         var_2, _ = calculate_portfolio_var([pos2])
         var_combined, _ = calculate_portfolio_var([pos1, pos2])
 
-        expected = math.sqrt(var_1 ** 2 + var_2 ** 2)
+        expected = math.sqrt(var_1**2 + var_2**2)
         assert abs(var_combined - expected) < 0.01
 
     def test_empty_positions(self):

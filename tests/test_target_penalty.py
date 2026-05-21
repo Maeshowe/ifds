@@ -73,8 +73,12 @@ class TestMTargetInChain:
             ticker="TEST",
             sector="Technology",
             technical=TechnicalAnalysis(
-                price=price, sma_200=90.0, sma_20=95.0,
-                rsi_14=55.0, atr_14=3.0, trend_pass=True,
+                price=price,
+                sma_200=90.0,
+                sma_20=95.0,
+                rsi_14=55.0,
+                atr_14=3.0,
+                trend_pass=True,
             ),
             flow=FlowAnalysis(),
             fundamental=FundamentalScoring(),
@@ -101,7 +105,9 @@ class TestMTargetInChain:
 
     def test_m_target_included_in_multipliers_dict(self, config):
         stock = self._make_stock(price=100.0, analyst_target=None)
-        _, multipliers = _calculate_multiplier_total(stock, self._make_gex(), self._make_macro(), config)
+        _, multipliers = _calculate_multiplier_total(
+            stock, self._make_gex(), self._make_macro(), config
+        )
         assert "m_target" in multipliers
         assert multipliers["m_target"] == 1.0
 
@@ -110,8 +116,12 @@ class TestMTargetInChain:
         stock_no_target = self._make_stock(price=100.0, analyst_target=None)
         stock_with_target = self._make_stock(price=155.0, analyst_target=100.0)
 
-        _, mult_no = _calculate_multiplier_total(stock_no_target, self._make_gex(), self._make_macro(), config)
-        _, mult_with = _calculate_multiplier_total(stock_with_target, self._make_gex(), self._make_macro(), config)
+        _, mult_no = _calculate_multiplier_total(
+            stock_no_target, self._make_gex(), self._make_macro(), config
+        )
+        _, mult_with = _calculate_multiplier_total(
+            stock_with_target, self._make_gex(), self._make_macro(), config
+        )
 
         assert mult_with["m_target"] == pytest.approx(0.60)
         assert mult_no["m_target"] == 1.0
@@ -119,6 +129,8 @@ class TestMTargetInChain:
     def test_m_total_clamp_preserved(self, config):
         # Even with severe penalty, m_total floor is 0.25
         stock = self._make_stock(price=200.0, analyst_target=100.0)
-        m_total, _ = _calculate_multiplier_total(stock, self._make_gex(), self._make_macro(), config)
+        m_total, _ = _calculate_multiplier_total(
+            stock, self._make_gex(), self._make_macro(), config
+        )
         assert m_total >= 0.25
         assert m_total <= 2.0

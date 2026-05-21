@@ -34,10 +34,10 @@ from ifds.phases.phase3_sectors import (
     run_phase3,
 )
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def config(monkeypatch):
@@ -66,26 +66,29 @@ def _make_grouped_bars(num_days=250, tickers=None):
         day_bars = []
         for t in tickers:
             close = 100.0 + day_idx * 0.1
-            day_bars.append({
-                "T": t,
-                "o": close - 0.5,
-                "h": close + 1.0,
-                "l": close - 1.0,
-                "c": close,
-                "v": 1000000,
-            })
-        daily_data.append({
-            "date": f"2025-01-{day_idx + 1:02d}",
-            "bars": day_bars,
-            "_buy_count": 3,
-            "_sell_count": 2,
-            "_ticker_count": len(tickers),
-        })
+            day_bars.append(
+                {
+                    "T": t,
+                    "o": close - 0.5,
+                    "h": close + 1.0,
+                    "l": close - 1.0,
+                    "c": close,
+                    "v": 1000000,
+                }
+            )
+        daily_data.append(
+            {
+                "date": f"2025-01-{day_idx + 1:02d}",
+                "bars": day_bars,
+                "_buy_count": 3,
+                "_sell_count": 2,
+                "_ticker_count": len(tickers),
+            }
+        )
     return daily_data
 
 
-def _make_sector_score(etf="XLK", sector_name="Technology",
-                       momentum_5d=1.5) -> SectorScore:
+def _make_sector_score(etf="XLK", sector_name="Technology", momentum_5d=1.5) -> SectorScore:
     """Create a basic SectorScore for testing."""
     return SectorScore(
         etf=etf,
@@ -100,6 +103,7 @@ def _make_sector_score(etf="XLK", sector_name="Technology",
 # ============================================================================
 # TestBreadthRegimeEnum
 # ============================================================================
+
 
 class TestBreadthRegimeEnum:
     def test_has_7_values(self):
@@ -119,6 +123,7 @@ class TestBreadthRegimeEnum:
 # TestComputeSMA
 # ============================================================================
 
+
 class TestComputeSMA:
     def test_basic_sma(self):
         prices = [10.0, 20.0, 30.0, 40.0, 50.0]
@@ -136,6 +141,7 @@ class TestComputeSMA:
 # ============================================================================
 # TestBuildTickerCloseHistory
 # ============================================================================
+
 
 class TestBuildTickerCloseHistory:
     def test_extracts_closes(self):
@@ -161,6 +167,7 @@ class TestBuildTickerCloseHistory:
 # ============================================================================
 # TestCalculateBreadth
 # ============================================================================
+
 
 class TestCalculateBreadth:
     def test_all_above_sma(self):
@@ -220,6 +227,7 @@ class TestCalculateBreadth:
 # TestClassifyBreadthRegime — all 7 states
 # ============================================================================
 
+
 class TestClassifyBreadthRegime:
     def test_strong(self):
         b = SectorBreadth(etf="XLK", pct_above_sma50=80.0, pct_above_sma200=80.0)
@@ -268,6 +276,7 @@ class TestClassifyBreadthRegime:
 # TestBreadthDivergence
 # ============================================================================
 
+
 class TestBreadthDivergence:
     def test_bearish_divergence(self, config):
         # ETF up >2%, breadth down <-5
@@ -291,6 +300,7 @@ class TestBreadthDivergence:
 # TestBreadthScoreAdjustment
 # ============================================================================
 
+
 class TestBreadthScoreAdjustment:
     def test_strong_bonus(self, config):
         b = SectorBreadth(etf="XLK", breadth_score=75.0)
@@ -313,15 +323,17 @@ class TestBreadthScoreAdjustment:
         assert b.score_adjustment == 0
 
     def test_bearish_divergence_stacks(self, config):
-        b = SectorBreadth(etf="XLK", breadth_score=75.0,
-                          divergence_detected=True, divergence_type="bearish")
+        b = SectorBreadth(
+            etf="XLK", breadth_score=75.0, divergence_detected=True, divergence_type="bearish"
+        )
         _apply_breadth_score_adjustment(b, config)
         # +5 (strong) + (-10 divergence) = -5
         assert b.score_adjustment == -5
 
     def test_bullish_divergence_no_extra_penalty(self, config):
-        b = SectorBreadth(etf="XLK", breadth_score=75.0,
-                          divergence_detected=True, divergence_type="bullish")
+        b = SectorBreadth(
+            etf="XLK", breadth_score=75.0, divergence_detected=True, divergence_type="bullish"
+        )
         _apply_breadth_score_adjustment(b, config)
         # Only strong bonus, no divergence penalty for bullish
         assert b.score_adjustment == 5
@@ -330,6 +342,7 @@ class TestBreadthScoreAdjustment:
 # ============================================================================
 # TestFMPGetEtfHoldings
 # ============================================================================
+
 
 class TestFMPGetEtfHoldings:
     def test_sync_get_etf_holdings(self):
@@ -361,6 +374,7 @@ class TestFMPGetEtfHoldings:
 # TestComputePctAboveSmaNDaysAgo
 # ============================================================================
 
+
 class TestComputePctAboveSmaNDaysAgo:
     def test_basic_recomputation(self):
         # 60 data points, all trending up
@@ -370,7 +384,10 @@ class TestComputePctAboveSmaNDaysAgo:
         # 5 days ago, A was still trending up → above SMA50
         # B was trending down → could be below
         result = _compute_pct_above_sma_n_days_ago(
-            ["A", "B"], histories, period=50, days_ago=5,
+            ["A", "B"],
+            histories,
+            period=50,
+            days_ago=5,
         )
         assert result is not None
         assert 0.0 <= result <= 100.0
@@ -378,7 +395,10 @@ class TestComputePctAboveSmaNDaysAgo:
     def test_returns_none_insufficient_data(self):
         histories = {"A": [100.0] * 30}
         result = _compute_pct_above_sma_n_days_ago(
-            ["A"], histories, period=50, days_ago=5,
+            ["A"],
+            histories,
+            period=50,
+            days_ago=5,
         )
         assert result is None
 
@@ -387,6 +407,7 @@ class TestComputePctAboveSmaNDaysAgo:
 # TestCalculateSectorBreadth (integration)
 # ============================================================================
 
+
 class TestCalculateSectorBreadth:
     def test_breadth_attached_to_scores(self, config, logger):
         scores = [_make_sector_score("XLK", "Technology")]
@@ -394,7 +415,9 @@ class TestCalculateSectorBreadth:
 
         mock_fmp = MagicMock()
         mock_fmp.get_etf_holdings.return_value = [
-            {"asset": "AAPL"}, {"asset": "MSFT"}, {"asset": "GOOGL"},
+            {"asset": "AAPL"},
+            {"asset": "MSFT"},
+            {"asset": "GOOGL"},
         ]
 
         # Override min_constituents to 1 for test
@@ -422,7 +445,9 @@ class TestCalculateSectorBreadth:
 
         mock_fmp = MagicMock()
         mock_fmp.get_etf_holdings.return_value = [
-            {"asset": "A"}, {"asset": "B"}, {"asset": "C"},
+            {"asset": "A"},
+            {"asset": "B"},
+            {"asset": "C"},
         ]
         config.tuning["breadth_min_constituents"] = 1
 
@@ -435,6 +460,7 @@ class TestCalculateSectorBreadth:
 # ============================================================================
 # TestPhase3BreadthIntegration
 # ============================================================================
+
 
 class TestPhase3BreadthIntegration:
     @patch("ifds.phases.phase3_sectors._fetch_sector_data")
@@ -452,13 +478,16 @@ class TestPhase3BreadthIntegration:
 
         mock_fmp = MagicMock()
         mock_fmp.get_etf_holdings.return_value = [
-            {"asset": "AAPL"}, {"asset": "MSFT"}, {"asset": "GOOGL"},
+            {"asset": "AAPL"},
+            {"asset": "MSFT"},
+            {"asset": "GOOGL"},
         ]
 
         config.tuning["breadth_min_constituents"] = 1
         mock_polygon = MagicMock()
-        result = run_phase3(config, logger, mock_polygon, StrategyMode.LONG,
-                            grouped_daily_bars=bars, fmp=mock_fmp)
+        result = run_phase3(
+            config, logger, mock_polygon, StrategyMode.LONG, grouped_daily_bars=bars, fmp=mock_fmp
+        )
         xlk_score = next(s for s in result.sector_scores if s.etf == "XLK")
         assert xlk_score.breadth is not None
 
@@ -492,8 +521,9 @@ class TestPhase3BreadthIntegration:
         }
         bars = _make_grouped_bars(num_days=250)
         mock_polygon = MagicMock()
-        result = run_phase3(config, logger, mock_polygon, StrategyMode.LONG,
-                            grouped_daily_bars=bars, fmp=None)
+        result = run_phase3(
+            config, logger, mock_polygon, StrategyMode.LONG, grouped_daily_bars=bars, fmp=None
+        )
         xlk_score = next(s for s in result.sector_scores if s.etf == "XLK")
         assert xlk_score.breadth is None
 
@@ -501,6 +531,7 @@ class TestPhase3BreadthIntegration:
 # ============================================================================
 # TestPhase1GroupedBars
 # ============================================================================
+
 
 class TestPhase1GroupedBars:
     @patch("ifds.phases.phase1_regime._fetch_daily_history")

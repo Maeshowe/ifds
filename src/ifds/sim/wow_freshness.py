@@ -38,8 +38,7 @@ def count_appearances(
     ref = reference_date or date.today()
     cutoff = ref - timedelta(days=lookback_days)
     return sum(
-        1 for r in signal_history
-        if r["ticker"] == ticker and _parse_date(r["date"]) >= cutoff
+        1 for r in signal_history if r["ticker"] == ticker and _parse_date(r["date"]) >= cutoff
     )
 
 
@@ -53,11 +52,7 @@ def days_since_last_appearance(
     Returns ``None`` if the ticker never appeared.
     """
     ref = reference_date or date.today()
-    dates = [
-        _parse_date(r["date"])
-        for r in signal_history
-        if r["ticker"] == ticker
-    ]
+    dates = [_parse_date(r["date"]) for r in signal_history if r["ticker"] == ticker]
     if not dates:
         return None
     return (ref - max(dates)).days

@@ -42,10 +42,10 @@ from ifds.phases.phase3_sectors import (
     run_phase3,
 )
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def config(monkeypatch):
@@ -65,9 +65,16 @@ def logger(tmp_path):
 # Helpers
 # ============================================================================
 
+
 def _make_bar(ticker, open_price, close, volume):
-    return {"T": ticker, "o": open_price, "c": close, "v": volume,
-            "h": close + 1, "l": open_price - 1}
+    return {
+        "T": ticker,
+        "o": open_price,
+        "c": close,
+        "v": volume,
+        "h": close + 1,
+        "l": open_price - 1,
+    }
 
 
 def _make_daily_data(days_count, tickers_per_day=50, base_volume=1000):
@@ -82,8 +89,7 @@ def _make_daily_data(days_count, tickers_per_day=50, base_volume=1000):
     return daily_data
 
 
-def _make_daily_data_with_spikes(days_count, sector_mapping, spike_tickers,
-                                  spike_direction="buy"):
+def _make_daily_data_with_spikes(days_count, sector_mapping, spike_tickers, spike_direction="buy"):
     """Create daily data where specific tickers have volume spikes.
 
     spike_tickers: list of ticker names that will spike every day
@@ -115,6 +121,7 @@ def _make_daily_data_with_spikes(days_count, sector_mapping, spike_tickers,
 # ============================================================================
 # FMP Sector Mapping Tests
 # ============================================================================
+
 
 class TestFMPSectorMapping:
     def test_get_sector_mapping_returns_dict(self):
@@ -168,6 +175,7 @@ class TestFMPSectorMapping:
 # FMP_SECTOR_TO_ETF Mapping Tests
 # ============================================================================
 
+
 class TestFMPSectorToETF:
     def test_covers_all_sector_etfs(self):
         """FMP_SECTOR_TO_ETF values should cover all 11 SECTOR_ETFS."""
@@ -184,16 +192,16 @@ class TestFMPSectorToETF:
 # Per-Sector Daily Ratios Tests
 # ============================================================================
 
+
 class TestDailyRatiosWithSectors:
     def test_daily_ratios_with_sector_mapping(self, config):
         """Sector buy/sell counts should be recorded on day dicts."""
-        sector_mapping = {"T000": "Technology", "T001": "Technology",
-                          "T002": "Energy"}
+        sector_mapping = {"T000": "Technology", "T001": "Technology", "T002": "Energy"}
         daily = _make_daily_data_with_spikes(
-            30, sector_mapping, ["T000", "T001"], spike_direction="buy")
+            30, sector_mapping, ["T000", "T001"], spike_direction="buy"
+        )
 
-        ratios = _calculate_daily_ratios(daily, config,
-                                          sector_mapping=sector_mapping)
+        ratios = _calculate_daily_ratios(daily, config, sector_mapping=sector_mapping)
 
         # Check day 20 — the FIRST spike day. After that, persistent spikes
         # inflate the rolling sigma and are no longer detected as anomalies.
@@ -217,7 +225,8 @@ class TestDailyRatiosWithSectors:
         # Only map T000, leave T001-T049 unmapped
         sector_mapping = {"T000": "Technology"}
         daily = _make_daily_data_with_spikes(
-            30, sector_mapping, ["T000", "T001"], spike_direction="buy")
+            30, sector_mapping, ["T000", "T001"], spike_direction="buy"
+        )
 
         _calculate_daily_ratios(daily, config, sector_mapping=sector_mapping)
 
@@ -233,17 +242,20 @@ class TestDailyRatiosWithSectors:
 # Sector BMI Calculation Tests
 # ============================================================================
 
+
 class TestCalculateSectorBMI:
     def test_basic_sector_bmi(self, config):
         """25+ days with sector data → valid BMI computed."""
         # Build 30 days with sector buy/sell data
         daily_data = []
         for i in range(30):
-            daily_data.append({
-                "date": f"2026-01-{i + 1:02d}",
-                "_sector_buys": {"XLK": 10, "XLE": 8},
-                "_sector_sells": {"XLK": 5, "XLE": 12},
-            })
+            daily_data.append(
+                {
+                    "date": f"2026-01-{i + 1:02d}",
+                    "_sector_buys": {"XLK": 10, "XLE": 8},
+                    "_sector_sells": {"XLK": 5, "XLE": 12},
+                }
+            )
 
         result = _calculate_sector_bmi(daily_data, config)
 
@@ -258,11 +270,13 @@ class TestCalculateSectorBMI:
         """< 25 days → sector not in result."""
         daily_data = []
         for i in range(20):  # Only 20 days, need 25
-            daily_data.append({
-                "date": f"2026-01-{i + 1:02d}",
-                "_sector_buys": {"XLK": 10},
-                "_sector_sells": {"XLK": 5},
-            })
+            daily_data.append(
+                {
+                    "date": f"2026-01-{i + 1:02d}",
+                    "_sector_buys": {"XLK": 10},
+                    "_sector_sells": {"XLK": 5},
+                }
+            )
 
         result = _calculate_sector_bmi(daily_data, config)
         assert "XLK" not in result
@@ -271,12 +285,14 @@ class TestCalculateSectorBMI:
         """Days with < min_signals (5) should use 50.0 neutral ratio."""
         daily_data = []
         for i in range(30):
-            daily_data.append({
-                "date": f"2026-01-{i + 1:02d}",
-                # Only 3 total signals (< 5 min) → should default to 50.0
-                "_sector_buys": {"XLK": 2},
-                "_sector_sells": {"XLK": 1},
-            })
+            daily_data.append(
+                {
+                    "date": f"2026-01-{i + 1:02d}",
+                    # Only 3 total signals (< 5 min) → should default to 50.0
+                    "_sector_buys": {"XLK": 2},
+                    "_sector_sells": {"XLK": 1},
+                }
+            )
 
         result = _calculate_sector_bmi(daily_data, config)
 
@@ -288,11 +304,13 @@ class TestCalculateSectorBMI:
         """Multiple sectors computed independently."""
         daily_data = []
         for i in range(30):
-            daily_data.append({
-                "date": f"2026-01-{i + 1:02d}",
-                "_sector_buys": {"XLK": 15, "XLE": 3, "XLF": 10},
-                "_sector_sells": {"XLK": 5, "XLE": 17, "XLF": 10},
-            })
+            daily_data.append(
+                {
+                    "date": f"2026-01-{i + 1:02d}",
+                    "_sector_buys": {"XLK": 15, "XLE": 3, "XLF": 10},
+                    "_sector_sells": {"XLK": 5, "XLE": 17, "XLF": 10},
+                }
+            )
 
         result = _calculate_sector_bmi(daily_data, config)
 
@@ -307,19 +325,18 @@ class TestCalculateSectorBMI:
 # Phase 1 Integration Tests
 # ============================================================================
 
+
 class TestPhase1SectorBMI:
     @patch("ifds.phases.phase1_regime._calculate_sector_bmi")
     @patch("ifds.phases.phase1_regime._fetch_daily_history")
-    def test_with_sector_mapping(self, mock_fetch, mock_sector_bmi,
-                                  config, logger):
+    def test_with_sector_mapping(self, mock_fetch, mock_sector_bmi, config, logger):
         """run_phase1 with sector_mapping → returns sector_bmi_values."""
         mock_fetch.return_value = _make_daily_data(30)
         mock_sector_bmi.return_value = {"XLK": 55.0, "XLE": 30.0}
 
         polygon = MagicMock()
         mapping = {"AAPL": "Technology", "XOM": "Energy"}
-        result = run_phase1(config, logger, polygon,
-                           sector_mapping=mapping)
+        result = run_phase1(config, logger, polygon, sector_mapping=mapping)
 
         assert result.sector_bmi_values == {"XLK": 55.0, "XLE": 30.0}
         mock_sector_bmi.assert_called_once()
@@ -339,6 +356,7 @@ class TestPhase1SectorBMI:
 # Phase 3 Integration Tests
 # ============================================================================
 
+
 class TestPhase3SectorBMI:
     def test_with_sector_bmi_values(self, config, logger):
         """run_phase3 with sector_bmi_values → SectorScore.sector_bmi populated."""
@@ -348,8 +366,9 @@ class TestPhase3SectorBMI:
         ]
 
         sector_bmi = {"XLK": 55.0, "XLE": 8.0, "XLU": 90.0}
-        result = run_phase3(config, logger, polygon, StrategyMode.LONG,
-                           sector_bmi_values=sector_bmi)
+        result = run_phase3(
+            config, logger, polygon, StrategyMode.LONG, sector_bmi_values=sector_bmi
+        )
 
         xlk_score = next(s for s in result.sector_scores if s.etf == "XLK")
         xle_score = next(s for s in result.sector_scores if s.etf == "XLE")
@@ -370,8 +389,9 @@ class TestPhase3SectorBMI:
         # XLU overbought threshold is 75 — 90% triggers OVERBOUGHT
         # If XLU is classified as Neutral, Neutral+OVERBOUGHT → VETO
         sector_bmi = {"XLU": 90.0}
-        result = run_phase3(config, logger, polygon, StrategyMode.LONG,
-                           sector_bmi_values=sector_bmi)
+        result = run_phase3(
+            config, logger, polygon, StrategyMode.LONG, sector_bmi_values=sector_bmi
+        )
 
         xlu_score = next(s for s in result.sector_scores if s.etf == "XLU")
         assert xlu_score.sector_bmi_regime == SectorBMIRegime.OVERBOUGHT
@@ -385,11 +405,13 @@ class TestPhase3SectorBMI:
 # Veto Matrix Activation Tests (Unit Tests)
 # ============================================================================
 
+
 class TestVetoMatrixActivation:
     def test_laggard_oversold_mean_reversion(self, config, logger):
         """Laggard + OVERSOLD → allowed with -5 penalty (Mean Reversion)."""
         score = SectorScore(
-            etf="XLE", sector_name="Energy",
+            etf="XLE",
+            sector_name="Energy",
             classification=MomentumClassification.LAGGARD,
             sector_bmi=8.0,
             sector_bmi_regime=SectorBMIRegime.OVERSOLD,
@@ -403,7 +425,8 @@ class TestVetoMatrixActivation:
     def test_neutral_overbought_vetoed(self, config, logger):
         """Neutral + OVERBOUGHT → VETO."""
         score = SectorScore(
-            etf="XLU", sector_name="Utilities",
+            etf="XLU",
+            sector_name="Utilities",
             classification=MomentumClassification.NEUTRAL,
             sector_bmi=90.0,
             sector_bmi_regime=SectorBMIRegime.OVERBOUGHT,
@@ -418,6 +441,7 @@ class TestVetoMatrixActivation:
 # ============================================================================
 # _apply_sector_bmi Unit Tests
 # ============================================================================
+
 
 class TestApplySectorBMI:
     def test_oversold_classification(self, config):

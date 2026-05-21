@@ -8,7 +8,12 @@ from unittest.mock import patch
 import pytest
 
 from ifds.sim.broker_sim import simulate_bracket_order
-from ifds.sim.comparison import MIN_PAIRED_TRADES, _compute_delta, _pair_trade_pnls, compare_variants
+from ifds.sim.comparison import (
+    MIN_PAIRED_TRADES,
+    _compute_delta,
+    _pair_trade_pnls,
+    compare_variants,
+)
 from ifds.sim.models import (
     ComparisonReport,
     SimVariant,
@@ -24,13 +29,14 @@ from ifds.sim.replay import (
 )
 from ifds.sim.report import print_comparison_report, write_comparison_csv
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
 
-def _make_trade(ticker="AAPL", entry=100.0, stop=97.0, tp1=104.0, tp2=106.0,
-                qty=100, run_date=None, score=85.0) -> Trade:
+
+def _make_trade(
+    ticker="AAPL", entry=100.0, stop=97.0, tp1=104.0, tp2=106.0, qty=100, run_date=None, score=85.0
+) -> Trade:
     """Create a test trade."""
     return Trade(
         run_id="test_run",
@@ -47,8 +53,9 @@ def _make_trade(ticker="AAPL", entry=100.0, stop=97.0, tp1=104.0, tp2=106.0,
     )
 
 
-def _make_bars(prices: list[tuple[float, float, float, float]],
-               start_date=date(2026, 2, 11)) -> list[dict]:
+def _make_bars(
+    prices: list[tuple[float, float, float, float]], start_date=date(2026, 2, 11)
+) -> list[dict]:
     """Create test bars from (open, high, low, close) tuples."""
     bars = []
     for i, (o, h, l, c) in enumerate(prices):
@@ -60,6 +67,7 @@ def _make_bars(prices: list[tuple[float, float, float, float]],
 # ============================================================================
 # TestRecalculateBracket
 # ============================================================================
+
 
 class TestRecalculateBracket:
 
@@ -119,6 +127,7 @@ class TestRecalculateBracket:
 # TestYAMLLoading
 # ============================================================================
 
+
 class TestYAMLLoading:
 
     def test_load_valid_yaml(self, tmp_path):
@@ -162,15 +171,18 @@ variants:
 # TestRunComparison
 # ============================================================================
 
+
 class TestRunComparison:
 
     def _setup_bars(self):
         """Bars where entry fills and TP1 hits on day 2."""
-        return _make_bars([
-            (99.0, 101.0, 98.0, 100.5),   # Day 1: fills (low 98 <= entry 100)
-            (101.0, 105.0, 100.0, 104.0),  # Day 2: TP1 hit (high 105 >= tp1 104)
-            (104.0, 107.0, 103.0, 106.5),  # Day 3: TP2 hit (high 107 >= tp2 106)
-        ])
+        return _make_bars(
+            [
+                (99.0, 101.0, 98.0, 100.5),  # Day 1: fills (low 98 <= entry 100)
+                (101.0, 105.0, 100.0, 104.0),  # Day 2: TP1 hit (high 105 >= tp1 104)
+                (104.0, 107.0, 103.0, 106.5),  # Day 3: TP2 hit (high 107 >= tp2 106)
+            ]
+        )
 
     def test_two_variants_different_results(self):
         """Baseline vs challenger produce different P&L."""
@@ -180,11 +192,17 @@ class TestRunComparison:
         baseline = SimVariant(name="baseline")
         challenger = SimVariant(
             name="wide_stops",
-            overrides={"stop_loss_atr_multiple": 2.0, "tp1_atr_multiple": 4.0, "tp2_atr_multiple": 5.0},
+            overrides={
+                "stop_loss_atr_multiple": 2.0,
+                "tp1_atr_multiple": 4.0,
+                "tp2_atr_multiple": 5.0,
+            },
         )
 
         report = run_comparison_with_bars(
-            [baseline, challenger], trades, bars,
+            [baseline, challenger],
+            trades,
+            bars,
         )
 
         assert report.baseline.name == "baseline"
@@ -203,7 +221,9 @@ class TestRunComparison:
         same = SimVariant(name="same")
 
         report = run_comparison_with_bars(
-            [baseline, same], trades, bars,
+            [baseline, same],
+            trades,
+            bars,
         )
 
         assert len(report.deltas) == 1
@@ -224,6 +244,7 @@ class TestRunComparison:
 # ============================================================================
 # TestPairedTTest
 # ============================================================================
+
 
 class TestPairedTTest:
 
@@ -249,6 +270,7 @@ class TestPairedTTest:
     def test_significant_difference(self):
         """Large systematic difference → p < 0.05."""
         import random
+
         random.seed(42)
         n = 50
         baseline_pnls = [random.gauss(0, 10) for _ in range(n)]
@@ -301,6 +323,7 @@ class TestPairedTTest:
     def test_no_significant_difference(self):
         """Random noise with same mean → p > 0.05."""
         import random
+
         random.seed(42)
         n = 50
         baseline_pnls = [random.gauss(0, 10) for _ in range(n)]
@@ -320,22 +343,32 @@ class TestPairedTTest:
 # TestComparisonReport
 # ============================================================================
 
+
 class TestComparisonReport:
 
     def test_report_output(self, tmp_path):
         """CSV written with correct columns."""
         baseline = SimVariant(name="baseline")
         baseline.summary = ValidationSummary(
-            total_trades=10, filled_trades=8, total_pnl=500.0,
-            avg_pnl_per_trade=62.5, leg1_win_rate=60.0, leg2_win_rate=40.0,
+            total_trades=10,
+            filled_trades=8,
+            total_pnl=500.0,
+            avg_pnl_per_trade=62.5,
+            leg1_win_rate=60.0,
+            leg2_win_rate=40.0,
             avg_holding_days=3.5,
         )
 
-        challenger = SimVariant(name="wide_stops", description="2x ATR",
-                                overrides={"stop_loss_atr_multiple": 2.0})
+        challenger = SimVariant(
+            name="wide_stops", description="2x ATR", overrides={"stop_loss_atr_multiple": 2.0}
+        )
         challenger.summary = ValidationSummary(
-            total_trades=10, filled_trades=8, total_pnl=700.0,
-            avg_pnl_per_trade=87.5, leg1_win_rate=70.0, leg2_win_rate=50.0,
+            total_trades=10,
+            filled_trades=8,
+            total_pnl=700.0,
+            avg_pnl_per_trade=87.5,
+            leg1_win_rate=70.0,
+            leg2_win_rate=50.0,
             avg_holding_days=4.0,
         )
 
@@ -364,6 +397,7 @@ class TestComparisonReport:
         csv_path = write_comparison_csv(report, str(tmp_path))
         assert os.path.exists(csv_path)
         import csv
+
         with open(csv_path) as f:
             reader = csv.DictReader(f)
             rows = list(reader)
@@ -376,6 +410,7 @@ class TestComparisonReport:
 # ============================================================================
 # TestDeepCopy
 # ============================================================================
+
 
 class TestDeepCopy:
 
@@ -390,6 +425,7 @@ class TestDeepCopy:
 # ============================================================================
 # TestSimVariantModel
 # ============================================================================
+
 
 class TestSimVariantModel:
 

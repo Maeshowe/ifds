@@ -33,28 +33,55 @@ if _env_file.exists():
                 os.environ.setdefault(_k.strip(), _v.strip().strip("\"'"))
 
 ETF_UNIVERSE = [
-    ("L1", "XLK",  "YES"),   ("L1", "XLF",  "YES"),   ("L1", "XLE",  "YES"),
-    ("L1", "XLV",  "YES"),   ("L1", "XLY",  "YES"),   ("L1", "XLP",  "YES"),
-    ("L1", "XLI",  "YES"),   ("L1", "XLB",  "YES"),   ("L1", "XLRE", "YES"),
-    ("L1", "XLU",  "YES"),   ("L1", "XLC",  "YES"),
-    ("L2", "SMH",  "YES"),   ("L2", "SOXX", "YES"),   ("L2", "XSD",  "NO"),
-    ("L2", "IGV",  "YES"),   ("L2", "SKYY", "CONDITIONAL"), ("L2", "CIBR", "YES"),
-    ("L2", "HACK", "CONDITIONAL"), ("L2", "KRE",  "YES"), ("L2", "KBE",  "YES"),
-    ("L2", "KCE",  "NO"),    ("L2", "KIE",  "CONDITIONAL"), ("L2", "XBI",  "YES"),
-    ("L2", "IBB",  "YES"),   ("L2", "IHI",  "YES"),   ("L2", "XOP",  "YES"),
-    ("L2", "XME",  "YES"),   ("L2", "XAR",  "CONDITIONAL"), ("L2", "ITA",  "CONDITIONAL"),
-    ("L2", "PAVE", "YES"),   ("L2", "JETS", "CONDITIONAL"), ("L2", "XHB",  "YES"),
-    ("L2", "ITB",  "YES"),   ("L2", "XRT",  "CONDITIONAL"), ("L2", "IYR",  "YES"),
-    ("L2", "FDN",  "YES"),   ("L2", "KWEB", "YES"),
-    ("L2", "BOTZ", "YES"),   ("L2", "TAN",  "CONDITIONAL"), ("L2", "ICLN", "CONDITIONAL"),
-    ("L2", "LIT",  "CONDITIONAL"), ("L2", "ARKK", "YES"),
+    ("L1", "XLK", "YES"),
+    ("L1", "XLF", "YES"),
+    ("L1", "XLE", "YES"),
+    ("L1", "XLV", "YES"),
+    ("L1", "XLY", "YES"),
+    ("L1", "XLP", "YES"),
+    ("L1", "XLI", "YES"),
+    ("L1", "XLB", "YES"),
+    ("L1", "XLRE", "YES"),
+    ("L1", "XLU", "YES"),
+    ("L1", "XLC", "YES"),
+    ("L2", "SMH", "YES"),
+    ("L2", "SOXX", "YES"),
+    ("L2", "XSD", "NO"),
+    ("L2", "IGV", "YES"),
+    ("L2", "SKYY", "CONDITIONAL"),
+    ("L2", "CIBR", "YES"),
+    ("L2", "HACK", "CONDITIONAL"),
+    ("L2", "KRE", "YES"),
+    ("L2", "KBE", "YES"),
+    ("L2", "KCE", "NO"),
+    ("L2", "KIE", "CONDITIONAL"),
+    ("L2", "XBI", "YES"),
+    ("L2", "IBB", "YES"),
+    ("L2", "IHI", "YES"),
+    ("L2", "XOP", "YES"),
+    ("L2", "XME", "YES"),
+    ("L2", "XAR", "CONDITIONAL"),
+    ("L2", "ITA", "CONDITIONAL"),
+    ("L2", "PAVE", "YES"),
+    ("L2", "JETS", "CONDITIONAL"),
+    ("L2", "XHB", "YES"),
+    ("L2", "ITB", "YES"),
+    ("L2", "XRT", "CONDITIONAL"),
+    ("L2", "IYR", "YES"),
+    ("L2", "FDN", "YES"),
+    ("L2", "KWEB", "YES"),
+    ("L2", "BOTZ", "YES"),
+    ("L2", "TAN", "CONDITIONAL"),
+    ("L2", "ICLN", "CONDITIONAL"),
+    ("L2", "LIT", "CONDITIONAL"),
+    ("L2", "ARKK", "YES"),
 ]
 
-FMP_BASE        = "https://financialmodelingprep.com/stable"
+FMP_BASE = "https://financialmodelingprep.com/stable"
 SEMAPHORE_LIMIT = 5
 REQUEST_TIMEOUT = 10
-RETRY_COUNT     = 2
-RETRY_DELAY     = 2.0
+RETRY_COUNT = 2
+RETRY_DELAY = 2.0
 
 
 async def test_etf(
@@ -64,7 +91,7 @@ async def test_etf(
     sem: asyncio.Semaphore,
 ) -> dict[str, Any]:
     """Egyetlen ETF holdings endpoint tesztelése."""
-    url    = f"{FMP_BASE}/etf/holdings"
+    url = f"{FMP_BASE}/etf/holdings"
     params = {"symbol": ticker, "apikey": api_key}
 
     async with sem:
@@ -72,10 +99,11 @@ async def test_etf(
             try:
                 t0 = time.monotonic()
                 async with session.get(
-                    url, params=params,
+                    url,
+                    params=params,
                     timeout=aiohttp.ClientTimeout(total=REQUEST_TIMEOUT),
                 ) as resp:
-                    ms   = round((time.monotonic() - t0) * 1000)
+                    ms = round((time.monotonic() - t0) * 1000)
                     code = resp.status
 
                     if code == 200:
@@ -83,11 +111,14 @@ async def test_etf(
                         if isinstance(data, list) and data:
                             f = data[0]
                             return {
-                                "ticker": ticker, "status": "OK", "http": 200,
+                                "ticker": ticker,
+                                "status": "OK",
+                                "http": 200,
                                 "count": len(data),
                                 "sample": f.get("asset") or f.get("symbol", "?"),
                                 "weight": f.get("weightPercentage") or f.get("weight"),
-                                "latency_ms": ms, "error": None,
+                                "latency_ms": ms,
+                                "error": None,
                             }
                         elif isinstance(data, list):
                             return _r(ticker, "EMPTY", 200, ms, "Empty [] — Ultimate plan?")
@@ -126,31 +157,36 @@ async def test_etf(
 
 def _r(ticker: str, status: str, http: int, ms: int, error: str) -> dict:
     return {
-        "ticker": ticker, "status": status, "http": http,
-        "count": 0, "sample": None, "weight": None,
-        "latency_ms": ms, "error": error,
+        "ticker": ticker,
+        "status": status,
+        "http": http,
+        "count": 0,
+        "sample": None,
+        "weight": None,
+        "latency_ms": ms,
+        "error": error,
     }
 
 
 async def run_all(api_key: str) -> list[dict]:
-    sem  = asyncio.Semaphore(SEMAPHORE_LIMIT)
+    sem = asyncio.Semaphore(SEMAPHORE_LIMIT)
     conn = aiohttp.TCPConnector(limit=SEMAPHORE_LIMIT)
     async with aiohttp.ClientSession(connector=conn) as session:
-        return list(await asyncio.gather(
-            *[test_etf(session, t, api_key, sem) for _, t, _ in ETF_UNIVERSE]
-        ))
+        return list(
+            await asyncio.gather(*[test_etf(session, t, api_key, sem) for _, t, _ in ETF_UNIVERSE])
+        )
 
 
 def build_report(raw: list[dict]) -> dict:
-    umap    = {t: (tier, ifds) for tier, t, ifds in ETF_UNIVERSE}
+    umap = {t: (tier, ifds) for tier, t, ifds in ETF_UNIVERSE}
     results = []
     for r in raw:
         tier, ifds = umap.get(r["ticker"], ("?", "?"))
         results.append({**r, "tier": tier, "ifds": ifds})
 
-    ok    = [r for r in results if r["status"] == "OK"]
+    ok = [r for r in results if r["status"] == "OK"]
     empty = [r for r in results if r["status"] == "EMPTY"]
-    err   = [r for r in results if r["status"] == "ERROR"]
+    err = [r for r in results if r["status"] == "ERROR"]
 
     matrix: dict[str, dict[str, int]] = {}
     for r in results:
@@ -161,11 +197,12 @@ def build_report(raw: list[dict]) -> dict:
     return {
         "validated_at": datetime.now().isoformat(),
         "summary": {
-            "total": len(results), "ok": len(ok), "empty": len(empty), "error": len(err),
+            "total": len(results),
+            "ok": len(ok),
+            "empty": len(empty),
+            "error": len(err),
             "ok_pct": round(len(ok) / len(results) * 100, 1),
-            "avg_latency_ms": (
-                round(sum(r["latency_ms"] for r in ok) / len(ok)) if ok else 0
-            ),
+            "avg_latency_ms": (round(sum(r["latency_ms"] for r in ok) / len(ok)) if ok else 0),
         },
         "pipeline_matrix": matrix,
         "results": sorted(results, key=lambda x: (x["tier"], x["status"], x["ticker"])),
@@ -173,8 +210,8 @@ def build_report(raw: list[dict]) -> dict:
 
 
 def print_report(report: dict) -> None:
-    s    = report["summary"]
-    rs   = report["results"]
+    s = report["summary"]
+    rs = report["results"]
     icon = {"OK": "✅", "EMPTY": "⚠️ ", "ERROR": "❌"}
 
     print(f"\n{'='*66}")
@@ -198,8 +235,8 @@ def print_report(report: dict) -> None:
     for r in rs:
         note = r["error"] or f"sample={r['sample']}"
         note = (note[:24] + "…") if len(note or "") > 25 else (note or "")
-        cnt  = str(r["count"]) if r["count"] else "—"
-        lat  = str(r["latency_ms"]) if r["latency_ms"] else "—"
+        cnt = str(r["count"]) if r["count"] else "—"
+        lat = str(r["latency_ms"]) if r["latency_ms"] else "—"
         print(
             f"  {r['ticker']:<6}  {r['tier']:<2}  {r['ifds']:<12}  "
             f"{icon.get(r['status'], '?')}  {cnt:>5}  {lat:>5}  {note}"
@@ -221,7 +258,7 @@ def print_report(report: dict) -> None:
 def save_report(report: dict, out_dir: str = "docs/planning") -> str:
     os.makedirs(out_dir, exist_ok=True)
     fname = f"etf_holdings_validation_{datetime.now().strftime('%Y%m%d')}.json"
-    path  = os.path.join(out_dir, fname)
+    path = os.path.join(out_dir, fname)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
     return path
@@ -235,7 +272,7 @@ def main() -> None:
         return
 
     print(f"🔍  FMP ETF Holdings validáció — {len(ETF_UNIVERSE)} ETF...")
-    t0  = time.monotonic()
+    t0 = time.monotonic()
     raw = asyncio.run(run_all(api_key))
     print(f"    Kész {round(time.monotonic() - t0, 1)}s alatt.\n")
 

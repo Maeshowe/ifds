@@ -5,6 +5,7 @@ from enum import Enum
 
 class EventType(Enum):
     """Pipeline event categories."""
+
     # Pipeline lifecycle
     PIPELINE_START = "PIPELINE_START"
     PIPELINE_END = "PIPELINE_END"
@@ -49,6 +50,7 @@ class EventType(Enum):
 
 class Severity(Enum):
     """Event severity levels."""
+
     DEBUG = "DEBUG"
     INFO = "INFO"
     WARNING = "WARNING"

@@ -31,7 +31,14 @@ def logger(tmp_path):
 
 def _make_bar(ticker, open_price, close, volume):
     """Create a mock bar dict."""
-    return {"T": ticker, "o": open_price, "c": close, "v": volume, "h": close + 1, "l": open_price - 1}
+    return {
+        "T": ticker,
+        "o": open_price,
+        "c": close,
+        "v": volume,
+        "h": close + 1,
+        "l": open_price - 1,
+    }
 
 
 def _make_daily_data(days_count, tickers_per_day=50, base_volume=1000):
@@ -87,7 +94,7 @@ class TestDailyRatios:
         # On the last day, add massive volume with close > open for all
         for bar in daily_data[-1]["bars"]:
             bar["v"] = 100000  # Way above mean + 2*sigma
-            bar["c"] = 200.0   # Close > open (buy signal)
+            bar["c"] = 200.0  # Close > open (buy signal)
             bar["o"] = 100.0
         ratios = _calculate_daily_ratios(daily_data, config)
         assert ratios[-1] == 100.0
@@ -97,7 +104,7 @@ class TestDailyRatios:
         daily_data = _make_daily_data(25, tickers_per_day=5, base_volume=100)
         for bar in daily_data[-1]["bars"]:
             bar["v"] = 100000
-            bar["c"] = 50.0    # Close < open (sell signal)
+            bar["c"] = 50.0  # Close < open (sell signal)
             bar["o"] = 100.0
         ratios = _calculate_daily_ratios(daily_data, config)
         assert ratios[-1] == 0.0

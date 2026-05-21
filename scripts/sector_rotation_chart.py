@@ -41,29 +41,33 @@ from ifds.data.cache import FileCache  # noqa: E402
 # Constants
 # ---------------------------------------------------------------------------
 SECTORS = [
-    {"ticker": "XLE",  "name": "Energy",         "color": "#FF6B35"},
-    {"ticker": "XLB",  "name": "Materials",       "color": "#A8DADC"},
-    {"ticker": "XLI",  "name": "Industrials",     "color": "#6B9FD4"},
-    {"ticker": "XLY",  "name": "Cons. Discr.",    "color": "#F4A261"},
-    {"ticker": "XLP",  "name": "Cons. Staples",   "color": "#57CC99"},
-    {"ticker": "XLV",  "name": "Health Care",     "color": "#E63946"},
-    {"ticker": "XLF",  "name": "Financials",      "color": "#4CC9F0"},
-    {"ticker": "XLK",  "name": "Technology",      "color": "#7B2FBE"},
-    {"ticker": "XLC",  "name": "Comm. Services",  "color": "#F77F00"},
-    {"ticker": "XLU",  "name": "Utilities",       "color": "#90E0EF"},
-    {"ticker": "XLRE", "name": "Real Estate",     "color": "#FFBE0B"},
+    {"ticker": "XLE", "name": "Energy", "color": "#FF6B35"},
+    {"ticker": "XLB", "name": "Materials", "color": "#A8DADC"},
+    {"ticker": "XLI", "name": "Industrials", "color": "#6B9FD4"},
+    {"ticker": "XLY", "name": "Cons. Discr.", "color": "#F4A261"},
+    {"ticker": "XLP", "name": "Cons. Staples", "color": "#57CC99"},
+    {"ticker": "XLV", "name": "Health Care", "color": "#E63946"},
+    {"ticker": "XLF", "name": "Financials", "color": "#4CC9F0"},
+    {"ticker": "XLK", "name": "Technology", "color": "#7B2FBE"},
+    {"ticker": "XLC", "name": "Comm. Services", "color": "#F77F00"},
+    {"ticker": "XLU", "name": "Utilities", "color": "#90E0EF"},
+    {"ticker": "XLRE", "name": "Real Estate", "color": "#FFBE0B"},
 ]
 BENCHMARK = "VTI"
 LOOKBACK = 13  # weeks for RS calculation
 MIN_WEEKS_NEEDED = LOOKBACK + 1  # need at least lookback+1 for momentum
 
 
-def fetch_weekly_closes(client: PolygonClient, ticker: str,
-                        from_date: str, to_date: str) -> list[float]:
+def fetch_weekly_closes(
+    client: PolygonClient, ticker: str, from_date: str, to_date: str
+) -> list[float]:
     """Fetch weekly closing prices for a ticker."""
     bars = client.get_aggregates(
-        ticker, from_date=from_date, to_date=to_date,
-        timespan="week", multiplier=1,
+        ticker,
+        from_date=from_date,
+        to_date=to_date,
+        timespan="week",
+        multiplier=1,
     )
     if not bars:
         print(f"  WARNING: No data for {ticker}")
@@ -71,9 +75,9 @@ def fetch_weekly_closes(client: PolygonClient, ticker: str,
     return [b["c"] for b in bars]
 
 
-def compute_rs_series(sector_closes: list[float],
-                      bench_closes: list[float],
-                      lookback: int) -> tuple[list[float], list[float]]:
+def compute_rs_series(
+    sector_closes: list[float], bench_closes: list[float], lookback: int
+) -> tuple[list[float], list[float]]:
     """Compute RS-Ratio and RS-Momentum series.
 
     Returns (rs_ratio, rs_momentum) arrays aligned to the input length,
@@ -85,7 +89,9 @@ def compute_rs_series(sector_closes: list[float],
 
     for i in range(lookback, n):
         bench_change = (bench_closes[i] - bench_closes[i - lookback]) / bench_closes[i - lookback]
-        sector_change = (sector_closes[i] - sector_closes[i - lookback]) / sector_closes[i - lookback]
+        sector_change = (sector_closes[i] - sector_closes[i - lookback]) / sector_closes[
+            i - lookback
+        ]
         rs_ratio[i] = (1 + sector_change) / (1 + bench_change) * 100
 
     for i in range(lookback + 1, n):
@@ -95,9 +101,9 @@ def compute_rs_series(sector_closes: list[float],
     return rs_ratio, rs_momentum
 
 
-def catmull_rom_chain(points: list[tuple[float, float]],
-                      tension: float = 0.5,
-                      n_seg: int = 12) -> tuple[list[float], list[float]]:
+def catmull_rom_chain(
+    points: list[tuple[float, float]], tension: float = 0.5, n_seg: int = 12
+) -> tuple[list[float], list[float]]:
     """Generate a Catmull-Rom spline through a sequence of (x, y) points.
 
     tension=0.5 matches Chart.js default (0 = Catmull-Rom, 1 = straight).
@@ -116,14 +122,18 @@ def catmull_rom_chain(points: list[tuple[float, float]],
             t3 = t2 * t
             s = (1 - tension) / 2
             # Catmull-Rom basis with tension
-            x = (s * (-t3 + 2*t2 - t) * p0[0]
-                 + (s * (-t3 + t2) + (2*t3 - 3*t2 + 1)) * p1[0]
-                 + (s * (t3 - 2*t2 + t) + (-2*t3 + 3*t2)) * p2[0]
-                 + s * (t3 - t2) * p3[0])
-            y = (s * (-t3 + 2*t2 - t) * p0[1]
-                 + (s * (-t3 + t2) + (2*t3 - 3*t2 + 1)) * p1[1]
-                 + (s * (t3 - 2*t2 + t) + (-2*t3 + 3*t2)) * p2[1]
-                 + s * (t3 - t2) * p3[1])
+            x = (
+                s * (-t3 + 2 * t2 - t) * p0[0]
+                + (s * (-t3 + t2) + (2 * t3 - 3 * t2 + 1)) * p1[0]
+                + (s * (t3 - 2 * t2 + t) + (-2 * t3 + 3 * t2)) * p2[0]
+                + s * (t3 - t2) * p3[0]
+            )
+            y = (
+                s * (-t3 + 2 * t2 - t) * p0[1]
+                + (s * (-t3 + t2) + (2 * t3 - 3 * t2 + 1)) * p1[1]
+                + (s * (t3 - 2 * t2 + t) + (-2 * t3 + 3 * t2)) * p2[1]
+                + s * (t3 - t2) * p3[1]
+            )
             xs.append(x)
             ys.append(y)
     # Add last point
@@ -144,8 +154,7 @@ def classify_quadrant(rs: float, mom: float) -> str:
         return "IMPROVING"
 
 
-def plot_rrg(sector_data: list[dict], trail: int, output_path: str | None,
-             no_save: bool) -> None:
+def plot_rrg(sector_data: list[dict], trail: int, output_path: str | None, no_save: bool) -> None:
     """Plot the Relative Rotation Graph."""
     plt.style.use("dark_background")
     fig, ax = plt.subplots(1, 1, figsize=(14, 9))
@@ -198,34 +207,72 @@ def plot_rrg(sector_data: list[dict], trail: int, output_path: str | None,
 
         # Previous dots (small, uniform)
         if n_pts > 1:
-            ax.scatter(rs_t[:-1], mom_t[:-1], color=color, s=prev_size,
-                       alpha=0.7, zorder=3, edgecolors="none")
+            ax.scatter(
+                rs_t[:-1],
+                mom_t[:-1],
+                color=color,
+                s=prev_size,
+                alpha=0.7,
+                zorder=3,
+                edgecolors="none",
+            )
 
         # Current point (large)
-        ax.scatter(rs_t[-1], mom_t[-1], color=color, s=curr_size, zorder=4,
-                   edgecolors="white", linewidth=1.0)
+        ax.scatter(
+            rs_t[-1],
+            mom_t[-1],
+            color=color,
+            s=curr_size,
+            zorder=4,
+            edgecolors="white",
+            linewidth=1.0,
+        )
 
         # Legend handle
         legend_handles.append(
-            plt.Line2D([0], [0], marker="o", color="none", markerfacecolor=color,
-                       markersize=9, label=s["ticker"])
+            plt.Line2D(
+                [0],
+                [0],
+                marker="o",
+                color="none",
+                markerfacecolor=color,
+                markersize=9,
+                label=s["ticker"],
+            )
         )
 
     # Legend at top
-    ax.legend(handles=legend_handles, loc="upper center",
-              bbox_to_anchor=(0.5, 1.10), ncol=len(sector_data),
-              frameon=False, fontsize=10, handletextpad=0.3, columnspacing=1.2)
+    ax.legend(
+        handles=legend_handles,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.10),
+        ncol=len(sector_data),
+        frameon=False,
+        fontsize=10,
+        handletextpad=0.3,
+        columnspacing=1.2,
+    )
 
     # Quadrant labels in corners (matching TrendSpider colors)
     label_kw = dict(fontsize=13, fontweight="bold", fontstyle="italic", alpha=0.55)
-    ax.text(rs_min + 0.4, mom_max - 0.3, "Improving", ha="left", va="top",
-            color="#1E90FF", **label_kw)
-    ax.text(rs_max - 0.4, mom_max - 0.3, "Leading", ha="right", va="top",
-            color="#28A745", **label_kw)
-    ax.text(rs_min + 0.4, mom_min + 0.3, "Lagging", ha="left", va="bottom",
-            color="#DC3545", **label_kw)
-    ax.text(rs_max - 0.4, mom_min + 0.3, "Weakening", ha="right", va="bottom",
-            color="#FFC107", **label_kw)
+    ax.text(
+        rs_min + 0.4, mom_max - 0.3, "Improving", ha="left", va="top", color="#1E90FF", **label_kw
+    )
+    ax.text(
+        rs_max - 0.4, mom_max - 0.3, "Leading", ha="right", va="top", color="#28A745", **label_kw
+    )
+    ax.text(
+        rs_min + 0.4, mom_min + 0.3, "Lagging", ha="left", va="bottom", color="#DC3545", **label_kw
+    )
+    ax.text(
+        rs_max - 0.4,
+        mom_min + 0.3,
+        "Weakening",
+        ha="right",
+        va="bottom",
+        color="#FFC107",
+        **label_kw,
+    )
 
     ax.set_xlim(rs_min, rs_max)
     ax.set_ylim(mom_min, mom_max)
@@ -280,41 +327,49 @@ def main() -> None:
     # Fetch sectors and compute RS
     sector_data = []
     quadrants: dict[str, list[str]] = {
-        "LEADING": [], "IMPROVING": [], "WEAKENING": [], "LAGGING": [],
+        "LEADING": [],
+        "IMPROVING": [],
+        "WEAKENING": [],
+        "LAGGING": [],
     }
 
     for s in SECTORS:
         closes = fetch_weekly_closes(client, s["ticker"], from_date, to_date)
         if not closes or len(closes) != len(bench_closes):
-            print(f"  SKIP {s['ticker']}: length mismatch "
-                  f"({len(closes) if closes else 0} vs {len(bench_closes)})")
+            print(
+                f"  SKIP {s['ticker']}: length mismatch "
+                f"({len(closes) if closes else 0} vs {len(bench_closes)})"
+            )
             continue
 
         rs_ratio, rs_momentum = compute_rs_series(closes, bench_closes, LOOKBACK)
 
         # Extract trail (last N valid points)
-        valid_pairs = [(r, m) for r, m in zip(rs_ratio, rs_momentum)
-                       if not np.isnan(r) and not np.isnan(m)]
+        valid_pairs = [
+            (r, m) for r, m in zip(rs_ratio, rs_momentum) if not np.isnan(r) and not np.isnan(m)
+        ]
 
         if len(valid_pairs) < 2:
             print(f"  SKIP {s['ticker']}: not enough valid RS data")
             continue
 
-        trail_pairs = valid_pairs[-args.trail:]
+        trail_pairs = valid_pairs[-args.trail :]
         rs_trail = [p[0] for p in trail_pairs]
         mom_trail = [p[1] for p in trail_pairs]
 
         quadrant = classify_quadrant(rs_trail[-1], mom_trail[-1])
         quadrants[quadrant].append(s["ticker"])
 
-        sector_data.append({
-            "ticker": s["ticker"],
-            "name": s["name"],
-            "color": s["color"],
-            "rs_trail": rs_trail,
-            "mom_trail": mom_trail,
-            "quadrant": quadrant,
-        })
+        sector_data.append(
+            {
+                "ticker": s["ticker"],
+                "name": s["name"],
+                "color": s["color"],
+                "rs_trail": rs_trail,
+                "mom_trail": mom_trail,
+                "quadrant": quadrant,
+            }
+        )
 
     # Terminal summary
     print(f"\n=== Sector Rotation — {date.today().isoformat()} ===")

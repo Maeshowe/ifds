@@ -3,6 +3,7 @@
 Mirrors the mocking pattern used by tests for unusual_whales / fred —
 ``httpx.get`` is patched, no real network.
 """
+
 from __future__ import annotations
 
 import time
@@ -129,9 +130,7 @@ class TestMidClientCache:
             client = MIDClient(api_key="fake-key")
             client.get_bundle()
             # Simulate TTL expiry by backdating the timestamp
-            client._cache_ts = (client._cache_ts or time.time()) - (
-                client.CACHE_TTL_SECONDS + 1
-            )
+            client._cache_ts = (client._cache_ts or time.time()) - (client.CACHE_TTL_SECONDS + 1)
             client.get_bundle()
 
         assert mock_get.call_count == 2
@@ -143,8 +142,7 @@ class TestMidClientFailure:
     def test_network_timeout(self) -> None:
         from ifds.data.mid_client import MIDClient
 
-        with patch("ifds.data.mid_client.httpx.get",
-                   side_effect=httpx.TimeoutException("slow")):
+        with patch("ifds.data.mid_client.httpx.get", side_effect=httpx.TimeoutException("slow")):
             client = MIDClient(api_key="fake-key")
             assert client.get_bundle() == {}
 
@@ -154,7 +152,9 @@ class TestMidClientFailure:
         bad_resp = MagicMock(spec=httpx.Response)
         bad_resp.status_code = 401
         bad_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "unauthorized", request=MagicMock(), response=bad_resp,
+            "unauthorized",
+            request=MagicMock(),
+            response=bad_resp,
         )
         with patch("ifds.data.mid_client.httpx.get", return_value=bad_resp):
             client = MIDClient(api_key="bad-key")
@@ -175,8 +175,9 @@ class TestMidClientFailure:
     def test_non_dict_payload(self) -> None:
         from ifds.data.mid_client import MIDClient
 
-        with patch("ifds.data.mid_client.httpx.get",
-                   return_value=_ok_response(["not", "a", "dict"])):
+        with patch(
+            "ifds.data.mid_client.httpx.get", return_value=_ok_response(["not", "a", "dict"])
+        ):
             client = MIDClient(api_key="fake-key")
             assert client.get_bundle() == {}
 
@@ -187,8 +188,7 @@ class TestMidClientHelpers:
     def test_get_sectors(self, sample_bundle: dict) -> None:
         from ifds.data.mid_client import MIDClient
 
-        with patch("ifds.data.mid_client.httpx.get",
-                   return_value=_ok_response(sample_bundle)):
+        with patch("ifds.data.mid_client.httpx.get", return_value=_ok_response(sample_bundle)):
             client = MIDClient(api_key="fake-key")
             sectors = client.get_sectors()
 
@@ -198,16 +198,14 @@ class TestMidClientHelpers:
     def test_get_sectors_missing_field(self) -> None:
         from ifds.data.mid_client import MIDClient
 
-        with patch("ifds.data.mid_client.httpx.get",
-                   return_value=_ok_response({"flat": {}})):
+        with patch("ifds.data.mid_client.httpx.get", return_value=_ok_response({"flat": {}})):
             client = MIDClient(api_key="fake-key")
             assert client.get_sectors() == []
 
     def test_get_regime(self, sample_bundle: dict) -> None:
         from ifds.data.mid_client import MIDClient
 
-        with patch("ifds.data.mid_client.httpx.get",
-                   return_value=_ok_response(sample_bundle)):
+        with patch("ifds.data.mid_client.httpx.get", return_value=_ok_response(sample_bundle)):
             client = MIDClient(api_key="fake-key")
             regime = client.get_regime()
 
@@ -225,8 +223,7 @@ class TestMidClientHelpers:
         """Verify the 12 new fields added per live API verification (2026-04-27)."""
         from ifds.data.mid_client import MIDClient
 
-        with patch("ifds.data.mid_client.httpx.get",
-                   return_value=_ok_response(sample_bundle)):
+        with patch("ifds.data.mid_client.httpx.get", return_value=_ok_response(sample_bundle)):
             client = MIDClient(api_key="fake-key")
             regime = client.get_regime()
 
@@ -258,8 +255,7 @@ class TestMidClientHelpers:
             "as_of_date": "2026-04-28",
             "age_days": 0,
         }
-        with patch("ifds.data.mid_client.httpx.get",
-                   return_value=_ok_response(bundle)):
+        with patch("ifds.data.mid_client.httpx.get", return_value=_ok_response(bundle)):
             client = MIDClient(api_key="fake-key")
             regime = client.get_regime()
 
@@ -274,8 +270,10 @@ class TestMidClientHelpers:
         """Missing fields ⇒ None for scalars, [] for sector lists."""
         from ifds.data.mid_client import MIDClient
 
-        with patch("ifds.data.mid_client.httpx.get",
-                   return_value=_ok_response({"flat": {"regime": "Goldilocks"}})):
+        with patch(
+            "ifds.data.mid_client.httpx.get",
+            return_value=_ok_response({"flat": {"regime": "Goldilocks"}}),
+        ):
             client = MIDClient(api_key="fake-key")
             regime = client.get_regime()
 

@@ -1,4 +1,5 @@
 """Regression tests for BC23 cleanup (2026-04-14-bc23-cleanup-3-bugs)."""
+
 import asyncio
 from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock

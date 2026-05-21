@@ -11,6 +11,7 @@ and the client returns an empty dict — non-fatal.
 Rate limit policy: in-memory cache for 5 minutes (the bundle refreshes
 once daily, so one fetch per pipeline run is sufficient).
 """
+
 from __future__ import annotations
 
 import logging
@@ -74,18 +75,20 @@ class MIDClient:
             bundle = response.json()
         except httpx.HTTPStatusError as e:
             logger.warning(
-                f"MID API returned {e.response.status_code} for {url} — "
-                f"returning empty bundle"
+                f"MID API returned {e.response.status_code} for {url} — " f"returning empty bundle"
             )
             return {}
         except (httpx.HTTPError, httpx.TimeoutException, ValueError) as e:
-            logger.warning(f"MID API unavailable ({type(e).__name__}: {e}) — "
-                           f"returning empty bundle")
+            logger.warning(
+                f"MID API unavailable ({type(e).__name__}: {e}) — " f"returning empty bundle"
+            )
             return {}
 
         if not isinstance(bundle, dict):
-            logger.warning(f"MID API returned non-dict payload (type={type(bundle).__name__}) "
-                           f"— returning empty bundle")
+            logger.warning(
+                f"MID API returned non-dict payload (type={type(bundle).__name__}) "
+                f"— returning empty bundle"
+            )
             return {}
 
         self._cache = bundle
@@ -126,33 +129,15 @@ class MIDClient:
 
         # Some sector / metadata fields can live in a few alternate locations
         # depending on the bundle version; fall back through them.
-        top_sectors = (
-            flat.get("top_sectors")
-            or bundle.get("top_sectors")
-            or []
-        )
-        bottom_sectors = (
-            flat.get("bottom_sectors")
-            or bundle.get("bottom_sectors")
-            or []
-        )
-        as_of_date = (
-            flat.get("as_of_date")
-            or bundle.get("as_of_date")
-        )
+        top_sectors = flat.get("top_sectors") or bundle.get("top_sectors") or []
+        bottom_sectors = flat.get("bottom_sectors") or bundle.get("bottom_sectors") or []
+        as_of_date = flat.get("as_of_date") or bundle.get("as_of_date")
         age_days = (
-            flat.get("age_days")
-            if flat.get("age_days") is not None
-            else bundle.get("age_days")
+            flat.get("age_days") if flat.get("age_days") is not None else bundle.get("age_days")
         )
-        yield_curve_regime = (
-            flat.get("yield_curve_regime")
-            or flat.get("yc_regime")
-        )
+        yield_curve_regime = flat.get("yield_curve_regime") or flat.get("yc_regime")
         s2s10_bps = (
-            flat.get("s2s10_bps")
-            if flat.get("s2s10_bps") is not None
-            else flat.get("s2s10")
+            flat.get("s2s10_bps") if flat.get("s2s10_bps") is not None else flat.get("s2s10")
         )
 
         return {

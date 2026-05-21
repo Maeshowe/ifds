@@ -14,6 +14,7 @@ def _load_env():
         env_file = parent / ".env"
         if env_file.exists():
             import os
+
             for line in env_file.read_text().splitlines():
                 line = line.strip()
                 if line and not line.startswith("#") and "=" in line:
@@ -30,9 +31,7 @@ def main():
         prog="ifds",
         description="IFDS — Institutional Flow Decision Suite v2.0",
     )
-    parser.add_argument(
-        "--version", action="version", version=f"ifds {__version__}"
-    )
+    parser.add_argument("--version", action="version", version=f"ifds {__version__}")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -61,7 +60,9 @@ def main():
     )
 
     # check — validate config and API connectivity
-    check_parser = subparsers.add_parser("check", help="Validate configuration and API connectivity")
+    check_parser = subparsers.add_parser(
+        "check", help="Validate configuration and API connectivity"
+    )
     check_parser.add_argument(
         "--config",
         type=str,
@@ -70,37 +71,48 @@ def main():
 
     # compare — parameter sweep comparison (SIM-L2)
     compare_parser = subparsers.add_parser(
-        "compare", help="Run parameter sweep comparison (SIM-L2)")
+        "compare", help="Run parameter sweep comparison (SIM-L2)"
+    )
     compare_parser.add_argument(
-        "--config", type=str,
+        "--config",
+        type=str,
         help="Path to YAML variant config file",
     )
     compare_parser.add_argument(
-        "--baseline", type=str, default="baseline",
+        "--baseline",
+        type=str,
+        default="baseline",
         help="Baseline variant name (default: baseline)",
     )
     compare_parser.add_argument(
-        "--challenger", type=str,
+        "--challenger",
+        type=str,
         help="Challenger variant name",
     )
     compare_parser.add_argument(
-        "--override-sl-atr", type=float,
+        "--override-sl-atr",
+        type=float,
         help="Override stop loss ATR multiple for challenger",
     )
     compare_parser.add_argument(
-        "--override-tp1-atr", type=float,
+        "--override-tp1-atr",
+        type=float,
         help="Override TP1 ATR multiple for challenger",
     )
     compare_parser.add_argument(
-        "--override-tp2-atr", type=float,
+        "--override-tp2-atr",
+        type=float,
         help="Override TP2 ATR multiple for challenger",
     )
     compare_parser.add_argument(
-        "--override-hold-days", type=int,
+        "--override-hold-days",
+        type=int,
         help="Override max hold days for challenger",
     )
     compare_parser.add_argument(
-        "--output-dir", type=str, default="output",
+        "--output-dir",
+        type=str,
+        default="output",
         help="Directory with execution plan CSVs (default: output)",
     )
 
@@ -122,6 +134,7 @@ def _cmd_run(args):
     phase_arg = args.phase
     if hasattr(args, "phases") and args.phases:
         from ifds.pipeline.runner import parse_phase_range
+
         phase_arg = parse_phase_range(args.phases)
 
     result = run_pipeline(
@@ -165,10 +178,12 @@ def _cmd_compare(args):
                 overrides["tp2_atr_multiple"] = args.override_tp2_atr
             if args.override_hold_days is not None:
                 overrides["max_hold_days"] = args.override_hold_days
-            variants.append(SimVariant(
-                name=args.challenger,
-                overrides=overrides,
-            ))
+            variants.append(
+                SimVariant(
+                    name=args.challenger,
+                    overrides=overrides,
+                )
+            )
         else:
             print("Error: --challenger required when not using --config")
             sys.exit(1)

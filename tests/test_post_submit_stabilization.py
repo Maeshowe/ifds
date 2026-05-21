@@ -4,6 +4,7 @@ Covers:
 - Fix 2: instant TP1 fill detection from execution orderRef parsing
 - Fix 3: phantom ticker dedup via per-day persisted log file
 """
+
 import json
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -25,7 +26,7 @@ class TestInstantTp1FillDetection:
         """Replicates the parsing in submit_orders.py monitor state init."""
         # IFDS_{sym}_A_TP → sym. Use rsplit to handle symbols with underscores
         # (e.g. BRK_B), though NYSE uses '.' so 'AAPL_A_TP' is the norm.
-        return order_ref[len("IFDS_"):].rsplit("_", 2)[0]
+        return order_ref[len("IFDS_") :].rsplit("_", 2)[0]
 
     def test_parse_a_tp_ref(self):
         assert self._parse_sym_from_tp_ref("IFDS_AAPL_A_TP") == "AAPL"
@@ -145,11 +146,9 @@ class TestPostSubmitVerification:
         submitted = ["AAPL"]
 
         missing = [
-            sym for sym in submitted
-            if not (
-                f"IFDS_{sym}_A" in ib_open_refs
-                or f"IFDS_{sym}_B" in ib_open_refs
-            )
+            sym
+            for sym in submitted
+            if not (f"IFDS_{sym}_A" in ib_open_refs or f"IFDS_{sym}_B" in ib_open_refs)
             and sym not in ib_position_syms
         ]
         assert missing == []
@@ -161,11 +160,9 @@ class TestPostSubmitVerification:
         submitted = ["NSA"]
 
         missing = [
-            sym for sym in submitted
-            if not (
-                f"IFDS_{sym}_A" in ib_open_refs
-                or f"IFDS_{sym}_B" in ib_open_refs
-            )
+            sym
+            for sym in submitted
+            if not (f"IFDS_{sym}_A" in ib_open_refs or f"IFDS_{sym}_B" in ib_open_refs)
             and sym not in ib_position_syms
         ]
         assert missing == []
@@ -177,11 +174,9 @@ class TestPostSubmitVerification:
         submitted = ["AAPL"]
 
         missing = [
-            sym for sym in submitted
-            if not (
-                f"IFDS_{sym}_A" in ib_open_refs
-                or f"IFDS_{sym}_B" in ib_open_refs
-            )
+            sym
+            for sym in submitted
+            if not (f"IFDS_{sym}_A" in ib_open_refs or f"IFDS_{sym}_B" in ib_open_refs)
             and sym not in ib_position_syms
         ]
         assert missing == ["AAPL"]
@@ -192,11 +187,9 @@ class TestPostSubmitVerification:
         submitted = ["AAPL", "NSA", "GHOST"]
 
         missing = [
-            sym for sym in submitted
-            if not (
-                f"IFDS_{sym}_A" in ib_open_refs
-                or f"IFDS_{sym}_B" in ib_open_refs
-            )
+            sym
+            for sym in submitted
+            if not (f"IFDS_{sym}_A" in ib_open_refs or f"IFDS_{sym}_B" in ib_open_refs)
             and sym not in ib_position_syms
         ]
         assert missing == ["GHOST"]

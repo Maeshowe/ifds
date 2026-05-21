@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # fred.get_yield_curve_2s10s() tests
 # ---------------------------------------------------------------------------
@@ -22,10 +21,12 @@ def test_yield_curve_positive(monkeypatch):
     from ifds.data.fred import FREDClient
 
     client = FREDClient.__new__(FREDClient)
-    client.get_series = MagicMock(return_value=[
-        {"date": "2026-03-27", "value": "0.35"},
-        {"date": "2026-03-26", "value": "0.33"},
-    ])
+    client.get_series = MagicMock(
+        return_value=[
+            {"date": "2026-03-27", "value": "0.35"},
+            {"date": "2026-03-26", "value": "0.33"},
+        ]
+    )
     result = client.get_yield_curve_2s10s()
     assert result == pytest.approx(0.35)
 
@@ -35,9 +36,11 @@ def test_yield_curve_negative_inverted(monkeypatch):
     from ifds.data.fred import FREDClient
 
     client = FREDClient.__new__(FREDClient)
-    client.get_series = MagicMock(return_value=[
-        {"date": "2026-03-27", "value": "-0.50"},
-    ])
+    client.get_series = MagicMock(
+        return_value=[
+            {"date": "2026-03-27", "value": "-0.50"},
+        ]
+    )
     result = client.get_yield_curve_2s10s()
     assert result == pytest.approx(-0.50)
 
@@ -57,9 +60,11 @@ def test_yield_curve_missing_data_dot_returns_none(monkeypatch):
     from ifds.data.fred import FREDClient
 
     client = FREDClient.__new__(FREDClient)
-    client.get_series = MagicMock(return_value=[
-        {"date": "2026-03-27", "value": "."},
-    ])
+    client.get_series = MagicMock(
+        return_value=[
+            {"date": "2026-03-27", "value": "."},
+        ]
+    )
     result = client.get_yield_curve_2s10s()
     assert result is None
 
@@ -105,8 +110,10 @@ def test_curve_status_inverted():
 def test_macro_regime_yield_curve_optional():
     """yield_curve_2s10s and curve_status are optional with defaults."""
     from ifds.models.market import (
-        MacroRegime, MarketVolatilityRegime,
+        MacroRegime,
+        MarketVolatilityRegime,
     )
+
     macro = MacroRegime(
         vix_value=18.0,
         vix_regime=MarketVolatilityRegime.NORMAL,
@@ -122,8 +129,10 @@ def test_macro_regime_yield_curve_optional():
 def test_macro_regime_yield_curve_set():
     """yield_curve_2s10s and curve_status can be set explicitly."""
     from ifds.models.market import (
-        MacroRegime, MarketVolatilityRegime,
+        MacroRegime,
+        MarketVolatilityRegime,
     )
+
     macro = MacroRegime(
         vix_value=18.0,
         vix_regime=MarketVolatilityRegime.NORMAL,
@@ -146,5 +155,6 @@ def test_macro_regime_yield_curve_set():
 def test_yield_curve_shadow_config_key_exists():
     """yield_curve_shadow_enabled exists in TUNING config."""
     from ifds.config.defaults import TUNING
+
     assert "yield_curve_shadow_enabled" in TUNING
     assert TUNING["yield_curve_shadow_enabled"] is True

@@ -4,6 +4,7 @@ The hook must be **non-blocking** under all failure modes — Phase 0
 must continue normally if MID is unavailable, has a bad key, or the
 client raises an unexpected exception.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
@@ -55,21 +56,24 @@ class TestPhase0MidHookGracefulFailure:
         """MID returns {} → WARNING log, no snapshot saved, no raise."""
         from ifds.phases import phase0_diagnostics
 
-        with patch.object(phase0_diagnostics, "_save_mid_bundle_if_configured",
-                          wraps=phase0_diagnostics._save_mid_bundle_if_configured):
+        with patch.object(
+            phase0_diagnostics,
+            "_save_mid_bundle_if_configured",
+            wraps=phase0_diagnostics._save_mid_bundle_if_configured,
+        ):
             with patch("ifds.data.mid_client.MIDClient") as mock_client_cls:
                 mock_inst = MagicMock()
                 mock_inst.get_bundle.return_value = {}
                 mock_client_cls.return_value = mock_inst
 
                 phase0_diagnostics._save_mid_bundle_if_configured(
-                    config_with_mid_key, fake_logger,
+                    config_with_mid_key,
+                    fake_logger,
                 )
 
         # At least one WARNING was logged
         warnings = [
-            c for c in fake_logger.log.call_args_list
-            if "WARNING" in str(c.args[1]).upper()
+            c for c in fake_logger.log.call_args_list if "WARNING" in str(c.args[1]).upper()
         ]
         assert warnings, "expected a WARNING log when bundle is empty"
 
@@ -77,35 +81,36 @@ class TestPhase0MidHookGracefulFailure:
         """Random error inside MIDClient → WARNING log, no raise."""
         from ifds.phases import phase0_diagnostics
 
-        with patch("ifds.data.mid_client.MIDClient",
-                   side_effect=RuntimeError("boom")):
+        with patch("ifds.data.mid_client.MIDClient", side_effect=RuntimeError("boom")):
             # Must not raise
             phase0_diagnostics._save_mid_bundle_if_configured(
-                config_with_mid_key, fake_logger,
+                config_with_mid_key,
+                fake_logger,
             )
 
         warnings = [
-            c for c in fake_logger.log.call_args_list
-            if "WARNING" in str(c.args[1]).upper()
+            c for c in fake_logger.log.call_args_list if "WARNING" in str(c.args[1]).upper()
         ]
         assert warnings, "expected a WARNING when MIDClient raises"
 
-    def test_successful_save_logs_info(self, config_with_mid_key, fake_logger,
-                                       tmp_path):
+    def test_successful_save_logs_info(self, config_with_mid_key, fake_logger, tmp_path):
         """Happy path: bundle fetched, saved, INFO log mentions the path."""
         from ifds.phases import phase0_diagnostics
         from ifds.data import mid_bundle_snapshot
 
         sample = {"flat": {"regime": "STAGFLATION"}}
 
-        with patch("ifds.data.mid_client.MIDClient") as mock_client_cls, \
-             patch.object(mid_bundle_snapshot, "SNAPSHOT_DIR", tmp_path):
+        with (
+            patch("ifds.data.mid_client.MIDClient") as mock_client_cls,
+            patch.object(mid_bundle_snapshot, "SNAPSHOT_DIR", tmp_path),
+        ):
             mock_inst = MagicMock()
             mock_inst.get_bundle.return_value = sample
             mock_client_cls.return_value = mock_inst
 
             phase0_diagnostics._save_mid_bundle_if_configured(
-                config_with_mid_key, fake_logger,
+                config_with_mid_key,
+                fake_logger,
             )
 
         # File exists in tmp_path
@@ -113,12 +118,7 @@ class TestPhase0MidHookGracefulFailure:
         assert len(gz_files) == 1
 
         # An INFO log mentions the saved path
-        infos = [
-            c for c in fake_logger.log.call_args_list
-            if "INFO" in str(c.args[1]).upper()
-        ]
+        infos = [c for c in fake_logger.log.call_args_list if "INFO" in str(c.args[1]).upper()]
         assert infos, "expected an INFO log on successful save"
-        info_msg = " ".join(
-            str(c.kwargs.get("message", "")) for c in infos
-        )
+        info_msg = " ".join(str(c.kwargs.get("message", "")) for c in infos)
         assert "MID bundle saved" in info_msg

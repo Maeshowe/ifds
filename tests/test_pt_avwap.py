@@ -18,7 +18,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-
 ET = ZoneInfo("America/New_York")
 
 
@@ -42,9 +41,7 @@ def _isolate_pt_env():
 
 def _import_pt_avwap(tmp_path):
     """Import pt_avwap with STATE_DIR pointed at tmp_path."""
-    scripts_dir = os.path.join(
-        os.path.dirname(__file__), "..", "scripts", "paper_trading"
-    )
+    scripts_dir = os.path.join(os.path.dirname(__file__), "..", "scripts", "paper_trading")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
 
@@ -277,9 +274,9 @@ def test_bracket_rebuild_prices():
     tp1 = 103.0
     tp2 = 106.0
 
-    sl_distance = entry - sl        # 3.0
-    tp1_distance = tp1 - entry      # 3.0
-    tp2_distance = tp2 - entry      # 6.0
+    sl_distance = entry - sl  # 3.0
+    tp1_distance = tp1 - entry  # 3.0
+    tp2_distance = tp2 - entry  # 6.0
 
     fill_price = 99.50  # MKT fill lower than limit
 
@@ -328,7 +325,8 @@ def test_already_converted_skipped(tmp_path):
     loaded = mod.load_state(date.today().strftime("%Y-%m-%d"))
 
     watching = [
-        sym for sym, s in loaded.items()
+        sym
+        for sym, s in loaded.items()
         if not s.get("avwap_converted", False)
         and not s.get("tp1_filled", False)
         and s.get("avwap_state", "IDLE") in ("IDLE", "WATCHING", "DIPPED")
@@ -346,7 +344,8 @@ def test_tp1_filled_skipped(tmp_path):
     loaded = mod.load_state(date.today().strftime("%Y-%m-%d"))
 
     watching = [
-        sym for sym, s in loaded.items()
+        sym
+        for sym, s in loaded.items()
         if not s.get("avwap_converted", False)
         and not s.get("tp1_filled", False)
         and s.get("avwap_state", "IDLE") in ("IDLE", "WATCHING", "DIPPED")

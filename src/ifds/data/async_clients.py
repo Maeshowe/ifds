@@ -20,9 +20,15 @@ if TYPE_CHECKING:
 class AsyncPolygonClient(AsyncBaseAPIClient):
     """Async client for Polygon.io REST API."""
 
-    def __init__(self, api_key: str, timeout: int = 10, max_retries: int = 3,
-                 semaphore: asyncio.Semaphore | None = None,
-                 cache: FileCache | None = None, circuit_breaker=None):
+    def __init__(
+        self,
+        api_key: str,
+        timeout: int = 10,
+        max_retries: int = 3,
+        semaphore: asyncio.Semaphore | None = None,
+        cache: FileCache | None = None,
+        circuit_breaker=None,
+    ):
         super().__init__(
             base_url="https://api.polygon.io",
             api_key=api_key,
@@ -45,8 +51,9 @@ class AsyncPolygonClient(AsyncBaseAPIClient):
         endpoint = f"/v2/aggs/grouped/locale/us/market/stocks/{yesterday}"
         return await self.health_check(endpoint, is_critical=True)
 
-    async def get_aggregates(self, ticker: str, from_date: str, to_date: str,
-                             timespan: str = "day", multiplier: int = 1) -> list[dict] | None:
+    async def get_aggregates(
+        self, ticker: str, from_date: str, to_date: str, timespan: str = "day", multiplier: int = 1
+    ) -> list[dict] | None:
         cache_key = f"{from_date}_{to_date}"
         if self._cache:
             cached = self._cache.get("polygon", "aggregates", cache_key, ticker)
@@ -54,8 +61,9 @@ class AsyncPolygonClient(AsyncBaseAPIClient):
                 return cached
 
         endpoint = f"/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{from_date}/{to_date}"
-        data = await self._get(endpoint, params={"adjusted": "true", "sort": "asc"},
-                               headers=self._auth_headers())
+        data = await self._get(
+            endpoint, params={"adjusted": "true", "sort": "asc"}, headers=self._auth_headers()
+        )
         if data and data.get("results"):
             result = data["results"]
             if self._cache:
@@ -71,8 +79,7 @@ class AsyncPolygonClient(AsyncBaseAPIClient):
                 return cached
 
         endpoint = f"/v3/snapshot/options/{underlying}"
-        data = await self._get(endpoint, params={"limit": 250},
-                               headers=self._auth_headers())
+        data = await self._get(endpoint, params={"limit": 250}, headers=self._auth_headers())
         if data and data.get("results"):
             result = data["results"]
             if self._cache:
@@ -87,8 +94,7 @@ class AsyncPolygonClient(AsyncBaseAPIClient):
                 return cached
 
         endpoint = f"/v2/aggs/grouped/locale/us/market/stocks/{date_str}"
-        data = await self._get(endpoint, params={"adjusted": "true"},
-                               headers=self._auth_headers())
+        data = await self._get(endpoint, params={"adjusted": "true"}, headers=self._auth_headers())
         if data and data.get("results"):
             result = data["results"]
             if self._cache:
@@ -100,9 +106,15 @@ class AsyncPolygonClient(AsyncBaseAPIClient):
 class AsyncFMPClient(AsyncBaseAPIClient):
     """Async client for FMP REST API."""
 
-    def __init__(self, api_key: str, timeout: int = 10, max_retries: int = 3,
-                 semaphore: asyncio.Semaphore | None = None,
-                 cache: FileCache | None = None, circuit_breaker=None):
+    def __init__(
+        self,
+        api_key: str,
+        timeout: int = 10,
+        max_retries: int = 3,
+        semaphore: asyncio.Semaphore | None = None,
+        cache: FileCache | None = None,
+        circuit_breaker=None,
+    ):
         super().__init__(
             base_url="https://financialmodelingprep.com",
             api_key=api_key,
@@ -199,10 +211,7 @@ class AsyncFMPClient(AsyncBaseAPIClient):
         if not result or not isinstance(result, list):
             return None
 
-        actuals = [
-            entry for entry in result
-            if isinstance(entry.get("epsActual"), (int, float))
-        ]
+        actuals = [entry for entry in result if isinstance(entry.get("epsActual"), (int, float))]
         if self._cache:
             self._cache.put("fmp", "earnings-history", yesterday, ticker, actuals)
         return actuals[:n_quarters]
@@ -254,10 +263,15 @@ class AsyncFMPClient(AsyncBaseAPIClient):
 class AsyncUWClient(AsyncBaseAPIClient):
     """Async client for Unusual Whales REST API."""
 
-    def __init__(self, api_key: str | None = None, timeout: int = 10,
-                 max_retries: int = 3,
-                 semaphore: asyncio.Semaphore | None = None,
-                 cache: FileCache | None = None, circuit_breaker=None):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        timeout: int = 10,
+        max_retries: int = 3,
+        semaphore: asyncio.Semaphore | None = None,
+        cache: FileCache | None = None,
+        circuit_breaker=None,
+    ):
         super().__init__(
             base_url="https://api.unusualwhales.com",
             api_key=api_key,
@@ -300,8 +314,7 @@ class AsyncUWClient(AsyncBaseAPIClient):
                 return cached
 
         endpoint = f"/api/darkpool/{ticker}"
-        data = await self._get(endpoint, params={"limit": 500},
-                               headers=self._auth_headers())
+        data = await self._get(endpoint, params={"limit": 500}, headers=self._auth_headers())
         result = None
         if data and isinstance(data, dict) and data.get("data"):
             result = data["data"]
@@ -311,9 +324,9 @@ class AsyncUWClient(AsyncBaseAPIClient):
             self._cache.put("uw", "darkpool", yesterday, ticker, result)
         return result
 
-    async def get_dark_pool_recent(self, limit: int = 200,
-                                    date: str | None = None,
-                                    older_than: str | None = None) -> list[dict] | None:
+    async def get_dark_pool_recent(
+        self, limit: int = 200, date: str | None = None, older_than: str | None = None
+    ) -> list[dict] | None:
         """Get recent dark pool trades across all tickers (batch prefetch)."""
         if not self._api_key:
             return None
@@ -370,9 +383,15 @@ class AsyncFREDClient(AsyncBaseAPIClient):
     VIX_SERIES = "VIXCLS"
     TNX_SERIES = "DGS10"
 
-    def __init__(self, api_key: str, timeout: int = 10, max_retries: int = 3,
-                 semaphore: asyncio.Semaphore | None = None,
-                 cache: FileCache | None = None, circuit_breaker=None):
+    def __init__(
+        self,
+        api_key: str,
+        timeout: int = 10,
+        max_retries: int = 3,
+        semaphore: asyncio.Semaphore | None = None,
+        cache: FileCache | None = None,
+        circuit_breaker=None,
+    ):
         super().__init__(
             base_url="https://api.stlouisfed.org",
             api_key=api_key,

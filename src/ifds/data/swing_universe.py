@@ -20,6 +20,7 @@ Fallback: FMP `/stable/sp500-constituent` and `/stable/russell1000-constituent`
 Cache: `state/swing_universe/universe.json` with 7-day TTL (covers
 monthly rebalances with margin).
 """
+
 from __future__ import annotations
 
 import json
@@ -85,7 +86,7 @@ class _FirstColumnSymbolParser(HTMLParser):
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self._depth_table = 0          # nesting depth in the target wikitable
+        self._depth_table = 0  # nesting depth in the target wikitable
         self._seen_target_table = False
         self._symbol_col: int | None = None
         self._in_tr = False
@@ -105,11 +106,7 @@ class _FirstColumnSymbolParser(HTMLParser):
         if tag == "table":
             cls = (attrs_dict.get("class") or "").lower()
             table_id = attrs_dict.get("id") or ""
-            if (
-                "wikitable" in cls
-                and table_id == self.TARGET_ID
-                and not self._seen_target_table
-            ):
+            if "wikitable" in cls and table_id == self.TARGET_ID and not self._seen_target_table:
                 self._seen_target_table = True
                 self._depth_table = 1
             elif self._depth_table > 0:
@@ -271,7 +268,9 @@ def fetch_from_fmp_fallback(fmp_client: Any) -> list[str] | None:
         return union
     logger.warning(
         "FMP fallback returned %d symbols, outside expected %d-%d window",
-        len(union), UNION_MIN, UNION_MAX,
+        len(union),
+        UNION_MIN,
+        UNION_MAX,
     )
     return None
 
@@ -332,8 +331,7 @@ class SwingUniverseSource:
 
         fallback = fetch_from_fmp_fallback(fmp_client)
         if fallback is not None:
-            logger.info("Swing universe sourced from FMP fallback (%d symbols)",
-                        len(fallback))
+            logger.info("Swing universe sourced from FMP fallback (%d symbols)", len(fallback))
             return fallback
 
         raise RuntimeError(
