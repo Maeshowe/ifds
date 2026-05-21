@@ -7,8 +7,6 @@ Quick connection test with short timeout — sends Telegram alert if Gateway is 
 Usage:
     python scripts/paper_trading/check_gateway.py
 """
-import os
-import sys
 
 from dotenv import load_dotenv
 

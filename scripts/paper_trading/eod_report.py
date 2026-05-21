@@ -14,7 +14,7 @@ import glob
 import json
 import os
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv

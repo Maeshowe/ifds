@@ -8,10 +8,9 @@ Outputs:
 
 import csv
 import json
-from datetime import date
 from pathlib import Path
 
-from ifds.sim.models import ComparisonReport, Trade, ValidationSummary, VariantDelta
+from ifds.sim.models import ComparisonReport, Trade, ValidationSummary
 
 
 # ============================================================================

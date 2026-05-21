@@ -21,7 +21,6 @@ from datetime import date as _date
 from ifds.data.mms_store import MMSStore
 from ifds.models.market import (
     BaselineState,
-    GEXRegime,
     MMRegime,
     MMSAnalysis,
     StockAnalysis,

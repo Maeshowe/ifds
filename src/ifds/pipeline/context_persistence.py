@@ -12,7 +12,6 @@ import gzip
 import json
 import os
 import tempfile
-from dataclasses import asdict
 from pathlib import Path
 
 from ifds.models.market import (

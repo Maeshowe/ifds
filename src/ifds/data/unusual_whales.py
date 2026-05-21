@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import sys
 from datetime import date, timedelta
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from ifds.data.base import BaseAPIClient
 from ifds.models.market import APIHealthResult, APIStatus

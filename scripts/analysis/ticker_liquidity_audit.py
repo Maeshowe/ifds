@@ -129,7 +129,7 @@ def write_markdown(per_ticker: dict, total_days: int, snapshot_dates: list[str])
 
     OUTPUT_MD.parent.mkdir(parents=True, exist_ok=True)
     with open(OUTPUT_MD, "w", encoding="utf-8") as f:
-        f.write(f"# Ticker Universe Liquidity Audit (First Iteration)\n\n")
+        f.write("# Ticker Universe Liquidity Audit (First Iteration)\n\n")
         f.write(f"**Generated:** from {total_days} snapshots ")
         f.write(f"({snapshot_dates[0]} → {snapshot_dates[-1]})\n")
         f.write(f"**Unique tickers seen:** {len(per_ticker)}\n\n")

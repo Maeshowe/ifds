@@ -321,11 +321,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"Loading trades...")
+    print("Loading trades...")
     trades = load_trades(since=args.since)
     print(f"  {len(trades)} trades loaded")
 
-    print(f"Loading Phase 4 snapshots...")
+    print("Loading Phase 4 snapshots...")
     snapshots = load_snapshot_components()
     print(f"  {len(snapshots)} (date, ticker) entries across all snapshots")
 

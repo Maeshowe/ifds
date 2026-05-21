@@ -7,7 +7,7 @@ Async version of adapters.py — reuses pure-computation functions
 import asyncio
 
 from ifds.data.adapters import (
-    _safe_float, _safe_int, _find_zero_gamma, _aggregate_dp_records,
+    _safe_float, _find_zero_gamma, _aggregate_dp_records,
 )
 from ifds.events.logger import EventLogger
 from ifds.events.types import EventType, Severity

@@ -83,7 +83,7 @@ def main():
     if not SOURCE_MINI.exists():
         print(f"❌  Hiányzik: {SOURCE_MINI}")
         print("   Futtasd először:")
-        print(f"   rsync -avz safrtam@negotium.ddns.net:~/SSH-Services/ifds/state/obsidian/ \\")
+        print("   rsync -avz safrtam@negotium.ddns.net:~/SSH-Services/ifds/state/obsidian/ \\")
         print(f"       {SOURCE_MINI}/")
         sys.exit(1)
 

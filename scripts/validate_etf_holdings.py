@@ -186,7 +186,7 @@ def print_report(report: dict) -> None:
     print(f"  ❌ ERROR : {s['error']:3d}")
     print(f"  Latencia : átl. {s['avg_latency_ms']} ms")
 
-    print(f"\n  Pipeline × API:")
+    print("\n  Pipeline × API:")
     print(f"  {'IFDS':<14} {'OK':>4} {'EMPTY':>6} {'ERROR':>6}")
     print(f"  {'-'*32}")
     for k, v in sorted(report["pipeline_matrix"].items()):
@@ -211,10 +211,10 @@ def print_report(report: dict) -> None:
 
     if empty_t:
         print(f"  ⚠️  EMPTY ({len(empty_t)}): {', '.join(empty_t)}")
-        print(f"     → FMP Ultimate plan kell, vagy: GET /api/v3/etf-holder/{{TICKER}}")
+        print("     → FMP Ultimate plan kell, vagy: GET /api/v3/etf-holder/{TICKER}")
     if error_t:
         print(f"\n  ❌ ERROR ({len(error_t)}): {', '.join(error_t)}")
-        print(f"     → Részletek a JSON riportban")
+        print("     → Részletek a JSON riportban")
     print()
 
 

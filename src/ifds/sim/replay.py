@@ -9,7 +9,6 @@ from pathlib import Path
 
 import yaml
 
-from ifds.sim.broker_sim import simulate_bracket_order
 from ifds.sim.comparison import compare_variants
 from ifds.sim.models import ComparisonReport, SimVariant, Trade
 from ifds.sim.validator import (
@@ -67,7 +66,7 @@ def load_variants_from_yaml(yaml_path: str) -> tuple[list[SimVariant], dict]:
         data = yaml.safe_load(f)
 
     if not data or "variants" not in data:
-        raise ValueError(f"Invalid variant config: missing 'variants' key")
+        raise ValueError("Invalid variant config: missing 'variants' key")
 
     mode = str(data.get("mode", 1))
     metadata = {
@@ -341,7 +340,6 @@ def _fetch_bars_once(trades: list[Trade], polygon_api_key: str | None,
         return {}
 
     import asyncio
-    from datetime import timedelta
 
     from ifds.sim.validator import _fetch_bars_for_trades
 

@@ -24,7 +24,6 @@ Usage:
 import argparse
 import json
 import os
-import sys
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 

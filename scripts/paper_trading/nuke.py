@@ -10,9 +10,7 @@ Usage:
 
 import argparse
 import asyncio
-import os
 import sys
-import time
 from datetime import date
 from pathlib import Path
 

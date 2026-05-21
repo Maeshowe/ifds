@@ -12,9 +12,8 @@ Usage:
     python scripts/paper_trading/close_positions.py            # default: moc (legacy)
 """
 import argparse
-import os
 import sys
-from datetime import date, datetime, timezone
+from datetime import date
 
 from dotenv import load_dotenv
 
@@ -110,7 +109,7 @@ def run_swing_eod_flags(state_file: str, today_str: str) -> None:
     and updates state (TP1 → partial; others → remove).
     """
     from ifds.state.swing_positions import (
-        ACTION_HOLD, ACTION_TP1, EOD_ACTIONS_NEXT_DAY,
+        ACTION_TP1, EOD_ACTIONS_NEXT_DAY,
         apply_executed_exit, load_swing_positions, save_swing_positions,
     )
     from lib.connection import connect, get_account, disconnect

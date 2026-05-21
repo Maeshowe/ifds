@@ -111,7 +111,7 @@ def main():
         print(f"  {lbl:>10}  {c:5d}  ({pct:5.1f}%)  {bar}")
 
     # Options coverage
-    print(f"\n=== Options Coverage — tickers with ≥10 days ===")
+    print("\n=== Options Coverage — tickers with ≥10 days ===")
     opt_cov = [s["pcr_days"] / s["days_seen"] for _, s in persistent]
     counts = bucket_counts(opt_cov, cov_bins)
     for lbl, c in zip(cov_labels, counts):
@@ -120,7 +120,7 @@ def main():
         print(f"  {lbl:>10}  {c:5d}  ({pct:5.1f}%)  {bar}")
 
     # The intersection: top candidates
-    print(f"\n=== Top 30 institutional-data tickers ===")
+    print("\n=== Top 30 institutional-data tickers ===")
     print("Sorted by: days_seen × dp_coverage × opt_coverage")
     scored = []
     for t, s in stats.items():

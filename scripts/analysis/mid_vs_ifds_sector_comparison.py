@@ -150,7 +150,7 @@ def _md_table(headers: list[str], rows: list[list[str]]) -> str:
 
 def build_report(start: date, end: date) -> str:
     lines: list[str] = []
-    lines.append(f"# MID vs IFDS — Sector Rotation Comparison")
+    lines.append("# MID vs IFDS — Sector Rotation Comparison")
     lines.append("")
     lines.append(f"Window: **{start.isoformat()} → {end.isoformat()}**")
     lines.append("")

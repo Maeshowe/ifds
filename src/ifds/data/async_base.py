@@ -125,7 +125,7 @@ class AsyncBaseAPIClient:
                                 )
 
             except asyncio.TimeoutError:
-                error = f"Timeout"
+                error = "Timeout"
             except aiohttp.ClientConnectionError:
                 error = "Connection refused"
             except Exception as e:
