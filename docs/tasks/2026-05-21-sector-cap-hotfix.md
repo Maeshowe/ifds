@@ -1,8 +1,8 @@
 # Task: Sector-Balanced Greedy — Sector Cap Hotfix (full portfolio scope)
 
-Status: WONTFIX
+Status: REJECTED — false positive
 Updated: 2026-05-21
-Note: 2026-05-21 reggeli CC vizsgálat — mindkét feltételezett hipotézis (A: kód bug, B: config mismatch) HAMIS. A kód helyes (phase6_sizing.py:1321-1325 helyesen iterál open_positions-en), a spec érték is helyes (Day 63 decision §3.11 + 2026-05-17 swing-sizing task = 30% explicit). A 15%-os cap-feltételezés CSAK a daily review §0.6-ban jelenik meg post-hoc, semmilyen design dokumentumban nincs. Day 3 Healthcare 20.63% < 30% spec cap → NINCS megsértés. Tamás döntése (2026-05-21 reggel): spec érvényes marad, daily review §0.6 reklasszifikálva NOT A BUG. **NEM KELL KÓDVÁLTOZÁS.**
+Note: 2026-05-21 reggeli CC kvantitatív audit (lásd alább) — mindkét feltételezett hipotézis (A: kód bug, B: config mismatch) HAMIS. A kód helyes (phase6_sizing.py:1320-1325 helyesen iterál open_positions-en), a spec érték is helyes (Day 63 decision §3.11 + 2026-05-17 swing-sizing task = 30% explicit, 4 forrás). A 15%-os cap-feltételezés CSAK a daily review §0.6-ban jelenik meg post-hoc, semmilyen design dokumentumban nincs (0 forrás). Day 3 Healthcare 20.63% < 30% spec cap → NINCS megsértés. **Strukturális megelőzés**: `2026-05-21-sector-metric-clarity.md` — rename `sector_max_pct` → `sector_observed_max_pct` + új explicit `sector_cap_pct` config-tükör mező. **NEM KELL KÓDVÁLTOZÁS a sizing logikán** (de szemantikai tisztaság-rename igen).
 
 **Priority:** **P0 — HOTFIX** (deploy 15:30 CEST előtt, ma)
 **Created:** 2026-05-21
@@ -303,3 +303,36 @@ Refs: docs/tasks/2026-05-21-sector-cap-hotfix.md
 ## 8. Followup observation (informational, NOT in scope)
 
 A `daily_metrics.swing_state.sector_max_pct` mező a Day 3 logban `20.63` értéket mutat — vagyis **a logging maga helyesen detektálta a cap-megsértést post-hoc**, de a sizing logika nem szűrte ki. Ez **NEM bug** a logging-ban, hanem **bizonyíték** arra, hogy a state-frissítés helyesen történik **az új entry-k után** (csak a pre-entry decision logika nem ellenőrizte). Tehát a hotfix scope **csak a `select_daily_entries()` döntési logikára vonatkozik**, NEM az utólagos state aggregátorra.
+
+---
+
+## CC kvantitatív audit (2026-05-21)
+
+**Eredmény**: REJECT — a task hipotézisek mind hibásak.
+
+**Kód oldal**: a `_select_swing_entries` ([`src/ifds/phases/phase6_sizing.py:1297-1378`](../../src/ifds/phases/phase6_sizing.py)) HELYESEN iterál `open_positions`-en a `sector_notionals` számolásnál (line 1320-1325). A task §2 (A) hipotézis HAMIS — nem bug.
+
+**Spec oldal — cap-érték forrás-audit**:
+
+| Forrás | Cap érték |
+|---|---|
+| `defaults.py:342` | 0.30 (30%) |
+| `docs/decisions/2026-05-14-day63-decision-outcome.md` §3.11 | 30% (4× explicit említés) |
+| `docs/tasks/2026-05-17-swing-sizing-phase6.md` (eredeti spec) | 30% (11× explicit) |
+| `docs/review/2026-05-20-daily-review.md` §0.6 | 15% ⚠️ (csak ITT, post-hoc) |
+| `docs/tasks/2026-05-21-sector-cap-hotfix.md` (jelen task fájl) | 0.15 |
+
+**A 15%-os cap-érték SEMMILYEN design/spec dokumentumban NEM létezik** — csak a Day 3 daily review §0.6-ban és a hotfix task fájlban (post-hoc).
+
+**A `daily_metrics.swing_state.sector_max_pct: 20.63`** számított display érték (max sector arány a portfolioban), NEM config cap.
+
+**Day 3 állapot**:
+- Healthcare 20.63% ($20,626)
+- Spec cap (30%): $30,000 → 20.63% < 30% → NINCS cap-megsértés
+- Daily review feltételezett cap (15%): $15,000 → 20.63% > 15% → "megsértés" (téves)
+
+**Strukturális tanulság**: a workflow self-correction működött (anomaly detection → Dev review → kvantitatív audit → reject). Permanent record szempontból ez a két-chat workflow első dokumentált false-positive-szűrési példája. Permanent record-ba érdemes mint **pattern-evidencia** a Day 90 milestone értékelésen.
+
+**Follow-up**: a félreértés-forrás strukturális megelőzése a [`2026-05-21-sector-metric-clarity.md`](2026-05-21-sector-metric-clarity.md) task-ban (rename `sector_max_pct` → `sector_observed_max_pct` + új explicit `sector_cap_pct` mező).
+
+— CC, 2026-05-21

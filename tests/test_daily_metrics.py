@@ -237,6 +237,64 @@ class TestBuildDailyMetrics:
         }
         assert required_keys == set(metrics.keys())
 
+    def test_swing_state_includes_sector_cap_pct(self, tmp_path, monkeypatch):
+        """sector_cap_pct must be explicit in swing_state (post-rename clarity).
+
+        Regression for 2026-05-21 sector-metric-clarity task. The Day 3
+        Log Review chat false-positive arose because the old sector_max_pct
+        field was confused with a config cap. The rename + new explicit
+        sector_cap_pct field disambiguates these:
+
+          * sector_observed_max_pct — max sector share seen today (display)
+          * sector_cap_pct         — swing_sector_cap_pct × 100 (config)
+
+        Refs: docs/tasks/2026-05-21-sector-metric-clarity.md
+              docs/tasks/2026-05-21-sector-cap-hotfix.md (REJECTED)
+        """
+        from scripts.paper_trading.daily_metrics import build_daily_metrics
+
+        monkeypatch.setattr(
+            "scripts.paper_trading.daily_metrics.CUM_PNL_FILE",
+            tmp_path / "nonexistent_pnl.json",
+        )
+        monkeypatch.setattr(
+            "scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path
+        )
+        monkeypatch.setattr(
+            "scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path
+        )
+        monkeypatch.setattr(
+            "scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path
+        )
+        monkeypatch.setattr(
+            "scripts.paper_trading.daily_metrics._fetch_spy_return",
+            lambda d: None,
+        )
+
+        metrics = build_daily_metrics("2026-04-02")
+        swing_state = metrics["swing_state"]
+
+        # Both disambiguated keys must be present
+        assert "sector_observed_max_pct" in swing_state, (
+            "Display metric must be named sector_observed_max_pct"
+        )
+        assert "sector_cap_pct" in swing_state, (
+            "Config cap must be explicit as sector_cap_pct"
+        )
+
+        # The deprecated combined key must NOT be present (regression guard)
+        assert "sector_max_pct" not in swing_state, (
+            "Deprecated sector_max_pct key must be removed to prevent "
+            "confusion with config cap (see Day 3 2026-05-20 false-positive)"
+        )
+
+        # sector_cap_pct should reflect Day 63 decision §3.11 (30%) by default
+        # — verifies the config wiring works end-to-end.
+        assert swing_state["sector_cap_pct"] == 30.0, (
+            "Default swing_sector_cap_pct=0.30 must surface as 30.0 "
+            "(per Day 63 decision §3.11)"
+        )
+
     def test_no_trades_produces_valid_output(self, tmp_path, monkeypatch):
         """When there are no trades, metrics should still be valid JSON."""
         from scripts.paper_trading.daily_metrics import build_daily_metrics

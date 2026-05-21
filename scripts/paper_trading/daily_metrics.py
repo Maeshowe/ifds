@@ -120,10 +120,28 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
     Reads ``state/swing_positions.json`` and aggregates the swing portfolio view
     for the daily Telegram report:
       - open_positions, new_entries_today, total_notional
-      - sector_distribution, sector_max_pct
+      - sector_distribution
+      - sector_observed_max_pct (computed daily max sector share — display)
+      - sector_cap_pct (explicit config from swing_sector_cap_pct × 100 — display)
       - avg/max days_held
       - next_day_planned (15:30 exits + 21:40 TIME_STOPs)
       - swing_score_distribution (qualifying threshold count, top 3 scores)
+
+    Note on sector metrics semantics
+    --------------------------------
+    The 2026-05-20 Day 3 daily review §0.6 mistakenly interpreted the
+    pre-rename ``sector_max_pct`` field as a config cap (15%), which led to
+    a false-positive "P0 hotfix" task (`docs/tasks/2026-05-21-sector-cap-
+    hotfix.md`, REJECTED).  To prevent recurrence the two distinct concepts
+    are now serialized under disambiguating keys:
+
+    * ``sector_observed_max_pct`` — max(sector_share) across current
+      positions, observed daily metric.
+    * ``sector_cap_pct`` — ``swing_sector_cap_pct × 100`` from the config
+      (Day 63 decision §3.11 = 30%), explicit so any downstream reader can
+      compare observed vs cap without consulting `defaults.py`.
+
+    Refs: docs/tasks/2026-05-21-sector-metric-clarity.md
     """
     try:
         from ifds.config.loader import Config
@@ -139,11 +157,13 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
         max_concurrent = int(cfg.tuning.get("swing_max_concurrent", 12))
         threshold = float(cfg.tuning.get("swing_score_threshold", 50.0))
         equity = float(cfg.runtime.get("account_equity", 100_000.0))
+        sector_cap_pct = float(cfg.tuning.get("swing_sector_cap_pct", 0.30)) * 100
     except Exception:
         state_file = "state/swing_positions.json"
         max_concurrent = 12
         threshold = 50.0
         equity = 100_000.0
+        sector_cap_pct = 30.0
 
     positions = load_swing_positions(state_file)
 
@@ -156,7 +176,7 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
         sector_distribution[sector] = (
             sector_distribution.get(sector, 0.0) + p.entry_price * p.qty_remaining
         )
-    sector_max_pct = (
+    sector_observed_max_pct = (
         max(v / equity * 100 for v in sector_distribution.values())
         if sector_distribution else 0.0
     )
@@ -203,7 +223,8 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
         "total_notional": round(total_notional, 2),
         "total_notional_pct_equity": round(total_notional / equity * 100, 2) if equity > 0 else 0.0,
         "sector_distribution": {k: round(v, 2) for k, v in sector_distribution.items()},
-        "sector_max_pct": round(sector_max_pct, 2),
+        "sector_observed_max_pct": round(sector_observed_max_pct, 2),
+        "sector_cap_pct": round(sector_cap_pct, 2),
         "avg_days_held": round(avg_days_held, 2),
         "max_days_held": max_days_held,
         "exits_today": exits_today,
