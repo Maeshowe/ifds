@@ -38,18 +38,6 @@ def _make_position(symbol, qty, sec_type="STK"):
     return pos
 
 
-def _write_execution_plan(tmp_path, symbols):
-    """Write a minimal execution plan CSV with given symbols."""
-    today = date.today().strftime("%Y%m%d")
-    csv_path = tmp_path / f"execution_plan_run_{today}_2200.csv"
-    with open(csv_path, "w", newline="") as f:
-        writer = csv.writer(f)
-        writer.writerow(["instrument_id", "direction", "quantity"])
-        for s in symbols:
-            writer.writerow([s, "BUY", 100])
-    return csv_path
-
-
 def _import_module(tmp_path):
     """Import monitor_positions with EXECUTION_PLAN_DIR pointed at tmp_path."""
     # Add scripts/paper_trading to path for lib.connection import
