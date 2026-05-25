@@ -27,6 +27,7 @@ Usage:
 import json
 import os
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
@@ -252,6 +253,97 @@ def fetch_today_ohlc_polygon(ticker: str, today_iso: str, polygon_client) -> dic
     }
 
 
+def _reconcile_state_from_ibkr(positions: list, state_file: str, cfg) -> Any:
+    """Reconcile the swing-positions state against the live IBKR account.
+
+    Called from the start of ``run_eod_eval`` (after state load) — fetches
+    ``ib.positions()`` + ``ib.reqExecutions(today)`` and detects any
+    ticker that has been closed autonomously (manual TWS bracket trigger,
+    out-of-band fill, etc.). Returns a ReconcileReport. The caller is
+    responsible for acting on ``report.detected_closures``.
+
+    Failures are propagated to the caller — pt_monitor's EOD eval has a
+    try/except around the call so a Gateway hiccup never blocks the
+    mental-stop pipeline downstream.
+
+    Refs: docs/tasks/2026-05-23-state-reconciliation-from-ibkr.md Rész 1
+    """
+    from lib.connection import connect, disconnect
+    from lib.ibkr_reconciliation import (
+        PlannedBracket,
+        build_reconcile_report,
+        fetch_today_executions,
+        fetch_today_position_tickers,
+    )
+
+    ib = connect(client_id=14, context_label="pt_monitor reconcile_state")
+    try:
+        ib_tickers = fetch_today_position_tickers(ib)
+        execs = fetch_today_executions(ib, date.today())
+    finally:
+        disconnect(ib)
+
+    state_tickers = {p.ticker for p in positions}
+    state_pos_map = {
+        p.ticker: {
+            "entry_price": p.entry_price,
+            "qty_remaining": p.qty_remaining,
+            "sector": p.sector,
+        }
+        for p in positions
+    }
+
+    # Planned brackets — minimal best-effort; the classifier falls back
+    # to mental levels (from the state) if planned is missing. Production
+    # bridging from pt_submit_*.log into planned levels is a follow-up
+    # backlog item (P3, the operator emergency procedure task).
+    planned_brackets = {
+        p.ticker: PlannedBracket(
+            ticker=p.ticker,
+            mental_stop=p.stop_level,
+            mental_tp1=p.tp1_level,
+            mental_tp2=p.tp2_level,
+        )
+        for p in positions
+    }
+
+    report = build_reconcile_report(
+        ib_position_tickers=ib_tickers,
+        state_tickers=state_tickers,
+        executions=execs,
+        planned_brackets=planned_brackets,
+        state_positions_by_ticker=state_pos_map,
+    )
+
+    if not report.state_matches_ibkr:
+        logger.warning(
+            f"[SWING EOD] State/IBKR divergence — "
+            f"in_state_not_ibkr={report.in_state_not_ibkr}, "
+            f"in_ibkr_not_state={report.in_ibkr_not_state}"
+        )
+        try:
+            from lib.telegram_helper import telegram_header
+            from lib.telegram_helper import send_telegram as _tg
+
+            lines = [
+                f"{telegram_header('RECONCILE')}",
+                f"⚠️ State/IBKR divergence — {date.today().isoformat()}",
+            ]
+            for c in report.detected_closures:
+                gross = c.get("gross")
+                gross_s = f"${gross:+.2f}" if gross is not None else "n/a"
+                lines.append(
+                    f"  {c['ticker']}: {c['exit_type']} @ ${c.get('fill_price', 0):.2f} "
+                    f"(gross {gross_s})"
+                )
+            lines.append("State updated. Verify with reconcile_state.py 22:15.")
+            _tg("\n".join(lines))
+        except Exception as tg_exc:
+            logger.warning(f"Telegram reconcile alert failed: {tg_exc}")
+
+    return report
+
+
 def run_eod_eval() -> None:
     """Daily 22:00 CEST EOD eval — Task #4 mental stop architecture.
 
@@ -277,6 +369,47 @@ def run_eod_eval() -> None:
     positions = load_swing_positions(state_file)
     if not positions:
         logger.info("[SWING EOD] No open positions to evaluate.")
+        return
+
+    # ------------------------------------------------------------------
+    # Day 6+ structural prevention (Rész 1, 2026-05-23 state-reconciliation):
+    # before running the mental-stop eval, reconcile state ↔ IBKR. This
+    # catches autonomous bracket triggers (manual TWS SL/TP1 child orders,
+    # or any out-of-band fills) that would otherwise leave ghost positions
+    # in the state — like the Day 4 VLO SL and Day 5 ON TP1 incidents that
+    # only surfaced via the 22:15 reconcile_state.py and required manual
+    # retroactive cleanup.
+    #
+    # If the reconcile detects any closures, log them, remove from the
+    # in-memory positions list, persist the updated state, and continue
+    # with the mental-stop eval on the remaining (real) positions.
+    # ------------------------------------------------------------------
+    try:
+        _reconcile_report = _reconcile_state_from_ibkr(positions, state_file, cfg)
+        if _reconcile_report.detected_closures:
+            closed_tickers = {c["ticker"] for c in _reconcile_report.detected_closures}
+            logger.info(
+                f"[SWING EOD] State reconciled — removed {len(closed_tickers)} "
+                f"closed positions from state: {sorted(closed_tickers)}"
+            )
+            positions = [p for p in positions if p.ticker not in closed_tickers]
+            save_swing_positions(state_file, positions)
+            if evt:
+                for c in _reconcile_report.detected_closures:
+                    evt.log(
+                        "monitor", "ibkr_reconcile_closure",
+                        ticker=c["ticker"], exit_type=c["exit_type"],
+                        fill_price=c.get("fill_price"), gross=c.get("gross"),
+                    )
+    except Exception as exc:
+        # Reconcile failure must not break the mental-stop eval downstream.
+        logger.warning(
+            f"[SWING EOD] reconcile_state_from_ibkr failed (non-fatal): "
+            f"{type(exc).__name__}: {exc}"
+        )
+
+    if not positions:
+        logger.info("[SWING EOD] No open positions remaining after reconcile.")
         return
 
     api_key = cfg.runtime.get("polygon_api_key") or os.environ.get(
