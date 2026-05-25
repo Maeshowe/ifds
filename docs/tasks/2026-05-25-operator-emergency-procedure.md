@@ -3,8 +3,8 @@
 **Created**: 2026-05-25 (Log Review chat, CC javaslatára)
 **Priority**: **P3** — dokumentációs task, NEM blokkol semmit
 **Owner**: Log Review chat (Claude) — írás + frissítés. Tamás — jóváhagyás, kiegészítés, használat.
-**Status**: DRAFT v1
-**Becsült munka**: ~1.5 óra Log Review chat-ben
+**Status**: REVIEWED v1.1 (CC kódbázis-verify 2026-05-25)
+**Becsült munka**: ~1.5 óra Log Review chat-ben + ~20 min CC kódbázis-verify
 **Related**:
 - `docs/master-reference/04-risks-and-open-questions.md` §0.4 (Error 354), §0.5 (Gateway timeout), §0.10 (Day 3 manual TWS bracket)
 - `docs/tasks/2026-05-23-state-reconciliation-from-ibkr.md` (P0 task — az automatikus reconcile logika)
@@ -24,7 +24,7 @@ A swing pivot architektúra automatizált pipeline-ja **normál esetekben emberi
 
 **Minden manuális beavatkozás után KÖTELEZŐ** a `state/swing_positions.json` + `cumulative_pnl.json` és az IBKR állapot szinkronizálása.
 
-- **Day 7+ napokon** ezt a `pt_monitor.py::reconcile_state_from_ibkr` (P0 task Rész 1) **automatizálja** — a 22:00 CEST EOD eval-ban detektál minden divergence-t.
+- **Day 7+ napokon** ezt a `pt_monitor.py::_reconcile_state_from_ibkr` (P0 task Rész 1) **automatizálja** — a 22:00 CEST EOD eval-ban detektál minden divergence-t.
 - **Day 6 előtti manuális beavatkozásokra** **utólagos retroaktív reconcile** szükséges (mint a `retroactive_reconcile_w21.py` script a P0 task Rész 2-ben).
 
 ### Mikor használd ezt a dokumentumot
@@ -108,11 +108,11 @@ A `--resume` flag a state-tudatos duplikáció-szűréssel megakadályozza, hogy
 
 3. **⚠️ FONTOS**: a TWS GUI Order Entry-vel feladott pozíciók **ORDER_REF üres lesz** (NEM `IFDS_SWING_{sym}`), ami **state-divergence-t okoz** a `swing_positions.json`-tól. Ez a Day 3-i minta, ami a W21-ben a Day 4-5-i autonóm bracket-trigger-eket okozta.
 
-4. **Bejelentés a Log Review chat-nek**: rögzítsd a manuális entry-t (ticker, qty, ár, planned bracket szintek) — a Day 6+ napokon a `pt_monitor.py::reconcile_state_from_ibkr` ezt automatikusan detektálja és a `swing_positions.json`-t frissíti, DE **csak ha a child bracket trigger-el** (Day 4 VLO SL és Day 5 ON TP1 minta).
+4. **Bejelentés a Log Review chat-nek**: rögzítsd a manuális entry-t (ticker, qty, ár, planned bracket szintek) — a Day 6+ napokon a `pt_monitor.py::_reconcile_state_from_ibkr` ezt automatikusan detektálja és a `swing_positions.json`-t frissíti, DE **csak ha a child bracket trigger-el** (Day 4 VLO SL és Day 5 ON TP1 minta).
 
 #### 2.4 Post-emergency action
 
-- **Day 7+ napokon**: a `pt_monitor.py::reconcile_state_from_ibkr` automatikusan detektálja a state-IBKR divergence-t és frissíti a `swing_positions.json`-t + `daily_metrics`-t. Tamás-nak **nincs további tennivalója**.
+- **Day 7+ napokon**: a `pt_monitor.py::_reconcile_state_from_ibkr` automatikusan detektálja a state-IBKR divergence-t és frissíti a `swing_positions.json`-t + `daily_metrics`-t. Tamás-nak **nincs további tennivalója**.
 - **Day 6 előtti napokon (pl. utólagos audit)**: futtasd a `retroactive_reconcile_w21.py` scriptet a hiányzó realized P&L rögzítéséhez.
 
 ### Audit-trail kötelező rögzítés
@@ -238,8 +238,8 @@ A cancel után:
 
 #### 4.4 Post-emergency action
 
-- A Day 7+ napokon a `pt_monitor.py::reconcile_state_from_ibkr` továbbra is figyelni fogja a state-IBKR konzisztenciát
-- **Új P3 alert** lehetőség: ha a `reconcile_state_from_ibkr` **élő child order-eket észlel** a swing pivot architektúrában (ahol nem kéne legyen), **WARNING** Telegram-ra a Tamás-i manual cancel kérése
+- A Day 7+ napokon a `pt_monitor.py::_reconcile_state_from_ibkr` továbbra is figyelni fogja a state-IBKR konzisztenciát
+- **Új P3 alert** lehetőség: ha a `_reconcile_state_from_ibkr` **élő child order-eket észlel** a swing pivot architektúrában (ahol nem kéne legyen), **WARNING** Telegram-ra a Tamás-i manual cancel kérése (lásd §7.1 backlog)
 
 ### Audit-trail rögzítés
 
@@ -254,7 +254,7 @@ A Log Review chat napi review §6 "Anomalies / Notes" szakaszában rögzítendő
 
 ### Mikor jelentkezik
 
-**Rendkívüli helyzetek**, ahol a pipeline state vagy az IBKR pozíció **inkonzisztens**, és a `pt_monitor.py::reconcile_state_from_ibkr` automatikus megoldás **NEM elég**:
+**Rendkívüli helyzetek**, ahol a pipeline state vagy az IBKR pozíció **inkonzisztens**, és a `pt_monitor.py::_reconcile_state_from_ibkr` automatikus megoldás **NEM elég**:
 
 - **Strukturális bug** a pipeline-ban, ami minden napi futáson hibás state-et generál
 - **Manuális test cleanup** (mint Day 3-i `IFDS_DEBUG_VLO` 1+1 share Tamás teszt — `04-risks` §0.4-hez kapcsolódó)
@@ -280,43 +280,68 @@ A Log Review chat napi review §6 "Anomalies / Notes" szakaszában rögzítendő
    cp -r state/daily_metrics state/backups/$BACKUP_DATE/
    ```
 
-2. **IBKR Positions ellenőrzése** (mit lát az IBKR vs a state-fájl):
+2. **IBKR Positions ellenőrzése** (mit lát az IBKR pre-flight health check-en):
    ```bash
-   python scripts/paper_trading/check_gateway.py --verbose
+   python scripts/paper_trading/check_gateway.py
+   ```
+   A `check_gateway.py` **NEM fogad argumentumokat** — csak egy connectivity smoke (clientId=17, 3s timeout, 1 retry). A részletes IBKR pozíció-listához használd a TWS GUI **Account Window → Positions** tab-ot vagy egy egyszeri Python REPL-t:
+   ```bash
+   python -c "from ib_async import IB; ib = IB(); ib.connect('127.0.0.1', 7497, clientId=99); print(ib.positions()); ib.disconnect()"
    ```
 
 3. **Egyezzen a mit-nuke-olunk-szándékkal**:
-   - **Csak állapot fájlokat** (`--state-only`): csak a `swing_positions.json` reset, IBKR pozíciókat ÉRINTETLENÜL hagyni
-   - **Csak pozíciókat** (`--positions`): minden nyitott IBKR pozíciót MKT SELL-vel zárni, állapot fájlokat ÉRINTETLENÜL hagyni
-   - **Mindkettőt** (`--full`): full reset — IBKR pozíciók + állapot fájlok
+   - **⚠️ FONTOS**: a `nuke.py` **CSAK az IBKR oldalt** kezeli (orders + positions API hívásokon át). **A state fájlokhoz EGYÁLTALÁN NEM nyúl** (`swing_positions.json`, `cumulative_pnl.json`, `daily_metrics/`). State fájlok manuális reset-jéhez NEM a `nuke.py` a megfelelő tool — lásd §5.4 alább.
+   - **Csak IBKR orders cancel** (`--orders`): minden élő order (parent + child + GTC) cancel, IBKR pozíciók ÉRINTETLENÜL
+   - **Csak IBKR pozíciók zárás** (`--positions`): minden nyitott IBKR pozíció MKT SELL-vel zárva, élő order-ek ÉRINTETLENÜL
+   - **Default (flag nélkül)**: **MINDKETTŐ** — orders cancel + positions close
 
 #### 5.2 Resolution — `nuke.py` futtatás
 
-**Csak állapot fájlok reset** (gyakori use-case retroaktív reconcile előtt):
+**Verified flag-tábla** ([scripts/paper_trading/nuke.py:51-54](../../scripts/paper_trading/nuke.py#L51-L54)):
+
+| Flag | Hatás | Use case |
+|------|-------|----------|
+| (nincs flag) | orders cancel + positions close | Full pánik-zárás (default) |
+| `--orders` | csak orders cancel | Orphan bracket cleanup tömegesen (Pattern 3 alternative) |
+| `--positions` | csak positions close | Pozíció-pánik, orders ÉRINTETLENÜL |
+| `--dry-run` | csak audit print | Bármelyik fenti móddal kombinálható |
+
+**Példák**:
+
 ```bash
-python scripts/paper_trading/nuke.py --state-only --dry-run  # audit
-python scripts/paper_trading/nuke.py --state-only            # apply
+# Csak audit (semmi action) — minden esetben javasolt ELŐSZÖR
+python scripts/paper_trading/nuke.py --dry-run
+
+# Csak orders cancel — orphan bracket tömeges cleanup
+python scripts/paper_trading/nuke.py --orders --dry-run
+python scripts/paper_trading/nuke.py --orders
+
+# Csak positions close — pozíció-pánik (orders maradnak)
+python scripts/paper_trading/nuke.py --positions --dry-run
+python scripts/paper_trading/nuke.py --positions
+
+# Default — mindkettő (orders cancel + positions close)
+python scripts/paper_trading/nuke.py --dry-run
+python scripts/paper_trading/nuke.py
 ```
 
-**Csak pozíciók zárása** (pánikhelyzet):
-```bash
-python scripts/paper_trading/nuke.py --positions --dry-run   # audit
-python scripts/paper_trading/nuke.py --positions             # apply
-```
-
-**Full reset** (LEGRITKÁBBAN):
-```bash
-python scripts/paper_trading/nuke.py --full --dry-run        # audit
-python scripts/paper_trading/nuke.py --full                  # apply
-```
-
-**⚠️ FIGYELEM**: a `nuke.py --positions` **NEM cancellálja** az IBKR-ben élő child bracket order-eket. Ha vannak (mint a 2026-05-14-i HYMC SHORT bug eset), **utána Pattern 3** (manual TWS cancel) szükséges.
+**⚠️ FIGYELEM**: a `nuke.py --positions` **NEM cancellálja** az IBKR-ben élő child bracket order-eket. Ha vannak (mint a 2026-05-14-i HYMC SHORT bug eset), futtasd ELŐSZÖR `--orders`-szel (vagy default móddal, ami mindkettőt csinálja), VAGY utána Pattern 3 (manual TWS cancel).
 
 #### 5.3 Post-nuke recovery
 
 1. **Backup verify**: `ls -lh state/backups/$BACKUP_DATE/`
-2. **State-fájl verify**: `cat state/swing_positions.json | jq '. | length'` — várt érték: `0` vagy a megmaradt pozíciók száma
-3. **Cumulative P&L verify**: a `nuke.py` nem nyúl hozzá a `cumulative_pnl.json`-hoz (default), **kivéve** a `--full` mód
+2. **IBKR Positions verify** (`nuke.py` után): TWS GUI → Account → Positions tab, várt érték `0` pozíció (ha `--positions` vagy default futott)
+3. **IBKR Orders verify**: TWS GUI → Account → Orders tab, várt: minden élő order `Cancelled` státusz (ha `--orders` vagy default futott)
+4. **State-fájl konzisztencia**: a `nuke.py` futtatása **divergence-t okoz** a state fájl és az IBKR között (state szerinti pozíciók "nyitottnak" mutatkoznak, IBKR-ben már nincsenek). Ez a divergence a következő `pt_monitor.py` EOD eval-on `_reconcile_state_from_ibkr` által **automatikusan korrigálódik** (Day 7+). Day 6 előtti `nuke.py` futtatás után **`retroactive_reconcile_w21.py`-szerű utólagos manuális reconcile** szükséges.
+
+#### 5.4 State fájl reset (NEM `nuke.py`-vel)
+
+Ha **kizárólag a `state/swing_positions.json` vagy `cumulative_pnl.json` reset** a cél (IBKR pozíciók érintetlenül), a megfelelő tool:
+
+- **Egyetlen ticker korrekció** (pl. retroaktív SL/TP1 rögzítés): `scripts/admin/retroactive_reconcile_w21.py` mintára egyedi script
+- **Teljes újraindítás** (pl. új Day 1 reset): manuális Python REPL vagy egyedi script — **NEM ajánlott prod-on**, csak fejlesztői környezetben
+
+A `nuke.py`-nek **nincs** state-reset capability-je és **nem is tervezett** hogy legyen (separation of concerns: `nuke.py` = IBKR oldal, `retroactive_reconcile_w21.py` típusú script-ek = state oldal).
 
 ### Audit-trail kötelező rögzítés
 
@@ -365,7 +390,7 @@ A 4 pattern dokumentálása **új P2-P3 CC task-okat** indokolhat:
 
 ### 7.1 Pattern 3 detect — orphan child order WARNING
 
-**Új CC scope**: a `pt_monitor.py::reconcile_state_from_ibkr` (P0 task Rész 1) **bővítendő** egy ellenőrzéssel:
+**Új CC scope**: a `pt_monitor.py::_reconcile_state_from_ibkr` (P0 task Rész 1) **bővítendő** egy ellenőrzéssel:
 
 ```python
 # Pseudo-code, pt_monitor.py
@@ -429,16 +454,37 @@ def detect_orphan_child_orders(ib, swing_state):
 - **P2**: [`docs/tasks/2026-05-21-submit-retry-storm.md`](2026-05-21-submit-retry-storm.md) — autonóm retry logic (Pattern 2)
 - **P1**: [`docs/tasks/2026-05-19-ibkr-gateway-monitoring.md`](2026-05-19-ibkr-gateway-monitoring.md) — Gateway monitoring + Telegram alerts
 
-### A `nuke.py` jelenlegi capabilities
+### A `nuke.py` jelenlegi capabilities (VERIFIED 2026-05-25 by CC)
 
-**Lokáció**: `scripts/paper_trading/nuke.py`
+**Lokáció**: [`scripts/paper_trading/nuke.py`](../../scripts/paper_trading/nuke.py) (159 sor, 1 `main()` function)
 
-**Flag-ek** (a kódbázis-elemzés még szükséges a pontos signature-hez — ez a procedure dokumentumot a CC vagy a Dev chat **frissítheti** a következő iterációban):
+**Verified flag-ek** ([nuke.py:51-54](../../scripts/paper_trading/nuke.py#L51-L54)):
 
-- `--dry-run`: audit, NEM csinál semmit
-- `--state-only`: csak a `swing_positions.json` reset
-- `--positions`: csak az IBKR pozíciók zárása MKT SELL-vel
-- `--full`: mindkettő + esetleg `cumulative_pnl.json` reset
+| Flag | Hatás | Notes |
+|------|-------|-------|
+| (nincs flag) | orders cancel + positions close | Default (lib defaults: both true) |
+| `--orders` | csak orders cancel | `do_orders=True, do_positions=False` |
+| `--positions` | csak positions close | `do_orders=False, do_positions=True` |
+| `--dry-run` | audit print, NEM submit | Bármelyikkel kombinálható |
+
+**KRITIKUS**: `nuke.py` **CSAK** IB API hívásokkal dolgozik (`ib.cancelOrder()`, `ib.placeOrder(MKT SELL)`). **Semmilyen** state fájlt **NEM** ír/olvas:
+
+```bash
+$ grep -E 'swing_positions|cumulative_pnl|daily_metrics|state/' scripts/paper_trading/nuke.py
+# (zero match)
+```
+
+State fájl reset-hez NEM ez a tool — lásd §5.4.
+
+### Egyéb script-ek verified state (2026-05-25 by CC)
+
+| Script | Verified | Notes |
+|--------|----------|-------|
+| `submit_orders.py` | ✓ | `--dry-run`, `--test-connection`, `--file`, `--override-circuit-breaker`, `--override-witching`, `--resume` |
+| `check_gateway.py` | ✓ | **NINCS argparse** — health check only, clientId=17, 3s timeout |
+| `pt_monitor.py::_reconcile_state_from_ibkr` | ✓ | Private function (underscore prefix), [pt_monitor.py:256](../../scripts/paper_trading/pt_monitor.py#L256) |
+| `lib/retry_orchestrator.py::IBKRSubmitOrchestrator` | ✓ | + `SubmitExhaustedError`, `retry_delays` |
+| `submit_orders.py::submit_swing_market_only` | ✓ | [submit_orders.py:195](../../scripts/paper_trading/submit_orders.py#L195) |
 
 ---
 
@@ -447,8 +493,8 @@ def detect_orphan_child_orders(ib, swing_state):
 | Verzió | Dátum | Változtatás | Aki |
 |--------|-------|-------------|------|
 | v1 (DRAFT) | 2026-05-25 | Kezdő verzió, 4 pattern W21 tapasztalat alapján | Log Review chat |
+| **v1.1 (REVIEWED)** | **2026-05-25** | **CC kódbázis-verify: `nuke.py` flag-ek javítva (`--state-only`/`--full` fikció törölve), `check_gateway.py --verbose` flag törölve (nincs argparse), `reconcile_state_from_ibkr` → `_reconcile_state_from_ibkr` (private prefix), §5.4 új szekció (state reset NEM `nuke.py`-vel)** | **CC** |
 | TBD | TBD | Tamás felülvizsgálat + kiegészítés | Tamás |
-| TBD | TBD | A `nuke.py` flag-jeinek pontos dokumentálása | Dev chat / CC |
 
 ### Tervezett frissítések (Day 7+ alapján)
 
