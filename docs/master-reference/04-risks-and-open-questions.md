@@ -152,9 +152,64 @@ A heartbeat 900s threshold csak akkor trippel, ha a teljes outer-retry budget se
 - Tesztek: `tests/test_retry_orchestrator.py` (9 új)
 - Day 3 incident timeline: `logs/pt_submit_2026-05-20.log` (15:31 cron failure + 5 manual retry/diagnostic)
 
+### 0.10 ⚠️ State ≡ IBKR desync — Tamás Day 3-i manuális TWS bracket-jeinek autonóm trigger-je (ÚJ P0, felfedezve 2026-05-23, helyesbítve 2026-05-25)
+
+**Státusz**: ⚠️ OPEN — Day 7 (kedd 2026-05-26) reggeli pipeline futás ELOTT deploy-andó. Task: [`docs/tasks/2026-05-23-state-reconciliation-from-ibkr.md`](../tasks/2026-05-23-state-reconciliation-from-ibkr.md) (P0, 4-5 óra CC munka az α opció szerint).
+
+**Mi (helyesbített magyarázat)**: A `submit_orders.py::submit_swing_market_only` kódja explicit: `# Single market BUY (no bracket).` (Day 63 §3.12). A swing pivot architektúra **MENTAL-STOP módban van** (helyes, ahogy a design doc írja) — NINCS autonóm IBKR bracket order a cron-driven 7 entry-re (LBRT, MASI, EC, PFGC, WMB, DXCM, AMH; orderRef `IFDS_SWING_{sym}`).
+
+**A Day 4-5 autonóm bracket-trigger-ek forrása**: a Day 3-i §0.4 (IBKR Error 354 RESOLVED) workaround során Tamás **manuálisan adta fel** a VLO/ON/CNC ticker-eket az IBKR TWS Workstation Order Entry-n a TWS GUI bracket template-jével. Ezek a manuális TWS bracket-ek **planned-alapú szintekkel** kerultek be (a `pt_submit_2026-05-20.log` `stop $XX | TP1 $YY` ertékeivel), és **autonóm módon triggereltek** Day 4-5-en. ORDER_REF ÜRES (NEM `IFDS_*`), mert TWS GUI-ból manuálisan generált.
+
+**Felfedezés forrása**: 2026-05-23 szombat reggeli IBKR TWS Trades + Positions + Orders képek elemzése (Log Review chat). Két autonóm bracket trigger felfedezve:
+
+| Nap | Ticker | Trigger típus | Fill ár | Net P&L | Hivatalos `daily_metrics` | Forrás |
+|-----|--------|---------------|---------|---------|---------------------------|---------|
+| Day 4 (2026-05-21) | VLO | SL bracket 19:19:54 CEST | $244,61 | **-$227,06** | $0 ⚠️ | Tamás manuális Day 3 TWS bracket |
+| Day 5 (2026-05-22) | ON | TP1 bracket 16:40:20 CEST | $115,41 | **+$159,12** | $0 ⚠️ | Tamás manuális Day 3 TWS bracket |
+
+**Bracket level-ek a PLANNED entry-alapúak** (mert Tamás a TWS GUI-ban a planned-szinteket írta be). Példa: Day 3 VLO planned entry $262,62 → tényleges fill $258,55 (-1,55% slippage), de a manuális TWS bracket SL **$244,71-en maradt** (planned-alapú). A Day 4 SL trigger fill $244,61 = $0,10 a planned-alapú stop alatt. Az ON esetében: Day 3 ON planned $106,02 → filt $109,48, manuális TWS TP1 $115,41-en. Day 5 TP1 trigger $115,41 EXACT match.
+
+**3 rétegű struktúra** (helyesbítve):
+1. **Architektúra**: a swing pivot **HELYESEN mental-stop módban van** (a design doc szerint). A Day 4-5 trigger-ek **NEM a `submit_orders.py` viselkedése**, hanem Tamás Day 3-i manuális TWS bracket-jének autonóm mellékhatása.
+2. **Monitoring-szintű**: `pt_monitor.py` nem hív `ib.positions()` vagy `ib.executions()` API-t a 22:00 EOD eval-ban → az autonóm bracket trigger-ek lokálisan láthatatlanok. **Ez egy valódi strukturális monitoring hiány**, függetlenül a Day 3-i manuális TWS bracket-ektől.
+3. **Logging-szintű**: a `daily_metrics.pnl` realized-only és **nem tartalmazza** a bracket trigger-eket. A `cumulative_pnl.json daily_history.tp1_hits/sl_hits/tp2_hits` mezők **soha nem voltak update-elve** (még a Day 2-i EC TP1 fill-re sem, ami `IFDS_SWING_EC_TP1` order ref-fel logolt). **Strukturális, régóta fennálló logging bug**, független a Day 3-i manuális TWS bracket-ektől.
+
+**W21 hatás** (a hivatalos $107,27 vs tényleges):
+
+| Mutató | Hivatalos | Tényleges (IBKR alapján) |
+|--------|-----------|--------------------------|
+| Realized P&L | +$107,27 | **+$42,63** |
+| TP1 hits | 0 | **2** (Day 2 EC + Day 5 ON) |
+| SL hits | 0 | **1** (Day 4 VLO) |
+| Open positions Day 5 záró | 10 | **8** (VLO és ON zárva) |
+| Net Liq Day 5 záró | n/a | **$99 960,50** → -$39,50 a $100k baseline-ról |
+
+**Tamás Day 6 reggeli manuális akció**: a CNC élő TWS bracket (Stop $55,50 + Limit $61,89 GTC) **manuálisan cancellálva** 2026-05-25 08:26 CEST-kor (IBKR Orders ablak megerősíti: 2 × Cancelled). **Többé NINCS autonóm bracket order az IBKR-ben** — a teljes 8-pozíciós portfolio mental-stop módban van.
+
+**Hatás a Day 7+ napokra**: Day 7 (kedd 2026-05-26) reggel újra fut a pipeline. **Ha a state reconciliation NEM deploy-olt addig**, a `submit_orders.py` Day 7-en a VLO és ON ticker-eket "already has position or swing state" miatt skipping-elné, miközben az IBKR-ben mindkettő zárva van. Téves duplikáció-szűrés.
+
+**Akció (α opció — hibrid status quo, Tamás döntése 2026-05-25)**: lásd `docs/tasks/2026-05-23-state-reconciliation-from-ibkr.md` (3 részes scope):
+1. **State reconciliation** a `pt_monitor.py` 22:00 EOD eval-ba: `ib.positions()` + `ib.executions()` query, autonóm bracket trigger detect, state update
+2. **Retroaktív Day 4-5 reconcile** (egyszeri script): a hiányzó -$227 és +$159 utólagosan rögzítése a `daily_metrics` és `cumulative_pnl`-ben
+3. **TP1/SL/TP2 hit counter fix**: a `cumulative_pnl.json daily_history` hit-mezők frissítése Day 2 (EC TP1), Day 4 (VLO SL), Day 5 (ON TP1) számára
+
+**NINCS architektúra-váltás szükséges** — a swing pivot már helyesen mental-stop módban van. A design doc és a Day 1 prezentáció NEM kell frissíteni.
+
+**Owner**: CC (W21+ azonnali deploy, Day 7 reggelére)
+
+**Referencia**:
+- Task fájl: [`docs/tasks/2026-05-23-state-reconciliation-from-ibkr.md`](../tasks/2026-05-23-state-reconciliation-from-ibkr.md)
+- Day 4 review §9: [`docs/review/2026-05-21-daily-review.md`](../review/2026-05-21-daily-review.md)
+- Day 5 review §9 + W21 reconciled summary: [`docs/review/2026-05-22-daily-review.md`](../review/2026-05-22-daily-review.md)
+- IBKR Trades log forrás: 2026-05-23 reggeli TWS screenshot-ok (Last 6 Days)
+- Tamás manuális TWS bracket cancel megerősítés: 2026-05-25 08:26 CEST TWS Orders ablak
+- A `submit_swing_market_only` kódja: `scripts/paper_trading/submit_orders.py` line ~250-330
+
 ---
 
 ## 1. P1 — Sürgős, Fázis 1 (W21-W22) deploy
+
+
 
 ### 1.1 IBKR Gateway monitoring + Telegram alert ⭐ OPERATIONAL RISK
 
