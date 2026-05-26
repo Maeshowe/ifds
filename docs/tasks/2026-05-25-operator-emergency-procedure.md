@@ -356,6 +356,112 @@ A `nuke.py` automatikusan logol:
 
 ---
 
+## 5b. Pattern 5 — Phase 1-3 weekly cron silent-fail (`phase13_ctx.json.gz` stale)
+
+### Mikor jelentkezik
+
+A vasárnap 22:00 CET `0 22 * * 0` cron (`scripts/deploy_daily.sh --phases 1-3`) **sikertelenül** vagy **részben** lefutott, és a `state/phase13_ctx.json.gz` mtime régebbi mint 24-48 óra. Detektálási csatornák:
+
+**Automatikus** (Day 90+ alapértelmezett):
+- `scripts/check_phase13_freshness.py` cron `0 23 * * 0` — vasárnap 23:00, 1 órával a cron után
+- Telegram WARNING template:
+  ```
+  ⚠️ Phase 1-3 context STALE — mtime <YYYY-MM-DD HH:MM>, age <H>h
+  A vasárnapi 22:00 heti macro cron silent-fail gyanú.
+  Manuális futtatás: ./scripts/deploy_daily.sh --phases 1-3
+  ```
+
+**Manuális diagnose**:
+```bash
+ls -la state/phase13_ctx.json.gz
+tail -50 logs/cron_$(date +%Y%m%d -v-monday)_22*.log  # legutóbbi vasárnap
+grep -E 'Traceback|Error|AttributeError' logs/cron_*_22*.log
+```
+
+**Történelmi incident**: 2026-04-03 (`e9d617a2`) — NYSE calendar bevezetésekor a `runner.py:107` `EventType.PIPELINE_COMPLETE` típuskeresési hibát rejtett (nem létező enum value). Latens 7 hétig, mert (a) csak a NYSE-closed-day kódútban tört, (b) tesztkörnyezet globálisan deaktiválta a guardot (`conftest.py`: `IFDS_SKIP_TRADING_DAY_GUARD=1`), (c) a vasárnap esti cron stderr/stdout-ja log-fájlba ment, manuálisan nem nézte senki. **Első éles crash**: 2026-05-24 22:00. **Detektálva**: 2026-05-26 (Day 7) reggel, Phase 1-3 context 8 napos. **Fixed**: `EventType.PIPELINE_COMPLETE` → `EventType.PIPELINE_END` (runner.py:107) + 4 új regression teszt (`tests/test_runner_skip_path.py`).
+
+### Recovery procedure
+
+#### 5b.1 Diagnostic (mit jelent a stale Phase 1-3 context)
+
+**Hatás**:
+- A **vasárnap esti BMI** (Phase 1) — `bmi_history.json` lehet up-to-date in-place writeból, de a **regime classification** stale (a guard előtti save-ből)
+- A **universe szűrés** (Phase 2) — szigorúan stale, a Phase 4 a 8 napos universe alapján szűr
+- A **sector rotation** (Phase 3) — szigorúan stale, a Phase 4 sector adjustment 8 napos sector ranking alapján számol
+- A **hétközi intraday** (`30 14 * * 1-5` Phase 4-6) **stale Phase 1-3 context-szel** fut, hibás jeleket termelhet
+
+**Verify parancsok**:
+```bash
+# Mac Mini-n:
+ls -la state/phase13_ctx.json.gz state/bmi_history.json state/sector_history.json
+# várt: mtime mindhárom legutóbbi VASÁRNAP 22:05 körül (Phase 1-3 success esetén)
+```
+
+#### 5b.2 Resolution — manuális Phase 1-3 futtatás
+
+**Hétköznap reggeli (10:00 előtti) re-run**:
+
+```bash
+# Mac Mini terminálban (Tamás):
+cd ~/SSH-Services/ifds
+
+# 1. Bug-fix deploy verify (kötelező — különben ujra crash):
+git log --oneline -5 | grep -E 'PIPELINE_END|skip_path'
+# várt: legutóbbi commit hash a fix-szel (pl. fix(runner): EventType.PIPELINE_END)
+
+# 2. Manuális Phase 1-3 futtatás trading-day guard-dal:
+./scripts/deploy_daily.sh --phases 1-3 2>&1 | tee logs/manual_phase13_$(date +%Y%m%d_%H%M%S).log
+
+# 3. Verify Phase 1-3 context frissült:
+ls -la state/phase13_ctx.json.gz
+# várt: mtime aktuális (mai dátum)
+
+# 4. Verify a context tartalmaz friss BMI + universe + sector rankings:
+python -c "import gzip, json; d=json.load(gzip.open('state/phase13_ctx.json.gz')); print(f'tickers={len(d.get(\"universe\", []))}  bmi={d.get(\"bmi_regime\", \"?\")}  sectors={len(d.get(\"sector_rankings\", []))}')"
+```
+
+**Trading-day NYSE-closed alatt** (vasárnap/holiday) — ha sürgős re-run kell:
+
+```bash
+# IFDS_SKIP_TRADING_DAY_GUARD override
+IFDS_SKIP_TRADING_DAY_GUARD=1 ./scripts/deploy_daily.sh --phases 1-3
+```
+
+**⚠️ FIGYELEM**: az `IFDS_SKIP_TRADING_DAY_GUARD=1` override **csak audit/debug** célokra használandó. Production cron-ban a guard MARADJON aktív, hogy a NYSE-closed napokon ne pazaroljon API rate-limit-et.
+
+#### 5b.3 Post-recovery action
+
+**Ha a stale Phase 1-3 context aktív intraday-t érintett**:
+
+- A pipeline-output (`output/execution_plan_*.csv`) **ne legyen automatikusan submitted** újra (a `submit_orders.py` már lefutott a stale context alapján)
+- **Manuális TWS pozíció review**: az adott napi entries (pl. AMH/EOG/AKAM) **stale sector ranking alapján** lettek scored — a pozíciók megmaradnak (mental-stop architektúra → bracket nem trigger autonóm), DE a Day 8+ EOD evals **a frissített Phase 1-3 context-szel** számolnak
+- **Journal entry** + **`04-risks` §X új P3 entry** (rekord audit-trail)
+
+#### 5b.4 Preventive monitoring (Day 90+ alapértelmezett)
+
+**Cron** (`crontab -l` listáz):
+```cron
+# Vasárnap 23:00 — Phase 1-3 freshness check (1 órával a 22:00 cron után)
+0 23 * * 0 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/check_phase13_freshness.py
+```
+
+A script:
+- Olvassa a `state/phase13_ctx.json.gz` mtime-t
+- Ha age > 48h (configurable) → Telegram WARNING
+- NEM auto-fix-el (Tamás döntés)
+
+### Audit-trail kötelező rögzítés
+
+A Log Review chat napi review §3 vagy egy dedikált `docs/journal/YYYY-MM-DD-phase13-stale-incident.md`-ben rögzítendő:
+- Stale detection időpont (CEST)
+- Detection forrás (Telegram WARNING vs manuális grep)
+- Manuális re-run időpont + parancs + log fájl referencia
+- Affected intraday futás(ok) (`logs/cron_intraday_*_143000.log` ticker output)
+- Affected position(s) — ha a stale alapján submitted (`logs/pt_submit_*.log`)
+- Bug root-cause (kód-szintű — pl. enum mismatch, env var missing, API timeout)
+
+---
+
 ## 6. Post-emergency állapot-ellenőrzési lista
 
 **Minden manuális beavatkozás után** kötelezően ellenőrizendő (Tamás vagy a Log Review chat következő session-jében):
@@ -447,6 +553,7 @@ def detect_orphan_child_orders(ib, swing_state):
 | Pattern 2 (Gateway timeout) | Day 3 incident | `04-risks` §0.5 + `docs/tasks/2026-05-21-submit-retry-storm.md` |
 | Pattern 3 (bracket cleanup) | Day 4-5 felfedezés + Day 6 CNC cancel | `04-risks` §0.10 + `docs/review/2026-05-22-daily-review.md` §9 |
 | Pattern 4 (`nuke.py`) | Day 63 milestone HYMC eset (2026-05-14) | `04-risks` §0.4 legacy entry + `docs/decisions/2026-05-14-day63-decision-outcome.md` |
+| Pattern 5 (Phase 1-3 cron silent-fail) | 2026-05-24 vasárnap esti cron crash + 2026-05-26 Day 7 reggeli detektálás | `e9d617a2` regression commit, `runner.py:107` fix-szel deploy, `tests/test_runner_skip_path.py` 4 regression teszt |
 
 ### Kapcsolódó task-ok
 
@@ -494,13 +601,17 @@ State fájl reset-hez NEM ez a tool — lásd §5.4.
 |--------|-------|-------------|------|
 | v1 (DRAFT) | 2026-05-25 | Kezdő verzió, 4 pattern W21 tapasztalat alapján | Log Review chat |
 | **v1.1 (REVIEWED)** | **2026-05-25** | **CC kódbázis-verify: `nuke.py` flag-ek javítva (`--state-only`/`--full` fikció törölve), `check_gateway.py --verbose` flag törölve (nincs argparse), `reconcile_state_from_ibkr` → `_reconcile_state_from_ibkr` (private prefix), §5.4 új szekció (state reset NEM `nuke.py`-vel)** | **CC** |
+| **v1.2** | **2026-05-26** | **Pattern 5 hozzáadás (Phase 1-3 weekly cron silent-fail) — 2026-05-24-i éles crash incident alapján. §8 forrás-tábla bővítés. `EventType.PIPELINE_COMPLETE` → `_END` fix runner.py:107 + 4 regression teszt (`tests/test_runner_skip_path.py`)** | **CC** |
 | TBD | TBD | Tamás felülvizsgálat + kiegészítés | Tamás |
 
 ### Tervezett frissítések (Day 7+ alapján)
 
-- **Pattern 1 (Error 354)**: ha a Workstation Configuration fix tartós, **ezt a pattern-t le lehet egyszerűsíteni** (vagy a `04-risks` §0.4-be visszatérni mint "ritka esemény, NEM dokumentált procedure")
-- **Pattern 3 (bracket cleanup)**: a P0 task Rész 1 orphan-detect logika után **a manual cancel** ritkábban szükséges (csak warning + Tamás döntése)
-- **Pattern 4 (`nuke.py`)**: a P3 enhancement (orphan bracket cancel a nuke előtt) után **ezt a pattern-t egyszerűsíteni lehet** (kevesebb manuális lépés)
+- **Pattern 1 (Error 354)**: ha a Workstation Configuration fix tartós, **a §2.3 manual TWS fallback** archive-only referenceként megmarad (mint a Day 4-5-i autonóm bracket-trigger forrás-magyarázat), DE a §2.1-§2.2 (Configuration fix) **kiemelt fókuszt kap** mint elsődleges recovery path. **Hivatkozás**: `04-risks` §0.10 (Day 3 manual TWS bracket consequence).
+- **Pattern 3 (bracket cleanup)**: a P0 task Rész 1 orphan-detect logika után **a manual cancel** ritkábban szükséges. **Backlog szétbontás** (W22-W23): (a) **detect-only** WARNING Telegram + manual cancel, ~30 min CC integrálva a Rész 1 iterációba; (b) **auto-cancel mode** config flag mögött, ~1.5h CC + extensive testing, **csak ha (a) 5+ napi stabil** és Tamás explicit kéri.
+- **Pattern 4 (`nuke.py`)**: a P3 enhancement (orphan bracket cancel a nuke előtt) után **ezt a pattern-t egyszerűsíteni lehet** (kevesebb manuális lépés).
+- **⭐ Új Pattern 5 javaslat (W22 backlog)**: IBKR Gateway 2FA timeout recovery procedure (mobile prompt timeout esetén). **NEM volt W21-i incident**, P3 nice-to-have.
+- **⭐ §5.3 (post-nuke recovery) kockázat-leírás bővítés (v1.2 TODO)**: stale state-pattern Day 7 előtti `nuke.py` futtatás esetén — **mennyi időre veszélyes** a state ↔ IBKR divergence? Pl. ha Day 4-en futtatod a `nuke.py`-t és 22:00-ig nem fut `_reconcile_state_from_ibkr` mert még Day 7 előtt vagy → a `pt_submit` Day 5 reggel **stale state** alapján skipping-el ticker-eket. Bővítendő részletes timing-diagram-mal.
+- **CC kódbázis-verify rule (v1.2 TODO)**: a Log Review chat-i `.claude/rules/ifds-rules.md`-ben javasolt új rule rögzíteni: **"ha technikai flag-eket vagy command signature-öket dokumentálok, KÖTELEZŐ beolvasni a tényleges `argparse` blokkot vagy a script első 50 sorát"**. Ez a v1 → v1.1 átmenet 6 ténybeli hiba ismétlésének megelőzése. **Dev chat döntés szükséges**: jóváhagy-e + ki implementálja az ifds-rules.md update-t.
 
 ---
 

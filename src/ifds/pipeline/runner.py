@@ -104,7 +104,7 @@ def run_pipeline(
         ):
             holiday = get_holiday_name(_today)
             msg = f"NYSE closed today{f' ({holiday})' if holiday else ''}. Pipeline skipped."
-            logger.log(EventType.PIPELINE_COMPLETE, Severity.INFO, message=msg)
+            logger.log(EventType.PIPELINE_END, Severity.INFO, message=msg)
             print(f"\n[SKIP] {msg}")
             try:
                 from ifds.output.telegram import _send_message, _pipeline_timestamp
