@@ -165,6 +165,42 @@ class TestComputeSwingNotional:
         assert notional == 0.0
         assert diag["reason"] == "invalid_atr_or_price"
 
+    def test_atr_pct_below_floor_rejected(self, config):
+        """§9.3: JHG Day 8 case — ATR_pct 0.17% < 0.5% floor → reject."""
+        stock = _make_stock("JHG", price=51.84, atr=0.09)  # atr_pct ≈ 0.00174
+        notional, _, diag = compute_swing_notional(stock, config)
+        assert notional == 0.0
+        assert diag["reason"] == "atr_pct_below_floor"
+        assert diag["floor"] == 0.005
+
+    def test_atr_pct_above_ceiling_rejected(self, config):
+        """§9.5: AKAM Day 7 case — ATR_pct 6.78% > 5% ceiling → reject."""
+        stock = _make_stock("AKAM", price=147.23, atr=9.985)  # atr_pct ≈ 0.0678
+        notional, _, diag = compute_swing_notional(stock, config)
+        assert notional == 0.0
+        assert diag["reason"] == "atr_pct_above_ceiling"
+        assert diag["ceiling"] == 0.05
+
+    def test_atr_pct_at_floor_accepted(self, config):
+        """Boundary — exactly at floor (0.5%) passes (not strictly below)."""
+        stock = _make_stock("XYZ", price=100.0, atr=0.5)  # atr_pct = 0.005
+        notional, _, _ = compute_swing_notional(stock, config)
+        assert notional > 0.0
+
+    def test_atr_pct_at_ceiling_accepted(self, config):
+        """Boundary — exactly at ceiling (5%) passes (not strictly above)."""
+        stock = _make_stock("XYZ", price=100.0, atr=5.0)  # atr_pct = 0.05
+        notional, _, _ = compute_swing_notional(stock, config)
+        assert notional > 0.0
+
+    def test_atr_pct_band_disabled_by_config(self, config):
+        """floor=0 / ceiling=inf disables the band (backwards compatible)."""
+        config.tuning["swing_atr_pct_floor"] = 0.0
+        config.tuning["swing_atr_pct_ceiling"] = float("inf")
+        stock = _make_stock("JHG", price=51.84, atr=0.09)  # would normally be rejected
+        notional, _, _ = compute_swing_notional(stock, config)
+        assert notional > 0.0
+
 
 # ============================================================================
 # _calculate_swing_position

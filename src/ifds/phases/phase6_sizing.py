@@ -1345,6 +1345,20 @@ def compute_swing_notional(
     if atr_pct <= 0:
         return 0.0, 1.0, {"reason": "invalid_atr_pct"}
 
+    # ATR_pct qualifying band (§9.3 floor + §9.5 ceiling). Below floor the TP/SL
+    # band is tighter than daily noise (false triggers + inflated qty); above
+    # ceiling intraday whipsaw breaks the 3-5 day swing intent. Reject either way.
+    atr_pct_floor = config.tuning.get("swing_atr_pct_floor", 0.0)
+    atr_pct_ceiling = config.tuning.get("swing_atr_pct_ceiling", float("inf"))
+    if atr_pct < atr_pct_floor:
+        return 0.0, 1.0, {"reason": "atr_pct_below_floor", "atr_pct": atr_pct, "floor": atr_pct_floor}
+    if atr_pct > atr_pct_ceiling:
+        return 0.0, 1.0, {
+            "reason": "atr_pct_above_ceiling",
+            "atr_pct": atr_pct,
+            "ceiling": atr_pct_ceiling,
+        }
+
     equity = config.runtime["account_equity"]
     risk_pct = config.tuning["swing_risk_per_trade_pct"]
     stop_mult = config.tuning["swing_stop_atr_multiple"]

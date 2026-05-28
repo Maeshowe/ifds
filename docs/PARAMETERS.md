@@ -109,6 +109,8 @@ Phase 6 multiplier chain swing-módra:
 | `swing_tp1_atr_multiple` | 1.5 | P6 | TP1 swing-spec ATR multiple (Task #4 felülírta a Task #3 1.25-öt) |
 | `swing_tp2_atr_multiple` | 3.0 | P6 | TP2 swing-spec ATR multiple (Task #4 felülírta a Task #3 2.0-t) |
 | `swing_min_notional` | 1_000 | P6 | Numerikus floor — $1k alatti notional → skip |
+| `swing_atr_pct_floor` | 0.005 | P6 | ATR_pct kvalifikáló alsó küszöb (§9.3). `atr/entry < 0.5%` → entry skip (TP/SL sáv szűkebb a napi noise-nál, felfújt qty). 0.0 = kikapcsolva |
+| `swing_atr_pct_ceiling` | 0.05 | P6 | ATR_pct kvalifikáló felső küszöb (§9.5). `atr/entry > 5%` → entry skip (intraday whipsaw töri a 3-5 napi swing szándékot). inf = kikapcsolva |
 | `max_positions` (runtime) | 12 | P6 | Régi: 5 — összhangban a swing cap-pel |
 | `max_gross_exposure` (runtime) | 150_000 | P6 | 12 × ~$12.5k átlag (régi: 80k) |
 | `max_single_ticker_exposure` (runtime) | 15_000 | P6 | Per-ticker tighter (régi: 20k) — kisebb pozíciók, több név |
@@ -146,7 +148,7 @@ pedig same-day 21:40 CEST MOC SELL a `close_positions.py --mode=time_stop`-on.
 | `swing_mental_stop_atr_multiple` | 2.0 | monitor eod | `stop_level = entry - 2.0×ATR` |
 | `swing_trail_atr_multiple` | 1.0 | monitor eod | Trail aktivál TP1 után, `trail_sl = close - 1.0×ATR` |
 | `swing_hard_sl_weekly_cumulative_pct` | -0.08 | monitor eod | -8% weekly cum P&L → HARD_SL (precedes MENTAL_SL) |
-| `swing_time_stop_trading_days` | 5 | monitor eod | 5 calendar days → TIME_STOP (MOC same-day) |
+| `swing_time_stop_trading_days` | 5 | monitor eod | 5 **trading** days (NYSE sessions; weekends/holidays kizárva, §9.2 fix 2026-05-28) → TIME_STOP (MOC same-day) |
 | `swing_positions_state_file` | `state/swing_positions.json` | submit/close/monitor | State source-of-truth |
 | `ibkr_bracket_enabled` | False | submit | A legacy 3-order bracket OCA kikapcsolva |
 | `loss_exit_intraday_enabled` | False | (legacy) | Régi -2% intraday LOSS_EXIT KIKAPCSOLVA (DTE/SQM duplikált bug osztály megszűnt) |

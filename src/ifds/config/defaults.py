@@ -303,6 +303,13 @@ TUNING = {
     "swing_tp1_atr_multiple": 1.5,  # Task #4: swing-specific TP1 (was 1.25 in Task #3)
     "swing_tp2_atr_multiple": 3.0,  # Task #4: swing-specific TP2 (was 2.0 in Task #3)
     "swing_min_notional": 1_000,  # Skip entries smaller than $1k (numerical floor)
+    # ATR_pct qualifying band (§9.3 floor + §9.5 ceiling, 2026-05-28) — reject swing
+    # entries whose ATR/price falls outside [0.5%, 5%]. Below floor: TP/SL band tighter
+    # than daily noise → false triggers + inflated qty (MASI Day 1 0.165%, JHG Day 8
+    # 0.17%). Above ceiling: intraday whipsaw breaks the 3-5 day swing intent (AKAM
+    # Day 7 6.78%). 0.0 floor / inf ceiling disables the respective bound.
+    "swing_atr_pct_floor": 0.005,
+    "swing_atr_pct_ceiling": 0.05,
     # Swing Execution + Exit — Task #4 (2026-05-18, Day 63 §3.1, §3.6, §3.8, §3.12)
     # Mental-stop architecture: IBKR holds only the open position; stop, TP1,
     # TP2 and trail are evaluated by the daily EOD eval (22:00 CEST) and
