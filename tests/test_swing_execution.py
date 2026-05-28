@@ -250,14 +250,19 @@ def test_eod_eval_returns_hard_sl_when_weekly_below_minus_8pct():
 
 
 def test_eod_eval_returns_time_stop_day5():
-    """days_held >= 5 → TIME_STOP (same-day MOC, NOT next-day)."""
+    """days_held >= 5 (trading days) → TIME_STOP (same-day MOC, NOT next-day).
+
+    Entry Mon 2026-05-18, evaluated Tue 2026-05-26: trading sessions held are
+    5/19, 5/20, 5/21, 5/22, 5/26 (Memorial Day 5/25 excluded) = 5. This is the
+    real Day 7 LBRT/MASI/EC scenario.
+    """
     pos = _pos()
     action, updates = evaluate_position_eod(
         pos,
         today_close=101.5,
         today_high=102.5,
         today_low=99.0,
-        today_date=date.fromisoformat("2026-05-23"),  # 5 days after 2026-05-18
+        today_date=date.fromisoformat("2026-05-26"),  # 5 trading days after 2026-05-18
         config=CFG,
         equity=EQUITY,
     )
@@ -432,31 +437,49 @@ def test_apply_executed_exit_full_exit_returns_none():
 # ---------------------------------------------------------------------------
 
 
-def test_friday_entry_time_stop_at_5_calendar_days():
-    """Friday entry → 5-day calendar diff yields TIME_STOP.
+def test_friday_entry_no_premature_time_stop_trading_days():
+    """Friday entry → following Wednesday is only 3 trading days → NO TIME_STOP.
 
-    Note: the spec says "5 trading days" but the implementation uses
-    ``(today_date - entry_date).days``. A Friday → following Wednesday is
-    5 trading days (= 5 calendar days). Friday → next Friday is 7 calendar
-    days (still TIME_STOP because >= 5).
+    §9.2 fix regression guard. Under the old calendar-day counting, a Friday
+    entry hit 5 calendar days by the following Wednesday and TIME_STOP'd
+    prematurely (the WMB/DXCM 2026-05-27 case, -$479 cost). Trading-day
+    counting gives 3 (5/18, 5/19, 5/20) → the position keeps holding.
     """
     friday_entry = "2026-05-15"  # Friday
     pos = _pos(entry_date=friday_entry)
 
-    # Following Wednesday = +5 calendar days, 3 trading days inclusive
-    # The implementation is calendar-based (simpler, conservative — earlier exit
-    # on weekends is fine because positions aren't actively traded then).
     action, updates = evaluate_position_eod(
         pos,
         today_close=101.0,
         today_high=102.0,
         today_low=99.0,
-        today_date=date.fromisoformat("2026-05-20"),  # Wed = 5 calendar days
+        today_date=date.fromisoformat("2026-05-20"),  # Wed = 3 trading days held
         config=CFG,
         equity=EQUITY,
     )
-    assert action == ACTION_TIME_STOP
-    assert updates["days_held"] == 5
+    assert action == ACTION_HOLD
+    assert updates["days_held"] == 3
+
+
+def test_weekend_holiday_does_not_inflate_days_held():
+    """§9.2: weekends + holidays must not count toward the time-stop.
+
+    WMB real case — entry Thu 2026-05-21, evaluated Wed 2026-05-27. Calendar
+    diff is 6 days (would TIME_STOP), but only 3 NYSE sessions elapsed
+    (5/22, 5/26, 5/27; 5/23-24 weekend + 5/25 Memorial Day excluded).
+    """
+    pos = _pos(entry_date="2026-05-21")  # Thursday
+    action, updates = evaluate_position_eod(
+        pos,
+        today_close=101.0,
+        today_high=102.0,
+        today_low=99.0,
+        today_date=date.fromisoformat("2026-05-27"),  # Wed, 6 calendar / 3 trading days
+        config=CFG,
+        equity=EQUITY,
+    )
+    assert updates["days_held"] == 3
+    assert action == ACTION_HOLD
 
 
 # ---------------------------------------------------------------------------

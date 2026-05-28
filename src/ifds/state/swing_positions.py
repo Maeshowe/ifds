@@ -188,12 +188,17 @@ def evaluate_position_eod(
         ``state_updates`` contains ``days_held``, ``weekly_pnl_pct``, and
         (when the trail ratchets upward) ``trail_sl``.
     """
+    from ifds.utils.calendar import trading_days_between
+
     cfg = config or {}
     hard_sl_pct = cfg.get("swing_hard_sl_weekly_cumulative_pct", -0.08)
     trail_mult = cfg.get("swing_trail_atr_multiple", 1.0)
     time_stop_days = cfg.get("swing_time_stop_trading_days", 5)
 
-    days_held = (today_date - date.fromisoformat(position.entry_date)).days
+    # Trading-day based holding period — weekends/holidays must NOT count toward
+    # the time-stop (§9.2 fix). Calendar-day counting prematurely TIME_STOP'd
+    # WMB/DXCM after 2 trading days on 2026-05-27 (-$479 demonstrated cost).
+    days_held = trading_days_between(date.fromisoformat(position.entry_date), today_date)
     weekly_pnl_pct = compute_weekly_pnl_pct(position, today_close, equity)
 
     updates: dict[str, Any] = {

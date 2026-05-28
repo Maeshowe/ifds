@@ -132,6 +132,29 @@ def next_nyse_trading_day(d: date | None = None) -> date:
     return current
 
 
+def trading_days_between(start: date, end: date) -> int:
+    """Count NYSE trading sessions strictly after ``start``, up to and including ``end``.
+
+    Used for the trading-day-based holding period (``days_held``) so weekends and
+    holidays do not inflate the count. ``start`` is the entry date; it is excluded
+    from the count (the entry day itself is day 0), while ``end`` is included when
+    it is a session. Returns 0 when ``end <= start``.
+
+    Example: entry on Fri, evaluated the next Wed after a Mon holiday →
+    sessions are {Fri, Tue, Wed}; excluding the Fri entry day → 2.
+    """
+    if end <= start:
+        return 0
+    import pandas as pd
+
+    cal = _get_nyse_calendar()
+    sessions = cal.sessions_in_range(pd.Timestamp(start), pd.Timestamp(end))
+    count = len(sessions)
+    if cal.is_session(pd.Timestamp(start)):
+        count -= 1  # entry day does not count toward days held
+    return count
+
+
 def get_holiday_name(d: date | None = None) -> str | None:
     """Get NYSE holiday name, or None if not a holiday.
 
