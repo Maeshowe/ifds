@@ -1,5 +1,6 @@
 # IFDS — Current Status
 <!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
+<!-- Utolsó frissítés: 2026-05-28 (Day 8 záró után, Log Review chat + IBKR MCP connector). **4 nyitott pozíció** (AMH TIME_STOP flag Day 9, EOG -$239 unrealized stop-közelben, AKAM, JHG új 15% koncentrált). **⚠️ AKTÍV P0 (§0.11)**: realized P&L tracking gap — a Day 8-i 7 exit (-$695,77 realized) NINCS rögzítve a cumulative_pnl/daily_metrics-ben. **Valódi cumulative IBKR Net Liq alapon: -$779,64** (hivatalos daily_metrics tévesen +$39,33, eltérés $819). Day 8: EC TP2 +$232 (első teljes TP1→TP2 ciklus, EC total +$344), 6 TIME_STOP -$928 (LBRT -$419 + WMB -$379 Energy mélypont). `_reconcile_state_from_ibkr` 2/2 éles SILENT OK. Day 1-8 closed realized -$651,40 (bug-torzított: days_held calendar-bug + stale context + ATR floor hiány). Friss review-k: docs/review/2026-05-26 + 2026-05-27. 04-risks teljes Day 1-8 átvezetés (§9-10 új). Új task: docs/tasks/2026-05-28-automated-daily-review-pipeline.md. -->
 <!-- Utolsó frissítés: 2026-05-25 (Memorial Day, W21 záró) /wrap-up. **8 nyitott pozíció** (LBRT, MASI, EC remainder, PFGC, CNC, WMB, DXCM, AMH) post-reconcile (VLO Day 4 SL + ON Day 5 TP1 retroactively rögzítve). **W21 RECONCILED**: Net $+37.13, Cumulative $+39, Win 2/5 (Day 2 EC + Day 5 ON TP1), 1 SL (Day 4 VLO). Mai 3 commit + 1 wrap-up: 55e5ff2 retroactive_reconcile_w21.py (Rész 2), 5c8e79a pt_monitor::reconcile_state_from_ibkr + ibkr_reconciliation lib (Rész 1), f1b6acd Rész 3 backlog task. Architektúra megerősítve: mental-stop mód HELYES, Day 4-5 bracket-trigger-ek Tamás Day 3-i manuális TWS bracket-jeinek mellékhatása. 1756 → **1804 passing** (+48 új teszt), 0 regression. Mac Mini --apply lefutott (state 10→8, cumulative $107.27→$39.33). Handoff: docs/handoff/2026-05-25-w21-close-handoff.md, Journal: docs/journal/2026-05-25-session-close.md. Day 7 (kedd 5/26) 14:00 CEST deadline — bőven időnk. MASI várt TIME_STOP Day 7 22:00 EOD eval-on (days_held=5). -->
 <!-- Korábbi: 2026-05-20 21:10 CEST — Day 3 swing pivot LEZÁRVA (/wrap-up). 7 nyitott pozíció: LBRT/MASI/EC/PFGC + Day 3 új VLO 16@$258.55, ON 27@$109.48, CNC 95@$59.27 (state≡IBKR reconciled twice). Error 354 incident RESOLVED — IBKR API → Precautions → "Bypass Order Precautions for API Orders" enable (verifikálva 1-share VLO smoke @ t=1.0s Filled @ $254.08). 8 mai commit (aba9720 Task #G log_setup, 1eb9755 shadow_snapshot, bd54857 Task #H phase13_context, d930d14 Telegram §8.1.9, 3bf382b+e3677f2 TIF diagnostic patches, 345ad09+8572a3e docs §0.4). 1746 passing, 0 regression. Journal: docs/journal/2026-05-20-session-close.md. Holnap Day 4 cron már TISZTÁN fut új tickerekkel is. -->
 <!-- Korábbi: 2026-05-19 16:50 CEST — Day 2 stabil. Task #T (Telegram swing-aware, 5 réteg, 27 új teszt) + #D (state/IBKR reconcile, 7 teszt) + #E (Phase 1-3 freshness, 5 teszt) DEPLOYED. EC TP1 50% SELL filled 15:30. 4 nyitott pozíció: LBRT/MASI/EC-166/PFGC. 1740 passing. Holnap Task #G (pt_monitor replay diagnózis, P0, ~60 min). -->
@@ -198,18 +199,32 @@ Részletes mátrix: [`docs/decisions/2026-05-14-day63-decision-outcome.md`](deci
 
 ## Paper Trading
 
-**Day 63/63 LEZÁRULT** | IBKR DUH118657 (kb. máj 22-én reset)
+**Swing pivot Day 8/63 fut** | IBKR DUH118657 (paper, $100k baseline 2026-05-18 reset)
 
-A Fázis 1 cleanup végén Tamás `nuke.py --positions` futtatja, IBKR paper account reset, $100k újra. **Új paper trading kb. jún 23 (W26 D1) indul.**
+> **⚠️ P0 P&L TRACKING GAP aktív (§0.11)** — a `cumulative_pnl.json`/`daily_metrics` NEM rögzíti az exit realized P&L-t (close_positions.py Rész 3 nincs deploy-olva). **A valódi P&L forrás jelenleg az IBKR MCP connector** (get_account_summary Net Liq + get_account_trades). Hivatalos számok lent zárójelben tévesek.
 
-### W20 utolsó hete (régi rendszer)
+| Mutató | Hivatalos (daily_metrics) | **Valódi (IBKR)** |
+|--------|---------------------------|-------------------|
+| Cumulative (Day 8 záró) | +$39,33 ⚠️ | **-$779,64** (Net Liq) / -$651,40 realized |
+| Net Liquidation | n/a | **$99 220,36** |
+| Open positions | 4 | 4 (AMH, EOG, AKAM, JHG) |
+| Day 8 realized | $0 ⚠️ | **-$695,77** (7 exit) |
 
-| Nap | Net P&L | Excess | Megjegyzés |
-|---|---|---|---|
-| W20 D1 (h, máj 11) | +$28 | -0.19% | mild bull underperform, manuális 17:15 entry, snapshot fix DEPLOYED |
-| W20 D2 (k, máj 12) | -$369 | -0.20% | TGB+NVDA LOSS_EXIT, entry timing finding |
-| W20 D3 (sz, máj 13) | -$189 | -0.74% | bull rally EXTRÉM underperform, FORM/AAPL bracket bug |
-| W20 D4 (cs, máj 14) | **DAY 63** | — | **Milestone** — outcome doc készítés |
+### Swing pivot Day 1-8 (W21-W22)
+
+| Nap | Dátum | Esemény | Realized (IBKR) |
+|-----|-------|---------|------------------|
+| D1 | 5/18 (h) | 3 entry (LBRT/MASI/EC) | $0 |
+| D2 | 5/19 (k) | EC TP1 | +$112,31 |
+| D3 | 5/20 (sz) | 3 entry (VLO/ON/CNC), Error 354 RESOLVED | -$6,37 (VLO cleanup) |
+| D4 | 5/21 (cs) | VLO SL (Tamás TWS bracket), WMB/DXCM entry | -$220,69 |
+| D5 | 5/22 (p) | ON TP1, AMH entry | +$159,12 |
+| D6 | 5/25 (h) | Memorial Day NO-OP | — |
+| D7 | 5/26 (k) | EOG+AKAM entry (stale context bug), reconcile 1. SILENT OK | $0 |
+| D8 | 5/27 (sz) | EC TP2 + 6 TIME_STOP, JHG entry, reconcile 2. SILENT OK | **-$695,77** |
+| **Closed total** | | | **-$651,40** |
+
+**Day 9+ figyelő**: EOG stop-közelben ($135 vs stop $133,42), JHG ATR-floor bug első teszt (0,17% ATR), AMH TIME_STOP Day 9. **Day 21 checkpoint** ($-1 500 küszöb) — jelenleg -$779,64, buffer ~$720.
 
 ---
 
@@ -240,11 +255,11 @@ A Fázis 1 cleanup végén Tamás `nuke.py --positions` futtatja, IBKR paper acc
 
 ## Blokkolók
 
-**Nincs aktív blokkolók**. A Fázis 1 cleanup a Tamás IBKR reset után (máj 22-25 körül) indul érdemben.
+**⚠️ AKTÍV P0 (2026-05-28)**: **realized P&L tracking gap** (`04-risks` §0.11) — a `close_positions.py` exit-jei nem írnak a `cumulative_pnl.json`/`daily_metrics`-be. A Day 8-i -$695,77 realized hiányzik. **Azonnali deploy szükséges**: `docs/tasks/2026-05-26-daily-metrics-auto-update-from-reconcile.md` Rész 3. Amíg nem áll, a P&L tracking csak az IBKR MCP connector-on keresztül megbízható.
 
-**Várt blokkolók (Fázis 3 előtt)**:
-- IBKR paper account állapota (Tamás manuális reset szükséges)
-- Új design dokumentumok (Fázis 2 végén) Tamás review-ja
+**⚠️ P1 (magas)**: **days_held calendar-bug** (`04-risks` §9.2) — a TIME_STOP calendar-day alapon triggerel (nem trading-day), Day 8-on $479 túl-korai vesztés. A swing pivot tézis (trading-day hold) tisztességes teszteléséhez fix szükséges a Day 21 checkpoint előtt.
+
+**A teljes aktív prioritás-lista**: `docs/master-reference/04-risks-and-open-questions.md` §10 (prioritás-összefoglaló tábla).
 
 ---
 

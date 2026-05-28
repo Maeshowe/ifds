@@ -1,7 +1,9 @@
 # 04 — Aktív kockázatok és nyitott kérdések
 
-**Utoljára frissítve**: 2026-05-19 (Day 2 — Task #T komplex Telegram audit + Task #D Phase 1-3 heartbeat + Task #E State/IBKR reconciliation ✅ DONE, commit `5dfab55`)
+**Utoljára frissítve**: 2026-05-28 (Day 8 — teljes Day 1-8 finding-átvezetés a Log Review chat által, Tamás kérésére. Új P0: P&L tracking gap (§0.11). Új §9 szekció: Day 6-8 finding-ok.)
 **Cél**: a swing pivot W21+ aktív backlog tételeit és a strukturális finding-okat tartalmazza, prioritás-sorrendben. **Ezt használd, ha gyorsan akarsz tudni mi a legfontosabb most**.
+
+> **⚠️ AKTÍV P0 (2026-05-28)**: a Day 8 realized P&L tracking gap (§0.11) — a `close_positions.py` exit-jei NEM frissítik a `cumulative_pnl.json`/`daily_metrics`-et. Valódi vs hivatalos cumulative eltérés **$819** (IBKR Net Liq -$779,64 vs daily_metrics +$39,33). Azonnali deploy: `2026-05-26-daily-metrics-auto-update-from-reconcile.md` Rész 3.
 
 > **Korszakváltás (2026-05-14)**: a Day 63 milestone outcome alapján a régi 15-elemű backlog **drasztikusan átalakult**: **6 dropolva** (a swing pivot strukturálisan eliminálja), **4 átalakítva**, **6 új aktív**. A swing pivot 3 fázisú reset roadmap a `docs/decisions/2026-05-14-day63-decision-outcome.md` 6. fejezetében.
 
@@ -33,9 +35,11 @@
 
 **Másodlagos finding ugyanabból a 16:37 ablakból**: lásd §8.1.7 — a `state/uw_shadow/2026-05-19.json` is overwritten lett ugyanazzal a `_mock_phase4()` AAPL fixture-rel. Ugyanaz a class of bug (unmocked production sink a `tests/test_pipeline_e2e.py::test_full_pipeline_flow`-ban), mint a `d3fce73` Phase 4 snapshot fix-elte volt — csak más fájlon. Külön fix-elve commit-tal.
 
-### 0.2 ⚠️ `pt_submit` előzetes kísérlet 14:34:13 CEST + Error 10349 TIF (P0)
+### 0.2 ✅ `pt_submit` előzetes kísérlet 14:34:13 CEST + Error 10349 TIF (WITHDRAWN 2026-05-28)
 
-**Mi**: A `pt_submit_2026-05-18.log` szerint **két submit attempt** futott:
+**Státusz**: ✅ WITHDRAWN — a Day 4, 5, 7, 8 submit-ok (4/4 nap) mind tiszta 15:31:01+ futási időpontban, NINCS Error 10349 TIF, NINCS pre-market előzetes kísérlet. A §0.4 (Error 354 RESOLVED, `Bypass Order Precautions`) + §0.5 (retry orchestrator) együtt strukturálisan lezárta. A Day 1-i 14:34 pre-market submit egyszeri legacy wrapper artefakt volt (§8.2.4 `deploy_intraday.sh` audit), nem ismétlődött. **Lezárva 4 nap stabil submit után.**
+
+**Mi (eredeti)**: A `pt_submit_2026-05-18.log` szerint **két submit attempt** futott:
 - **14:34:13 CEST** — 56 perccel a 15:30 entry előtt. **NEM dokumentált a briefingben**. MASI sikerült, **LBRT és EC `status=Cancelled`** Error 10349 ("Order TIF was set to DAY based on order preset")
 - **15:30:02 CEST** — "Skipping LBRT/MASI/EC: already has position or swing state" — vagyis a 14:34 és 15:30 között **mindhárom megnyílt az IBKR-ben**, de **nem világos hogyan** (a 14:34 cancel és a 15:30 skipping között valami történt — silent retry? IBKR async fill? manuális resubmit?)
 
@@ -152,9 +156,11 @@ A heartbeat 900s threshold csak akkor trippel, ha a teljes outer-retry budget se
 - Tesztek: `tests/test_retry_orchestrator.py` (9 új)
 - Day 3 incident timeline: `logs/pt_submit_2026-05-20.log` (15:31 cron failure + 5 manual retry/diagnostic)
 
-### 0.10 ⚠️ State ≡ IBKR desync — Tamás Day 3-i manuális TWS bracket-jeinek autonóm trigger-je (ÚJ P0, felfedezve 2026-05-23, helyesbítve 2026-05-25)
+### 0.10 ⚠️ State ≡ IBKR desync — Tamás Day 3-i manuális TWS bracket-jeinek autonóm trigger-je (PARTIAL RESOLVED 2026-05-28)
 
-**Státusz**: ⚠️ OPEN — Day 7 (kedd 2026-05-26) reggeli pipeline futás ELOTT deploy-andó. Task: [`docs/tasks/2026-05-23-state-reconciliation-from-ibkr.md`](../tasks/2026-05-23-state-reconciliation-from-ibkr.md) (P0, 4-5 óra CC munka az α opció szerint).
+**Státusz**: 🔶 PARTIAL RESOLVED — a **monitoring réteg (Rész 1) DEPLOY-OLVA** (commit `5c8e79a`) és **2/2 napon ÉLESEN validálva** (Day 7 + Day 8 `_reconcile_state_from_ibkr` → SILENT OK, state ≡ IBKR). A Day 6 reggeli CNC bracket cancel óta NINCS autonóm IBKR bracket — a mental-stop architektúra integritása megerősítve. **DE a logging réteg (Rész 3) hiánya P0 KRITIKUS — lásd §0.11.** Task: [`docs/tasks/2026-05-23-state-reconciliation-from-ibkr.md`](../tasks/2026-05-23-state-reconciliation-from-ibkr.md).
+
+**Day 7-8 update (2026-05-28)**: a Rész 1 (`pt_monitor.py::_reconcile_state_from_ibkr`) az ELSŐ (Day 7) és MÁSODIK (Day 8) éles futáson is SILENT OK — `pt_reconcile_{date}.log` mindkét napon "match (silent exit)". A monitoring strukturálisan működik. A Rész 2 (retroaktív Day 4-5 reconcile) lefutott. **A Rész 3 (daily_metrics/cumulative_pnl auto-update az exit-ekből) MÉG NINCS deploy-olva** → ez okozza a §0.11 P0 tracking gap-et.
 
 **Mi (helyesbített magyarázat)**: A `submit_orders.py::submit_swing_market_only` kódja explicit: `# Single market BUY (no bracket).` (Day 63 §3.12). A swing pivot architektúra **MENTAL-STOP módban van** (helyes, ahogy a design doc írja) — NINCS autonóm IBKR bracket order a cron-driven 7 entry-re (LBRT, MASI, EC, PFGC, WMB, DXCM, AMH; orderRef `IFDS_SWING_{sym}`).
 
@@ -204,6 +210,43 @@ A heartbeat 900s threshold csak akkor trippel, ha a teljes outer-retry budget se
 - IBKR Trades log forrás: 2026-05-23 reggeli TWS screenshot-ok (Last 6 Days)
 - Tamás manuális TWS bracket cancel megerősítés: 2026-05-25 08:26 CEST TWS Orders ablak
 - A `submit_swing_market_only` kódja: `scripts/paper_trading/submit_orders.py` line ~250-330
+
+### 0.11 ⚠️⚠️ Realized P&L tracking gap — a `close_positions.py` exit-jei nem frissítik a metrikát (ÚJ P0, felfedezve 2026-05-28 Day 8)
+
+**Státusz**: ⚠️ OPEN, P0 KRITIKUS — azonnali deploy: `docs/tasks/2026-05-26-daily-metrics-auto-update-from-reconcile.md` Rész 3.
+
+**Mi**: A Day 8-on (2026-05-27) **7 exit** történt az IBKR-en (EC TP2 + 6 TIME_STOP MOC), összesen **-$695,77 realized P&L**-lel. Sem a `cumulative_pnl.json`, sem a `daily_metrics/2026-05-27.json` NEM rögzítette — mindkét fájl `pnl: 0`, `exits: mind 0`.
+
+| Forrás | Day 8 P&L | Cumulative |
+|--------|-----------|-----------|
+| `daily_metrics` + `cumulative_pnl.json` | **$0** | **+$39,33** |
+| **IBKR (kanonikus, `get_account_trades`)** | **-$695,77 realized** | **-$656,44** (realized) |
+| **IBKR Net Liq (`get_account_summary`)** | -$428,77 | **-$779,64** |
+
+**A hivatalos tracking $819-cal felüljelez.**
+
+**Root cause**: a `close_positions.py` (TP2/MOC/SL exit) végrehajtja az IBKR SELL-t és frissíti a state-et (10→4 pozíció ✓), DE NEM ír a `cumulative_pnl.json`/`daily_metrics`-be. A realized P&L tracking lánc megszakad az exit oldalon. Ez a §0.10 **Rész 3** hiányának közvetlen következménye.
+
+**Miért rögzült a Day 2-5, de a Day 8 nem**: a Day 2-5 exit-eket a §0.10 Rész 2 (egyszeri retroaktív reconcile script, 2026-05-25) rögzítette utólag. A Day 8-i exit-ek MOST történtek, és a Rész 3 (folyamatos auto-update) hiányában nem rögzültek. **Minden jövőbeli TIME_STOP/TP2/SL exit ugyanígy láthatatlan marad, amíg a Rész 3 nem áll.**
+
+**Fontos önkorrekció**: a Day 7 review a §0.10-et P0→P1-re downgrade-elte ("a logging csak retroaktív audit-trail-t érint"). A Day 8 ezt MEGCÁFOLJA — a teljes napi -$696 realized eltűnt, ami operatívan kritikus. **Vissza P0-ra.**
+
+**Hatás**:
+- A `cumulative_pnl.json` és `daily_metrics` jelenleg MEGBÍZHATATLAN a valódi teljesítmény szempontjából
+- A Day 21 checkpoint (-$1 500 küszöb) értékelése lehetetlen pontos tracking nélkül (valódi -$779,64 vs hivatalos +$39,33)
+- Az IBKR direkt kapcsolat ideiglenesen betlölti a gap-et (a daily review-k mostantól IBKR Net Liq + trades alapon számolnak)
+
+**Akció**:
+1. A `2026-05-26-daily-metrics-auto-update-from-reconcile.md` (Rész 3) AZONNALI deploy — `close_positions.py`-be P&L write a TP2/MOC/SL exit-ek után
+2. Retroaktív Day 8 reconcile: -$695,77 + commission rögzítése
+3. **Day 1-8 canonical P&L rekonstrukció** az IBKR `get_account_trades(DAYS_30)`-ból (a valódi tracking tábla a `docs/tasks/2026-05-28-automated-daily-review-pipeline.md` §5-ben)
+
+**Owner**: CC (P0, azonnali) + Tamás (deploy jóváhagyás)
+
+**Referencia**:
+- P0 finding teljes diagnózis: [`docs/review/2026-05-27-daily-review.md`](../review/2026-05-27-daily-review.md) §0
+- Blokkoló task: `docs/tasks/2026-05-26-daily-metrics-auto-update-from-reconcile.md` (Rész 3)
+- Canonical P&L tábla: `docs/tasks/2026-05-28-automated-daily-review-pipeline.md` §5
 
 ---
 
@@ -748,3 +791,126 @@ $ IFDS_TELEGRAM_BOT_TOKEN=fake IFDS_TELEGRAM_CHAT_ID=fake \
 **Owner**: NONE
 
 ---
+
+## 9. Day 6-8 finding-ok (2026-05-26 — 2026-05-27, Memorial Day utáni újraindulás)
+
+A Day 7 (2026-05-26, kedd) és Day 8 (2026-05-27, szerda) napi review-kból **9 új tétel** (1 P0 → §0.11, 2 P1, 2 P2, 4 megfigyelés/pozitív). Forrás: [`docs/review/2026-05-26-daily-review.md`](../review/2026-05-26-daily-review.md), [`docs/review/2026-05-27-daily-review.md`](../review/2026-05-27-daily-review.md).
+
+### 9.1 ✅ Pattern 5 — stale Phase 1-3 context bug (P1, RESOLVED 2026-05-26)
+
+**Státusz**: ✅ RESOLVED ugyanazon a napon — CC fix `304a64d` + 4 regressziós teszt + Pattern 5 doc entry (`2026-05-25-operator-emergency-procedure.md`).
+
+**Mi**: A `e9d617a2` commit (2026-04-03) bevezette a Pipeline Split architektúrát (Phase 1-3 vasárnap esti context, Phase 4-6 14:30 cron a friss context-tel). Latens hiba: ha a vasárnap esti Phase 1-3 cron NEM termelt friss `state/phase13_ctx.json.gz`-t, a Phase 4-6 a régi context-tel folytatott — csendben, NINCS detection. **Latencia ~7 hét** (2026-04-03 → 2026-05-24 első éles crash a Memorial Day hétvége után).
+
+**Eredmény Day 7-en**: a stale context **2 nem-kívánt entry-t** generált — EOG (Energy, S_j 68,6) + AKAM (Technology, S_j 61,8). A sector-balanced greedy nem ismerte fel az Energy szektor teltségét (4. Energy ticker lett az EOG). $8 666 notional + $2 commission. Tamás döntése: mental-stop módban szabadon kifut.
+
+**Fix**: context freshness check (a Phase 4-6 NEM indul, ha a context > küszöb öreg) + Telegram alert + manuális Phase 1-3 recovery procedure. **CC verify szükséges** a pontos fix-tartalomra (a Log Review chat rekonstrukciója a review §8.2-ben).
+
+**Tanulság**: a vasárnap esti Phase 1-3 cron freshness heartbeat (§8.2.3 már jelezte) most konkrét védelmet kapott.
+
+### 9.2 ⚠️ `days_held` calendar-day vs trading-day inkonzisztencia (ÚJ P1, magas)
+
+**Státusz**: ✅ DEPLOYED 2026-05-28 (CC commit `0b2ddaa`) — `trading_days_between()` + `evaluate_position_eod` trading-day számlálás, +9 regressziós teszt. A Day 8 TIME_STOP hullám **$479 közvetlen kárt** demonstrált (a fix előtt).
+
+**Mi**: a `swing_positions.json` `days_held` mezője **calendar-day alapú**, NEM trading-day. Bizonyíték (Day 8 záró):
+- WMB entry 5/21, days_held=5 (calendar) = **2 trading nap** (5/21, 5/22, 5/27) → mégis TIME_STOP-olt
+- DXCM ugyanaz: 2 trading nap után exit
+- A `swing_time_stop_trading_days=5` paraméter neve "trading_days"-re utal, de calendar-day-ként viselkedik (minden EOD eval +1, hétvégén is)
+
+**Közvetlen költség (Day 8)**: WMB (-$379,10) + DXCM (-$100,06) = **-$479,16** realizálva 2 trading nap után az Energy/Healthcare szektor mélypontján. Trading-day alapú hold-nál ezek még 3 további trading napot kaptak volna.
+
+**Strukutrális következmény**: a swing pivot kvantitatív tézise (mathematical doc §5.2: $h=5$ **trading** nap = 5× mutual information) **trading-day hold-ot feltételez**. A jelenlegi rendszer a calendar-bug miatt **NEM a tervezett swinget futtatja** — a TIME_STOP-ok 2-3 trading nap után túl korán jönnek. **A fix elengedhetetlen a tézis tisztességes teszteléséhez.**
+
+**Javasolt fix**: `swing_positions.py::days_held` trading-day alapú számlálás (`utils/calendar.py::trading_days_between()`). Alternatíva: paraméter átnevezése `swing_time_stop_calendar_days`-re + design doc frissítés (DE az (A) preferred, mert a tézis trading-day alapú).
+
+**Effort**: ~30 min CC + 3-4 regressziós teszt + ~15 min design doc.
+
+**Owner**: CC (P1, W22).
+
+### 9.3 ⚠️ ATR_pct floor hiánya — JHG megismétli a MASI Day 1 problémát (ÚJ P1)
+
+**Státusz**: ✅ DEPLOYED 2026-05-28 (CC commit `4f2f8c0`) — `swing_atr_pct_floor: 0.005` + `swing_atr_pct_ceiling: 0.05` a `compute_swing_notional`-ben, +5 teszt. A §8.1.1 (MASI Day 1) **2. instanciája** 8 napon belül (a fix előtt).
+
+**Mi**: a JHG Day 8 entry ATR=$0,09 (**0,17% relatív**) — gyakorlatilag azonos a MASI Day 1 0,165%-ával. A swing TP/SL sáv (±0,25-0,52%) **kisebb mint a tipikus napi noise** (VIX 16,92 → ~1,06% expected daily move) → fals trigger-érzékeny. Ráadásul az alacsony ATR a sizing-formulán keresztül **289 share / $14 976 notional / 15% portfolio** koncentrált pozíciót generált.
+
+**A `swing_atr_pct_floor: 0.005` (§8.1.1 javaslat) MÉG NINCS deploy-olva** — ezért került be a JHG (0,17% < 0,5% floor). Magas S_j (88,5) ellenére strukutrálisan problémás.
+
+**Javasolt fix**: `swing_atr_pct_floor: 0.005` deploy (§8.1.1) — most már 2 instanciával alátámasztva. **Day 9 megfigyelés**: a JHG várhatóan gyors TP1/stop triggert vagy fals exit-et produkál.
+
+**Owner**: CC (P1, W22).
+
+### 9.4 ⚠️ Single-position koncentráció — JHG 15% portfolio (ÚJ P2)
+
+**Mi**: a JHG Day 8 entry $14 976 notional = **15,0% portfolio** egyetlen pozícióban. A 30% sector cap nem szegve, de a single-position koncentráció magas. A gyökérok ugyanaz mint a §9.3: alacsony ATR → nagy qty a sizing-formulából.
+
+**Javasolt fix**: `swing_max_single_position_pct: 0.12` cap a Phase 6 sizing-ban (a 12 concurrent × ~8% átlag → ~100% logikával konzisztens). Az ATR floor (§9.3) + single-position cap együtt kezeli a problémát.
+
+**Effort**: ~30 min CC + 2-3 teszt.
+
+**Owner**: CC (P2, W22-23).
+
+### 9.5 ATR_pct ceiling hiánya — AKAM 6,78% (ÚJ P2)
+
+**Mi**: az AKAM Day 7 entry ATR=$9,985 (**6,78% relatív**) — a portfolio legmagasabb. A stop-távolság -13,58%, a TP2 +20,34%. Egy ilyen volatilis ticker normál napi mozgása 2-4% → a TP1/stop 1-2 nap alatt is kitörhet, a swing pivot 3-5 napi hold szándékához képest **túl érdes**.
+
+**Javasolt fix**: `swing_atr_pct_ceiling: 0.05` (5% cap) — az ATR floor (§9.3) párja. Együtt egy **0,5% ≤ ATR_pct ≤ 5%** kvalifikáló sávot teremt.
+
+**Effort**: ~30 min CC (a floor-ral együtt deploy-olható).
+
+**Owner**: CC (P2, W22-23).
+
+### 9.6 📝 EC TP2 mechanika — next-day market open SELL, NEM intraday limit (dokumentációs megfigyelés)
+
+**Mi**: a swing pivot **első TP2 exit-je** (EC, Day 8) NEM a $14,65 TP2 limit-en történt, hanem a Day 8 **15:30 CEST market open MARKET SELL**-en ($14,44-14,51, gap-down a Day 7 záró $14,84-ről). A `pt_close.log` 15:30:06 "EC: TP2 → SELL 166 (MKT)".
+
+**Mechanika**: a Day 7 EOD eval `next_action: TP2` flag-et állít (ha az ár > TP2 level), és a következő nap 15:30 close MARKET SELL-t ad. **Ez next-day-market, NEM intraday-limit** — a reggeli gap a fill árat befolyásolja (EC: -$60 a Day 7 mark-hoz képest). Az EC teljes hold +$344,18 (TP1 Day 2 +$112,31 + TP2 Day 8 +$231,87) — a swing pivot **legjobb teljes pozíció-eredménye**.
+
+**Akció**: dokumentációs — a swing exit design doc-ban rögzíteni hogy a TP1/TP2 flag-ek next-day-market exit-et jelentenek, nem intraday limit-et. NINCS kódváltozás (a mechanika szándékos).
+
+### 9.7 📝 EOG stale context örökség — figyelő pozíció (megfigyelés)
+
+**Mi**: a Pattern 5 (§9.1) stale context EOG entry-je ($141,22 Day 7) Day 8 záróra $135,00-ra esett (**-$238,60 unrealized**). A stop $133,42 — a Day 8 záró ár csak 1,17%-kal felette. Ha Day 9-10-en eléri, -$343 realized. **Day 9 kritikus megfigyelés** (IBKR `get_price_snapshot` + `get_account_positions`).
+
+### 9.8 📝 Első teljes kohorsz-eredmény negatív — -$651 realized (stratégiai megfigyelés, CHAT ítélet)
+
+**Mi**: a Day 1-5 entries (mind lezárult, kivéve AMH) realizált összege **-$651,40**. Két nyertes (EC +$344, ON +$159) NEM ellensúlyozza a három nagy vesztest (LBRT -$419, WMB -$379, VLO -$227).
+
+**Kontextus / mérséklő tényezők** (miért NEM stratégiai pánik 8 nap után):
+- n=9 closed, kis minta — statisztikai következtetés értelmetlen
+- a days_held calendar-bug (§9.2) korán TIME_STOP-olt (WMB/DXCM 2 trading nap)
+- a stale context (§9.1) + ATR floor hiánya (§9.3) torzít
+- Memorial Day + Energy szektor Day 8-i gyengesége egyszeri
+- **a jelenlegi rendszer a calendar-bug miatt NEM a tervezett swinget futtatja** → a -$651 egy bug-torzított, nem-reprezentatív minta
+
+**Stratégiai következtetés (CHAT)**: a days_held fix (§9.2) **a swing pivot tézis tisztességes teszteléséhez elengedhetetlen**, mielőtt bármilyen "a swing pivot nem működik" következtetés levonható lenne. **Ez CHAT-szintű ítélet, NEM rule-based flag.**
+
+### 9.9 ✅ IBKR MCP connector + reconcile 2/2 silent OK (pozitív strukturális)
+
+**Mi (két összefüggő pozitívum)**:
+1. **`_reconcile_state_from_ibkr` 2/2 éles SILENT OK** (Day 7 + Day 8) — a mental-stop architektúra integritása megerősítve, NINCS autonóm bracket trigger a Day 6 CNC cancel óta.
+2. **IBKR hivatalos MCP connector** (api.ibkr.com/v1/api/mcp, paper DUH118657) — Tamás 2026-05-27 felfedezte. A Claude.ai és CC connector OAuth átszinkronizál. A §0.11 P&L tracking gap miatt **jelenleg az egyetlen megbízható realized P&L forrás** a daily review-knak (get_account_summary Net Liq + get_account_trades).
+
+**Hatás**: a review-automatizáció (`docs/tasks/2026-05-28-automated-daily-review-pipeline.md`) IBKR cross-check rétege ezt használja — a Day 8-szerű tracking gap-ek automatikus P0 flag-jeként (`daily_metrics P&L ≠ IBKR realized`). **Operating environment doc frissítés javasolt** (a connector mint új read-only tool-csatorna).
+
+**Munkamegosztás (Tamás 2026-05-28 döntés)**: Chat = stratégia + tervezés; CC = review + bugfix + automatizáció. A napi review CC-ben automatizálódik (`/review-daily` manuális trigger, `ESCALATE-{date}.md` flag a stratégiai ítélet-igényű finding-okra), a stratégiai ítélet Chat-nél marad.
+
+---
+
+## 10. Aktív prioritás-összefoglaló (2026-05-28, Day 8)
+
+| # | Finding | Prioritás | Státusz | Owner |
+|---|---------|-----------|---------|-------|
+| §0.11 | P&L tracking gap (close_positions nem ír metrikát) | **P0** | OPEN | CC azonnali |
+| §9.2 | days_held calendar-bug ($479 Day 8 kár) | **P1** | ✅ DEPLOYED `0b2ddaa` | CC ✓ |
+| §9.3 | ATR_pct floor hiánya (JHG = 2. instancia) | **P1** | ✅ DEPLOYED `4f2f8c0` | CC ✓ |
+| §8.1.X / §5.4 (Day 7-8) | daily_metrics 5 logging anomália | **P1** | OPEN | CC W22 |
+| §9.4 | Single-position koncentráció (JHG 15%) | P2 | OPEN | CC W22-23 |
+| §9.5 | ATR_pct ceiling hiánya (AKAM 6,78%) | P2 | ✅ DEPLOYED `4f2f8c0` | CC ✓ |
+| §0.10 | State≡IBKR monitoring | 🔶 PARTIAL | Rész 1 ✓, Rész 3 → §0.11 | CC |
+| §0.2 | Error 10349 TIF | ✅ WITHDRAWN | 4/4 nap stabil | — |
+| §0.5 | Submit retry storm | ✅ RESOLVED (P2 volt) | orchestrator deployed | — |
+| §9.1 | Pattern 5 stale context | ✅ RESOLVED | `304a64d` | CC ✓ |
+| §9.8 | Első kohorsz -$651 (bug-torzított) | megfigyelés | CHAT ítélet | Chat |
+| §9.9 | Reconcile 2/2 + IBKR connector | ✅ pozitív | — | — |
+
+**A következő lépés prioritása**: (1) §0.11 Rész 3 deploy [P0] → (2) §9.2 days_held fix [P1] → (3) §9.3+9.5 ATR floor+ceiling [P1+P2] → (4) review-automatizáció 1. fázis. A §0.11 és §9.2 együtt: a swing pivot tézis tisztességes teszteléséhez **mindkettő elengedhetetlen** a Day 21 checkpoint előtt.
