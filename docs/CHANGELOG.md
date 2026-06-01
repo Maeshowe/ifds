@@ -4,6 +4,51 @@
 
 ---
 
+## W22 — Part A: pending-exit ledger forward-fix (P0 §0.11)
+
+> 2026-06-01 | Realized P&L tracking gap forward-fix — implementation +
+> tests complete (local), Mac Mini deploy pending Tamás approval
+
+### Probléma
+
+A Day 9 (2026-05-28) AMH TIME_STOP MOC SELL-t a `close_positions.py`
+(clientId=11) adta be, de a 22:05 `eod_report.py` (clientId=12) az
+`ib.fills()`-szel — ami **client-scoped**, így a cross-client MOC fillt
+nem látja, ráadásul 22:05-kor a close-auction fill még nem propagált.
+Eredmény: "Trades: 0", a cumulative 5/28 entry pnl=0, az AMH realized
+elveszett. A `-$651.10` canonical baseline (Part B) Day 8-nál ér véget.
+
+### Megoldás — pending-exit ledger + egyetlen cumulative writer
+
+- **`lib/pending_exits.py`** — napi JSON ledger (`state/pending_exits/{date}.json`),
+  `append_pending_exit` / `load_pending_exits` / `mark_processed`, atomi
+  írás, idempotens kulcs (`ticker_exittype_date`).
+- **`close_positions.py`** — mindkét swing exit ág (15:30 eod_flags + 21:40
+  time_stop) a SELL beadása után ledger-be ír, **try/except-guarded** (a
+  ledger-hiba SOHA nem blokkolja a SELL-t). TP1 partial → eladott qty.
+- **`daily_metrics.record_pending_exits`** — az EGYETLEN cumulative_pnl.json
+  writer swing exitekre. Saját clientId=18, `fetch_today_executions`-nal
+  matchel SLD fillre, realized P&L deltát ír (atomi), ledgert processed-re
+  állít. Idempotens, `--date` backfill. `main()`-ben `build_daily_metrics`
+  ELŐTT fut (guarded). Hiányzó fill → warning, unprocessed marad, NEM
+  fabrikál P&L-t.
+- **`eod_report.py`** — `update_cumulative_pnl` WRITE kikapcsolva (display-only);
+  + defenzív Telegram WARNING ha a Day N entry pnl=0 de voltak exit trade-ek.
+- **`lib/ibkr_reconciliation.py`** — `update_cumulative_history_entry` +
+  `recompute_cumulative_pnl` ide költözve (DRY; `retroactive_reconcile_w21`
+  re-exportál, back-compat).
+- **Day 9 AMH backfill**: `scripts/admin/seed_amh_day9_ledger.py` (idempotens
+  seed) + `--date 2026-05-28` recorder run a deploy live smoke-ban.
+
+### Tesztek
+
+1828 → **1862 passing** (+34), 0 failure, 0 warning. Új: `test_pending_exits.py`
+(17), `test_record_pending_exits.py` (apply_pending_exits pure path + recorder
+idempotencia + missing-exec + counter-mapping). `test_eod_*` átírva a read-only
+kontraktusra.
+
+---
+
 ## Fázis 3 / W22 — Submit autonomous retry orchestrator (Task #L, §0.5)
 
 > 2026-05-21 | Day 4 reggel — Day 3 (2026-05-20) Gateway-down submit
