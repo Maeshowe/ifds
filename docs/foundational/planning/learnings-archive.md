@@ -53,3 +53,23 @@ halmozott fel; `CLAUDE.md` Aktuális Kontextus CC írta de Chat döntések nem
 jelentek meg benne azonnal.
 `CLAUDE.md` ettől stabil referencia marad (ritkán változik) — nem frissítjük
 minden session végén.
+
+## Nyitó MKT paper-fill anomália — WST (discovery, 2026-06-01)
+
+Tamás megfigyelése (WST fill $324,33 vs ~$321,66 nyitás) nyomán Polygon 1-perces
+vs IBKR `get_account_trades` összevetés 15 swing-era (5/18+) MKT-at-open belépőre.
+**Eredmény: a nyitó MKT paper-fillek általában realisztikusak** — 14/15 a nyitó-ablak
+high-ján belül vagy marginálisan (≤$0,18) fölötte (normál ask-oldali spread; néhány
+kedvező: CDNS -0,06%, AKAM -1,38%, AMH -0,09%). **WST 6/01 az egyetlen valódi
+anomália**: a teljes nyitó-ablak high-ja $321,65 volt (13:31-re Polygonban nincs is
+print), mégis $324,33-on töltött → +$2,68 (+0,83%) a valós tape FÖLÖTT, ~$48 fantom
+belépési költség 18 share-en. Ez **paper-sim artefakt** (IBKR paper szimulált ask
+vékony/print-mentes nyitó-percben), NEM szisztematikus.
+
+**Tanulság**: (1) a paper belépő-fillek alkalmanként felülbecslik a belépési költséget
+→ a paper P&L ezeknél pesszimista-irányba torzít (ugyanaz a realizmus-kérdés, mint a
+nuke-záró-áras cumulative disclaimer). (2) A MKT-at-open ki van téve a nyitó-volatilitásnak
++ paper-sim torzításnak; egy valódi LIMIT a tervezett áron (WST $322,81) itt jobban
+töltött volna (~$321,65). **Megfontolandó belépő-timing finomítás** (post-auction MKT
+pár perccel a nyitás után, vagy marketable LIMIT open+X bps) — NEM sürgős (1 anomália
+13 nap alatt). Referencia: `docs/review/2026-06-01-daily-review.md` §2.
