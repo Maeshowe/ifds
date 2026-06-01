@@ -1,6 +1,7 @@
 # Part A — Ledger forward-fix (P0 §0.11) — LOCKED SPEC for clean-session implementation
 
-**Status**: WIP (design locked 2026-05-29; implementation + tests COMPLETE 2026-06-01, local commits done; Mac Mini push+deploy+live-smoke PENDING Tamás approval — see Deploy runbook below)
+**Status**: DONE (design locked 2026-05-29; implemented + tested 2026-06-01; pushed + Mac Mini deployed 2026-06-01 with Tamás approval — forward-fix live, Day 9 AMH backfilled. cumulative -651.10 → **-708.58**)
+**Updated**: 2026-06-01
 **Priority**: P0 — realized P&L tracking gap forward-fix
 **Why a separate spec**: the 2026-05-29 session degraded (API 400 "thinking blocks" + corrupted file reads — "20:48" leaking into line numbers, garbled content). Implementation of live trading scripts (`close_positions.py`, `eod_report.py`) was halted to avoid a corrupted edit breaking the live MOC SELL. All decisions below are FINAL — a fresh session executes directly.
 
@@ -130,3 +131,15 @@ The exact AMH realized comes from the IBKR `get_account_trades` (DAYS_30) SLD fi
 
 ### From Day 10 (5/29) onward
 `close_positions` writes the ledger natively at each swing exit → `record_pending_exits` auto-captures at the 22:10 cron. No manual seed ever again.
+
+---
+
+## DEPLOY OUTCOME — 2026-06-01 ✅
+
+Pushed (`66faf29..0a0332b`), Mac Mini pulled, pre-flight **1862 passed**. Backup: `cumulative_pnl.json.bak.pre_partA.20260601_140510`. Gateway OK.
+
+**Discovery during smoke**: `record_pending_exits --date 2026-05-28` fetched **0 executions** — IBKR `reqExecutions` only returns the *current session's* fills, so a 4-day-old fill is unreachable. The recorder **correctly left AMH unprocessed** (no fabrication — guard validated live). This means the forward-fix works same-day (Day 10+) but historical backfill needs the connector.
+
+**Day 9 AMH backfill** via IBKR connector `get_account_trades` (DAYS_30), trade `0000e0d5.6a1ab106.01.01`: AMH SELL **249 @ 31.99** MOC 2026-05-28T19:59:32Z, **`realized_pnl = -57.48`** (net). Note: actual 5/22 entry was **32.21** weighted (29+120+100 @ 32.21), not the 32.11 review-doc value — IBKR realized already reflects true entry + all commissions. Applied via `scripts/admin/backfill_amh_day9_pnl.py --apply` (user-approved value): **cumulative -651.10 → -708.58**, 5/28 entry pnl=-57.48 moc_exits=1, ledger processed. Idempotent re-run confirmed no-op.
+
+**Live forward-fix is active** — the Monday 21:40 close is the first end-to-end same-day trial.
