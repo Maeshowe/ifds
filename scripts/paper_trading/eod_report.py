@@ -319,10 +319,20 @@ def save_daily_csv(trades, today_str):
 
 
 def update_cumulative_pnl(trades, today_str):
-    """Update cumulative P&L JSON file."""
-    Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
+    """Load cumulative P&L for DISPLAY only — no longer writes the file.
 
-    # Load existing data
+    P0 §0.11 Part A: ``eod_report`` is NOT the cumulative_pnl.json writer
+    anymore. The sole writer is ``daily_metrics.record_pending_exits``
+    (22:10 cron, after the MOC close-auction settles), which captures the
+    cross-client swing-exit fills that eod_report's clientId-12
+    ``ib.fills()`` cannot see — the root cause of the Day 9 (2026-05-28)
+    AMH silent-0-pnl gap.
+
+    eod_report keeps building the daily trade report, the daily CSV, and the
+    Telegram summary; this function now only loads the current cumulative
+    snapshot and computes today's display P&L from the trade list. The
+    return shape ``(data, daily_pnl)`` is preserved for ``main()``.
+    """
     if os.path.exists(CUMULATIVE_PNL_FILE):
         with open(CUMULATIVE_PNL_FILE) as f:
             data = json.load(f)
@@ -336,66 +346,7 @@ def update_cumulative_pnl(trades, today_str):
             "daily_history": [],
         }
 
-    # Idempotency guard — skip if date already recorded
-    existing_dates = {d["date"] for d in data.get("daily_history", [])}
-    if today_str in existing_dates:
-        logger.warning(f"EOD idempotency: {today_str} already in history — skipping update")
-        daily_pnl = sum(t["pnl"] for t in trades)
-        return data, daily_pnl
-
-    # Calculate daily stats
     daily_pnl = sum(t["pnl"] for t in trades)
-    daily_commission = round(sum(t.get("commission", 0.0) for t in trades), 4)
-    total_trades = len(trades)
-    filled = len([t for t in trades if t["exit_type"] != "UNFILLED"])
-    tp1_hits = len([t for t in trades if t["exit_type"] == "TP1"])
-    tp2_hits = len([t for t in trades if t["exit_type"] == "TP2"])
-    sl_hits = len([t for t in trades if t["exit_type"] == "SL"])
-    loss_exit_hits = len([t for t in trades if t["exit_type"] == "LOSS_EXIT"])
-    trail_hits = len([t for t in trades if t["exit_type"] == "TRAIL"])
-    moc_exits = len([t for t in trades if t["exit_type"] == "MOC"])
-
-    # Update cumulative
-    data["trading_days"] += 1
-    data["cumulative_pnl"] = round(data["cumulative_pnl"] + daily_pnl, 2)
-    data["cumulative_pnl_pct"] = round(data["cumulative_pnl"] / INITIAL_CAPITAL * 100, 3)
-
-    data["daily_history"].append(
-        {
-            "date": today_str,
-            "pnl": round(daily_pnl, 2),
-            "commission": daily_commission,
-            "trades": total_trades,
-            "filled": filled,
-            "tp1_hits": tp1_hits,
-            "tp2_hits": tp2_hits,
-            "sl_hits": sl_hits,
-            "loss_exit_hits": loss_exit_hits,
-            "trail_hits": trail_hits,
-            "moc_exits": moc_exits,
-        }
-    )
-
-    with open(CUMULATIVE_PNL_FILE, "w") as f:
-        json.dump(data, f, indent=2)
-
-    if evt:
-        evt.log(
-            "eod",
-            "daily_pnl",
-            pnl=round(daily_pnl, 2),
-            cumulative=data["cumulative_pnl"],
-            cum_pct=data["cumulative_pnl_pct"],
-            day=data["trading_days"],
-            trades=total_trades,
-            tp1=tp1_hits,
-            tp2=tp2_hits,
-            sl=sl_hits,
-            loss_exit=loss_exit_hits,
-            trail=trail_hits,
-            moc=moc_exits,
-        )
-
     return data, daily_pnl
 
 
@@ -611,6 +562,23 @@ def main():
 
     logger.info(f"P&L today: ${daily_pnl:+,.2f}")
     logger.info(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]")
+
+    # --- Defensive: silent 0-pnl day with exits (P0 §0.11 Part A safety net) ---
+    # If today's cumulative entry already exists with pnl==0 while eod_report
+    # saw exit trades, record_pending_exits likely failed to capture the
+    # realized P&L — alert so a silent-0 day never repeats unnoticed.
+    today_entry = next(
+        (d for d in cum_data.get("daily_history", []) if d.get("date") == today_str),
+        None,
+    )
+    if today_entry is not None and today_entry.get("pnl", 0) == 0 and len(trades) > 0:
+        warn_msg = (
+            f"⚠️ EOD WARNING — {today_str}: cumulative entry pnl=$0 with "
+            f"{len(trades)} exit trade(s). record_pending_exits may have failed "
+            f"to capture realized P&L (check pending_exits ledger + 22:10 cron)."
+        )
+        logger.warning(warn_msg)
+        send_telegram(warn_msg)
 
     # --- Cancel all remaining orders ---
     open_orders = ib.openOrders()

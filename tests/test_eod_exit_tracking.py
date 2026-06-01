@@ -227,84 +227,11 @@ class TestBuildTradeReportOrderRef:
         assert by_ticker == {"AAA": "TP1", "BBB": "LOSS_EXIT", "CCC": "TRAIL"}
 
 
-# ---------------------------------------------------------------------------
-# update_cumulative_pnl() new fields
-# ---------------------------------------------------------------------------
-
-
-class TestCumulativePnlNewFields:
-    """loss_exit_hits and trail_hits in daily_history."""
-
-    def _make_trades_with_exits(self, exit_types):
-        return [{"pnl": 10.0, "commission": 1.0, "exit_type": et} for et in exit_types]
-
-    def test_loss_exit_counted(self, tmp_path):
-        eod = _import_eod()
-        eod.CUMULATIVE_PNL_FILE = str(tmp_path / "cum.json")
-        eod.LOG_DIR = str(tmp_path)
-
-        trades = self._make_trades_with_exits(["MOC", "LOSS_EXIT", "TP1", "LOSS_EXIT"])
-        data, _ = eod.update_cumulative_pnl(trades, "2026-03-23")
-
-        entry = data["daily_history"][0]
-        assert entry["loss_exit_hits"] == 2
-        assert entry["trail_hits"] == 0
-        assert entry["moc_exits"] == 1
-        assert entry["tp1_hits"] == 1
-
-    def test_trail_counted(self, tmp_path):
-        eod = _import_eod()
-        eod.CUMULATIVE_PNL_FILE = str(tmp_path / "cum.json")
-        eod.LOG_DIR = str(tmp_path)
-
-        trades = self._make_trades_with_exits(["TRAIL", "MOC", "TRAIL"])
-        data, _ = eod.update_cumulative_pnl(trades, "2026-03-23")
-
-        entry = data["daily_history"][0]
-        assert entry["trail_hits"] == 2
-        assert entry["loss_exit_hits"] == 0
-        assert entry["moc_exits"] == 1
-
-    def test_backward_compat_old_entries_no_new_fields(self, tmp_path):
-        """Old daily_history entries without new fields don't break."""
-        eod = _import_eod()
-        pnl_file = tmp_path / "cum.json"
-        eod.CUMULATIVE_PNL_FILE = str(pnl_file)
-        eod.LOG_DIR = str(tmp_path)
-
-        # Simulate old format (no loss_exit_hits/trail_hits)
-        old_data = {
-            "start_date": "2026-03-01",
-            "initial_capital": 100000,
-            "trading_days": 1,
-            "cumulative_pnl": 100.0,
-            "cumulative_pnl_pct": 0.1,
-            "daily_history": [
-                {
-                    "date": "2026-03-22",
-                    "pnl": 100.0,
-                    "commission": 5.0,
-                    "trades": 5,
-                    "filled": 5,
-                    "tp1_hits": 1,
-                    "tp2_hits": 0,
-                    "sl_hits": 0,
-                    "moc_exits": 4,
-                }
-            ],
-        }
-        with open(pnl_file, "w") as f:
-            json.dump(old_data, f)
-
-        trades = self._make_trades_with_exits(["LOSS_EXIT"])
-        data, _ = eod.update_cumulative_pnl(trades, "2026-03-23")
-
-        assert len(data["daily_history"]) == 2
-        # Old entry untouched
-        assert "loss_exit_hits" not in data["daily_history"][0]
-        # New entry has fields
-        assert data["daily_history"][1]["loss_exit_hits"] == 1
-        assert data["daily_history"][1]["trail_hits"] == 0
+# NOTE: The former TestCumulativePnlNewFields class was removed in P0 §0.11
+# Part A — update_cumulative_pnl no longer writes daily_history counters.
+# The exit_type → counter mapping (tp1_hits/loss_exit_hits/trail_hits/
+# moc_exits/...) now lives in daily_metrics.EXIT_TYPE_TO_COUNTER and is
+# covered by tests/test_record_pending_exits.py.
 
 
 # ---------------------------------------------------------------------------
