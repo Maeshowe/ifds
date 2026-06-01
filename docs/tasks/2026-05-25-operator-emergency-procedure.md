@@ -3,7 +3,7 @@
 **Created**: 2026-05-25 (Log Review chat, CC javaslatára)
 **Priority**: **P3** — dokumentációs task, NEM blokkol semmit
 **Owner**: Log Review chat (Claude) — írás + frissítés. Tamás — jóváhagyás, kiegészítés, használat.
-**Status**: REVIEWED v1.1 (CC kódbázis-verify 2026-05-25)
+**Status**: REVIEWED v1.3 (Pattern 5b finomítás Day 14-i Sunday-skip incidens után, 2026-06-01)
 **Becsült munka**: ~1.5 óra Log Review chat-ben + ~20 min CC kódbázis-verify
 **Related**:
 - `docs/master-reference/04-risks-and-open-questions.md` §0.4 (Error 354), §0.5 (Gateway timeout), §0.10 (Day 3 manual TWS bracket)
@@ -420,14 +420,20 @@ ls -la state/phase13_ctx.json.gz
 python -c "import gzip, json; d=json.load(gzip.open('state/phase13_ctx.json.gz')); print(f'tickers={len(d.get(\"universe\", []))}  bmi={d.get(\"bmi_regime\", \"?\")}  sectors={len(d.get(\"sector_rankings\", []))}')"
 ```
 
-**Trading-day NYSE-closed alatt** (vasárnap/holiday) — ha sürgős re-run kell:
+**Trading-day NYSE-closed alatt** (vasárnap esti weekly cron, vagy holiday) — KÖTELEZŐ env-prefix:
 
 ```bash
-# IFDS_SKIP_TRADING_DAY_GUARD override
+# IFDS_SKIP_TRADING_DAY_GUARD override — a Sunday cron SZÁNDÉKA pont ez
 IFDS_SKIP_TRADING_DAY_GUARD=1 ./scripts/deploy_daily.sh --phases 1-3
 ```
 
-**⚠️ FIGYELEM**: az `IFDS_SKIP_TRADING_DAY_GUARD=1` override **csak audit/debug** célokra használandó. Production cron-ban a guard MARADJON aktív, hogy a NYSE-closed napokon ne pazaroljon API rate-limit-et.
+**Mikor kell ez az override**:
+- **Vasárnap esti weekly Phase 1-3 cron** (`0 22 * * 0` Mac Mini crontab) — produkciós, állandó. A vasárnap NYSE-closed nap, és a runner trading-day guard-ja egyébként SKIP-elné a futást. A 2026-04-03-i `e9d617a2` (NYSE calendar) kezdetben crash-elte a SKIP path-t (`PIPELINE_COMPLETE` enum bug); a Day 7-i `304a64d` fix óta a SKIP **tisztán** lefut, DE pont ettől **a context stale marad** — a runner kilép, és a Phase 1-3 nem termel friss `phase13_ctx.json.gz`-t. Az override visszaadja a vasárnapi cron eredeti szándékát: a következő heti BMI + universe + sector ranking generálását.
+- **Hétközi manuális backfill** (Day 7 vagy Day 14 minta) — ad-hoc.
+
+**⚠️ Hétközi (1-5) production cron-ban NEM szabad használni**: ott a guard helyes (NYSE holiday-on ne pazaroljon API rate-limitet).
+
+**Második előfordulás (Day 14, 2026-05-31)**: a `304a64d` óta a SKIP nem crash-el, csak `[SKIP] NYSE closed today` log + Telegram-üzenet → a 23:00 freshness check WARNING-ot küldött, a context 5 napos lett (5/26 → 5/31). Detektálva 2026-06-01 reggel. Crontab patch: a `0 22 * * 0` sorba `IFDS_SKIP_TRADING_DAY_GUARD=1` env-prefix beillesztve (`scripts/crontab.md` 36. sor). Manuális Phase 1-3 refresh ugyanaznap 13:34-kor → friss context a hétfő 14:30 intraday-hez.
 
 #### 5b.3 Post-recovery action
 
@@ -602,6 +608,7 @@ State fájl reset-hez NEM ez a tool — lásd §5.4.
 | v1 (DRAFT) | 2026-05-25 | Kezdő verzió, 4 pattern W21 tapasztalat alapján | Log Review chat |
 | **v1.1 (REVIEWED)** | **2026-05-25** | **CC kódbázis-verify: `nuke.py` flag-ek javítva (`--state-only`/`--full` fikció törölve), `check_gateway.py --verbose` flag törölve (nincs argparse), `reconcile_state_from_ibkr` → `_reconcile_state_from_ibkr` (private prefix), §5.4 új szekció (state reset NEM `nuke.py`-vel)** | **CC** |
 | **v1.2** | **2026-05-26** | **Pattern 5 hozzáadás (Phase 1-3 weekly cron silent-fail) — 2026-05-24-i éles crash incident alapján. §8 forrás-tábla bővítés. `EventType.PIPELINE_COMPLETE` → `_END` fix runner.py:107 + 4 regression teszt (`tests/test_runner_skip_path.py`)** | **CC** |
+| **v1.3** | **2026-06-01** | **Pattern 5b §5b.2 finomítás — a Day 14-i (2026-05-31) második incidens után: a `304a64d` SKIP-fix óta a vasárnapi cron tisztán fut, DE a guard miatt context-et nem termel. Crontab patch: `IFDS_SKIP_TRADING_DAY_GUARD=1` env-prefix a `0 22 * * 0` Sunday cron sorba. `scripts/crontab.md` 36. sor frissítve.** | **CC** |
 | TBD | TBD | Tamás felülvizsgálat + kiegészítés | Tamás |
 
 ### Tervezett frissítések (Day 7+ alapján)

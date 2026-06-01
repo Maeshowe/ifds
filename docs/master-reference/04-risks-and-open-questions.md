@@ -506,6 +506,22 @@ A jelenlegi Cross-Asset Regime (HYG, IEF, RSP, SPY, IWM 20 napi momentum) **RISK
 
 A MID — Macro Intelligence Dashboard napi shadow snapshot-okat produkál. A swing pivot kontextusában **portfolio context layer** lehet — pl. Stagflation regime-ben a pozíciómért kisebb, vagy a sector-rotation szabályok defenzívebb sektor-súlyokat alkalmaznak. **BC25 W26+ scope**, Fázis 3 után.
 
+### 6.5 SMA-inflexió mint exit-overlay (trend-alapú exit vizsgálat)
+
+**Eredet**: Tamás 2026-05-28 felvetése a VLO (Day 3-4) kapcsán — "ha swing tradel a rendszer, amint inflexió van az 5 napos mozgóban, azonnal ki kellene lépnie".
+
+**Tisztázás**: a swing pivot exit-logika jelenleg **kizárólag ATR-alapú** (mental stop 2,0×ATR + TP1 1,5×ATR + TP2 3,0×ATR + trail 1,0×ATR + time-stop + heti -8% hard SL). **NINCS SMA-inflexió trigger.** A régi rendszer SMA50-komponense *entry*-scoring volt (technikai score), NEM *exit*-trigger — a swing pivot az SMA-t sehol nem használja.
+
+**A VLO konkrét eset NEM releváns precedens**: a VLO Day 4 SL-je Tamás Day 3-i manuális TWS bracket-jének autonóm trigger-je volt (§0.10), NEM a swing logika. Ráadásul a -5,4% egynapos zuhanásnál a mental stop (~$243,5, 2×ATR) nagyjából ott vitte volna ki (~$244), ahol a bracket — egy SMA-inflexió *lassabban* jelzett volna, tehát NEM védett volna jobban egy ilyen gyors esésnél.
+
+**A design-kérdés érdeme**: az SMA-inflexió egy legitim trend-following swing exit-elv. A két filozófia különbsége: az ATR mental stop **kockázat-alapú** ("mennyit engedek veszíteni"), az SMA-inflexió **trend-alapú** ("ha a trend megfordul, kiszállok"). A swing pivot kvantitatív tézise (§5.2, flow mutual information $h=5$) inkább momentum/flow play-out-ra épül, ami illeszkedhetne egy trend-exithez.
+
+**Javasolt vizsgálat (Fázis 2 backtest-overlay, NEM aktív task)**: a felgyűlő paper trading adaton (most n=9 closed, később több) visszamérni: egy 5-napos SMA-inflexió exit jobb total P&L-t / kisebb tail-veszteséget ad-e, mint a jelenlegi ATR mental stop. Beilleszthető a §2.1 (entry timing backtest) scope-jába mint exit-overlay dimenzió. Döntés: (A) marad tiszta ATR mental stop, (B) SMA-inflexió overlay hozzáadása, (C) hibrid (a kettő közül amelyik előbb triggerel).
+
+**Effort**: ~1-2 óra Chat-oldali backtest (a §2.1-gyel együtt), kód-deploy csak ha a backtest pozitív.
+
+**Owner**: Chat (Fázis 2, W23 — a §2.1 entry-timing backtesttel együtt).
+
 ---
 
 ## 7. Mit NEM csinálunk (és miért)

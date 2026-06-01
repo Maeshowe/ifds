@@ -33,7 +33,12 @@
 # Phase 1-3: BMI, Universe, Szektorok, Cross-Asset Regime
 # Vasárnap 22:00 Budapest = heti universe rebalance + BMI snapshot
 # Kimenet: state/phase13_ctx.json.gz (a hét során használja Phase 4-6)
-0 22 * * 0 /Users/safrtam/SSH-Services/ifds/scripts/deploy_daily.sh --phases 1-3
+# IFDS_SKIP_TRADING_DAY_GUARD=1 prefix kötelező: a vasárnap NYSE-closed nap, és a runner
+# trading-day guard-ja egyébként SKIP-elné a futást (a `304a64d` óta a SKIP nem crash-el,
+# csak [SKIP] log + Telegram-üzenet → context stale marad). A vasárnapi cron SZÁNDÉKA
+# a következő hét friss BMI + universe + sector context-jét generálni — ezért kell az override.
+# Lásd: docs/tasks/2026-05-25-operator-emergency-procedure.md Pattern 5b §5b.2.
+0 22 * * 0 IFDS_SKIP_TRADING_DAY_GUARD=1 /Users/safrtam/SSH-Services/ifds/scripts/deploy_daily.sh --phases 1-3
 
 # Phase 1-3 heartbeat — vasárnap 23:00 (1 óra time-window a 22:00 macro cronnak — Task #E)
 # Detect: ha a heti cron silent-fail, vagy a context file stale/missing
