@@ -28,6 +28,7 @@ Refs:
 
 from __future__ import annotations
 
+import copy
 import logging
 from dataclasses import dataclass, field
 from datetime import date
@@ -183,6 +184,79 @@ def compute_pnl(
     """
     direction = 1 if side.upper() == "BUY" else -1
     return round(direction * qty * (exit_price - entry_price), 4)
+
+
+# ---------------------------------------------------------------------------
+# cumulative_pnl.json mutators — shared by the W21 retroactive reconcile and
+# the Part A pending-exits recorder (P0 §0.11). Pure (immutable) helpers.
+# ---------------------------------------------------------------------------
+
+
+def update_cumulative_history_entry(
+    cum_data: dict,
+    target_date: str,
+    *,
+    pnl_delta: float = 0.0,
+    commission_delta: float = 0.0,
+    trades_delta: int = 0,
+    filled_delta: int = 0,
+    counter_increments: dict[str, int] | None = None,
+    counter_decrements: dict[str, int] | None = None,
+) -> dict:
+    """Apply incremental deltas to a date's ``daily_history`` entry.
+
+    Returns a new ``cum_data`` dict (immutable input). Uses
+    ``daily_history`` list lookup by ``target_date``; creates a fresh
+    zero-initialised entry (kept sorted) if the date is new. Negative
+    ``pnl_delta`` is allowed for SL exits.
+    """
+    out = copy.deepcopy(cum_data)
+    history = out.setdefault("daily_history", [])
+    entry = next((e for e in history if e.get("date") == target_date), None)
+    if entry is None:
+        entry = {
+            "date": target_date,
+            "pnl": 0.0,
+            "commission": 0.0,
+            "trades": 0,
+            "filled": 0,
+            "tp1_hits": 0,
+            "tp2_hits": 0,
+            "sl_hits": 0,
+            "loss_exit_hits": 0,
+            "trail_hits": 0,
+            "moc_exits": 0,
+        }
+        history.append(entry)
+        history.sort(key=lambda e: e["date"])
+
+    entry["pnl"] = round(entry.get("pnl", 0.0) + pnl_delta, 2)
+    entry["commission"] = round(entry.get("commission", 0.0) + commission_delta, 2)
+    entry["trades"] = entry.get("trades", 0) + trades_delta
+    entry["filled"] = entry.get("filled", 0) + filled_delta
+
+    for key, val in (counter_increments or {}).items():
+        entry[key] = entry.get(key, 0) + val
+    for key, val in (counter_decrements or {}).items():
+        entry[key] = max(0, entry.get(key, 0) - val)
+
+    return out
+
+
+def recompute_cumulative_pnl(cum_data: dict) -> dict:
+    """Recalculate ``cumulative_pnl`` / ``cumulative_pnl_pct`` / ``trading_days``
+    from the ``daily_history`` net P&L values.
+
+    Returns a new ``cum_data`` dict (immutable input).
+    """
+    out = copy.deepcopy(cum_data)
+    history = out.get("daily_history", [])
+    cum = sum(e.get("pnl", 0.0) for e in history)
+    initial = out.get("initial_capital", 100_000)
+    out["cumulative_pnl"] = round(cum, 2)
+    out["cumulative_pnl_pct"] = round(cum / initial * 100, 3)
+    out["trading_days"] = len(history)
+    return out
 
 
 # ---------------------------------------------------------------------------

@@ -59,6 +59,17 @@ from typing import Any
 logger = logging.getLogger("retroactive_reconcile_w21")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Pure cumulative_pnl.json mutators now live in the paper-trading lib so the
+# Part A pending-exits recorder shares one implementation (P0 §0.11). Re-export
+# here for back-compat with the existing retroactive tests.
+_PT_DIR = REPO_ROOT / "scripts" / "paper_trading"
+if str(_PT_DIR) not in sys.path:
+    sys.path.insert(0, str(_PT_DIR))
+from lib.ibkr_reconciliation import (  # noqa: E402
+    recompute_cumulative_pnl,
+    update_cumulative_history_entry,
+)
 DAILY_METRICS_DIR = REPO_ROOT / "state" / "daily_metrics"
 SWING_STATE_PATH = REPO_ROOT / "state" / "swing_positions.json"
 CUMULATIVE_PNL_PATH = REPO_ROOT / "scripts" / "paper_trading" / "logs" / "cumulative_pnl.json"
@@ -241,70 +252,6 @@ def append_trade_to_daily_metrics(
         trades["best"] = nets[-1][1]
 
     out[SENTINEL_KEY] = datetime.now(timezone.utc).isoformat()
-    return out
-
-
-def update_cumulative_history_entry(
-    cum_data: dict,
-    date: str,
-    *,
-    pnl_delta: float = 0.0,
-    commission_delta: float = 0.0,
-    trades_delta: int = 0,
-    filled_delta: int = 0,
-    counter_increments: dict[str, int] | None = None,
-    counter_decrements: dict[str, int] | None = None,
-) -> dict:
-    """Apply incremental deltas to a date's daily_history entry.
-
-    Returns a new cum_data dict (immutable input). Uses ``daily_history``
-    list lookup by ``date``. Negative ``pnl_delta`` is allowed for SL.
-    """
-    out = copy.deepcopy(cum_data)
-    history = out.setdefault("daily_history", [])
-    entry = next((e for e in history if e.get("date") == date), None)
-    if entry is None:
-        # Create a fresh entry if the date is new (e.g. Day 5 not yet recorded)
-        entry = {
-            "date": date,
-            "pnl": 0.0,
-            "commission": 0.0,
-            "trades": 0,
-            "filled": 0,
-            "tp1_hits": 0,
-            "tp2_hits": 0,
-            "sl_hits": 0,
-            "loss_exit_hits": 0,
-            "trail_hits": 0,
-            "moc_exits": 0,
-        }
-        history.append(entry)
-        history.sort(key=lambda e: e["date"])
-
-    entry["pnl"] = round(entry.get("pnl", 0.0) + pnl_delta, 2)
-    entry["commission"] = round(entry.get("commission", 0.0) + commission_delta, 2)
-    entry["trades"] = entry.get("trades", 0) + trades_delta
-    entry["filled"] = entry.get("filled", 0) + filled_delta
-
-    for key, val in (counter_increments or {}).items():
-        entry[key] = entry.get(key, 0) + val
-    for key, val in (counter_decrements or {}).items():
-        entry[key] = max(0, entry.get(key, 0) - val)
-
-    return out
-
-
-def recompute_cumulative_pnl(cum_data: dict) -> dict:
-    """Recalculate ``cumulative_pnl`` and ``cumulative_pnl_pct`` from
-    the ``daily_history`` net P&L values.
-    """
-    out = copy.deepcopy(cum_data)
-    history = out.get("daily_history", [])
-    cum = sum(e.get("pnl", 0.0) for e in history)
-    initial = out.get("initial_capital", 100_000)
-    out["cumulative_pnl"] = round(cum, 2)
-    out["cumulative_pnl_pct"] = round(cum / initial * 100, 3)
-    out["trading_days"] = len(history)
     return out
 
 
