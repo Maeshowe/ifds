@@ -133,9 +133,7 @@ def append_pending_exit(
         "qty": exit_record["qty"],
         "exit_type": exit_record["exit_type"],
         "sector": exit_record.get("sector", ""),
-        "submitted_at": exit_record.get(
-            "submitted_at", datetime.now(timezone.utc).isoformat()
-        ),
+        "submitted_at": exit_record.get("submitted_at", datetime.now(timezone.utc).isoformat()),
         "processed": False,
     }
     records.append(record)

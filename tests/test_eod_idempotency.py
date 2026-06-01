@@ -62,8 +62,14 @@ class TestEODCumulativeReadOnly:
             "cumulative_pnl": 250.0,
             "cumulative_pnl_pct": 0.25,
             "daily_history": [
-                {"date": "2026-02-24", "pnl": 250.0, "commission": 5.0,
-                 "trades": 2, "filled": 2, "moc_exits": 2},
+                {
+                    "date": "2026-02-24",
+                    "pnl": 250.0,
+                    "commission": 5.0,
+                    "trades": 2,
+                    "filled": 2,
+                    "moc_exits": 2,
+                },
             ],
         }
         pnl_file.write_text(json.dumps(existing))
@@ -89,10 +95,12 @@ class TestEODCumulativeReadOnly:
         """Calling twice can never inflate cumulative (no write at all)."""
         pnl_file = tmp_path / "cumulative_pnl.json"
         existing = {
-            "start_date": "2026-02-20", "initial_capital": 100000,
-            "trading_days": 1, "cumulative_pnl": 100.0,
-            "cumulative_pnl_pct": 0.1, "daily_history": [
-                {"date": "2026-02-24", "pnl": 100.0}],
+            "start_date": "2026-02-20",
+            "initial_capital": 100000,
+            "trading_days": 1,
+            "cumulative_pnl": 100.0,
+            "cumulative_pnl_pct": 0.1,
+            "daily_history": [{"date": "2026-02-24", "pnl": 100.0}],
         }
         pnl_file.write_text(json.dumps(existing))
 

@@ -89,8 +89,12 @@ class TestAppend:
 
     def test_distinct_exit_types_coexist(self, tmp_path):
         m = _mod()
-        m.append_pending_exit(_record(exit_type="TP1", qty=83), ledger_dir=tmp_path, today="2026-05-28")
-        m.append_pending_exit(_record(exit_type="TIME_STOP"), ledger_dir=tmp_path, today="2026-05-28")
+        m.append_pending_exit(
+            _record(exit_type="TP1", qty=83), ledger_dir=tmp_path, today="2026-05-28"
+        )
+        m.append_pending_exit(
+            _record(exit_type="TIME_STOP"), ledger_dir=tmp_path, today="2026-05-28"
+        )
         records = m.load_pending_exits("2026-05-28", tmp_path)
         assert {r["key"] for r in records} == {
             "AMH_TP1_2026-05-28",

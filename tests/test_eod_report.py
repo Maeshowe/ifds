@@ -61,8 +61,11 @@ class TestEODCommissionReadOnly:
     def test_existing_file_commission_untouched(self, tmp_path):
         pnl_file = tmp_path / "cumulative_pnl.json"
         existing = {
-            "start_date": "2026-03-10", "initial_capital": 100000,
-            "trading_days": 1, "cumulative_pnl": 100.0, "cumulative_pnl_pct": 0.1,
+            "start_date": "2026-03-10",
+            "initial_capital": 100000,
+            "trading_days": 1,
+            "cumulative_pnl": 100.0,
+            "cumulative_pnl_pct": 0.1,
             "daily_history": [{"date": "2026-03-16", "pnl": 100.0, "commission": 7.0}],
         }
         pnl_file.write_text(json.dumps(existing))

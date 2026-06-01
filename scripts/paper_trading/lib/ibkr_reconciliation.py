@@ -59,7 +59,7 @@ class PlannedBracket:
     planned_stop: float | None = None
     planned_tp1: float | None = None
     planned_tp2: float | None = None
-    mental_stop: float | None = None      # from swing_positions.json
+    mental_stop: float | None = None  # from swing_positions.json
     mental_tp1: float | None = None
     mental_tp2: float | None = None
 
@@ -294,24 +294,23 @@ def fetch_today_executions(ib: Any, today: date) -> list[dict[str, Any]]:
         exec_obj = fill.execution
         exec_date = exec_obj.time.date() if hasattr(exec_obj.time, "date") else None
         if exec_date != today:
-            logger.debug(
-                f"Skipping stale execution: {fill.contract.symbol} "
-                f"@{exec_obj.time}"
-            )
+            logger.debug(f"Skipping stale execution: {fill.contract.symbol} " f"@{exec_obj.time}")
             continue
         commission: float | None = None
         if hasattr(fill, "commissionReport") and fill.commissionReport:
             commission = float(getattr(fill.commissionReport, "commission", 0.0))
-        out.append({
-            "ticker": fill.contract.symbol,
-            "side": exec_obj.side,           # "BOT" | "SLD"
-            "shares": float(exec_obj.shares),
-            "price": float(exec_obj.price),
-            "time": exec_obj.time,
-            "order_ref": exec_obj.orderRef or "",
-            "order_id": int(exec_obj.orderId),
-            "commission": commission,
-        })
+        out.append(
+            {
+                "ticker": fill.contract.symbol,
+                "side": exec_obj.side,  # "BOT" | "SLD"
+                "shares": float(exec_obj.shares),
+                "price": float(exec_obj.price),
+                "time": exec_obj.time,
+                "order_ref": exec_obj.orderRef or "",
+                "order_id": int(exec_obj.orderId),
+                "commission": commission,
+            }
+        )
     return out
 
 
@@ -336,7 +335,8 @@ def build_reconcile_report(
     look up the matching SLD execution and classify it.
     """
     in_state_not_ibkr, in_ibkr_not_state = detect_closed_tickers(
-        ib_position_tickers, state_tickers,
+        ib_position_tickers,
+        state_tickers,
     )
 
     report = ReconcileReport(
@@ -360,14 +360,16 @@ def build_reconcile_report(
     for ticker in sorted(in_state_not_ibkr):
         sld_list = sld_by_ticker.get(ticker, [])
         if not sld_list:
-            report.detected_closures.append({
-                "ticker": ticker,
-                "exit_type": "OTHER",
-                "reason": "no_matching_execution",
-                "fill_price": None,
-                "qty": None,
-                "gross": None,
-            })
+            report.detected_closures.append(
+                {
+                    "ticker": ticker,
+                    "exit_type": "OTHER",
+                    "reason": "no_matching_execution",
+                    "fill_price": None,
+                    "qty": None,
+                    "gross": None,
+                }
+            )
             continue
 
         # If multiple SLD fills for the same ticker, use the latest one
@@ -388,21 +390,26 @@ def build_reconcile_report(
             entry_price = state_pos[ticker].get("entry_price")
         gross = (
             compute_pnl(entry_price, sld["price"], int(total_qty))
-            if entry_price is not None else None
+            if entry_price is not None
+            else None
         )
 
-        report.detected_closures.append({
-            "ticker": ticker,
-            "exit_type": exit_type,
-            "fill_price": sld["price"],
-            "qty": int(total_qty),
-            "entry_price": entry_price,
-            "gross": gross,
-            "commission": sum(
-                e["commission"] or 0.0 for e in sld_list
-            ),
-            "order_ref": sld["order_ref"],
-            "time": sld["time"].isoformat() if hasattr(sld["time"], "isoformat") else str(sld["time"]),
-        })
+        report.detected_closures.append(
+            {
+                "ticker": ticker,
+                "exit_type": exit_type,
+                "fill_price": sld["price"],
+                "qty": int(total_qty),
+                "entry_price": entry_price,
+                "gross": gross,
+                "commission": sum(e["commission"] or 0.0 for e in sld_list),
+                "order_ref": sld["order_ref"],
+                "time": (
+                    sld["time"].isoformat()
+                    if hasattr(sld["time"], "isoformat")
+                    else str(sld["time"])
+                ),
+            }
+        )
 
     return report

@@ -521,12 +521,14 @@ def apply_pending_exits(
         counter = EXIT_TYPE_TO_COUNTER.get(rec["exit_type"], "moc_exits")
 
         if int(total_qty) != int(rec.get("qty", total_qty)):
-            warnings.append({
-                "key": rec["key"],
-                "reason": "qty_mismatch",
-                "ledger_qty": rec.get("qty"),
-                "filled_qty": int(total_qty),
-            })
+            warnings.append(
+                {
+                    "key": rec["key"],
+                    "reason": "qty_mismatch",
+                    "ledger_qty": rec.get("qty"),
+                    "filled_qty": int(total_qty),
+                }
+            )
 
         out = update_cumulative_history_entry(
             out,
@@ -541,7 +543,12 @@ def apply_pending_exits(
         used_tickers.add(ticker)
         logger.info(
             "record_pending_exits: %s %s qty=%d @ %.4f → net $%+.2f (%s)",
-            rec["ticker"], rec["exit_type"], int(total_qty), weighted_price, net, counter,
+            rec["ticker"],
+            rec["exit_type"],
+            int(total_qty),
+            weighted_price,
+            net,
+            counter,
         )
 
     if matched_keys:
@@ -605,9 +612,7 @@ def record_pending_exits(
 
         td = date.fromisoformat(target_date)
         executions = fetch_today_executions(ib, td)
-        logger.info(
-            f"record_pending_exits: {len(executions)} executions fetched for {target_date}"
-        )
+        logger.info(f"record_pending_exits: {len(executions)} executions fetched for {target_date}")
 
         cum_data = _load_cumulative_pnl()
         new_cum, matched_keys, warnings = apply_pending_exits(
@@ -627,7 +632,8 @@ def record_pending_exits(
             summary["cumulative_pnl"] = new_cum.get("cumulative_pnl")
             logger.info(
                 "record_pending_exits: %d exits recorded, cumulative now $%+.2f",
-                len(matched_keys), new_cum.get("cumulative_pnl", 0.0),
+                len(matched_keys),
+                new_cum.get("cumulative_pnl", 0.0),
             )
         else:
             summary["cumulative_pnl"] = new_cum.get("cumulative_pnl")
