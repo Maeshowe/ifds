@@ -50,7 +50,27 @@ PHASE4_DIR = PROJECT_ROOT / "state" / "phase4_snapshots"
 METRICS_DIR = PROJECT_ROOT / "state" / "daily_metrics"
 LOGS_DIR = PROJECT_ROOT / "logs"
 UW_SHADOW_DIR = PROJECT_ROOT / "state" / "uw_shadow"
+PENDING_EXITS_DIR = PROJECT_ROOT / "state" / "pending_exits"
 INITIAL_CAPITAL = 100_000
+
+# clientId for the record_pending_exits IBKR connection (P0 §0.11 Part A).
+# Distinct from submit=10/close=11/eod=12/nuke=13/monitor=14/trail=15/
+# avwap=16/gateway=17 to avoid session takeover.
+RECORD_PENDING_CLIENT_ID = 18
+
+# Swing exit_type → cumulative_pnl.json daily_history counter key.
+EXIT_TYPE_TO_COUNTER = {
+    "TP1": "tp1_hits",
+    "TP2": "tp2_hits",
+    "SL": "sl_hits",
+    "HARD_SL": "sl_hits",
+    "MENTAL_SL": "sl_hits",
+    "TRAIL_SL": "trail_hits",
+    "TRAIL": "trail_hits",
+    "LOSS_EXIT": "loss_exit_hits",
+    "MOC": "moc_exits",
+    "TIME_STOP": "moc_exits",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -422,6 +442,208 @@ def _fetch_spy_return(target_date: str) -> float | None:
 
 
 # ---------------------------------------------------------------------------
+# Pending-exit recorder — SOLE cumulative_pnl.json writer for swing exits
+# (P0 §0.11 Part A). Routes around the eod_report clientId-12 ib.fills()
+# cross-client blind spot that silently dropped Day 9 AMH realized P&L.
+# ---------------------------------------------------------------------------
+
+
+def _atomic_write_json(path: Path, data: dict) -> None:
+    """Write JSON to ``path`` atomically (temp file + os.replace)."""
+    import tempfile
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def apply_pending_exits(
+    cum_data: dict,
+    target_date: str,
+    unprocessed_records: list[dict],
+    executions: list[dict],
+) -> tuple[dict, list[str], list[dict]]:
+    """Pure: match unprocessed ledger entries to SLD executions and apply
+    realized P&L deltas to ``cum_data``.
+
+    Returns ``(new_cum_data, matched_keys, warnings)``. Immutable input —
+    threads each match through ``update_cumulative_history_entry`` (which
+    copies) and recomputes the cumulative totals only if anything matched.
+
+    Matching is by ticker: all of the day's SLD fills for a ticker are
+    aggregated (qty-weighted avg fill price, summed commission). A ledger
+    entry with no matching SLD execution is left unprocessed and surfaced
+    as a warning — never fabricated. A second ledger entry for an already-
+    consumed ticker is skipped (guards against double counting).
+    """
+    from lib.ibkr_reconciliation import (
+        compute_pnl,
+        recompute_cumulative_pnl,
+        update_cumulative_history_entry,
+    )
+
+    sld_by_ticker: dict[str, list[dict]] = {}
+    for ex in executions:
+        if ex.get("side") != "SLD":
+            continue
+        sld_by_ticker.setdefault(ex["ticker"], []).append(ex)
+
+    out = cum_data
+    matched_keys: list[str] = []
+    warnings: list[dict] = []
+    used_tickers: set[str] = set()
+
+    for rec in unprocessed_records:
+        ticker = rec["ticker"]
+        if ticker in used_tickers:
+            warnings.append({"key": rec["key"], "reason": "duplicate_ticker_same_day"})
+            continue
+        sld_list = sld_by_ticker.get(ticker, [])
+        if not sld_list:
+            warnings.append({"key": rec["key"], "reason": "no_matching_execution"})
+            continue
+        total_qty = sum(e["shares"] for e in sld_list)
+        if total_qty <= 0:
+            warnings.append({"key": rec["key"], "reason": "zero_qty_execution"})
+            continue
+
+        weighted_price = sum(e["price"] * e["shares"] for e in sld_list) / total_qty
+        commission = round(sum((e.get("commission") or 0.0) for e in sld_list), 2)
+        gross = compute_pnl(rec["entry_price"], weighted_price, int(total_qty))
+        net = round(gross - commission, 2)
+        counter = EXIT_TYPE_TO_COUNTER.get(rec["exit_type"], "moc_exits")
+
+        if int(total_qty) != int(rec.get("qty", total_qty)):
+            warnings.append({
+                "key": rec["key"],
+                "reason": "qty_mismatch",
+                "ledger_qty": rec.get("qty"),
+                "filled_qty": int(total_qty),
+            })
+
+        out = update_cumulative_history_entry(
+            out,
+            target_date,
+            pnl_delta=net,
+            commission_delta=commission,
+            trades_delta=1,
+            filled_delta=1,
+            counter_increments={counter: 1},
+        )
+        matched_keys.append(rec["key"])
+        used_tickers.add(ticker)
+        logger.info(
+            "record_pending_exits: %s %s qty=%d @ %.4f → net $%+.2f (%s)",
+            rec["ticker"], rec["exit_type"], int(total_qty), weighted_price, net, counter,
+        )
+
+    if matched_keys:
+        out = recompute_cumulative_pnl(out)
+
+    return out, matched_keys, warnings
+
+
+def record_pending_exits(
+    target_date: str,
+    *,
+    dry_run: bool = False,
+    ledger_dir: str | None = None,
+    ib: object | None = None,
+) -> dict:
+    """Capture swing-exit realized P&L for ``target_date`` into cumulative_pnl.
+
+    Loads the pending-exit ledger, matches each unprocessed entry to its
+    IBKR SLD fill, writes the realized P&L delta to cumulative_pnl.json
+    (atomic), and marks the ledger entries processed. Idempotent: a re-run
+    skips already-processed keys, so no double counting.
+
+    Returns early (no IBKR connect) when there is nothing to process.
+    ``ledger_dir`` / ``ib`` are injectable for testing.
+    """
+    from lib.pending_exits import load_pending_exits, mark_processed
+
+    ledger_dir = ledger_dir or str(PENDING_EXITS_DIR)
+    records = load_pending_exits(target_date, ledger_dir)
+    unprocessed = [r for r in records if not r.get("processed")]
+
+    summary = {
+        "date": target_date,
+        "ledger_records": len(records),
+        "unprocessed": len(unprocessed),
+        "matched": 0,
+        "matched_keys": [],
+        "warnings": [],
+        "connected": False,
+        "dry_run": dry_run,
+        "cumulative_pnl": None,
+    }
+
+    if not unprocessed:
+        logger.info(f"record_pending_exits: no unprocessed ledger entries for {target_date}")
+        return summary
+
+    own_ib = None
+    try:
+        if ib is None:
+            from lib.connection import connect
+
+            ib = connect(
+                client_id=RECORD_PENDING_CLIENT_ID,
+                context_label="daily_metrics.record_pending_exits",
+            )
+            own_ib = ib
+        summary["connected"] = True
+
+        from lib.ibkr_reconciliation import fetch_today_executions
+
+        td = date.fromisoformat(target_date)
+        executions = fetch_today_executions(ib, td)
+        logger.info(
+            f"record_pending_exits: {len(executions)} executions fetched for {target_date}"
+        )
+
+        cum_data = _load_cumulative_pnl()
+        new_cum, matched_keys, warnings = apply_pending_exits(
+            cum_data, target_date, unprocessed, executions
+        )
+
+        summary["matched"] = len(matched_keys)
+        summary["matched_keys"] = matched_keys
+        summary["warnings"] = warnings
+
+        for w in warnings:
+            logger.warning("record_pending_exits warning: %s", w)
+
+        if matched_keys and not dry_run:
+            _atomic_write_json(CUM_PNL_FILE, new_cum)
+            mark_processed(target_date, set(matched_keys), ledger_dir)
+            summary["cumulative_pnl"] = new_cum.get("cumulative_pnl")
+            logger.info(
+                "record_pending_exits: %d exits recorded, cumulative now $%+.2f",
+                len(matched_keys), new_cum.get("cumulative_pnl", 0.0),
+            )
+        else:
+            summary["cumulative_pnl"] = new_cum.get("cumulative_pnl")
+    finally:
+        if own_ib is not None:
+            try:
+                from lib.connection import disconnect
+
+                disconnect(own_ib)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"record_pending_exits disconnect failed: {exc}")
+
+    return summary
+
+
+# ---------------------------------------------------------------------------
 # Metrics calculation
 # ---------------------------------------------------------------------------
 
@@ -599,6 +821,20 @@ def main() -> None:
 
     target_date = args.date or date.today().isoformat()
     logger.info(f"Daily metrics collection — {target_date}")
+
+    # Capture swing-exit realized P&L FIRST so build_daily_metrics reads the
+    # updated cumulative_pnl.json (P0 §0.11 Part A — sole cumulative writer).
+    # Guarded: a recorder failure (IBKR down) must not block metrics build;
+    # the ledger is idempotent so the next run retries.
+    try:
+        rec_summary = record_pending_exits(target_date)
+        logger.info(
+            f"record_pending_exits: matched={rec_summary['matched']} "
+            f"unprocessed={rec_summary['unprocessed']} "
+            f"warnings={len(rec_summary['warnings'])}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"record_pending_exits failed (metrics build continues): {exc}")
 
     metrics = build_daily_metrics(target_date)
 
