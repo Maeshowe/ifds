@@ -88,13 +88,18 @@ A Day 11 (6/1) EOD Telegram már lényegesen jobb a Day 8-i kaotikushoz képest 
 | `MMS (collect-only): {regimes}` + `Baseline: ...` + `MMS: collect-only (day N/21)` | teljes blokk | `mms_enabled` shadow-only → zaj |
 | `Crowd: x good/neutral/bad` | megjelenik | crowdedness shadow-only |
 
-**Javaslat (design-sign-off Tamástól kell a konkrét vágásokra)**:
-- **Opció A (agresszív)**: a teljes `[5/6] GEX Analysis` szekciót cseréljük egy 1-soros shadow-összefoglalóra: `🔬 Shadow (nem hajt döntést): GEX/MMS/crowd collected` — vagy teljesen elhagyjuk (az EOD-ban már van `UW shadow` sor).
-- **Opció B (konzervatív)**: hagyjuk meg, de jelöljük expliciten `(shadow — nem döntéshozó)` címkével minden legacy soron, hogy ne tűnjön aktívnak.
+**DÖNTÉS (Tamás, 2026-06-01): Opció A — agresszív.**
+- A teljes `[ 5/6 ] GEX Analysis` blokkot (GEX NEGATIVE exclusion, breadth, MMS regime + baseline + day-estimation, crowd) **lecseréljük egy 1-soros shadow-jelzésre**:
+  ```
+  [ 5/6 ] Shadow signals
+  GEX / MMS / breadth / crowd: collected (shadow — nem dönt)
+  ```
+  A `[ 6/6 ] Position Sizing` szekció (ami ténylegesen hajtja a swing döntést) változatlan marad.
+- Indok: ezek shadow-only-k (Day 63 §2), a shadow-internals nem valók a TRADING PLAN-be; a `state/uw_shadow` log megőrzi a Day 90 UW-rekalibrációhoz szükséges adatot.
 - **SUBMIT** (`submit_orders.py`): swing-aware, rendben — nincs változás (csak megerősítés).
 - **CLOSE** (`close_positions.py`): tiszta swing sorok — nincs változás.
 
-**CC implementáció**: A §7 csak Tamás opció-választása (A/B) után. A §1-6 EOD-rész attól függetlenül mehet.
+**CC implementáció**: A §1-6 EOD-rész és a §7 mehet (minden döntés megvan).
 
 ---
 
