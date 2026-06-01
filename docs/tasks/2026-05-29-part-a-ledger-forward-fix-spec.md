@@ -1,6 +1,6 @@
 # Part A — Ledger forward-fix (P0 §0.11) — LOCKED SPEC for clean-session implementation
 
-**Status**: OPEN (design locked 2026-05-29, implementation pending in a fresh CC session)
+**Status**: WIP (design locked 2026-05-29; implementation + tests COMPLETE 2026-06-01, local commits done; Mac Mini push+deploy+live-smoke PENDING Tamás approval — see Deploy runbook below)
 **Priority**: P0 — realized P&L tracking gap forward-fix
 **Why a separate spec**: the 2026-05-29 session degraded (API 400 "thinking blocks" + corrupted file reads — "20:48" leaking into line numbers, garbled content). Implementation of live trading scripts (`close_positions.py`, `eod_report.py`) was halted to avoid a corrupted edit breaking the live MOC SELL. All decisions below are FINAL — a fresh session executes directly.
 
@@ -70,3 +70,63 @@
 
 ## Safety net (no data loss)
 - `-$651.10` canonical baseline intact (Part B). Day 9 AMH realized is the only missing piece; captured by step 4 above. Live trading unaffected (close_positions still executes SELLs; ledger write is try/except-guarded).
+
+---
+
+## Implementation complete — 2026-06-01 (CC, local) ✅
+
+All six pieces implemented + tested locally. Full suite **1862 passed, 0 failure, 0 warning** (baseline 1828 → +34 Part A tests). Commits (local, awaiting Tamás push approval):
+
+1. `refactor(lib): move pure pnl helpers from retroactive_reconcile_w21 to lib/ibkr_reconciliation`
+2. `feat(pnl): pending-exits ledger module (lib/pending_exits.py)`
+3. `feat(close_positions): write pending-exit ledger entries (try/except guarded)`
+4. `feat(daily_metrics): record_pending_exits — sole cumulative_pnl writer + --date backfill`
+5. `feat(eod_report): neutralize cumulative write + add silent-0-pnl Telegram WARNING`
+6. `test(pnl): exit_type→counter mapping + commission field (Part A regression)` + style/seed commits
+
+### Verification results (the 3 open items, now closed)
+- **clientId=18 free** ✅ — grep of `scripts/paper_trading/*.py` confirms 10–17 in use (submit/close/eod/nuke/monitor/trail/avwap/gateway), 18 unassigned. Constant: `daily_metrics.RECORD_PENDING_CLIENT_ID = 18`.
+- **main() call order** ✅ — `record_pending_exits(target_date)` runs BEFORE `build_daily_metrics(target_date)` in `daily_metrics.main()`, guarded by try/except (a recorder failure does not block the metrics build; ledger is idempotent → next run retries).
+- **`fetch_today_executions` backfill** ✅ — the helper takes `today: date` and post-filters `exec_date != today`, so `--date 2026-05-28` filters to that date's fills. No call-site change needed.
+
+### Day 9 AMH backfill decision: option (a) — ledger seed
+The Day 9 ledger never existed (close_positions started writing it only with this deploy), so AMH 5/28 has no native ledger entry. Per spec step 4, seed ONE entry then let the recorder match the live IBKR fill. Reproducible script: `scripts/admin/seed_amh_day9_ledger.py` (idempotent; `--dry-run`/`--apply`).
+
+AMH Day 9 leg (the 249-share TIME_STOP, NOT the 2026-05-29 re-entry):
+`entry_price=32.11, qty=249, entry_date=2026-05-22, exit_type=TIME_STOP, sector="Real Estate"`.
+
+## Deploy runbook (Mac Mini — **Tamás approval gated**, weekend = ideal, first live trial Mon 21:40)
+
+> Push + Mac Mini pull + deploy require Tamás's explicit *"jóváhagyom a push + deploy-t"*. Until then this stays local.
+
+```bash
+# 0. (MacBook) push after approval
+git push origin master
+
+# 1. (Mac Mini) pull
+ssh ifds-mini
+cd ~/SSH-Services/ifds && git pull origin master
+
+# 2. pre-flight: full suite green on Mac Mini
+python -m pytest tests/ -q   # expect 1862 passed
+
+# 3. backup cumulative (canonical -651.10 baseline)
+cp scripts/paper_trading/logs/cumulative_pnl.json \
+   scripts/paper_trading/logs/cumulative_pnl.json.bak.pre_partA.$(date +%Y%m%d_%H%M%S)
+
+# 4. seed Day 9 AMH ledger + first recorder run (IBKR Gateway must be up)
+python scripts/admin/seed_amh_day9_ledger.py --dry-run    # inspect
+python scripts/admin/seed_amh_day9_ledger.py --apply       # writes state/pending_exits/2026-05-28.json
+source .env && python scripts/paper_trading/daily_metrics.py --date 2026-05-28
+
+# 5. verify: cumulative moved from -651.10 by AMH realized; ledger entry processed=true
+python -c "import json; d=json.load(open('scripts/paper_trading/logs/cumulative_pnl.json')); print('cumulative:', d['cumulative_pnl'], 'days:', d['trading_days'])"
+cat state/pending_exits/2026-05-28.json   # AMH key processed:true
+```
+
+The exact AMH realized comes from the IBKR `get_account_trades` (DAYS_30) SLD fill on 2026-05-28. After step 5 confirms, the `data(reconcile)` commit documents the new cumulative.
+
+**If the smoke fails**: backup at `cumulative_pnl.json.bak.pre_partA.*`; delete `state/pending_exits/2026-05-28.json` to re-seed. Do NOT re-run `canonical_pnl_reconstruction.py --apply` once Part A has written (it wholesale-replaces daily_history).
+
+### From Day 10 (5/29) onward
+`close_positions` writes the ledger natively at each swing exit → `record_pending_exits` auto-captures at the 22:10 cron. No manual seed ever again.
