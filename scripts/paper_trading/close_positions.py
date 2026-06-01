@@ -15,6 +15,7 @@ Usage:
 import argparse
 import sys
 from datetime import date
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -42,6 +43,11 @@ except ModuleNotFoundError:
 
 MAX_ORDER_SIZE = 500  # IBKR precautionary size limit (Global Configuration/Presets)
 
+# Pending-exit ledger (P0 §0.11 Part A) — anchored to repo root so the 22:10
+# recorder (daily_metrics.record_pending_exits) reads the same dir regardless
+# of the cron working directory.
+PENDING_EXITS_DIR = str(Path(__file__).resolve().parents[2] / "state" / "pending_exits")
+
 try:
     from lib.event_logger import PTEventLogger
 
@@ -60,6 +66,51 @@ def send_telegram(message):
     from lib.telegram_helper import send_telegram as _send
 
     _send(f"{telegram_header('CLOSE')}\n{message}")
+
+
+# ---------------------------------------------------------------------------
+# Pending-exit ledger write (P0 §0.11 Part A)
+# ---------------------------------------------------------------------------
+
+
+def record_pending_exit_safe(pos, exit_type: str, qty: int, today_str: str) -> None:
+    """Append a pending-exit ledger entry for a submitted swing SELL.
+
+    CRITICAL: fully try/except guarded — a ledger-write failure must NEVER
+    block or raise after the actual SELL has been submitted. On failure we
+    only ``logger.warning`` and send a best-effort Telegram WARNING.
+
+    For a TP1 partial the ``qty`` passed is the SOLD leg (e.g. 50%); the
+    remaining position stays open with ``exit_type=TP1`` recorded for the
+    realized sold leg only.
+    """
+    try:
+        from lib.pending_exits import append_pending_exit
+
+        append_pending_exit(
+            {
+                "ticker": pos.ticker,
+                "entry_price": pos.entry_price,
+                "entry_date": pos.entry_date,
+                "qty": qty,
+                "exit_type": exit_type,
+                "sector": getattr(pos, "sector", "") or "",
+            },
+            ledger_dir=PENDING_EXITS_DIR,
+            today=today_str,
+        )
+    except Exception as exc:  # noqa: BLE001 — ledger must never block the SELL
+        logger.warning(
+            f"pending_exits ledger write failed for {getattr(pos, 'ticker', '?')} "
+            f"{exit_type}: {exc}"
+        )
+        try:
+            send_telegram(
+                f"⚠️ Ledger write failed: {getattr(pos, 'ticker', '?')} {exit_type} "
+                f"— realized P&L tracking may miss this exit (record manually)."
+            )
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -154,6 +205,9 @@ def run_swing_eod_flags(state_file: str, today_str: str) -> None:
             evt.log("close", "swing_eod_exit", ticker=pos.ticker, action=pos.next_action, qty=qty)
         submitted.append((pos.ticker, pos.next_action, qty))
 
+        # Ledger the realized exit (sold qty) for the 22:10 P&L recorder.
+        record_pending_exit_safe(pos, pos.next_action, qty, today_str)
+
         if pos.next_action == ACTION_TP1:
             updated = apply_executed_exit(pos, ACTION_TP1, tp1_sell_pct=tp1_sell_pct)
             if updated is not None:
@@ -204,6 +258,9 @@ def run_swing_time_stop(state_file: str, today_str: str) -> None:
         if evt:
             evt.log("close", "swing_time_stop_moc", ticker=pos.ticker, qty=pos.qty_remaining)
         submitted.append((pos.ticker, pos.qty_remaining))
+
+        # Ledger the realized exit for the 22:10 P&L recorder.
+        record_pending_exit_safe(pos, "TIME_STOP", pos.qty_remaining, today_str)
 
     save_swing_positions(state_file, new_state)
     logger.info(f"[SWING 21:40 close] MOC submitted {len(submitted)} | open: {len(new_state)}")
