@@ -161,6 +161,31 @@ class TestApplyPendingExits:
         assert matched == ["X_TP1_2026-05-28"]
         assert any(w["reason"] == "duplicate_ticker_same_day" for w in warnings)
 
+    @pytest.mark.parametrize(
+        "exit_type,counter",
+        [
+            ("TP1", "tp1_hits"),
+            ("TP2", "tp2_hits"),
+            ("SL", "sl_hits"),
+            ("HARD_SL", "sl_hits"),
+            ("MENTAL_SL", "sl_hits"),
+            ("TRAIL_SL", "trail_hits"),
+            ("TRAIL", "trail_hits"),
+            ("LOSS_EXIT", "loss_exit_hits"),
+            ("MOC", "moc_exits"),
+            ("TIME_STOP", "moc_exits"),
+        ],
+    )
+    def test_exit_type_to_counter_mapping(self, exit_type, counter):
+        dm = _dm()
+        cum = _seed_cum()
+        rec = {"key": f"X_{exit_type}_2026-05-28", "ticker": "X", "entry_price": 100.0,
+               "qty": 10, "exit_type": exit_type, "processed": False}
+        execs = [{"ticker": "X", "side": "SLD", "shares": 10.0, "price": 110.0, "commission": 0.0}]
+        out, matched, _ = dm.apply_pending_exits(cum, "2026-05-28", [rec], execs)
+        assert matched == [f"X_{exit_type}_2026-05-28"]
+        assert out["daily_history"][0][counter] == 1
+
     def test_qty_mismatch_still_records_with_warning(self):
         dm = _dm()
         cum = _seed_cum()
@@ -220,6 +245,7 @@ class TestRecordPendingExits:
         written = json.loads(cum_file.read_text())
         entry = next(e for e in written["daily_history"] if e["date"] == "2026-05-28")
         assert entry["pnl"] == pytest.approx(-278.39, abs=0.01)
+        assert entry["commission"] == pytest.approx(2.0, abs=0.01)
         # ledger marked processed
         assert pe.load_pending_exits("2026-05-28", ledger_dir)[0]["processed"] is True
 
