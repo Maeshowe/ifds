@@ -22,7 +22,7 @@ _CET = ZoneInfo("Europe/Budapest")
 from ifds.config.loader import Config
 from ifds.events.logger import EventLogger
 from ifds.events.types import EventType, Severity
-from ifds.models.market import BaselineState, PipelineContext
+from ifds.models.market import PipelineContext
 
 # Telegram message size limit
 _MAX_MSG_LEN = 4096
@@ -350,63 +350,14 @@ def _format_phases_5_to_6(ctx: PipelineContext, config: Config, fmp=None) -> str
     """Format Phase 5 and Phase 6."""
     lines: list[str] = []
 
-    # Phase 5: GEX Analysis
-    lines.append(f"<b>[ 5/6 ] GEX Analysis</b>")
-    if ctx.phase5:
-        p5 = ctx.phase5
-        lines.append(
-            f"Analyzed: {len(p5.analyzed)}"
-            f"  |  Passed: {len(p5.passed)}"
-            f"  |  Excluded (NEGATIVE regime): {p5.negative_regime_count}"
-        )
-
-        # Breadth summary
-        if ctx.sector_scores:
-            breadth_sectors = [s for s in ctx.sector_scores if s.breadth is not None]
-            if breadth_sectors:
-                regime_counts: dict[str, int] = {}
-                for s in breadth_sectors:
-                    r = s.breadth.breadth_regime.value
-                    regime_counts[r] = regime_counts.get(r, 0) + 1
-                dominant = max(regime_counts, key=regime_counts.get)  # type: ignore[arg-type]
-                lines.append(f"Breadth: {dominant} ({len(breadth_sectors)}/11)")
-
-        # MMS
-        if ctx.mms_analyses:
-            mms_enabled = config.tuning.get("mms_enabled", False)
-            status = "ENABLED" if mms_enabled else "collect-only"
-
-            regime_counts_obs: dict[str, int] = {}
-            for o in ctx.mms_analyses:
-                regime_counts_obs[o.mm_regime.value] = (
-                    regime_counts_obs.get(o.mm_regime.value, 0) + 1
-                )
-            parts = [f"{k}={v}" for k, v in sorted(regime_counts_obs.items())]
-            label = "MMS" if mms_enabled else "MMS (collect-only)"
-            lines.append(f"{label}: {' '.join(parts)}")
-
-            # Day estimation and baseline
-            states = {"complete": 0, "partial": 0, "empty": 0}
-            for o in ctx.mms_analyses:
-                states[o.baseline_state.value] = states.get(o.baseline_state.value, 0) + 1
-            if ctx.mms_analyses:
-                max_days = max(o.baseline_days for o in ctx.mms_analyses)
-            else:
-                max_days = 0
-            min_periods = config.core.get("mms_min_periods", 21)
-            lines.append(f"MMS: {status} (day {max_days}/{min_periods})")
-            lines.append(
-                f"Baseline: {states['complete']} complete"
-                f" / {states['partial']} partial"
-                f" / {states['empty']} empty"
-            )
-
-            # Crowdedness shadow summary (BC18A)
-            if config.tuning.get("crowdedness_shadow_enabled", False):
-                good = sum(1 for o in ctx.mms_analyses if o.crowding_score > 0.3)
-                bad = sum(1 for o in ctx.mms_analyses if o.crowding_score < -0.3)
-                neutral = len(ctx.mms_analyses) - good - bad
-                lines.append(f"Crowd: {good} good / {neutral} neutral / {bad} bad")
+    # Phase 5: shadow signals (Telegram-finomítás §7, Option A).
+    # GEX / MMS / breadth / crowdedness are shadow-only in the swing pivot
+    # (Day 63 §2: UW/GEX scoring deactivated) — they do NOT drive the swing
+    # decision, so the whole legacy [5/6] block collapses to a 1-line shadow
+    # marker. The data still accrues to state/uw_shadow + state/mms for the
+    # Day 90 recalibration; it just no longer clutters the TRADING PLAN.
+    lines.append("<b>[ 5/6 ] Shadow signals</b>")
+    lines.append("GEX / MMS / breadth / crowd: collected (shadow — nem dönt)")
 
     # Phase 6: Position Sizing
     lines.append("")

@@ -67,11 +67,17 @@ def test_telegram_template_compact_format():
 
 
 def test_telegram_template_renders_zero_entries():
-    """Zero entries / exits → 'Új entry today: 0' és 'Triggered exits: 0'."""
+    """Zero entries / exits → 'Új entry today: 0'; no exit section when none.
+
+    Telegram-finomítás §4: the standalone 'Triggered exits' line was removed
+    (merged into the single 'Holnap (Day N) exit' section, which only renders
+    when there ARE next-day exits).
+    """
     metrics = _base_metrics()
     out = format_swing_compact_telegram(metrics)
     assert "Új entry today:  0" in out
-    assert "Triggered exits: 0" in out
+    assert "Triggered exits" not in out
+    assert "Holnap" not in out  # no exit flags → no exit section
 
 
 def test_telegram_template_pnl_block_with_unrealized():
@@ -494,3 +500,110 @@ def test_trading_plan_exec_table_without_swing_state_no_status_column():
     ]
     out = _format_exec_table(positions, existing_swing_tickers=None)
     assert "STATUS" not in out
+
+
+# ---------------------------------------------------------------------------
+# Telegram-finomítás §2/§3a/§5/§6
+# ---------------------------------------------------------------------------
+
+
+def test_top_movers_rendered_with_floor():
+    """§2: top/bottom movers from per_position_unrealized, |upnl| >= $50."""
+    m = _base_metrics(
+        pnl={
+            "net": 0.0,
+            "gross": 0.0,
+            "cumulative": 0.0,
+            "cumulative_pct": 0.0,
+            "unrealized": 197.0,
+            "per_position_unrealized": {
+                "CDNS": 552.0,
+                "AKAM": 128.0,
+                "AMH": 99.0,
+                "JHG": -27.0,  # below $50 floor → excluded
+                "EOG": -168.0,
+                "WST": -137.0,
+                "ROIV": -88.0,
+            },
+        },
+        swing_state={**_base_metrics()["swing_state"], "open_positions": 7},
+    )
+    out = format_swing_compact_telegram(m)
+    assert "⭐ Top:" in out and "CDNS $+552" in out and "AKAM $+128" in out
+    assert "⚠️ Bot:" in out and "EOG $-168" in out and "WST $-137" in out
+    assert "JHG" not in out.split("Bot:")[1].split("\n")[0]  # JHG (-27) below floor
+
+
+def test_day_change_rendered():
+    """§3a: day_change line from pnl.day_change / day_change_pct."""
+    m = _base_metrics(
+        pnl={
+            "net": 0.0,
+            "gross": 0.0,
+            "cumulative": -708.58,
+            "cumulative_pct": -0.71,
+            "unrealized": 100.0,
+            "day_change": 523.14,
+            "day_change_pct": 0.53,
+        }
+    )
+    out = format_swing_compact_telegram(m)
+    assert "Day change:" in out and "$+523.14" in out and "(+0.53%)" in out
+
+
+def test_top_sj_status_labels():
+    """§5: held/selected/skipped labels on Top S_j."""
+    base = _base_metrics()["swing_state"]
+    m = _base_metrics(
+        swing_state={
+            **base,
+            "open_positions": 8,
+            "new_entries_today": 1,
+            "new_entries_tickers": ["WST"],
+            "held_tickers": ["AKAM", "JHG", "WST"],
+            "swing_score_distribution": {
+                "qualifying_threshold_50": 31,
+                "selected_for_entry": 1,
+                "top_3_scores": [
+                    {"ticker": "MASI", "S_j": 93.9, "sector": "Healthcare"},
+                    {"ticker": "AKAM", "S_j": 89.8, "sector": "Technology"},
+                    {"ticker": "WST", "S_j": 79.0, "sector": "Healthcare"},
+                ],
+            },
+        }
+    )
+    out = format_swing_compact_telegram(m)
+    assert "MASI" in out and "[skipped]" in out
+    assert "AKAM" in out and "[holding]" in out
+    assert "WST" in out and "[selected]" in out
+
+
+def test_day21_checkpoint_rendered():
+    """§6: Day 21 checkpoint indicator with days-left."""
+    m = _base_metrics(
+        day_number=11,
+        pnl={"net": 0.0, "gross": 0.0, "cumulative": -708.58, "cumulative_pct": -0.71},
+    )
+    out = format_swing_compact_telegram(m)
+    assert "Day 21 chkpt:" in out and "$-1,500" in out and "10 days left" in out
+
+
+def test_merged_next_day_exit_section():
+    """§4: single 'Holnap (Day N) exit' section, no separate 'Triggered exits'."""
+    base = _base_metrics()["swing_state"]
+    m = _base_metrics(
+        day_number=12,
+        swing_state={
+            **base,
+            "open_positions": 8,
+            "next_day_planned": {
+                "exits_at_1530": ["AKAM_TP1", "ST_TP1"],
+                "time_stops_at_2140": ["EOG_TIME_STOP"],
+            },
+        },
+    )
+    out = format_swing_compact_telegram(m)
+    assert "Triggered exits" not in out
+    assert "Holnap (Day 13) exit:" in out
+    assert "15:30 MKT: AKAM_TP1, ST_TP1" in out
+    assert "21:40 MOC: EOG_TIME_STOP" in out

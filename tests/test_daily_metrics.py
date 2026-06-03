@@ -396,3 +396,30 @@ class TestSwingMetadataSync:
         assert m["exits"]["tp2"] == 0
         assert m["positions"]["opened"] == 1  # swing_state new_entries_today
         assert m["pnl"]["net"] == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# Telegram-finomítás §1 — NYSE trading-day Day-N
+# ---------------------------------------------------------------------------
+
+
+class TestTradingDayNumber:
+    """compute_trading_day_number = NYSE trading days in [start, target]."""
+
+    def test_start_day_is_one(self):
+        from scripts.paper_trading.daily_metrics import compute_trading_day_number
+
+        assert compute_trading_day_number("2026-05-18", "2026-05-18") == 1
+
+    def test_memorial_day_excluded(self):
+        from scripts.paper_trading.daily_metrics import compute_trading_day_number
+
+        # 5/18..6/1 = 5/18,19,20,21,22,(25 Memorial Day skip),26,27,28,29,6/1 = 10
+        assert compute_trading_day_number("2026-06-01", "2026-05-18") == 10
+        # 6/2 = 11
+        assert compute_trading_day_number("2026-06-02", "2026-05-18") == 11
+
+    def test_default_start_date(self):
+        from scripts.paper_trading.daily_metrics import compute_trading_day_number
+
+        assert compute_trading_day_number("2026-06-01") == 10  # default start 2026-05-18

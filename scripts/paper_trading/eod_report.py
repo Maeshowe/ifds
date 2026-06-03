@@ -28,6 +28,8 @@ load_dotenv()
 
 LOG_DIR = "scripts/paper_trading/logs"
 CUMULATIVE_PNL_FILE = "scripts/paper_trading/logs/cumulative_pnl.json"
+# §3a: day-over-day equity store (repo-root anchored, separate from cumulative).
+DAILY_EQUITY_FILE = str(Path(__file__).resolve().parents[2] / "state" / "daily_equity.json")
 CIRCUIT_BREAKER_USD = -5_000
 INITIAL_CAPITAL = 100_000
 
@@ -350,6 +352,57 @@ def update_cumulative_pnl(trades, today_str):
     return data, daily_pnl
 
 
+def _record_daily_equity(ib, today_str):
+    """Persist today's IBKR NetLiquidation and return (day_change, day_change_pct).
+
+    §3a: the day-over-day total-equity change is the single "good day / bad day"
+    signal for the EOD Telegram. Stored in a dedicated state/daily_equity.json
+    (separate from cumulative_pnl.json so Part A's single-writer invariant is
+    untouched). day_change = today NetLiq − most-recent-prior NetLiq (or the
+    initial capital on the first day). Fully guarded + atomic write — equity
+    bookkeeping must never break the EOD report.
+    """
+    import tempfile
+
+    try:
+        net_liq = None
+        for row in ib.accountSummary():
+            if getattr(row, "tag", "") == "NetLiquidation":
+                net_liq = float(row.value)
+                break
+        if net_liq is None:
+            return None, None
+
+        store: dict[str, float] = {}
+        if os.path.exists(DAILY_EQUITY_FILE):
+            try:
+                store = json.loads(Path(DAILY_EQUITY_FILE).read_text())
+            except (OSError, json.JSONDecodeError):
+                store = {}
+
+        prior_dates = sorted(d for d in store if d < today_str)
+        prior_equity = store[prior_dates[-1]] if prior_dates else float(INITIAL_CAPITAL)
+        day_change = net_liq - prior_equity
+        day_change_pct = (day_change / prior_equity * 100) if prior_equity else None
+
+        store[today_str] = round(net_liq, 2)
+        p = Path(DAILY_EQUITY_FILE)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=str(p.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(store, f, indent=2)
+            os.replace(tmp, p)
+        except BaseException:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+            raise
+        return day_change, day_change_pct
+    except Exception as exc:  # noqa: BLE001 — never break EOD on equity bookkeeping
+        logger.warning(f"daily equity record failed: {exc}")
+        return None, None
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -628,14 +681,23 @@ def main():
         from ifds.output.swing_telegram import format_swing_compact_telegram
 
         # Unrealized P&L from IBKR portfolio (only swing tickers, exclude AVDL.CVR orphan)
+        # §2: also collect per-position unrealized for the Top/Bottom movers line.
         unrealized_total = 0.0
+        per_position_unrealized: dict[str, float] = {}
         try:
             for item in ib.portfolio():
                 sym = item.contract.symbol
                 if item.position != 0 and sym not in IGNORED_POSITIONS:
-                    unrealized_total += float(item.unrealizedPNL or 0.0)
+                    upnl = float(item.unrealizedPNL or 0.0)
+                    unrealized_total += upnl
+                    per_position_unrealized[sym] = round(upnl, 2)
         except Exception as exc:
             logger.warning(f"Failed to read IBKR unrealized P&L: {exc}")
+
+        # §3a: day-over-day total-equity (NetLiquidation) change, persisted to
+        # state/daily_equity.json (separate store — keeps cumulative_pnl.json's
+        # Part A single-writer invariant intact).
+        day_change, day_change_pct = _record_daily_equity(ib, today_str)
 
         metrics = build_daily_metrics(today_str)
         # Override P&L block with eod_report's authoritative numbers
@@ -646,9 +708,14 @@ def main():
         metrics["pnl"]["cumulative"] = round(cum_pnl, 2)
         metrics["pnl"]["cumulative_pct"] = round(cum_pct, 2)
         metrics["pnl"]["unrealized"] = round(unrealized_total, 2)
+        metrics["pnl"]["per_position_unrealized"] = per_position_unrealized
+        if day_change is not None:
+            metrics["pnl"]["day_change"] = round(day_change, 2)
+            metrics["pnl"]["day_change_pct"] = round(day_change_pct, 2) if day_change_pct else None
         metrics["pnl"]["closed_trades_today"] = len(trades)
         metrics["pnl"]["circuit_breaker_threshold"] = float(CIRCUIT_BREAKER_USD)
-        metrics["day_number"] = trading_days
+        # day_number left as build_daily_metrics set it (NYSE trading-day count,
+        # Telegram-finomítás §1) — do NOT override with cumulative.trading_days.
         metrics["initial_capital"] = INITIAL_CAPITAL
 
         tg_msg = format_swing_compact_telegram(metrics)

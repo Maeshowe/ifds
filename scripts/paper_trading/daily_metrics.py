@@ -72,6 +72,31 @@ EXIT_TYPE_TO_COUNTER = {
     "TIME_STOP": "moc_exits",
 }
 
+SWING_PIVOT_START_DATE_DEFAULT = "2026-05-18"
+
+
+def compute_trading_day_number(target_date: str, start_date: str | None = None) -> int:
+    """Day-N as the NYSE trading-day count from the swing-pivot start (inclusive).
+
+    Telegram-finomítás §1: the canonical Day-N is the number of NYSE trading
+    days in [start_date, target_date] (Memorial Day etc. excluded), NOT
+    ``cumulative_pnl.trading_days`` (which only counts days with a P&L entry →
+    understated on no-exit days). Consistent with ``days_held`` being
+    trading-day based. Falls back to a weekday count if the calendar is
+    unavailable.
+    """
+    start = start_date or SWING_PIVOT_START_DATE_DEFAULT
+    try:
+        from ifds.utils.trading_calendar import trading_days_between
+
+        return len(trading_days_between(date.fromisoformat(start), date.fromisoformat(target_date)))
+    except Exception:  # noqa: BLE001 — calendar optional; weekday fallback
+        s = date.fromisoformat(start)
+        e = date.fromisoformat(target_date)
+        if e < s:
+            return 0
+        return sum(1 for i in range((e - s).days + 1) if (s + timedelta(days=i)).weekday() < 5)
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -247,6 +272,7 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
         "max_concurrent": max_concurrent,
         "new_entries_today": len(new_entries),
         "new_entries_tickers": [p.ticker for p in new_entries],
+        "held_tickers": [p.ticker for p in positions],  # §5: Top S_j status labels
         "total_notional": round(total_notional, 2),
         "total_notional_pct_equity": round(total_notional / equity * 100, 2) if equity > 0 else 0.0,
         "sector_distribution": {k: round(v, 2) for k, v in sector_distribution.items()},
@@ -770,7 +796,7 @@ def build_daily_metrics(target_date: str) -> dict:
 
     return {
         "date": target_date,
-        "day_number": cum_data.get("trading_days", 0),
+        "day_number": compute_trading_day_number(target_date, cum_data.get("start_date")),
         "positions": {
             "opened": opened_count,
             "qualified_above_threshold": qualified_count,

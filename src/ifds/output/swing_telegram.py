@@ -33,7 +33,6 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
     max_cap = int(swing.get("max_concurrent", 12))
     new_today = int(swing.get("new_entries_today", 0))
     new_tickers = swing.get("new_entries_tickers", [])
-    exits_today = swing.get("exits_today", {}) or {}
     total_notional = float(swing.get("total_notional", 0.0))
     notional_pct = float(swing.get("total_notional_pct_equity", 0.0))
     sector_dist = swing.get("sector_distribution", {}) or {}
@@ -47,6 +46,15 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
 
     equity = float(metrics.get("initial_capital", 100_000.0))
 
+    # Telegram-finomítás §2/§3a/§5/§6 inputs (degrade gracefully if absent)
+    per_position = pnl.get("per_position_unrealized") or {}
+    day_change = pnl.get("day_change")
+    day_change_pct = pnl.get("day_change_pct")
+    held_tickers = set(swing.get("held_tickers") or [])
+    new_set = set(new_tickers)
+    MOVER_FLOOR_USD = 50.0  # §2: only surface movers with |unrealized| >= $50
+    DAY21_THRESHOLD = -1500.0  # §6: Day 21 checkpoint go/no-go threshold
+
     # --- Build the body ---
     lines: list[str] = []
     lines.append(f"🌅 IFDS Swing — {date_str} (Day {day_num})")
@@ -55,6 +63,19 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
     lines.append(f"💰 Realized today:   ${realized:+,.2f}  ({closed_count} closed)")
     if unrealized is not None:
         lines.append(f"📊 Unrealized:       ${float(unrealized):+,.2f}  ({open_n} open)")
+        # §2: top/bottom movers (|unrealized| >= $50), up to 3 each side.
+        if per_position:
+            ranked = sorted(per_position.items(), key=lambda kv: kv[1], reverse=True)
+            tops = [(t, v) for t, v in ranked if v >= MOVER_FLOOR_USD][:3]
+            bots = [(t, v) for t, v in reversed(ranked) if v <= -MOVER_FLOOR_USD][:3]
+            if tops:
+                lines.append("   ⭐ Top: " + " | ".join(f"{t} ${v:+,.0f}" for t, v in tops))
+            if bots:
+                lines.append("   ⚠️ Bot: " + " | ".join(f"{t} ${v:+,.0f}" for t, v in bots))
+    # §3a: day-over-day total-equity change (the "good day / bad day" signal).
+    if day_change is not None:
+        pct_str = f" ({day_change_pct:+.2f}%)" if day_change_pct is not None else ""
+        lines.append(f"📈 Day change:       ${float(day_change):+,.2f}{pct_str}")
     lines.append(f"📈 Cumulative:       ${cum:+,.0f}  (real-mark)")
     lines.append("")
     lines.append(f"📂 Pozíciók:        {open_n} nyitva / {max_cap} cap")
@@ -67,11 +88,8 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
     else:
         lines.append("🆕 Új entry today:  0")
 
-    exit_strs = [f"{cnt} {kind}" for kind, cnt in sorted(exits_today.items()) if cnt > 0]
-    if exit_strs:
-        lines.append(f"📤 Triggered exits: {', '.join(exit_strs)} → holnap 15:30")
-    else:
-        lines.append("📤 Triggered exits: 0")
+    # §4: the triggered-exit COUNTS and the next-day exit TICKERS describe the
+    # same flags — merged into a single "Holnap exit" section below (not two).
 
     # --- Open swing book + sectors ---
     if open_n > 0:
@@ -92,18 +110,24 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
             ticker = entry.get("ticker", "?")
             score = float(entry.get("S_j", entry.get("score", 0.0)))
             sector = entry.get("sector", "")
-            atr = entry.get("atr_move", "")
             sector_str = f" | {sector}" if sector else ""
-            atr_str = f" | {atr}" if atr else ""
-            lines.append(f"   {ticker}  {score:.1f}{sector_str}{atr_str}")
+            # §5: clarify the entry didn't necessarily get selected.
+            if ticker in new_set:
+                status = " [selected] ⭐"
+            elif ticker in held_tickers:
+                status = " [holding]"
+            else:
+                status = " [skipped]"
+            lines.append(f"   {ticker}  {score:.1f}{sector_str}{status}")
 
+    # §4: single merged next-day exit section (counts + tickers in one place).
     if exits_at_1530 or time_stops_at_2140:
         lines.append("")
-        lines.append("⚡ Holnap exit-tervek:")
+        lines.append(f"⚡ Holnap (Day {day_num + 1}) exit:")
         if exits_at_1530:
-            lines.append(f"   15:30: {', '.join(exits_at_1530)}")
+            lines.append(f"   15:30 MKT: {', '.join(exits_at_1530)}")
         if time_stops_at_2140:
-            lines.append(f"   21:40: {', '.join(time_stops_at_2140)}")
+            lines.append(f"   21:40 MOC: {', '.join(time_stops_at_2140)}")
 
     uw = metrics.get("uw_shadow_summary", {}) or {}
     if uw and uw.get("tickers_logged", 0):
@@ -149,6 +173,16 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
             lines.append(
                 f"🟢 CB buffer:        ${cum:+,.0f} / ${cb_threshold:,.0f}  ({buffer_pct:.1f}%)"
             )
+
+    # §6: Day 21 checkpoint — a closer go/no-go milestone than the CB.
+    if DAY21_THRESHOLD < 0:
+        chkpt_buffer = cum - DAY21_THRESHOLD  # positive = still above the line
+        chkpt_pct = (chkpt_buffer / abs(DAY21_THRESHOLD)) * 100
+        days_left = max(0, 21 - day_num)
+        lines.append(
+            f"📍 Day 21 chkpt:     ${cum:+,.0f} / ${DAY21_THRESHOLD:,.0f}  "
+            f"({chkpt_pct:.1f}% buffer, {days_left} day{'s' if days_left != 1 else ''} left)"
+        )
 
     lines.append("─" * 37)
     return "\n".join(lines)
