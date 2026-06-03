@@ -40,3 +40,13 @@ Egy session, **a teljes priorizált lista (P0+P1+P2) deploy-olva**. A Part A els
 
 ## Blokkolók
 - Nincs. Élő trading érintetlen (a változások display + tracking + sizing-cap, az exit-logika nem).
+
+## Addendum — 22:13 CEST este: a multi-exit validáció (incidens + megoldás)
+
+A 22:10 cron lefutott, és a validáció **valódi Option B élő bug-ot fogott meg**:
+- A 3 exit (AKAM TP1 +$75.30, ST TP1 +$106.07, EOG TIME_STOP +$48.46, Σ **+$229.84**) strukturálisan helyesen ledger-be került + processed, DE a recorder **mindhármat $0.00-nak rögzítette**: a `reqExecutions().commissionReport.realizedPNL` aszinkron, 22:10-kor még 0 (az `ib.fills()` / connector viszont megkapta). A cumulative tévesen -273.76 maradt.
+- **Megoldva ma este** (commit `ce3f129`): (1) safety-fix — `realizedPNL==0` → unavailable → fallback+warning (nincs néma $0); (2) restatement (`restate_20260603_exits_pnl.py`) a connector authoritatív értékeire → **cumulative -43.92**.
+- **Másodlagos metadata-glitch**: a 6/3 daily_metrics `exits` blokk `moc:2` (helyesen tp1:2+moc:1), mert ma az eod_report trades CSV-t hozott létre (MOC-labelekkel) és a build azt preferálta. **Nem P&L** (cumulative + daily_history counterek helyesek).
+- **Holnapra előkészítve**: `docs/tasks/2026-06-04-recorder-robust-realized-capture.md` — (A) robusztus broker-realized capture (ib.fills/sleep/connector, live smoke), (B) build_daily_metrics exits-source mindig a cumulative counterekből, (C) 6/3 daily_metrics re-run a B után.
+
+**Tanulság**: a Part A első MULTI-exit napja kellett, hogy az Option B reqExecutions-timing gyengesége kibukjon — a same-day SINGLE exit (6/2 CDNS) elfedte (az is swing-attribúcióval ment, a connector-érték külön jött). A live multi-exit validáció megérte.
