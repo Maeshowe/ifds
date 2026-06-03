@@ -4,6 +4,39 @@
 
 ---
 
+## 2026-06-03 — Mérföldkő: P&L pipeline megbízhatóvá tétel + Telegram modernizáció
+
+> Egy session, P0+P1+P2 mind deploy-olva. A Part A első éles same-day próbája
+> (CDNS TP2 +$450, 6/2) sikerült; erre épült a teljes data-quality + display réteg.
+
+### #1 — Első CC-generált 6/2 daily review (Chat 497 sor; CC verifikálta IBKR live-val)
+
+### #3 — Part A data-quality hardening (P1)
+- **Option B**: `record_pending_exits` a broker-authoritative IBKR `realized_pnl`-t
+  használja (net, konzisztens a Day 1-9 canonical bázissal), nem a state-entry
+  swing-attribúciót. `fetch_today_executions` kinyeri a `realizedPNL`-t (UNSET
+  sentinel → None); state-attribution csak fallback (warning).
+- **metadata-sync**: `build_daily_metrics` az exits/commission/opened/P&L-t a
+  cumulative daily_history-ból + swing_state-ből veszi (nem az üres trades CSV-ből).
+- **CDNS Day 12 restatement**: $450.10 (swing-attr) → $434.82 (broker). cumulative
+  -258.48 → **-273.76**.
+
+### #4 — Telegram EOD finomítás + TRADING PLAN cleanup (P1)
+- §1 NYSE trading-day Day-N (`compute_trading_day_number`); §2 Top/Bottom movers
+  (|upnl|≥$50); §3a Day change (`state/daily_equity.json` NetLiq store); §4 exit-merge;
+  §5 Top S_j [holding]/[selected]/[skipped]; §6 Day 21 checkpoint; §7 TRADING PLAN
+  [5/6] GEX/MMS/breadth/crowd blokk → 1-soros shadow marker (Option A).
+
+### #6 — Swing single-position concentration cap (P2)
+- `swing_max_single_position_pct=0.12` — **resize** cap (nem exclude) a Phase 6
+  sizingban; új belépő notionalját ≤12% equity-re vágja. Meglévő pozíciókat nem trimmeli.
+
+**Tesztek**: 1862 → **1875 passing**, 0 failure, 0 warning. Mind deploy-olva (MacBook + Mac Mini).
+**Este 22:10**: a 6/3 cron lesz a Part A multi-exit (EOG TIME_STOP + AKAM TP1 + ST TP1) +
+Option B + új EOD render első éles együttes próbája.
+
+---
+
 ## W22 — Part A: pending-exit ledger forward-fix (P0 §0.11)
 
 > 2026-06-01 | Realized P&L tracking gap forward-fix — implementation +
