@@ -311,7 +311,14 @@ def fetch_today_executions(ib: Any, today: date) -> list[dict[str, Any]]:
         if hasattr(fill, "commissionReport") and fill.commissionReport:
             commission = float(getattr(fill.commissionReport, "commission", 0.0))
             raw_rpnl = getattr(fill.commissionReport, "realizedPNL", None)
-            if raw_rpnl is not None and abs(float(raw_rpnl)) < _UNSET:
+            # Treat exactly 0.0 as UNAVAILABLE, not a real value: reqExecutions
+            # populates commissionReport.realizedPNL asynchronously, so at the
+            # 22:10 recorder run it is often still 0 (event not yet arrived) —
+            # a swing round-trip is never exactly $0. 0.0 here → None → the
+            # recorder falls back to swing-attribution + warns (no silent $0).
+            # (Day 13 2026-06-03 incident: 3 exits recorded $0 via reqExecutions
+            #  while ib.fills()/connector showed the true +$229.84.)
+            if raw_rpnl is not None and 0.0 < abs(float(raw_rpnl)) < _UNSET:
                 realized_pnl = float(raw_rpnl)
         out.append(
             {
