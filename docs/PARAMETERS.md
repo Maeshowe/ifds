@@ -105,6 +105,7 @@ Phase 6 multiplier chain swing-módra:
 | `swing_max_concurrent` | 12 | P6 | Portfolio max position cap (régi: 5) |
 | `swing_max_daily_new` | 3 | P6 | Napi új-entry plafond ("2-3 csak ha érdemes"); a sector cap önmagában is korlátoz |
 | `swing_sector_cap_pct` | 0.30 | P6 | 30% notional / sector — Decision 11 (régi: `max_positions_per_sector=2`) |
+| `swing_max_single_position_pct` | 0.12 | P6 | 12% equity / single position — koncentrációs **resize** cap (§9.4): új belépő notionalját levágja, ha meghaladná; 0 = kikapcsolva. Meglévő pozíciókat nem trimmeli. |
 | `swing_stop_atr_multiple` | 2.0 | P6 | Mental stop = 2.0×ATR (sizing képletbe) |
 | `swing_tp1_atr_multiple` | 1.5 | P6 | TP1 swing-spec ATR multiple (Task #4 felülírta a Task #3 1.25-öt) |
 | `swing_tp2_atr_multiple` | 3.0 | P6 | TP2 swing-spec ATR multiple (Task #4 felülírta a Task #3 2.0-t) |

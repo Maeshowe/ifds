@@ -231,6 +231,25 @@ class TestCalculateSwingPosition:
         assert pos.m_flow == 1.0
         assert pos.multiplier_total == pos.m_target == 1.0
 
+    def test_single_position_cap_resizes(self, config):
+        # §9.4: atr=2.0 → risk-based notional ≈ $13,050 (87 sh), above the 12%
+        # ($12,000) cap but below the $15k exposure cap → resized to 80 shares.
+        config.tuning["swing_max_single_position_pct"] = 0.12
+        stock = _make_stock("BIGX", price=150.0, atr=2.0, combined_score=80.0)
+        gex = _make_gex("BIGX", price=150.0)
+        pos = _calculate_swing_position(stock, gex, config, StrategyMode.LONG)
+        assert pos is not None
+        assert pos.quantity == 80  # floor(0.12 * 100_000 / 150)
+        assert pos.quantity * pos.entry_price <= 0.12 * 100_000
+
+    def test_single_position_cap_disabled_when_zero(self, config):
+        config.tuning["swing_max_single_position_pct"] = 0.0
+        stock = _make_stock("BIGX", price=150.0, atr=2.0, combined_score=80.0)
+        gex = _make_gex("BIGX", price=150.0)
+        pos = _calculate_swing_position(stock, gex, config, StrategyMode.LONG)
+        assert pos is not None
+        assert pos.quantity > 80  # risk-based qty, no 12% cap
+
     def test_zero_atr_returns_none(self, config):
         stock = _make_stock("AAPL", atr=0.0)
         gex = _make_gex("AAPL")

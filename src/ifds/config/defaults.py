@@ -299,6 +299,7 @@ TUNING = {
     "swing_max_concurrent": 12,  # Portfolio cap (D[7])
     "swing_max_daily_new": 3,  # Daily new-entry cap (D[7])
     "swing_sector_cap_pct": 0.30,  # 30% notional per sector (D[11])
+    "swing_max_single_position_pct": 0.12,  # 12% equity per single position (resize cap, §9.4)
     "swing_stop_atr_multiple": 2.0,  # 2.0×ATR mental stop in sizing formula (D[7])
     "swing_tp1_atr_multiple": 1.5,  # Task #4: swing-specific TP1 (was 1.25 in Task #3)
     "swing_tp2_atr_multiple": 3.0,  # Task #4: swing-specific TP2 (was 2.0 in Task #3)

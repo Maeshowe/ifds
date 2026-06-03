@@ -1351,13 +1351,21 @@ def compute_swing_notional(
     atr_pct_floor = config.tuning.get("swing_atr_pct_floor", 0.0)
     atr_pct_ceiling = config.tuning.get("swing_atr_pct_ceiling", float("inf"))
     if atr_pct < atr_pct_floor:
-        return 0.0, 1.0, {"reason": "atr_pct_below_floor", "atr_pct": atr_pct, "floor": atr_pct_floor}
+        return (
+            0.0,
+            1.0,
+            {"reason": "atr_pct_below_floor", "atr_pct": atr_pct, "floor": atr_pct_floor},
+        )
     if atr_pct > atr_pct_ceiling:
-        return 0.0, 1.0, {
-            "reason": "atr_pct_above_ceiling",
-            "atr_pct": atr_pct,
-            "ceiling": atr_pct_ceiling,
-        }
+        return (
+            0.0,
+            1.0,
+            {
+                "reason": "atr_pct_above_ceiling",
+                "atr_pct": atr_pct,
+                "ceiling": atr_pct_ceiling,
+            },
+        )
 
     equity = config.runtime["account_equity"]
     risk_pct = config.tuning["swing_risk_per_trade_pct"]
@@ -1411,6 +1419,16 @@ def _calculate_swing_position(
     max_single = config.runtime.get("max_single_ticker_exposure", 15_000)
     max_value_qty = math.floor(max_single / entry) if entry > 0 else quantity
     quantity = min(quantity, max_value_qty)
+
+    # Swing single-position concentration cap (§9.4): resize the qty so the
+    # position notional stays ≤ swing_max_single_position_pct × equity. Resize
+    # (not exclude) — keeps the entry, caps the concentration; risk_usd below is
+    # computed from the final quantity so it stays consistent. 0/absent disables.
+    single_pos_pct = config.tuning.get("swing_max_single_position_pct", 0.0)
+    if single_pos_pct and single_pos_pct > 0 and entry > 0:
+        equity = config.runtime.get("account_equity", 100_000)
+        cap_qty = math.floor(equity * single_pos_pct / entry)
+        quantity = min(quantity, cap_qty)
 
     # Fat finger cap
     max_qty = config.runtime.get("max_order_quantity", 5000)
