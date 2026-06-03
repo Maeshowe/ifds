@@ -1,6 +1,6 @@
-Status: OPEN
-Updated: 2026-06-01
-Note: Chat-javaslat + CC technikai review egyesítve. Audit (d) → (B): a TRADING PLAN legacy mezőket tartalmaz → egységes Telegram-cleanup phase-2. Implementáció Tamás go után.
+Status: DONE
+Updated: 2026-06-03
+Note: §1-7 implementálva + tesztelve (1870 passing) + deploy. §1 NYSE Day-N, §2 top movers, §3a day-change (daily_equity store), §4 exit-merge, §5 S_j labels, §6 Day 21 chkpt, §7 TRADING PLAN shadow cleanup (Option A). Első éles render: ma 22:05 EOD.
 
 # Telegram EOD finomítás + TRADING PLAN legacy-cleanup (phase 2)
 
