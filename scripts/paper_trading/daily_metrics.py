@@ -516,9 +516,23 @@ def apply_pending_exits(
 
         weighted_price = sum(e["price"] * e["shares"] for e in sld_list) / total_qty
         commission = round(sum((e.get("commission") or 0.0) for e in sld_list), 2)
-        gross = compute_pnl(rec["entry_price"], weighted_price, int(total_qty))
-        net = round(gross - commission, 2)
         counter = EXIT_TYPE_TO_COUNTER.get(rec["exit_type"], "moc_exits")
+
+        # Option B (P0 §0.11): prefer the IBKR broker-authoritative realized_pnl
+        # (already NET of commission) so swing exits use the SAME basis as the
+        # Day 1-9 canonical reconstruction. Fall back to swing-attribution
+        # (planned state.entry_price) only if any matched SLD fill lacks
+        # realized_pnl (e.g. historical backfill where reqExecutions can't reach
+        # the commissionReport) — surfaced as a warning, never silent.
+        rpnls = [e.get("realized_pnl") for e in sld_list]
+        if rpnls and all(r is not None for r in rpnls):
+            net = round(sum(rpnls), 2)
+            pnl_source = "broker_realized_pnl"
+        else:
+            gross = compute_pnl(rec["entry_price"], weighted_price, int(total_qty))
+            net = round(gross - commission, 2)
+            pnl_source = "state_attribution_fallback"
+            warnings.append({"key": rec["key"], "reason": "realized_pnl_unavailable_fallback"})
 
         if int(total_qty) != int(rec.get("qty", total_qty)):
             warnings.append(
@@ -542,13 +556,14 @@ def apply_pending_exits(
         matched_keys.append(rec["key"])
         used_tickers.add(ticker)
         logger.info(
-            "record_pending_exits: %s %s qty=%d @ %.4f → net $%+.2f (%s)",
+            "record_pending_exits: %s %s qty=%d @ %.4f → net $%+.2f (%s, %s)",
             rec["ticker"],
             rec["exit_type"],
             int(total_qty),
             weighted_price,
             net,
             counter,
+            pnl_source,
         )
 
     if matched_keys:
@@ -690,18 +705,47 @@ def build_daily_metrics(target_date: str) -> dict:
         sum(s["slippage_pct"] for s in slippage.values()) / len(slippage) if slippage else 0
     )
 
-    # --- Commission ---
-    commission_total = sum(t["commission"] for t in trades)
+    # --- Commission / Exits / P&L ---
+    # Swing-era metadata-sync (P0 §0.11 #3b): swing exits do NOT produce a
+    # trades CSV (eod_report sees "0 trades"), so when the CSV is empty derive
+    # the exits/commission/opened/P&L from the cumulative_pnl daily_history
+    # entry that record_pending_exits populates (Part A) + swing_state. The
+    # daily_history ``pnl`` is NET (broker-authoritative, Option B); gross is
+    # reconstructed as net + commission.
+    _DAILY_COUNTER_MAP = {
+        "tp1": "tp1_hits",
+        "tp2": "tp2_hits",
+        "sl": "sl_hits",
+        "loss_exit": "loss_exit_hits",
+        "trail": "trail_hits",
+        "moc": "moc_exits",
+    }
+    if not trades and daily:
+        commission_total = float(daily.get("commission", 0.0) or 0.0)
+        exits_block = {k: int(daily.get(src, 0) or 0) for k, src in _DAILY_COUNTER_MAP.items()}
+        net_pnl = float(daily.get("pnl", 0.0) or 0.0)
+        gross_pnl = round(net_pnl + commission_total, 2)
+    else:
+        commission_total = sum(t["commission"] for t in trades)
+        exit_counts: dict[str, int] = {}
+        for t in trades:
+            et = t["exit_type"]
+            exit_counts[et] = exit_counts.get(et, 0) + 1
+        exits_block = {
+            "tp1": exit_counts.get("TP1", 0),
+            "tp2": exit_counts.get("TP2", 0),
+            "sl": exit_counts.get("SL", 0),
+            "loss_exit": exit_counts.get("LOSS_EXIT", 0),
+            "trail": exit_counts.get("TRAIL", 0),
+            "moc": exit_counts.get("MOC", 0),
+        }
+        gross_pnl = daily.get("pnl", sum(t["pnl"] for t in trades))
+        net_pnl = gross_pnl - commission_total
 
-    # --- Exits ---
-    exit_counts: dict[str, int] = {}
-    for t in trades:
-        et = t["exit_type"]
-        exit_counts[et] = exit_counts.get(et, 0) + 1
+    # "opened" = new entries today (independent of exits) — prefer swing_state;
+    # fall back to len(trades) only for the legacy day-trade path.
+    opened_count = int(swing_state.get("new_entries_today", 0)) if swing_state else len(trades)
 
-    # --- P&L ---
-    gross_pnl = daily.get("pnl", sum(t["pnl"] for t in trades))
-    net_pnl = gross_pnl - commission_total
     cum_pnl = cum_data.get("cumulative_pnl", 0)
     cum_pct = cum_data.get("cumulative_pnl_pct", 0)
 
@@ -728,7 +772,7 @@ def build_daily_metrics(target_date: str) -> dict:
         "date": target_date,
         "day_number": cum_data.get("trading_days", 0),
         "positions": {
-            "opened": len(trades),
+            "opened": opened_count,
             "qualified_above_threshold": qualified_count,
             "threshold": threshold,
             "max_allowed": 5,
@@ -750,14 +794,7 @@ def build_daily_metrics(target_date: str) -> dict:
             "slippage_per_ticker": slippage,
             "commission_total": round(commission_total, 2),
         },
-        "exits": {
-            "tp1": exit_counts.get("TP1", 0),
-            "tp2": exit_counts.get("TP2", 0),
-            "sl": exit_counts.get("SL", 0),
-            "loss_exit": exit_counts.get("LOSS_EXIT", 0),
-            "trail": exit_counts.get("TRAIL", 0),
-            "moc": exit_counts.get("MOC", 0),
-        },
+        "exits": exits_block,
         "pnl": {
             "gross": round(gross_pnl, 2),
             "commission": round(commission_total, 2),

@@ -55,7 +55,7 @@ def _seed_cum(initial_history=None):
     }
 
 
-def _exec(ticker, side, shares, price, commission=1.0, order_ref=""):
+def _exec(ticker, side, shares, price, commission=1.0, order_ref="", realized_pnl=None):
     """A normalised execution dict (the shape fetch_today_executions returns)."""
     return {
         "ticker": ticker,
@@ -66,6 +66,7 @@ def _exec(ticker, side, shares, price, commission=1.0, order_ref=""):
         "order_ref": order_ref,
         "order_id": 1,
         "commission": commission,
+        "realized_pnl": realized_pnl,
     }
 
 
@@ -102,20 +103,51 @@ class TestApplyPendingExits:
             "exit_type": "TIME_STOP",
             "processed": False,
         }
+        # Option B: broker-authoritative realized_pnl (net) is used directly.
         execs = [
-            {"ticker": "AMH", "side": "SLD", "shares": 249.0, "price": 31.00, "commission": 2.0}
+            {
+                "ticker": "AMH",
+                "side": "SLD",
+                "shares": 249.0,
+                "price": 31.00,
+                "commission": 2.0,
+                "realized_pnl": -278.39,
+            }
         ]
 
         out, matched, warnings = dm.apply_pending_exits(cum, "2026-05-28", [rec], execs)
 
         assert matched == ["AMH_TIME_STOP_2026-05-28"]
         assert warnings == []
-        # gross = 249 * (31.00 - 32.11) = -276.39 ; net = -276.39 - 2.0 = -278.39
+        # net = broker realized_pnl = -278.39 (NOT state-attribution)
         entry = next(e for e in out["daily_history"] if e["date"] == "2026-05-28")
         assert entry["pnl"] == pytest.approx(-278.39, abs=0.01)
+        assert entry["commission"] == pytest.approx(2.0, abs=0.01)
         assert entry["moc_exits"] == 1
         assert entry["trades"] == 1
         assert out["cumulative_pnl"] == pytest.approx(-278.39, abs=0.01)
+
+    def test_fallback_to_state_attribution_when_no_realized_pnl(self):
+        """If an SLD fill lacks realized_pnl (e.g. historical backfill), fall
+        back to state-attribution (gross - commission) + surface a warning."""
+        dm = _dm()
+        cum = _seed_cum()
+        rec = {
+            "key": "AMH_TIME_STOP_2026-05-28",
+            "ticker": "AMH",
+            "entry_price": 32.11,
+            "qty": 249,
+            "exit_type": "TIME_STOP",
+            "processed": False,
+        }
+        execs = [
+            {"ticker": "AMH", "side": "SLD", "shares": 249.0, "price": 31.00, "commission": 2.0}
+        ]  # no realized_pnl
+        out, matched, warnings = dm.apply_pending_exits(cum, "2026-05-28", [rec], execs)
+        assert matched == ["AMH_TIME_STOP_2026-05-28"]
+        # gross = 249 * (31.00 - 32.11) = -276.39 ; net = -276.39 - 2.0 = -278.39
+        assert out["daily_history"][0]["pnl"] == pytest.approx(-278.39, abs=0.01)
+        assert any(w["reason"] == "realized_pnl_unavailable_fallback" for w in warnings)
 
     def test_no_matching_execution_warns_unprocessed(self):
         dm = _dm()
@@ -145,12 +177,19 @@ class TestApplyPendingExits:
             "processed": False,
         }
         execs = [
-            {"ticker": "ON", "side": "SLD", "shares": 27.0, "price": 115.41, "commission": 2.07}
+            {
+                "ticker": "ON",
+                "side": "SLD",
+                "shares": 27.0,
+                "price": 115.41,
+                "commission": 2.07,
+                "realized_pnl": 158.04,
+            }
         ]
         out, matched, warnings = dm.apply_pending_exits(cum, "2026-05-22", [rec], execs)
         assert matched == ["ON_TP1_2026-05-22"]
         entry = out["daily_history"][0]
-        # gross = 27 * (115.41 - 109.48) = 160.11 ; net = 160.11 - 2.07 = 158.04
+        # net = broker realized_pnl = 158.04 (sold leg)
         assert entry["pnl"] == pytest.approx(158.04, abs=0.01)
         assert entry["tp1_hits"] == 1
 
@@ -166,11 +205,25 @@ class TestApplyPendingExits:
             "processed": False,
         }
         execs = [
-            {"ticker": "X", "side": "SLD", "shares": 60.0, "price": 110.0, "commission": 1.0},
-            {"ticker": "X", "side": "SLD", "shares": 40.0, "price": 105.0, "commission": 1.0},
+            {
+                "ticker": "X",
+                "side": "SLD",
+                "shares": 60.0,
+                "price": 110.0,
+                "commission": 1.0,
+                "realized_pnl": 479.0,
+            },
+            {
+                "ticker": "X",
+                "side": "SLD",
+                "shares": 40.0,
+                "price": 105.0,
+                "commission": 1.0,
+                "realized_pnl": 319.0,
+            },
         ]
         out, matched, _ = dm.apply_pending_exits(cum, "2026-05-28", [rec], execs)
-        # weighted = (60*110 + 40*105)/100 = 108.0 ; gross = 100*(108-100)=800 ; net=800-2=798
+        # net = sum of broker realized_pnl across both fills = 479.0 + 319.0 = 798.0
         assert out["daily_history"][0]["pnl"] == pytest.approx(798.0, abs=0.01)
         assert matched == ["X_TP1_2026-05-28"]
 

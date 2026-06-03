@@ -278,7 +278,14 @@ def fetch_today_executions(ib: Any, today: date) -> list[dict[str, Any]]:
 
     Each dict contains: ``ticker``, ``side``, ``shares``, ``price``,
     ``time`` (datetime), ``order_ref`` (str), ``order_id`` (int),
-    ``commission`` (float or None).
+    ``commission`` (float or None), ``realized_pnl`` (float or None).
+
+    ``realized_pnl`` is the IBKR broker-authoritative net realized P&L for
+    the closing execution (``CommissionReport.realizedPNL``), used by the
+    Part A recorder (P0 §0.11, Option B) so swing exits record the same
+    basis as the Day 1-9 canonical reconstruction. IBKR reports an "unset"
+    sentinel (~1.8e308) when realized P&L is not applicable (e.g. an opening
+    BOT leg) — that is normalised to ``None`` here.
 
     Uses ``ExecutionFilter(time="YYYYMMDD 00:00:00")`` then post-filters
     by execution date — per .claude/rules/ifds-rules.md the IBKR
@@ -289,6 +296,9 @@ def fetch_today_executions(ib: Any, today: date) -> list[dict[str, Any]]:
     today_str = today.strftime("%Y%m%d")
     raw = ib.reqExecutions(ExecutionFilter(time=f"{today_str} 00:00:00"))
 
+    # IBKR "unset" sentinel for unavailable double fields.
+    _UNSET = 1.0e307
+
     out: list[dict[str, Any]] = []
     for fill in raw:
         exec_obj = fill.execution
@@ -297,8 +307,12 @@ def fetch_today_executions(ib: Any, today: date) -> list[dict[str, Any]]:
             logger.debug(f"Skipping stale execution: {fill.contract.symbol} " f"@{exec_obj.time}")
             continue
         commission: float | None = None
+        realized_pnl: float | None = None
         if hasattr(fill, "commissionReport") and fill.commissionReport:
             commission = float(getattr(fill.commissionReport, "commission", 0.0))
+            raw_rpnl = getattr(fill.commissionReport, "realizedPNL", None)
+            if raw_rpnl is not None and abs(float(raw_rpnl)) < _UNSET:
+                realized_pnl = float(raw_rpnl)
         out.append(
             {
                 "ticker": fill.contract.symbol,
@@ -309,6 +323,7 @@ def fetch_today_executions(ib: Any, today: date) -> list[dict[str, Any]]:
                 "order_ref": exec_obj.orderRef or "",
                 "order_id": int(exec_obj.orderId),
                 "commission": commission,
+                "realized_pnl": realized_pnl,
             }
         )
     return out

@@ -320,3 +320,79 @@ class TestExcessReturn:
         spy = None
         excess = None if spy is None else (0.5 - spy)
         assert excess is None
+
+
+# ---------------------------------------------------------------------------
+# Swing-era metadata-sync (P0 §0.11 #3b)
+# ---------------------------------------------------------------------------
+
+
+class TestSwingMetadataSync:
+    """When no trades CSV exists (swing exits produce none), build_daily_metrics
+    derives exits/commission/opened/P&L from the cumulative daily_history entry
+    that record_pending_exits populates + swing_state."""
+
+    def _patch_dirs(self, tmp_path, monkeypatch, cum_file):
+        dm = "scripts.paper_trading.daily_metrics"
+        monkeypatch.setattr(f"{dm}.CUM_PNL_FILE", cum_file)
+        monkeypatch.setattr(f"{dm}.TRADES_DIR", tmp_path)  # no trades_{date}.csv → empty
+        monkeypatch.setattr(f"{dm}.EXEC_PLAN_DIR", tmp_path)
+        monkeypatch.setattr(f"{dm}.PHASE4_DIR", tmp_path)
+        monkeypatch.setattr(f"{dm}.METRICS_DIR", tmp_path)
+        monkeypatch.setattr(f"{dm}.UW_SHADOW_DIR", tmp_path)
+        monkeypatch.setattr(f"{dm}._fetch_spy_return", lambda d: None)
+        monkeypatch.setattr(f"{dm}._load_phase0_vix", lambda d, logs_dir=None: None)
+        monkeypatch.setattr(f"{dm}._fetch_vix_close", lambda d: None)
+        monkeypatch.setattr(f"{dm}._build_swing_state", lambda d, p, s: {"new_entries_today": 1})
+
+    def test_exits_commission_opened_from_daily_entry(self, tmp_path, monkeypatch):
+        from scripts.paper_trading.daily_metrics import build_daily_metrics
+
+        cum_file = tmp_path / "cumulative_pnl.json"
+        cum_file.write_text(
+            json.dumps(
+                {
+                    "initial_capital": 100000,
+                    "cumulative_pnl": -258.48,
+                    "cumulative_pnl_pct": -0.26,
+                    "trading_days": 10,
+                    "daily_history": [
+                        {
+                            "date": "2026-06-02",
+                            "pnl": 434.82,  # NET (broker realized, Option B)
+                            "commission": 2.12,
+                            "trades": 1,
+                            "filled": 1,
+                            "tp2_hits": 1,
+                            "moc_exits": 0,
+                        }
+                    ],
+                }
+            )
+        )
+        self._patch_dirs(tmp_path, monkeypatch, cum_file)
+
+        m = build_daily_metrics("2026-06-02")
+
+        # exits derived from daily_history counters (NOT the empty trades CSV)
+        assert m["exits"]["tp2"] == 1
+        assert m["exits"]["moc"] == 0
+        # commission + opened derived from daily entry + swing_state
+        assert m["execution"]["commission_total"] == pytest.approx(2.12)
+        assert m["positions"]["opened"] == 1
+        # daily.pnl is NET; gross reconstructed as net + commission
+        assert m["pnl"]["net"] == pytest.approx(434.82)
+        assert m["pnl"]["gross"] == pytest.approx(436.94)
+        assert m["pnl"]["commission"] == pytest.approx(2.12)
+
+    def test_empty_when_no_daily_entry_and_no_trades(self, tmp_path, monkeypatch):
+        from scripts.paper_trading.daily_metrics import build_daily_metrics
+
+        cum_file = tmp_path / "cumulative_pnl.json"
+        cum_file.write_text(json.dumps({"initial_capital": 100000, "daily_history": []}))
+        self._patch_dirs(tmp_path, monkeypatch, cum_file)
+
+        m = build_daily_metrics("2026-06-02")
+        assert m["exits"]["tp2"] == 0
+        assert m["positions"]["opened"] == 1  # swing_state new_entries_today
+        assert m["pnl"]["net"] == pytest.approx(0.0)
