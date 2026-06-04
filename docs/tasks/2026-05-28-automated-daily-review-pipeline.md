@@ -1,7 +1,8 @@
 # Task — Automatizált napi review pipeline (CC-oldali)
 
-**Status**: OPEN
-**Updated**: 2026-05-28
+**Status**: WIP
+**Updated**: 2026-06-04
+**Haladás**: §0 előfeltétel (P&L tracking gap) ✅ a Part A + Day 14-gyel megoldva. **1a determinisztikus data-aggregátor ✅ KÉSZ + deploy-olva** (`scripts/paper_trading/generate_review_data.py` → `state/review_data/{date}.json`, commit c63cf2f, 8 teszt, éles 6/3 adaton validálva: 4 valós flag, a fals-pozitívok javítva). **1b connector-verify ✅** a connector CC-ből működik (egész session használtuk). **Hátra: 1b cross-check integráció (IBKR realized vs daily_metrics, slippage) + 1c LLM review-generátor** (a review_data.json + cross-check + Chat-struktúra → `docs/review/{date}.md`, CHAT ESCALATION szekcióval).
 **Prioritás**: P1 (a 0. fázis P0 előfeltétellel)
 **Becsült effort**: ~6-9 óra CC (0. fázis külön ~2-3h, már megtervezve)
 **Owner**: CC (implementáció + jövőbeli futtatás), Tamás (deploy jóváhagyás), Chat (stratégiai eszkaláció fogadása)
