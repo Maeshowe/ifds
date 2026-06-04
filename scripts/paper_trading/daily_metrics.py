@@ -732,12 +732,16 @@ def build_daily_metrics(target_date: str) -> dict:
     )
 
     # --- Commission / Exits / P&L ---
-    # Swing-era metadata-sync (P0 §0.11 #3b): swing exits do NOT produce a
-    # trades CSV (eod_report sees "0 trades"), so when the CSV is empty derive
-    # the exits/commission/opened/P&L from the cumulative_pnl daily_history
-    # entry that record_pending_exits populates (Part A) + swing_state. The
-    # daily_history ``pnl`` is NET (broker-authoritative, Option B); gross is
-    # reconstructed as net + commission.
+    # Swing-era metadata-sync (P0 §0.11 #3b + Day 14 fix): the exits/commission/
+    # P&L come from the cumulative_pnl daily_history entry that
+    # record_pending_exits populates (Part A) WHENEVER that entry exists — it is
+    # the authoritative exit-type + realized source. The eod trades CSV is NOT
+    # used for these because it mislabels swing exits (everything → MOC) and can
+    # miss cross-client MOC fills (e.g. the 2026-06-03 EOG TIME_STOP), and its
+    # presence is non-deterministic (depends on whether ib.fills() saw the exit
+    # by 22:05). The CSV still feeds scoring/slippage (per-trade data the
+    # recorder doesn't track). The daily_history ``pnl`` is NET (Option B);
+    # gross is reconstructed as net + commission.
     _DAILY_COUNTER_MAP = {
         "tp1": "tp1_hits",
         "tp2": "tp2_hits",
@@ -746,7 +750,7 @@ def build_daily_metrics(target_date: str) -> dict:
         "trail": "trail_hits",
         "moc": "moc_exits",
     }
-    if not trades and daily:
+    if daily:
         commission_total = float(daily.get("commission", 0.0) or 0.0)
         exits_block = {k: int(daily.get(src, 0) or 0) for k, src in _DAILY_COUNTER_MAP.items()}
         net_pnl = float(daily.get("pnl", 0.0) or 0.0)

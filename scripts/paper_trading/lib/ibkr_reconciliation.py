@@ -287,14 +287,24 @@ def fetch_today_executions(ib: Any, today: date) -> list[dict[str, Any]]:
     sentinel (~1.8e308) when realized P&L is not applicable (e.g. an opening
     BOT leg) — that is normalised to ``None`` here.
 
-    Uses ``ExecutionFilter(time="YYYYMMDD 00:00:00")`` then post-filters
-    by execution date — per .claude/rules/ifds-rules.md the IBKR
-    ExecutionFilter is not strict and stale fills can leak through.
+    Requests executions, waits for the async ``commissionReport`` events (which
+    carry ``realizedPNL``) to settle, then RE-requests and reads the settled
+    fills. Day 13 (2026-06-03) incident: reading the first ``reqExecutions``
+    return immediately gave ``realizedPNL=0`` for all exits, while a settled
+    read carried the true values. Post-filters by execution date — per
+    .claude/rules/ifds-rules.md the IBKR ExecutionFilter is not strict and stale
+    fills can leak through.
     """
     from ib_insync import ExecutionFilter
 
     today_str = today.strftime("%Y%m%d")
-    raw = ib.reqExecutions(ExecutionFilter(time=f"{today_str} 00:00:00"))
+    exec_filter = ExecutionFilter(time=f"{today_str} 00:00:00")
+    # First request triggers the execDetails + commissionReport events; wait for
+    # them to arrive, then re-request to read the settled realizedPNL.
+    ib.reqExecutions(exec_filter)
+    if hasattr(ib, "sleep"):
+        ib.sleep(3)
+    raw = ib.reqExecutions(exec_filter)
 
     # IBKR "unset" sentinel for unavailable double fields.
     _UNSET = 1.0e307

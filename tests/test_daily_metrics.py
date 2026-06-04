@@ -397,6 +397,56 @@ class TestSwingMetadataSync:
         assert m["positions"]["opened"] == 1  # swing_state new_entries_today
         assert m["pnl"]["net"] == pytest.approx(0.0)
 
+    def test_exits_from_cumulative_even_when_trades_csv_present(self, tmp_path, monkeypatch):
+        """Day 14 fix: cumulative counters win over an eod trades CSV.
+
+        The 2026-06-03 incident: eod wrote a trades CSV labelling AKAM+ST TP1
+        exits as MOC (and missing EOG), so the exits block showed moc:2. The
+        recorder's cumulative daily_history (tp1_hits=2, moc_exits=1) is the
+        authoritative source — build_daily_metrics must use it regardless of
+        the CSV's presence/labels.
+        """
+        from scripts.paper_trading.daily_metrics import build_daily_metrics
+
+        cum_file = tmp_path / "cumulative_pnl.json"
+        cum_file.write_text(
+            json.dumps(
+                {
+                    "initial_capital": 100000,
+                    "cumulative_pnl": -43.92,
+                    "cumulative_pnl_pct": -0.04,
+                    "trading_days": 11,
+                    "daily_history": [
+                        {
+                            "date": "2026-06-03",
+                            "pnl": 229.84,
+                            "commission": 3.22,
+                            "trades": 3,
+                            "filled": 3,
+                            "tp1_hits": 2,
+                            "moc_exits": 1,
+                        }
+                    ],
+                }
+            )
+        )
+        # eod-style trades CSV with the WRONG labels (all MOC, EOG missing)
+        (tmp_path / "trades_2026-06-03.csv").write_text(
+            "date,ticker,score,entry_price,exit_price,pnl,pnl_pct,exit_type,sector,commission\n"
+            "2026-06-03,AKAM,0,146.59,156.0,75.30,6.4,MOC,Technology,1.03\n"
+            "2026-06-03,ST,0,50.25,52.51,106.07,4.5,MOC,Technology,1.06\n"
+        )
+        self._patch_dirs(tmp_path, monkeypatch, cum_file)
+
+        m = build_daily_metrics("2026-06-03")
+        # exits from cumulative counters, NOT the CSV's moc:2
+        assert m["exits"]["tp1"] == 2
+        assert m["exits"]["moc"] == 1
+        # P&L + commission from cumulative (net), gross = net + commission
+        assert m["pnl"]["net"] == pytest.approx(229.84)
+        assert m["pnl"]["commission"] == pytest.approx(3.22)
+        assert m["pnl"]["gross"] == pytest.approx(233.06)
+
 
 # ---------------------------------------------------------------------------
 # Telegram-finomítás §1 — NYSE trading-day Day-N
