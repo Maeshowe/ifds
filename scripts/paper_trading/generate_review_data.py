@@ -109,11 +109,15 @@ def _enrich_position(p: dict, target_date: str) -> dict:
     entry_date = p.get("entry_date")
     days_held_trading = p.get("days_held")
     days_held_calendar = None
+    days_held_expected_trading = None
     if entry_date:
         try:
             days_held_calendar = (
                 date.fromisoformat(target_date) - date.fromisoformat(entry_date)
             ).days
+            # The correct trading-day hold count (post-0b2ddaa): the stored
+            # days_held should track this, NOT the calendar count.
+            days_held_expected_trading = max(0, _nyse_day_number(target_date, entry_date) - 1)
         except ValueError:
             days_held_calendar = None
     atr_pct = (atr / entry_price) if entry_price > 0 else None
@@ -129,6 +133,7 @@ def _enrich_position(p: dict, target_date: str) -> dict:
         "stop_level": p.get("stop_level"),
         "days_held_trading": days_held_trading,
         "days_held_calendar": days_held_calendar,
+        "days_held_expected_trading": days_held_expected_trading,
         "next_action": p.get("next_action"),
     }
 
@@ -142,15 +147,20 @@ def _local_flags(
 
     for ep in positions:
         tk = ep["ticker"]
-        # days_held calendar-bug: calendar ≠ trading-day AND near the time-stop
-        dh_t, dh_c = ep["days_held_trading"], ep["days_held_calendar"]
-        if dh_t is not None and dh_c is not None and dh_t != dh_c and dh_t >= MAX_HOLD_DAYS - 1:
+        # days_held calendar-bug REGRESSION: the stored days_held should track the
+        # trading-day count (post-0b2ddaa). Flag only when it significantly EXCEEDS
+        # the expected trading-day hold (i.e. it looks calendar-inflated) — a plain
+        # trading-vs-calendar difference is normal and must NOT fire (avoids the
+        # 4 false positives the 2026-06-03 smoke surfaced).
+        dh_t, dh_exp = ep["days_held_trading"], ep["days_held_expected_trading"]
+        if dh_t is not None and dh_exp is not None and dh_t > dh_exp + 1:
             flags.append(
                 {
                     "flag": "days_held_calendar_bug",
                     "priority": "P1",
                     "ticker": tk,
-                    "detail": f"days_held trading={dh_t} vs calendar={dh_c} near time-stop",
+                    "detail": f"days_held={dh_t} exceeds expected trading-day hold {dh_exp} "
+                    f"(calendar={ep['days_held_calendar']}) — possible calendar regression",
                 }
             )
         # ATR band breaches

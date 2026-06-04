@@ -158,24 +158,27 @@ class TestFlags:
         assert any(f["flag"] == "atr_floor_breach" and f["ticker"] == "LOW" for f in flags)
         assert any(f["flag"] == "atr_ceiling_breach" and f["ticker"] == "HIGH" for f in flags)
 
-    def test_days_held_calendar_bug(self, tmp_path, monkeypatch):
-        # trading days_held=5 but calendar=7 (weekend in between), near time-stop
-        swing = {
-            "positions": [
-                {
-                    "ticker": "EOG",
-                    "entry_price": 140.0,
-                    "qty_remaining": 10,
-                    "atr": 3.0,
-                    "sector": "Energy",
-                    "entry_date": "2026-05-27",
-                    "days_held": 5,
-                }
-            ]
-        }  # 5/27 → 6/03 = 7 calendar days, trading days_held=5
-        m = _setup(tmp_path, monkeypatch, cum=_cum(), swing=swing)
+    def test_days_held_calendar_bug_regression_only(self, tmp_path, monkeypatch):
+        # REGRESSION: stored days_held=7 (calendar-inflated) while the expected
+        # trading-day hold from 5/27 is 5 → flag. A correct stored value (=5)
+        # must NOT flag (trading-vs-calendar difference is normal).
+        bug = {
+            "ticker": "EOG",
+            "entry_price": 140.0,
+            "qty_remaining": 10,
+            "atr": 3.0,
+            "sector": "Energy",
+            "entry_date": "2026-05-27",
+            "days_held": 7,
+        }
+        m = _setup(tmp_path, monkeypatch, cum=_cum(), swing={"positions": [bug]})
         flags = m.build_review_data("2026-06-03")["flags"]
         assert any(f["flag"] == "days_held_calendar_bug" and f["ticker"] == "EOG" for f in flags)
+
+        ok = {**bug, "days_held": 5}  # correct trading-day hold → no flag
+        m2 = _setup(tmp_path, monkeypatch, cum=_cum(), swing={"positions": [ok]})
+        flags2 = m2.build_review_data("2026-06-03")["flags"]
+        assert not any(f["flag"] == "days_held_calendar_bug" for f in flags2)
 
     def test_reconcile_silent_ok_positive(self, tmp_path, monkeypatch):
         m = _setup(
