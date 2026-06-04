@@ -1,6 +1,6 @@
-Status: OPEN
-Updated: 2026-06-03
-Note: Day 13 (2026-06-03) első multi-exit incidens — Option B reqExecutions.realizedPNL=0 élőben. Safety-fix + restatement már deploy-olva; ez a ROBUSZTUS fix + a kapcsolódó metadata-source fix.
+Status: WIP
+Updated: 2026-06-04
+Note: (B) exits-source fix + (C) 6/3 re-run KÉSZ + deploy-olva (commit e3aca99, 6/3 exits most tp1:2/moc:1, cumulative -43.92). (A) robusztus capture (request→sleep(3)→re-request) DEPLOY-OLVA, de a SIKER-KRITÉRIUM live smoke-ot igényel a következő exit-napon (a 22:10 cron a connector realized-jével ≤$1 eltérés/exit, 0 fallback-warning). Day 13 safety-fix + restatement már korábban (ce3f129).
 
 # Recorder — robusztus broker-realized capture + daily_metrics exits-source fix (P1)
 
