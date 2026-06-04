@@ -75,7 +75,8 @@ def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:
     # §3a: day-over-day total-equity change (the "good day / bad day" signal).
     if day_change is not None:
         pct_str = f" ({day_change_pct:+.2f}%)" if day_change_pct is not None else ""
-        lines.append(f"📈 Day change:       ${float(day_change):+,.2f}{pct_str}")
+        best_str = " — BEST DAY ⭐" if pnl.get("day_change_is_best") else ""  # §3b
+        lines.append(f"📈 Day change:       ${float(day_change):+,.2f}{pct_str}{best_str}")
     lines.append(f"📈 Cumulative:       ${cum:+,.0f}  (real-mark)")
     lines.append("")
     lines.append(f"📂 Pozíciók:        {open_n} nyitva / {max_cap} cap")

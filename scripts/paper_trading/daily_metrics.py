@@ -635,6 +635,30 @@ def record_pending_exits(
 
     if not unprocessed:
         logger.info(f"record_pending_exits: no unprocessed ledger entries for {target_date}")
+        # §5.4: ensure a (zero) daily_history entry exists for this trading day
+        # so the cumulative history has no gaps on no-exit days. record_pending_exits
+        # stays the SOLE cumulative_pnl writer; this only creates a missing
+        # zero-row (never touches an existing entry).
+        try:
+            from lib.ibkr_reconciliation import (
+                recompute_cumulative_pnl,
+                update_cumulative_history_entry,
+            )
+
+            cum_data = _load_cumulative_pnl()
+            has_entry = any(e.get("date") == target_date for e in cum_data.get("daily_history", []))
+            if cum_data and not has_entry:
+                new_cum = recompute_cumulative_pnl(
+                    update_cumulative_history_entry(cum_data, target_date)
+                )
+                if not dry_run:
+                    _atomic_write_json(CUM_PNL_FILE, new_cum)
+                summary["created_zero_entry"] = True
+                logger.info(
+                    f"record_pending_exits: created zero entry for no-exit day {target_date}"
+                )
+        except Exception as exc:  # noqa: BLE001 — zero-entry bookkeeping must not break the run
+            logger.warning(f"record_pending_exits zero-entry failed: {exc}")
         return summary
 
     own_ib = None

@@ -1,7 +1,8 @@
 # Task — Daily Metrics + Cumulative PnL auto-update from reconcile closures (Rész 3 follow-up)
 
-Status: OPEN
-Updated: 2026-05-25
+Status: DONE (SUPERSEDED)
+Updated: 2026-06-04
+Note: A task lényegét (close-exit P&L + counters automatikus rögzítése a cumulative_pnl/daily_metrics-be) a **Part A** (P0 §0.11, commit 66faf29.., `record_pending_exits` az egyetlen cumulative writer + ledger) + a **Day 14 fix** (Option B broker-realized, build_daily_metrics exits-source a cumulative counterekből, no-exit-nap zero-entry §5.4) **teljesen megoldotta**. A retroactive operator-workaround (retroactive_reconcile_w21.py) helyett most a forward-fix ledger automatikusan rögzít. Ez a task ezzel obsolete.
 Priority: P1 (NEM blokkoló a Day 7 deploy-ra — operator workaround a retroactive_reconcile_w21.py)
 Created: 2026-05-25
 Owner: Claude Code

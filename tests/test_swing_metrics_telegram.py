@@ -607,3 +607,24 @@ def test_merged_next_day_exit_section():
     assert "Holnap (Day 13) exit:" in out
     assert "15:30 MKT: AKAM_TP1, ST_TP1" in out
     assert "21:40 MOC: EOG_TIME_STOP" in out
+
+
+def test_day_change_best_day_label():
+    """§3b: day_change_is_best → 'BEST DAY' label on the day-change line."""
+    base_pnl = {
+        "net": 0.0,
+        "gross": 0.0,
+        "cumulative": -100.0,
+        "cumulative_pct": -0.1,
+        "unrealized": 0.0,
+        "day_change": 523.14,
+        "day_change_pct": 0.53,
+    }
+    out_best = format_swing_compact_telegram(
+        _base_metrics(pnl={**base_pnl, "day_change_is_best": True})
+    )
+    assert "BEST DAY" in out_best and "$+523.14" in out_best
+    out_norm = format_swing_compact_telegram(
+        _base_metrics(pnl={**base_pnl, "day_change_is_best": False})
+    )
+    assert "BEST DAY" not in out_norm and "$+523.14" in out_norm

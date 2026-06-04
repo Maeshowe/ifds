@@ -353,14 +353,18 @@ def update_cumulative_pnl(trades, today_str):
 
 
 def _record_daily_equity(ib, today_str):
-    """Persist today's IBKR NetLiquidation and return (day_change, day_change_pct).
+    """Persist today's IBKR NetLiquidation; return (day_change, pct, is_best).
 
     §3a: the day-over-day total-equity change is the single "good day / bad day"
     signal for the EOD Telegram. Stored in a dedicated state/daily_equity.json
     (separate from cumulative_pnl.json so Part A's single-writer invariant is
     untouched). day_change = today NetLiq − most-recent-prior NetLiq (or the
-    initial capital on the first day). Fully guarded + atomic write — equity
-    bookkeeping must never break the EOD report.
+    initial capital on the first day).
+
+    §3b: ``is_best`` is True when today's day_change is the strict maximum over
+    the full swing-pivot history of day-changes (needs ≥3 recorded days to be
+    meaningful) — drives the "BEST DAY" label. Fully guarded + atomic write —
+    equity bookkeeping must never break the EOD report.
     """
     import tempfile
 
@@ -371,7 +375,7 @@ def _record_daily_equity(ib, today_str):
                 net_liq = float(row.value)
                 break
         if net_liq is None:
-            return None, None
+            return None, None, False
 
         store: dict[str, float] = {}
         if os.path.exists(DAILY_EQUITY_FILE):
@@ -385,6 +389,15 @@ def _record_daily_equity(ib, today_str):
         day_change = net_liq - prior_equity
         day_change_pct = (day_change / prior_equity * 100) if prior_equity else None
 
+        # §3b: build the full day-change series (incl. today) → is today the best?
+        equities = {**store, today_str: net_liq}
+        prev = float(INITIAL_CAPITAL)
+        day_changes = []
+        for d in sorted(equities):
+            day_changes.append(equities[d] - prev)
+            prev = equities[d]
+        is_best = len(day_changes) >= 3 and day_changes[-1] > max(day_changes[:-1])
+
         store[today_str] = round(net_liq, 2)
         p = Path(DAILY_EQUITY_FILE)
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -397,10 +410,10 @@ def _record_daily_equity(ib, today_str):
             if os.path.exists(tmp):
                 os.unlink(tmp)
             raise
-        return day_change, day_change_pct
+        return day_change, day_change_pct, is_best
     except Exception as exc:  # noqa: BLE001 — never break EOD on equity bookkeeping
         logger.warning(f"daily equity record failed: {exc}")
-        return None, None
+        return None, None, False
 
 
 # ---------------------------------------------------------------------------
@@ -697,7 +710,7 @@ def main():
         # §3a: day-over-day total-equity (NetLiquidation) change, persisted to
         # state/daily_equity.json (separate store — keeps cumulative_pnl.json's
         # Part A single-writer invariant intact).
-        day_change, day_change_pct = _record_daily_equity(ib, today_str)
+        day_change, day_change_pct, day_change_is_best = _record_daily_equity(ib, today_str)
 
         metrics = build_daily_metrics(today_str)
         # Override P&L block with eod_report's authoritative numbers
@@ -712,6 +725,7 @@ def main():
         if day_change is not None:
             metrics["pnl"]["day_change"] = round(day_change, 2)
             metrics["pnl"]["day_change_pct"] = round(day_change_pct, 2) if day_change_pct else None
+            metrics["pnl"]["day_change_is_best"] = bool(day_change_is_best)
         metrics["pnl"]["closed_trades_today"] = len(trades)
         metrics["pnl"]["circuit_breaker_threshold"] = float(CIRCUIT_BREAKER_USD)
         # day_number left as build_daily_metrics set it (NYSE trading-day count,

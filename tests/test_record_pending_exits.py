@@ -362,6 +362,41 @@ class TestRecordPendingExits:
         assert summary["connected"] is False
         assert summary["matched"] == 0
 
+    def test_no_exit_day_creates_zero_entry(self, tmp_path, monkeypatch):
+        """§5.4: a no-exit day (no ledger / all processed) still gets a zero
+        daily_history entry so the cumulative history has no gaps."""
+        import json as _json
+
+        dm, pe, ledger_dir, cum_file = self._setup(
+            tmp_path,
+            monkeypatch,
+            [],
+            [],  # empty ledger → no unprocessed
+            cum_seed=_seed_cum([{"date": "2026-05-27", "pnl": -100.0}]),
+        )
+        summary = dm.record_pending_exits("2026-05-28", ledger_dir=ledger_dir, ib=FakeIB())
+        assert summary.get("created_zero_entry") is True
+        written = _json.loads(cum_file.read_text())
+        entry = next(e for e in written["daily_history"] if e["date"] == "2026-05-28")
+        assert entry["pnl"] == 0.0
+        assert written["cumulative_pnl"] == pytest.approx(-100.0)  # unchanged sum
+
+    def test_no_exit_day_does_not_touch_existing_entry(self, tmp_path, monkeypatch):
+        """§5.4: an existing entry for the date is never overwritten."""
+        import json as _json
+
+        dm, pe, ledger_dir, cum_file = self._setup(
+            tmp_path,
+            monkeypatch,
+            [],
+            [],
+            cum_seed=_seed_cum([{"date": "2026-05-28", "pnl": 42.0, "tp1_hits": 1}]),
+        )
+        summary = dm.record_pending_exits("2026-05-28", ledger_dir=ledger_dir, ib=FakeIB())
+        assert "created_zero_entry" not in summary  # entry already existed
+        entry = _json.loads(cum_file.read_text())["daily_history"][0]
+        assert entry["pnl"] == 42.0 and entry["tp1_hits"] == 1
+
     def test_full_match_writes_and_marks_processed(self, tmp_path, monkeypatch):
         ledger = [
             {
