@@ -1,6 +1,17 @@
 Status: WIP
-Updated: 2026-06-04
-Note: (B) exits-source fix + (C) 6/3 re-run KÉSZ + deploy-olva (commit e3aca99, 6/3 exits most tp1:2/moc:1, cumulative -43.92). (A) robusztus capture (request→sleep(3)→re-request) DEPLOY-OLVA, de a SIKER-KRITÉRIUM live smoke-ot igényel a következő exit-napon (a 22:10 cron a connector realized-jével ≤$1 eltérés/exit, 0 fallback-warning). Day 13 safety-fix + restatement már korábban (ce3f129).
+Updated: 2026-06-05
+Note: (B)+(C) KÉSZ+deploy. (A) opció-1 (request→sleep(3)→re-request) a 6/4 live smoke-on **MEGBUKOTT** — lásd lent. Következő: opció-2 (ib.fills()) vagy opció-3 (connector-reconciliation). 6/4 restatement + broker cross-check **elhalasztva** (IBKR MCP connection probléma 2026-06-05).
+
+## 6/4 LIVE SMOKE EREDMÉNY (2026-06-04 22:10) — (A) opció-1 MEGBUKOTT
+
+A 3 exit (MSM TP1 29@117.30, JHG TIME_STOP 289@51.77, AKAM TIME_STOP 9@159.06) **strukturálisan rögzült** (mind processed, metadata helyes: tp1:1, moc:2, trades:3, **nincs néma $0**). DE mindhárom **`state_attribution_fallback`** lett (3 fallback-warning) — tehát a `reqExecutions → sleep(3) → re-request` (opció-1) **még mindig 0/None realizedPNL-t** kapott. A safety-fix megakadályozta a $0-t, de a cumulative **+199.50 swing-attribúciós BECSLÉS**, nem broker-authoritatív.
+
+- Recorder log: `record_pending_exits: matched=3 unprocessed=3 warnings=3`, cumulative `+199.50`.
+- daily_equity: 6/3 100465.26 → 6/4 101273.85 (NetLiq day_change +808.59).
+
+**Következtetés**: az opció-1 (sleep+re-request) NEM elég — a `commissionReport.realizedPNL` a recorder clientId-18 sessionjében nem populálódik. **Próbálandó: opció-2 `ib.fills()`** (az eod_report clientId-12-ben ez HELYESEN kapta a realized-et — a különbség oka vizsgálandó: connect-szekvencia? auto-reqExecutions a connecten?), VAGY opció-3 connector-reconciliation. KÖTELEZŐ újabb live smoke.
+
+**Nyitott (connector kell)**: 6/4 restatement a 3 exit broker realized_pnl-jére (MSM/JHG/AKAM, connector get_account_trades DAYS_7) — most elhalasztva az IBKR MCP probléma miatt.
 
 # Recorder — robusztus broker-realized capture + daily_metrics exits-source fix (P1)
 
