@@ -1,8 +1,8 @@
 # Task — Automatizált napi review pipeline (CC-oldali)
 
 **Status**: WIP
-**Updated**: 2026-06-04
-**Haladás**: §0 előfeltétel (P&L tracking gap) ✅ a Part A + Day 14-gyel megoldva. **1a determinisztikus data-aggregátor ✅ KÉSZ + deploy-olva** (`scripts/paper_trading/generate_review_data.py` → `state/review_data/{date}.json`, commit c63cf2f, 8 teszt, éles 6/3 adaton validálva: 4 valós flag, a fals-pozitívok javítva). **1b connector-verify ✅** a connector CC-ből működik (egész session használtuk). **Hátra: 1b cross-check integráció (IBKR realized vs daily_metrics, slippage) + 1c LLM review-generátor** (a review_data.json + cross-check + Chat-struktúra → `docs/review/{date}.md`, CHAT ESCALATION szekcióval).
+**Updated**: 2026-06-05
+**Haladás**: §0 előfeltétel ✅ (Part A + Day 14). **1a data-aggregátor ✅** (`generate_review_data.py`, éles 6/3 validálva). **1b/1c connector-FÜGGETLEN mag ✅ KÉSZ** (`generate_review.py`): `build_cross_check_flags(review_data, ibkr)` pure cross-check logika (pnl_tracking_gap, state_ibkr_divergence, cumulative_drift — pont a Day 13/14 incidenseket fogná el; a 6/4 +243.42 swing-attr vs broker realized P0-t flag-elne), `render_review_markdown` determinisztikus draft (Chat §4 struktúra, adat-táblák + LLM-placeholderek). 1a→1c éles 6/4 adaton end-to-end validálva. +11 teszt, 1898 passing. **Hátra (connector kell)**: a thin connector-wrapper a `main()`-ben (IBKR snapshot lekérés: realized/positions/NetLiq → build_cross_check_flags), + az 1c LLM-narratíva kitöltés (CC review-időben). Az IBKR MCP probléma rendeződése után élesíthető.
 **Prioritás**: P1 (a 0. fázis P0 előfeltétellel)
 **Becsült effort**: ~6-9 óra CC (0. fázis külön ~2-3h, már megtervezve)
 **Owner**: CC (implementáció + jövőbeli futtatás), Tamás (deploy jóváhagyás), Chat (stratégiai eszkaláció fogadása)
