@@ -1,6 +1,6 @@
 Status: WIP
-Updated: 2026-06-05
-Note: (B)+(C) KÉSZ+deploy. (A) opció-1 (request→sleep(3)→re-request) a 6/4 live smoke-on **MEGBUKOTT** — lásd lent. Következő: opció-2 (ib.fills()) vagy opció-3 (connector-reconciliation). 6/4 restatement + broker cross-check **elhalasztva** (IBKR MCP connection probléma 2026-06-05).
+Updated: 2026-06-06
+Note: (B)+(C) KÉSZ+deploy. (A) opció-1 a 6/4 live smoke-on MEGBUKOTT → **(A.2) `ib.fills()` DEPLOY-OLVA** (commit f95e56d), live smoke = hétfő 6/8. **6/4 + 6/5 restatement KÉSZ** broker-authoritatív értékekre (connector get_account_trades): 6/4 +225.34, 6/5 +63.83, **cumulative +245.25**. Új reusable tool: `restate_day_realized.py` (paraméterezett). A swing-attr nagyot tévedett (6/5 BEN: +47.50 vs valós +123.27). Hátra: az (A.2) hétfői élő igazolása (recorder == connector, 0 fallback).
 
 ## 6/4 LIVE SMOKE EREDMÉNY (2026-06-04 22:10) — (A) opció-1 MEGBUKOTT
 
