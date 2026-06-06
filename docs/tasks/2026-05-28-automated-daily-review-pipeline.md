@@ -222,3 +222,13 @@ docs(emergency): Pattern 6 — IBKR connector quick-query (2. fázis)
 - **IBKR connector kontextus**: `docs/review/2026-05-26-daily-review.md` §8.5
 - **Master backlog**: `docs/master-reference/04-risks-and-open-questions.md` §0.10 (P0 visszaminősítés szükséges)
 - **Munkamegosztás**: Tamás 2026-05-28 döntés (Chat=stratégia, CC=review+bugfix+automatizáció) — memóriába mentve
+
+---
+
+## 1b cross-check — ELSŐ ÉLES FUTÁS (2026-06-06) ✅ + új finding
+
+A `build_cross_check_flags` éles connector-snapshot-tal (get_account_summary + get_account_positions) lefutott a restated állapoton:
+- **state ≡ IBKR**: nincs divergence (6 pozíció: AMH/BEN/FFIV/MSM/VNO/WST pontos egyezés).
+- **🚩 P0 cumulative_drift**: cumulative +245.25 vs implied +463.68 (NetLiq 100675.60 − 100000 − unrealized 211.92) → **drift −218.43**.
+
+**ÚJ FINDING (kivizsgálandó, NEM sürgős)**: a tracked realized cumulative (+245.25) + unrealized (+211.92) = +457.17, de NetLiq +675.60 → ~$218 reziduum. Lehetséges okok: (a) a Part B canonical Day 1-8 baseline (-651.10) enyhén alulbecsül, (b) halmozott per-nap commission a realized-en kívül, (c) pre-pivot account-reset reziduum. **A cross-check pont ezt a célt szolgálja — magától elkapta.** Külön reconciliation-vizsgálat kell (connector get_account_trades DAYS_30 teljes realized vs a daily_history összege).
