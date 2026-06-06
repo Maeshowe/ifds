@@ -299,12 +299,18 @@ def fetch_today_executions(ib: Any, today: date) -> list[dict[str, Any]]:
 
     today_str = today.strftime("%Y%m%d")
     exec_filter = ExecutionFilter(time=f"{today_str} 00:00:00")
-    # First request triggers the execDetails + commissionReport events; wait for
-    # them to arrive, then re-request to read the settled realizedPNL.
+    # Trigger the execDetails + commissionReport events, let them settle, then
+    # read from ``ib.fills()`` — the canonical accumulated Fill list with
+    # commissionReport (carrying realizedPNL) attached, which eod_report uses
+    # and gets correctly. The Day 14 reqExecutions→sleep→re-request (Day 14 A.1)
+    # STILL returned realizedPNL=0 on the 6/4 live smoke; ib.fills() (A.2) is the
+    # proven path. Falls back to reqExecutions when ib.fills() is unavailable or
+    # not a list (e.g. MagicMock in unit tests).
     ib.reqExecutions(exec_filter)
     if hasattr(ib, "sleep"):
         ib.sleep(3)
-    raw = ib.reqExecutions(exec_filter)
+    fills = ib.fills() if hasattr(ib, "fills") else None
+    raw = fills if isinstance(fills, list) else ib.reqExecutions(exec_filter)
 
     # IBKR "unset" sentinel for unavailable double fields.
     _UNSET = 1.0e307
