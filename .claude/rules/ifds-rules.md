@@ -5,6 +5,45 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## Cumulative-drift diagnózis — timestamp-reconciliation + baseline-carry ELŐbb, mint "tracking-bug" (rule, 2026-06-06)
+
+Egy `cumulative_drift` flag (tracked cumulative + unrealized ≠ NetLiq − initial)
+**TILOS** azonnal "tracking-bug"-ként kezelni. Először a teljes DAYS_30
+broker-reconciliation kell, mert a drift gyakran **baseline-reset artifact**,
+nulla tracking-hibával.
+
+**Szabály:**
+
+1. **Timestamp-alapú (NEM dátum-alapú) reconciliation** a reset-pontig: a
+   tracked cumulative-ot a `get_account_trades` `realized_pnl` összegéhez kell
+   mérni, ahol a trade `trade_time` **szigorúan a `reset_at` után** van. A
+   dátum-bucket sum téves: a reset napján (5/18) lehet pre-reset fill
+   (pl. AVDL.CVR CVR settlement 04:00Z, a 10:05Z reset ELŐTT, −$47.92), amit a
+   tracking helyesen kizár, de a date-sum tévesen bevon.
+
+2. **Pre-pivot cash-carry ellenőrzés**: az IBKR paper account a pivotnál NEM
+   feltétlenül flat-$100k-ra resetel. Rekonstruáld a cash-t a post-reset
+   trade-lábakból (`100000 + Σ(SELL net) − Σ(BUY net) − Σ comm`) és vesd össze
+   a tényleges `total_cash_value`-val — a különbség a carry (2026-06-06: **+$208.37**,
+   az account ~$100,208-ra resetelt).
+
+3. **Accrued interest**: `NetLiq − cash − pos_mkt` = credit-interest a
+   cash-egyenlegen (nem realized P&L; 2026-06-06: $12.89).
+
+4. **Penny-szintű identitás** a verdikt előtt:
+   `NetLiq = 100000 + carry + tracked_realized + unrealized + accrued`.
+   Ha záródik → nincs tracking-bug; a drift könyvelési artifact → `BASELINE_OFFSET_USD`
+   a cross-checkbe (nem recorder-fix).
+
+**Példa-megfelelés:** a 6/6-i P0 `cumulative_drift −$218` → a tracked +245.25
+**pontosan** == post-reset broker realized; a drift = carry(+208.37) + accrued(+12.89).
+Nulla post-pivot tracking-hiba.
+
+**Referencia:** `docs/analysis/cumulative-drift-investigation-2026-06-08.md`,
+`generate_review.BASELINE_OFFSET_USD`, commit `7f43c2e`.
+
+---
+
 ## Rate-limit-érzékeny változtatás — live smoke a teljes terheléssel (rule, 2026-05-14)
 
 Új rate-limit-érzékeny kódút bevezetése (per-ticker külső API hívás, batch
