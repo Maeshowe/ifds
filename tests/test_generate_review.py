@@ -181,3 +181,53 @@ class TestRenderer:
         md = gr.render_review_markdown(_review_data())
         assert "| WST | Healthcare |" in md
         assert "single_position_concentration" in md  # §5 lists local flags
+
+
+# ---------------------------------------------------------------------------
+# 1c main() — connector snapshot injection (--ibkr-json)
+# ---------------------------------------------------------------------------
+
+
+class TestMainIbkrJson:
+    def test_main_injects_ibkr_snapshot(self, tmp_path, monkeypatch):
+        import json as _json
+
+        gr = _gr()
+        data_dir = tmp_path / "review_data"
+        out_dir = tmp_path / "review"
+        data_dir.mkdir()
+        (data_dir / "2026-06-04.json").write_text(_json.dumps(_review_data()))
+        # Snapshot with a state/IBKR divergence → P0 in the rendered draft.
+        ibkr_path = tmp_path / "ibkr.json"
+        ibkr_path.write_text(_json.dumps({"position_tickers": ["WST", "EXTRA"]}))
+
+        monkeypatch.setattr(gr, "REVIEW_DATA_DIR", data_dir)
+        monkeypatch.setattr(gr, "REVIEW_OUT_DIR", out_dir)
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            ["generate_review.py", "--date", "2026-06-04", "--ibkr-json", str(ibkr_path)],
+        )
+        gr.main()
+
+        draft = (out_dir / "2026-06-04-daily-review.draft.md").read_text()
+        assert "## 0. Kritikus finding (P0)" in draft
+        assert "state_ibkr_divergence" in draft and "EXTRA" in draft
+
+    def test_main_offline_no_ibkr(self, tmp_path, monkeypatch):
+        import json as _json
+
+        gr = _gr()
+        data_dir = tmp_path / "review_data"
+        out_dir = tmp_path / "review"
+        data_dir.mkdir()
+        (data_dir / "2026-06-04.json").write_text(_json.dumps(_review_data()))
+
+        monkeypatch.setattr(gr, "REVIEW_DATA_DIR", data_dir)
+        monkeypatch.setattr(gr, "REVIEW_OUT_DIR", out_dir)
+        monkeypatch.setattr(sys, "argv", ["generate_review.py", "--date", "2026-06-04"])
+        gr.main()
+
+        draft = (out_dir / "2026-06-04-daily-review.draft.md").read_text()
+        # No connector snapshot → no cross-check P0 section.
+        assert "## 0. Kritikus finding (P0)" not in draft

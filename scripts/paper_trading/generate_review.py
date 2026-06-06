@@ -281,17 +281,35 @@ def main() -> None:
     parser.add_argument(
         "--out", help="output path (default: docs/review/{date}-daily-review.draft.md)"
     )
+    parser.add_argument(
+        "--ibkr-json",
+        help="path to an IBKR snapshot JSON (keys: realized_today, position_tickers, "
+        "net_liq, unrealized, baseline_offset) — CC writes it from the MCP connector. "
+        "Without it the cross-check is empty (offline draft).",
+    )
     args = parser.parse_args()
 
     data_path = REVIEW_DATA_DIR / f"{args.date}.json"
     review_data = json.loads(data_path.read_text())
-    # IBKR cross-check is injected by the connector layer; offline → empty.
-    md = render_review_markdown(review_data, cross_check_flags=[])
+
+    # IBKR cross-check: the snapshot is injected by CC from the MCP connector
+    # (cron's ib_insync cannot reach the connector). Offline → empty cross-check.
+    ibkr: dict = {}
+    if args.ibkr_json:
+        ibkr = json.loads(Path(args.ibkr_json).read_text())
+    cross_check_flags = build_cross_check_flags(review_data, ibkr)
+    md = render_review_markdown(review_data, cross_check_flags=cross_check_flags)
 
     out_path = Path(args.out) if args.out else REVIEW_OUT_DIR / f"{args.date}-daily-review.draft.md"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(md)
-    logger.info("review draft written: %s", out_path)
+    p0 = [f for f in cross_check_flags if f.get("priority") == "P0"]
+    logger.info(
+        "review draft written: %s (%d cross-check flag(s), %d P0)",
+        out_path,
+        len(cross_check_flags),
+        len(p0),
+    )
 
 
 if __name__ == "__main__":

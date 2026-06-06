@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-06-08 — Autonóm review-pipeline 1c: connector-wrapper + /daily-review command
+
+> A review-pipeline (`docs/tasks/2026-05-28-automated-daily-review-pipeline.md`)
+> utolsó connector-rétege. A napi P&L review most end-to-end CC-eljárás —
+> a Chat-manualitás kiváltva.
+
+### review(1c) — connector snapshot injection + CC-eljárás
+- `generate_review.py main()` `--ibkr-json PATH`: CC az MCP connectorból
+  (`get_account_summary/positions/trades`) snapshotot ír, a script a
+  `build_cross_check_flags`-szel rendereli a draftot (P0 flag-ek beépítve).
+  Connector nélkül → üres cross-check (offline draft, visszafelé kompatibilis).
+- `.claude/commands/daily-review.md`: `/daily-review {date}` — 1a → IBKR snapshot
+  → cross-check → 1c draft → LLM-narratíva kitöltés → `docs/review/{date}.md`
+  → P0 eszkaláció a Chat-nek. Formalizálja a teljes autonóm eljárást.
+- +4 teszt (main --ibkr-json: P0 injektálás + offline no-flag). **1906 passing.**
+
 ## 2026-06-08 — Cumulative drift kivizsgálva: baseline-reset artifact (nem tracking-bug)
 
 > A 6/6-i első cross-check P0 `cumulative_drift −$218` flag-je teljesen feloldva
