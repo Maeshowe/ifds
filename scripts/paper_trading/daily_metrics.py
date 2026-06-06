@@ -51,6 +51,7 @@ METRICS_DIR = PROJECT_ROOT / "state" / "daily_metrics"
 LOGS_DIR = PROJECT_ROOT / "logs"
 UW_SHADOW_DIR = PROJECT_ROOT / "state" / "uw_shadow"
 PENDING_EXITS_DIR = PROJECT_ROOT / "state" / "pending_exits"
+DAILY_EQUITY_FILE = PROJECT_ROOT / "state" / "daily_equity.json"
 INITIAL_CAPITAL = 100_000
 
 # clientId for the record_pending_exits IBKR connection (P0 §0.11 Part A).
@@ -292,6 +293,83 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
             "top_3_scores": top_scores,
         },
     }
+
+
+def _build_entry_slippage(target_date: str, planned: dict) -> dict[str, dict]:
+    """Entry-day MKT-fill slippage vs the planned limit, per new entry.
+
+    Data-quality fix #5: slippage must be measured on the ENTRY day (actual
+    fill vs planned limit) for EVERY newly-opened position, carrying ``qty``
+    for a qty-weighted weekly aggregate. The prior logic derived slippage from
+    the exit trades CSV × same-day plan, which on a swing entry day is empty
+    (a freshly-opened ticker has no same-day exit), so only coincidental
+    matches were recorded (e.g. W23 captured MSM only, missing BEN/VNO/FFIV).
+
+    Returns ``{ticker: {planned, filled, slippage_pct, qty}}`` for the
+    positions whose ``entry_date == target_date`` and that have a planned row.
+    """
+    try:
+        from ifds.config.loader import Config
+        from ifds.state.swing_positions import load_swing_positions
+    except ImportError:
+        return {}
+
+    try:
+        state_file = Config().tuning.get("swing_positions_state_file", "state/swing_positions.json")
+    except Exception:
+        state_file = "state/swing_positions.json"
+
+    try:
+        positions = load_swing_positions(state_file)
+    except Exception:
+        return {}
+
+    out: dict[str, dict] = {}
+    for p in positions:
+        if getattr(p, "entry_date", None) != target_date:
+            continue
+        plan = planned.get(p.ticker)
+        if not plan:
+            continue
+        limit = plan["limit_price"]
+        if limit <= 0:
+            continue
+        fill = float(p.entry_price)
+        out[p.ticker] = {
+            "planned": round(limit, 4),
+            "filled": round(fill, 4),
+            "slippage_pct": round((fill - limit) / limit * 100, 2),
+            "qty": int(getattr(p, "qty_remaining", 0) or 0),
+        }
+    return out
+
+
+def _compute_portfolio_return_from_equity(target_date: str) -> float | None:
+    """Day-over-day NetLiq % move from ``state/daily_equity.json`` (fix #6).
+
+    ``portfolio_return_pct`` is the total-equity (mark-to-market) move, not
+    just realized P&L / initial capital — for a swing book holding positions
+    overnight the NetLiq move is the meaningful daily return vs SPY (e.g. Day
+    15 6/5: 101273.85 → 100675.60 = -0.59%, not the realized-only -0.01%).
+
+    Returns ``None`` when today's or the most-recent prior equity is not
+    recorded (e.g. days before the §3a daily_equity store existed) — the
+    caller then falls back to the realized-P&L estimate.
+    """
+    if not DAILY_EQUITY_FILE.exists():
+        return None
+    try:
+        store = json.loads(DAILY_EQUITY_FILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    today_eq = store.get(target_date)
+    prior_dates = sorted(d for d in store if d < target_date)
+    if today_eq is None or not prior_dates:
+        return None
+    prior_eq = store[prior_dates[-1]]
+    if not prior_eq:
+        return None
+    return (float(today_eq) - float(prior_eq)) / float(prior_eq) * 100
 
 
 def _load_uw_shadow_summary(target_date: str) -> dict:
@@ -779,18 +857,10 @@ def build_daily_metrics(target_date: str) -> dict:
     min_score = min(scores.values()) if scores else 0
     max_score = max(scores.values()) if scores else 0
 
-    # --- Slippage ---
-    slippage: dict[str, dict] = {}
-    for t in trades:
-        sym = t["ticker"]
-        if sym in planned:
-            p = planned[sym]["limit_price"]
-            f = t["entry_price"]
-            slippage[sym] = {
-                "planned": p,
-                "filled": f,
-                "slippage_pct": round((f - p) / p * 100, 2) if p > 0 else 0,
-            }
+    # --- Slippage (entry-day MKT fill vs planned limit, per new entry) ---
+    # Fix #5: measured on the ENTRY day for every new position (with qty),
+    # not derived from the exit trades CSV (which misses swing entries).
+    slippage = _build_entry_slippage(target_date, planned)
     avg_slippage = (
         sum(s["slippage_pct"] for s in slippage.values()) / len(slippage) if slippage else 0
     )
@@ -844,8 +914,13 @@ def build_daily_metrics(target_date: str) -> dict:
     cum_pct = cum_data.get("cumulative_pnl_pct", 0)
 
     # --- SPY excess return ---
+    # Fix #6: portfolio_return is the day-over-day NetLiq % move (mark-to-market,
+    # from daily_equity.json), not realized P&L / initial capital. Falls back to
+    # the realized estimate when equity history is unavailable for the date.
     spy_return = _fetch_spy_return(target_date)
-    portfolio_return = gross_pnl / INITIAL_CAPITAL * 100
+    portfolio_return = _compute_portfolio_return_from_equity(target_date)
+    if portfolio_return is None:
+        portfolio_return = gross_pnl / INITIAL_CAPITAL * 100
     excess = (portfolio_return - spy_return) if spy_return is not None else None
 
     # --- Best / worst trade ---

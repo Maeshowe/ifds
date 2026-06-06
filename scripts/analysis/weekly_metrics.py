@@ -99,13 +99,22 @@ def aggregate_week(days: list[dict]) -> dict:
     score_pnl_pairs = [(t["score"], t["pnl"]) for t in all_trades if t.get("score", 0) > 0]
     week_corr = _simple_correlation(score_pnl_pairs)
 
-    # Slippage
-    slippages = []
+    # Slippage — qty-weighted across ALL entries in the week (fix #5).
+    # Each entry carries qty (entry-day fill vs planned). Avg is qty-weighted;
+    # worst is the most UNFAVORABLE (largest absolute magnitude, not max()
+    # which on negative slippages returns the least-bad).
+    entries = []
     for d in days:
         for s in d.get("execution", {}).get("slippage_per_ticker", {}).values():
-            slippages.append(s.get("slippage_pct", 0))
-    avg_slippage = mean(slippages) if slippages else 0
-    worst_slippage = max(slippages, default=0)
+            entries.append((s.get("slippage_pct", 0), s.get("qty", 0) or 0))
+    total_slip_qty = sum(q for _, q in entries)
+    if entries and total_slip_qty > 0:
+        avg_slippage = sum(sp * q for sp, q in entries) / total_slip_qty
+    elif entries:
+        avg_slippage = mean(sp for sp, _ in entries)  # fallback: unweighted (no qty)
+    else:
+        avg_slippage = 0
+    worst_slippage = max((sp for sp, _ in entries), key=abs, default=0)
 
     # Dynamic threshold days
     zero_position_days = sum(1 for d in days if d["positions"]["opened"] == 0)

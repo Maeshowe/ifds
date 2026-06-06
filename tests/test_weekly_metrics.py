@@ -134,6 +134,53 @@ class TestWeeklyAggregation:
         assert agg["gross_pnl"] == pytest.approx(120.0)  # 50-30+80-20+40
         assert agg["win_days"] == 3  # days with pnl > 0
 
+    def test_slippage_qty_weighted_and_worst_by_abs(self, tmp_path, monkeypatch):
+        """Fix #5: qty-weighted avg across ALL entries + worst by abs magnitude."""
+        from scripts.analysis.weekly_metrics import _load_week_metrics, aggregate_week
+
+        monkeypatch.setattr("scripts.analysis.weekly_metrics.METRICS_DIR", tmp_path)
+
+        # W23-style: 4 entries spread across 2 days, with qty.
+        d1 = _make_daily("2026-06-02", pnl=10.0)
+        d1["execution"]["slippage_per_ticker"] = {
+            "MSM": {"planned": 117.0, "filled": 112.6, "slippage_pct": -3.77, "qty": 58},
+            "BEN": {"planned": 31.0, "filled": 30.4, "slippage_pct": -1.99, "qty": 100},
+        }
+        d2 = _make_daily("2026-06-03", pnl=10.0)
+        d2["execution"]["slippage_per_ticker"] = {
+            "VNO": {"planned": 34.0, "filled": 33.7, "slippage_pct": -0.79, "qty": 101},
+            "FFIV": {"planned": 408.0, "filled": 408.0, "slippage_pct": 0.01, "qty": 12},
+        }
+        _write_daily(tmp_path, d1)
+        _write_daily(tmp_path, d2)
+
+        from datetime import date
+
+        days = _load_week_metrics(date(2026, 6, 1))
+        agg = aggregate_week(days)
+        # qty-weighted: (-3.77*58 -1.99*100 -0.79*101 +0.01*12) / 271 = -1.84%
+        assert agg["avg_slippage_pct"] == pytest.approx(-1.84, abs=0.01)
+        # worst = most UNFAVORABLE by magnitude (not max() which would pick +0.01)
+        assert agg["worst_slippage_pct"] == pytest.approx(-3.77)
+
+    def test_slippage_unweighted_fallback_without_qty(self, tmp_path, monkeypatch):
+        """No qty on entries → unweighted mean (backward compatible)."""
+        from scripts.analysis.weekly_metrics import _load_week_metrics, aggregate_week
+
+        monkeypatch.setattr("scripts.analysis.weekly_metrics.METRICS_DIR", tmp_path)
+        d = _make_daily("2026-06-02", pnl=10.0)
+        d["execution"]["slippage_per_ticker"] = {
+            "A": {"planned": 10.0, "filled": 10.2, "slippage_pct": 2.0},
+            "B": {"planned": 10.0, "filled": 9.6, "slippage_pct": -4.0},
+        }
+        _write_daily(tmp_path, d)
+
+        from datetime import date
+
+        agg = aggregate_week(_load_week_metrics(date(2026, 6, 1)))
+        assert agg["avg_slippage_pct"] == pytest.approx(-1.0)  # mean(2, -4)
+        assert agg["worst_slippage_pct"] == pytest.approx(-4.0)  # max abs
+
     def test_no_data(self, tmp_path, monkeypatch):
         from scripts.analysis.weekly_metrics import _load_week_metrics
 

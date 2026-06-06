@@ -50,6 +50,19 @@ W17 mérés (ápr 20-24) lezárult: Net +$593, Excess vs SPY +0.13%, Score corr 
 - Új position sizing spec (`docs/design/swing-sizing-spec.md`) — rolling 10-12, 0.35% risk
 - CC prototípusok (unit-test szinten, ~3-5 óra)
 
+#### Data-quality P3 — statisztikai megfigyelések (forrás: `docs/tasks/2026-06-06-data-quality-fix-package.md` #7/#8)
+
+> P1 (#1-#4) + P2 (#5/#6) KÉSZ (2026-06-08). A P3 NEM implementáció most — adat-minta kell.
+
+- **#7 Next-day MKT fill kockázat (TP1-limit opció)** — trigger: **Day 21+**, legalább
+  10 TP1 exit a mintán. Mérendő: a `next_day_fill_vs_tp1_level` átlag-eltérése. Eddigi
+  vegyes jelek: MSM +0.11% kedvező, BEN -2.05% kedvezőtlen (-$87), AMH -0.24% semleges.
+  Ha szignifikáns ($-50+ átlag): TP1-limit-order design doc + A/B SIM-L2.
+- **#8 Major-bear-napi TIME_STOP MOC** — trigger: **Day 30+**, legalább 5 major-bear-nap
+  (SPY < -1.5%) TIME_STOP MOC. Mérendő: átlag-veszteség vs Day N-1 záró mark. Day 15
+  (6/5, SPY -2.58%): ROIV várt -$43 → -$164, ST várt +$160 → -$25 (Σ -$393 alulteljesítés).
+  Ha szignifikáns: TIME_STOP-elhalasztás 1 nappal VAGY limit-order @ Day N-1 mark design.
+
 ### Fázis 3 (W25-W30, jún 16 - júl 25) — RE-DEPLOY + ÚJ PAPER TRADING
 
 - W25: új scoring + universum deploy (CC, ~4-6 óra)

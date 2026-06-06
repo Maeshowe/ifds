@@ -165,6 +165,98 @@ class TestVixCloseInOutput:
         assert metrics["market"]["vix_delta_pct"] == pytest.approx(-7.5)
 
 
+class TestPortfolioReturnFromEquity:
+    """Fix #6: portfolio_return_pct = day-over-day NetLiq % from daily_equity."""
+
+    def test_day_over_day_netliq_move(self, tmp_path, monkeypatch):
+        import scripts.paper_trading.daily_metrics as dm
+
+        eq = tmp_path / "daily_equity.json"
+        eq.write_text(
+            json.dumps(
+                {
+                    "2026-06-03": 100465.26,
+                    "2026-06-04": 101273.85,
+                    "2026-06-05": 100675.60,
+                }
+            )
+        )
+        monkeypatch.setattr(dm, "DAILY_EQUITY_FILE", eq)
+        # Day 15 (6/5): (100675.60 - 101273.85) / 101273.85 * 100 = -0.59%
+        assert dm._compute_portfolio_return_from_equity("2026-06-05") == pytest.approx(
+            -0.59, abs=0.01
+        )
+        # Day 14 (6/4): (101273.85 - 100465.26) / 100465.26 * 100 = +0.80%
+        assert dm._compute_portfolio_return_from_equity("2026-06-04") == pytest.approx(
+            0.80, abs=0.01
+        )
+
+    def test_none_without_prior(self, tmp_path, monkeypatch):
+        import scripts.paper_trading.daily_metrics as dm
+
+        eq = tmp_path / "daily_equity.json"
+        eq.write_text(json.dumps({"2026-06-03": 100465.26}))
+        monkeypatch.setattr(dm, "DAILY_EQUITY_FILE", eq)
+        # No prior date → None (caller falls back to realized estimate).
+        assert dm._compute_portfolio_return_from_equity("2026-06-03") is None
+
+    def test_none_when_file_missing(self, tmp_path, monkeypatch):
+        import scripts.paper_trading.daily_metrics as dm
+
+        monkeypatch.setattr(dm, "DAILY_EQUITY_FILE", tmp_path / "missing.json")
+        assert dm._compute_portfolio_return_from_equity("2026-06-05") is None
+
+
+class TestBuildEntrySlippage:
+    """Fix #5: entry-day slippage per new position (fill vs planned, with qty)."""
+
+    def test_only_todays_entries_with_qty(self, monkeypatch):
+        from types import SimpleNamespace
+
+        import scripts.paper_trading.daily_metrics as dm
+
+        positions = [
+            SimpleNamespace(
+                ticker="MSM", entry_date="2026-06-02", entry_price=112.6, qty_remaining=58
+            ),
+            SimpleNamespace(
+                ticker="BEN", entry_date="2026-06-02", entry_price=30.4, qty_remaining=100
+            ),
+            SimpleNamespace(
+                ticker="OLD", entry_date="2026-05-30", entry_price=50.0, qty_remaining=10
+            ),
+        ]
+        monkeypatch.setattr(
+            "ifds.state.swing_positions.load_swing_positions", lambda *a, **k: positions
+        )
+        planned = {
+            "MSM": {"limit_price": 117.0},
+            "BEN": {"limit_price": 31.0},
+            "OLD": {"limit_price": 50.0},
+        }
+        out = dm._build_entry_slippage("2026-06-02", planned)
+        # Only today's new entries that have a planned row.
+        assert set(out) == {"MSM", "BEN"}
+        assert out["MSM"]["slippage_pct"] == pytest.approx(round((112.6 - 117.0) / 117.0 * 100, 2))
+        assert out["MSM"]["qty"] == 58
+        assert out["BEN"]["qty"] == 100
+
+    def test_skips_entry_without_planned(self, monkeypatch):
+        from types import SimpleNamespace
+
+        import scripts.paper_trading.daily_metrics as dm
+
+        positions = [
+            SimpleNamespace(
+                ticker="XYZ", entry_date="2026-06-02", entry_price=10.0, qty_remaining=5
+            )
+        ]
+        monkeypatch.setattr(
+            "ifds.state.swing_positions.load_swing_positions", lambda *a, **k: positions
+        )
+        assert dm._build_entry_slippage("2026-06-02", {}) == {}
+
+
 class TestFetchVixFromPolygon:
     """Unit tests for _fetch_vix_from_polygon with a mocked Polygon client."""
 

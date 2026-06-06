@@ -1,6 +1,6 @@
-Status: WIP
+Status: DONE
 Updated: 2026-06-08
-Note: **P1 (#1-#4) KÉSZ** (2026-06-08, 1916 passing). #1 VIX→Polygon I:VIX, #2 EOD timing (P&L a Part A-ból + cron 22:11), #3 NYSE day-count, #4 commission (live már rögzít + backfill + robustness-warning). Backfillek (`--apply` Mac Mini-n): backfill_polygon_vix.py, backfill_commission.py. **Hátra: P2 (#5 weekly slippage aggregálás, #6 portfolio_return_pct audit), P3 (#7, #8 statisztikai backlog).** Külön task a `2026-06-04-recorder-robust-realized-capture.md` (hétfői 6/8 live smoke).
+Note: **P1 (#1-#4) + P2 (#5/#6) KÉSZ** (2026-06-08, 1926 passing). #1 VIX→Polygon I:VIX, #2 EOD timing (P&L a Part A-ból + cron 22:11), #3 NYSE day-count, #4 commission (live + backfill + warning), #5 weekly slippage (entry-based + qty-súlyozott + worst-by-abs), #6 portfolio_return_pct (NetLiq day-over-day + backfill). Backfillek (`--apply` Mac Mini-n): backfill_polygon_vix.py, backfill_commission.py, backfill_portfolio_return.py (#1+#4 már deployolva 6/8; #6 hátra). **P3 (#7/#8) → `docs/planning/backlog.md`** (statisztikai, Day 21+/30+ trigger). Külön task a `2026-06-04-recorder-robust-realized-capture.md` (hétfői 6/8 live smoke).
 
 # Data-quality fix-package (P1/P2/P3)
 
@@ -148,7 +148,13 @@ A scope-ot Tamás 2026-06-06-i két explicit kérése váltotta ki:
 
 ### P2 — Másodlagos finding-ek (2 fix)
 
-#### Fix #5 — `weekly_metrics.py` slippage_aggregation_complete
+#### Fix #5 — `weekly_metrics.py` slippage_aggregation_complete ✅ KÉSZ (2026-06-08)
+
+> **Gyökérok**: a slippage_per_ticker az exit-trade-ekből épült (× same-day plan),
+> így swing entry-napon üres → csak véletlen egyezések (W23: csak MSM). **Fix**:
+> `daily_metrics._build_entry_slippage` az ENTRY-napi új belépőkből (fill vs planned,
+> qty-vel) minden entry-re. `weekly_metrics`: qty-súlyozott avg + worst = max(abs)
+> (a `max()` negatívokon a legkevésbé rosszat adta). +4 teszt.
 
 **Probléma**: a `docs/analysis/weekly/2026-W23.md` `Avg MKT fill slippage: -3.77%` és `Worst slippage: -3.77%` — **csak a MSM Day 12-i entry slippage-jét veszi figyelembe**. A W23-ban 4 új entry volt:
 - WST (Day 10/6-1) slippage: csak state vs IBKR fill összehasonlítás kell
@@ -173,7 +179,15 @@ A scope-ot Tamás 2026-06-06-i két explicit kérése váltotta ki:
 
 ---
 
-#### Fix #6 — `daily_metrics::portfolio_return_pct` definíció audit
+#### Fix #6 — `daily_metrics::portfolio_return_pct` definíció audit ✅ KÉSZ (2026-06-08)
+
+> **Fix**: `_compute_portfolio_return_from_equity` — a portfolio_return a NetLiq
+> day-over-day %-a (`daily_equity.json`, mark-to-market), nem `gross_pnl/100k`.
+> Fallback ha nincs equity-pár (Day 1-13). Validálva: 6/4=+0.80%, 6/5=-0.59%
+> (excess +1.99%). Backfill: `backfill_portfolio_return.py` (6/4, 6/5 korrigálva).
+> **Timing-megjegyzés**: a daily_metrics (22:10) az eod_report equity-írás (22:11)
+> ELŐTT fut → a live persisted érték fallback marad aznap, a 22:11 Telegram-rebuild
+> + a backfill korrigálja. +6 teszt. **1926 passing.**
 
 **Probléma**: a Day 14 (6/4) `portfolio_return_pct: 0.24` és Day 15 (6/5) `portfolio_return_pct: -0.01` mezőértékek **nem konzisztensek** a Net Liq mozgással:
 - Day 14 záró Net Liq ~ $100 273.85 (a `state/daily_equity.json::day_change: +808.59` szerint Day 13 záró $100 465.26 → Day 14 záró $101 273.85)
@@ -207,7 +221,10 @@ A scope-ot Tamás 2026-06-06-i két explicit kérése váltotta ki:
 
 ### P3 — Statisztikai megfigyelések (2 backlog)
 
-#### Backlog #7 — Next-day MKT fill kockázat (TP1-limit-order opció vizsgálata)
+#### Backlog #7 — Next-day MKT fill kockázat (TP1-limit-order opció vizsgálata) ➡️ BACKLOG
+
+> Áthelyezve `docs/planning/backlog.md` (Fázis 2 — Data-quality P3). Trigger: Day 21+,
+> ≥10 TP1 exit. NEM implementáció most.
 
 **Probléma**: a swing pivot TP1-flag a Day N záró ár alapján (EOD eval), de a Day N+1 15:30 MKT fill ár a következő reggeli piaci helyzet függvénye. **Két ellentétes példa eddig**:
 - **MSM Day 13→14**: TP1-flag a 6/3 záró $117.17 alapján → 6/4 fill $117.30 = **+0.11% kedvező** (~Day 13 záró mark közeli) ✓
@@ -231,7 +248,10 @@ A scope-ot Tamás 2026-06-06-i két explicit kérése váltotta ki:
 
 ---
 
-#### Backlog #8 — Major-bear-napi TIME_STOP MOC statisztikai mérés
+#### Backlog #8 — Major-bear-napi TIME_STOP MOC statisztikai mérés ➡️ BACKLOG
+
+> Áthelyezve `docs/planning/backlog.md` (Fázis 2 — Data-quality P3). Trigger: Day 30+,
+> ≥5 major-bear-nap. NEM implementáció most.
 
 **Probléma**: a Day 15-i SPY -2.58% major-bear-zuhanással a TIME_STOP MOC fill-ek kedvezőtlenebbül kötöttek:
 - **ROIV TIME_STOP MOC**: várt -$43 → valódi **-$163.99** (-$120 alulteljesítés)

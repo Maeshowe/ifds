@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-06-08 — Data-quality fix #5/#6: weekly slippage + portfolio_return audit (P2)
+
+> A data-quality fix-package P2 lezárása. P3 (#7/#8) → `docs/planning/backlog.md`
+> (statisztikai, Day 21+/30+ trigger).
+
+### data(daily_metrics + weekly_metrics) — #5 entry slippage
+- `_build_entry_slippage(date, planned)`: a slippage az ENTRY-napi új belépőkből
+  (tényleges fill vs planned limit, **qty-vel**), nem az exit-trade CSV-ből (ami
+  swing entry-napon üres → W23 csak MSM-et fogott be).
+- `weekly_metrics`: qty-súlyozott avg slippage + **worst = max(abs)** (a `max()`
+  negatív slippage-eken a legkevésbé rosszat adta). Fallback unweighted, ha nincs qty.
+
+### data(daily_metrics) — #6 portfolio_return_pct
+- `_compute_portfolio_return_from_equity(date)`: a portfolio_return a **NetLiq
+  day-over-day %-a** (`state/daily_equity.json`, mark-to-market), nem `gross_pnl/100k`.
+  Fallback a realized-becslésre, ha nincs equity-pár. Validálva: 6/4=+0.80%, 6/5=-0.59%.
+- `scripts/maintenance/backfill_portfolio_return.py`: 6/4, 6/5 korrigálva
+  (excess 6/5 +2.57 → +1.99). Timing: a daily_metrics 22:10 az equity-írás (22:11)
+  előtt fut → live fallback aznap, a 22:11 rebuild + backfill korrigál.
+- +10 teszt (entry slippage +4, portfolio_return +3, backfill +3). **1926 passing.**
+
 ## 2026-06-08 — Data-quality fix #2/#3/#4: EOD timing + NYSE day-count + commission
 
 > A data-quality fix-package P1 lezárása (`docs/tasks/2026-06-06-data-quality-fix-package.md`).
