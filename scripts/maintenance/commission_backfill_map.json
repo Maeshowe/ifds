@@ -1,0 +1,13 @@
+{
+  "_note": "Connector-derived EXIT-leg (SLD) commission per NYSE trading day, post-reset (>2026-05-18T10:05:00Z). Source: IBKR get_account_trades(DAYS_30), 2026-06-06. Same basis as daily_metrics.record_pending_exits (exit leg only). Used by backfill_commission.py to standardize cumulative_pnl.json daily_history[date].commission. Pre-reset AVDL.CVR excluded.",
+  "2026-05-19": 1.08,
+  "2026-05-20": 1.01,
+  "2026-05-21": 1.08,
+  "2026-05-22": 1.07,
+  "2026-05-27": 8.04,
+  "2026-05-28": 1.46,
+  "2026-06-02": 1.12,
+  "2026-06-03": 3.22,
+  "2026-06-04": 3.92,
+  "2026-06-05": 4.39
+}

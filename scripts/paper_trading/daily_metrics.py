@@ -584,6 +584,16 @@ def apply_pending_exits(
         if rpnls and all(r is not None for r in rpnls):
             net = round(sum(rpnls), 2)
             pnl_source = "broker_realized_pnl"
+            # Data-quality fix #4: commission rides the SAME settled
+            # commissionReport as realizedPNL (ib.fills(), A.2). If the broker
+            # realized arrived but commission is $0, the commissionReport was
+            # only partially populated — a swing round-trip exit is never $0
+            # commission. Surface it (the ledger commission would under-count)
+            # rather than silently record $0.
+            if commission == 0.0:
+                warnings.append(
+                    {"key": rec["key"], "reason": "commission_zero_with_broker_realized"}
+                )
         else:
             gross = compute_pnl(rec["entry_price"], weighted_price, int(total_qty))
             net = round(gross - commission, 2)

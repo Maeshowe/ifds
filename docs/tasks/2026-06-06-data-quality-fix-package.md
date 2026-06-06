@@ -1,6 +1,6 @@
 Status: WIP
 Updated: 2026-06-08
-Note: Day 13-15 review-kból összegyűjtött data-quality finding-ek. Külön task a `2026-06-04-recorder-robust-realized-capture.md` Part A robust-realized-capture-tól (azt a hétfői 6/8 live smoke zárja). VIX adatforrás Tamás-explicit kérés szerint: FRED → Polygon `I:VIX` (FRED 1 napos késés).
+Note: **P1 (#1-#4) KÉSZ** (2026-06-08, 1916 passing). #1 VIX→Polygon I:VIX, #2 EOD timing (P&L a Part A-ból + cron 22:11), #3 NYSE day-count, #4 commission (live már rögzít + backfill + robustness-warning). Backfillek (`--apply` Mac Mini-n): backfill_polygon_vix.py, backfill_commission.py. **Hátra: P2 (#5 weekly slippage aggregálás, #6 portfolio_return_pct audit), P3 (#7, #8 statisztikai backlog).** Külön task a `2026-06-04-recorder-robust-realized-capture.md` (hétfői 6/8 live smoke).
 
 # Data-quality fix-package (P1/P2/P3)
 
@@ -57,7 +57,12 @@ A scope-ot Tamás 2026-06-06-i két explicit kérése váltotta ki:
 
 ---
 
-#### Fix #2 — EOD Telegram timing fix (22:05 → 22:11 cron-eltolás)
+#### Fix #2 — EOD Telegram timing fix (22:05 → 22:11 cron-eltolás) ✅ KÉSZ (2026-06-08)
+
+> **Implementálva**: `eod_report.resolve_eod_display_pnl` — a P&L today a Part A
+> `daily_history[today]` net+commission-jéből (broker-authoritatív, a 21:40 MOC
+> exitekkel), fallback az eod saját fill-jeire. Cron `scripts/crontab.md`-ben
+> 22:05→22:11 (a 22:10 Part A UTÁN) — **Mac Mini-n Tamás alkalmazza**. +3 teszt.
 
 **Probléma**: a `pt_eod.py` cron jelenleg **22:05-kor** fut, miközben a Part A `record_pending_exits` cron **22:10-kor**. Ezért a 22:05-i EOD Telegram:
 - A 21:40-i MOC exit-eket nem fogja be (csak 22:10 után rögzül a Part A-ban)
@@ -79,7 +84,11 @@ A scope-ot Tamás 2026-06-06-i két explicit kérése váltotta ki:
 
 ---
 
-#### Fix #3 — `[Day N/63]` mező egységesítés a NYSE-count szemantikára
+#### Fix #3 — `[Day N/63]` mező egységesítés a NYSE-count szemantikára ✅ KÉSZ (2026-06-08)
+
+> **Implementálva**: `eod_report.resolve_nyse_day_number` → `compute_trading_day_number`
+> (NYSE-count) a log-sorokban + a legacy/dry-run fallback Telegram-ban. A swing
+> Telegram (production) már korábban is NYSE day_number-t használt. +2 teszt.
 
 **Probléma**: a `pt_eod.log` `[Day N/63]` jelenleg a régi `cumulative_pnl::trading_days` mezőt használja (P&L-entry-count szemantika: csak azon napokat számolja, amelyeken volt P&L-entry). A `daily_metrics::day_number` viszont **NYSE trading-day count** (5/18 = D1, ..., 6/5 = D14).
 
@@ -103,7 +112,16 @@ A scope-ot Tamás 2026-06-06-i két explicit kérése váltotta ki:
 
 ---
 
-#### Fix #4 — Commission rögzítés a Part A-ban (paralel `realized + commission`)
+#### Fix #4 — Commission rögzítés a Part A-ban (paralel `realized + commission`) ✅ KÉSZ (2026-06-08)
+
+> **Megállapítás**: a `record_pending_exits` MÁR rögzíti a commission-t paralelben
+> (`commission_delta=commission`, exit-leg SLD bázis). A 6/4+6/5 lokális 0 a
+> pre-A.2 állapot (async commissionReport nem settle-ölt). **Hozzáadva**:
+> robustness-warning ha broker_realized de commission==0 (`commission_zero_with_broker_realized`).
+> **Backfill**: `scripts/maintenance/backfill_commission.py` + connector-derived
+> `commission_backfill_map.json` (exit-leg, Day 1-15: 6/5=4.39, 6/4=3.92, 5/27=8.04;
+> standardizálja a felfújt historikus round-trip értékeket). `--apply` Mac Mini-n.
+> +5 teszt. **1916 passing.**
 
 **Probléma**: a Day 14 + Day 15-i `daily_metrics.pnl.commission: 0.0` és a `cumulative_pnl::daily_history.{date}.commission: 0.0` (a Tamás-i restatement előtt, jelenleg már korrigálódott a 6/4 + 6/5 napokra a `restate_day_realized.py` futtatása által). DE a `record_pending_exits` cron **rendszerszerűen NEM rögzíti a commission-t paralelben** — a `realized_pnl` mező már net (commission bevonva), de a `commission` mezőt **külön audit-trail-ben** is rögzíteni kellene.
 

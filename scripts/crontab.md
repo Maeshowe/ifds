@@ -82,13 +82,16 @@
 # Polygon napi bar-ból; state/swing_positions.json frissítve next_action flag-ekkel
 0 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/pt_monitor.py --mode=eod_eval
 
-# EOD report — napi P&L, kumulatív összesítés, swing-state Telegram
-# 22:05 Budapest = 16:05 EDT (EOD eval után 5 perccel)
-5 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/eod_report.py
-
-# Daily metrics — structured JSON (swing_state block + walk-forward méréshez)
-# 22:10 Budapest = 16:10 EDT (EOD report után 5 perccel)
+# Daily metrics — structured JSON + Part A record_pending_exits (cumulative writer)
+# 22:10 Budapest = 16:10 EDT (EOD eval után 10 perccel)
+# FONTOS: ez a Part A cron rögzíti a broker-realized P&L-t + commission-t a
+# cumulative_pnl.json-ba a 21:40 MOC exitekből. Az eod_report-nak EZUTÁN kell futnia.
 10 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/daily_metrics.py
+
+# EOD report — napi P&L, kumulatív összesítés, swing-state Telegram
+# 22:11 Budapest = 16:11 EDT (data-quality fix #2: a 22:10 Part A UTÁN, hogy a
+# Telegram a teljes aznapi cumulative-t + MOC exiteket mutassa, ne a tegnapit)
+11 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/eod_report.py
 
 # State/IBKR reconciliation — divergence detect + Telegram WARNING (Task #D)
 # 22:15 Budapest = 16:15 EDT (5 perccel a metrics után, mielőtt Tamás review jön)

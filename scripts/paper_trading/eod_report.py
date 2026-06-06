@@ -352,6 +352,59 @@ def update_cumulative_pnl(trades, today_str):
     return data, daily_pnl
 
 
+def resolve_eod_display_pnl(
+    cum_data: dict,
+    today_str: str,
+    fallback_daily_pnl: float,
+    fallback_commission: float,
+) -> tuple[float, float, float]:
+    """Return ``(net, commission, gross)`` for the EOD display.
+
+    Data-quality fix #2: prefer the Part A ``daily_history`` entry, which is
+    broker-authoritative and captures the 21:40 MOC exits recorded by the
+    22:10 ``record_pending_exits`` cron — fills that eod_report's own
+    clientId-12 ``ib.fills()`` cannot see cross-client. The Part A ``pnl`` is
+    already NET of commission; ``gross`` is reconstructed as ``net + commission``.
+
+    Falls back to eod_report's own clientId-12 fill sums when no ledger entry
+    exists yet for ``today_str`` (e.g. the cron ran before Part A, or a manual
+    run). Requires the EOD cron to fire AFTER the 22:10 Part A cron (≥ 22:11)
+    for the authoritative path to win.
+    """
+    entry = next(
+        (d for d in cum_data.get("daily_history", []) if d.get("date") == today_str),
+        None,
+    )
+    if entry is not None and "pnl" in entry:
+        net = round(float(entry.get("pnl", 0.0)), 2)
+        commission = round(float(entry.get("commission", 0.0)), 2)
+        return net, commission, round(net + commission, 2)
+    net = round(fallback_daily_pnl - fallback_commission, 2)
+    return net, round(fallback_commission, 2), round(fallback_daily_pnl, 2)
+
+
+def resolve_nyse_day_number(cum_data: dict, today_str: str) -> int:
+    """Return the NYSE trading-day count for the ``[Day N/63]`` display.
+
+    Data-quality fix #3: the ``[Day N/63]`` label must use the NYSE
+    trading-day count (matching the swing Telegram and Tamás's mental model:
+    Day 21 checkpoint, Day 63 milestone) — NOT ``cumulative.trading_days``,
+    which is a P&L-entry count (skips zero-entry days) and also lags at the
+    22:11 EOD run relative to the 22:10 Part A cron. Falls back to
+    ``trading_days`` if the calendar helper is unavailable.
+    """
+    try:
+        import sys as _sys
+
+        _sys.path.insert(0, str(Path(__file__).parent))
+        from daily_metrics import compute_trading_day_number
+
+        return compute_trading_day_number(today_str, cum_data.get("start_date"))
+    except Exception as exc:  # pragma: no cover - defensive fallback
+        logger.warning(f"NYSE day-number computation failed ({exc}); using trading_days")
+        return int(cum_data.get("trading_days", 0))
+
+
 def _record_daily_equity(ib, today_str):
     """Persist today's IBKR NetLiquidation; return (day_change, pct, is_best).
 
@@ -541,13 +594,14 @@ def main():
         # Load cumulative P&L if available
         cum_pnl = 0.0
         cum_pct = 0.0
-        trading_days = 0
+        cum_data = {}
         if os.path.exists(CUMULATIVE_PNL_FILE):
             with open(CUMULATIVE_PNL_FILE) as f:
                 cum_data = json.load(f)
             cum_pnl = cum_data.get("cumulative_pnl", 0.0)
             cum_pct = cum_data.get("cumulative_pnl_pct", 0.0)
-            trading_days = cum_data.get("trading_days", 0)
+        # #3: NYSE trading-day count for the [Day N/63] label.
+        trading_days = resolve_nyse_day_number(cum_data, today_str)
 
         logger.info(f"P&L today: ${daily_pnl:+,.2f}")
         logger.info(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]")
@@ -625,9 +679,17 @@ def main():
     cum_pnl = cum_data["cumulative_pnl"]
     cum_pct = cum_data["cumulative_pnl_pct"]
     trading_days = cum_data["trading_days"]
+    # #3: NYSE trading-day count for the [Day N/63] label (not trading_days).
+    nyse_day = resolve_nyse_day_number(cum_data, today_str)
+    # #2: prefer the Part A authoritative net/commission (captures 21:40 MOC
+    # exits) over eod_report's own clientId-12 fill sums.
+    eod_commission = sum(t.get("commission", 0) for t in trades)
+    net_today, commission_today, gross_today = resolve_eod_display_pnl(
+        cum_data, today_str, daily_pnl, eod_commission
+    )
 
-    logger.info(f"P&L today: ${daily_pnl:+,.2f}")
-    logger.info(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {trading_days}/63]")
+    logger.info(f"P&L today: ${net_today:+,.2f} (net; gross ${gross_today:+,.2f})")
+    logger.info(f"Cumulative: ${cum_pnl:+,.2f} ({cum_pct:+.2f}%) [Day {nyse_day}/63]")
 
     # --- Defensive: silent 0-pnl day with exits (P0 §0.11 Part A safety net) ---
     # If today's cumulative entry already exists with pnl==0 while eod_report
@@ -713,11 +775,12 @@ def main():
         day_change, day_change_pct, day_change_is_best = _record_daily_equity(ib, today_str)
 
         metrics = build_daily_metrics(today_str)
-        # Override P&L block with eod_report's authoritative numbers
-        commission = sum(t.get("commission", 0) for t in trades)
-        metrics["pnl"]["gross"] = round(daily_pnl, 2)
-        metrics["pnl"]["commission"] = round(commission, 2)
-        metrics["pnl"]["net"] = round(daily_pnl - commission, 2)
+        # #2/#4: P&L block from the Part A authoritative daily_history entry
+        # (net + commission), captured by the 22:10 record_pending_exits cron —
+        # falls back to eod_report's own fills when no ledger entry exists yet.
+        metrics["pnl"]["gross"] = gross_today
+        metrics["pnl"]["commission"] = commission_today
+        metrics["pnl"]["net"] = net_today
         metrics["pnl"]["cumulative"] = round(cum_pnl, 2)
         metrics["pnl"]["cumulative_pct"] = round(cum_pct, 2)
         metrics["pnl"]["unrealized"] = round(unrealized_total, 2)
@@ -746,7 +809,7 @@ def main():
     tg_lines = [
         f"📊 PAPER TRADING EOD — {today_str}",
         "",
-        f"P&L: ${daily_pnl:+,.2f} ({daily_pnl / INITIAL_CAPITAL * 100:+.2f}%) | Cum: ${cum_pnl:+,.0f} ({cum_pct:+.2f}%) [Day {trading_days}/63]",
+        f"P&L: ${net_today:+,.2f} ({net_today / INITIAL_CAPITAL * 100:+.2f}%) | Cum: ${cum_pnl:+,.0f} ({cum_pct:+.2f}%) [Day {nyse_day}/63]",
         f"TP1: {daily_stats.get('tp1_hits', 0)} | SL: {daily_stats.get('sl_hits', 0)} | MOC: {daily_stats.get('moc_exits', 0)}",
     ]
     ds_loss = daily_stats.get("loss_exit_hits", 0)

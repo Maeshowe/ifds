@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-06-08 — Data-quality fix #2/#3/#4: EOD timing + NYSE day-count + commission
+
+> A data-quality fix-package P1 lezárása (`docs/tasks/2026-06-06-data-quality-fix-package.md`).
+
+### data(eod_report) — #2 EOD P&L a Part A-ból + #3 NYSE day-count
+- `resolve_eod_display_pnl(cum_data, date, fallback_pnl, fallback_comm)`: a "P&L today"
+  a Part A `daily_history[today]` net+commission-jéből (broker-authoritatív, a 21:40
+  MOC exitekkel) — fallback az eod saját clientId-12 fill-jeire. A swing + legacy
+  Telegram + a log-sorok innen veszik.
+- `resolve_nyse_day_number(cum_data, date)`: a `[Day N/63]` a NYSE trading-day count
+  (`compute_trading_day_number`), nem a `cumulative.trading_days` (P&L-entry count).
+- Cron `scripts/crontab.md`: `eod_report` 22:05 → **22:11** (a 22:10 Part A UTÁN) —
+  Mac Mini-n Tamás alkalmazza.
+
+### data(recorder) — #4 commission
+- `record_pending_exits` MÁR rögzíti a commission-t (exit-leg SLD). Hozzáadva:
+  robustness-warning ha broker_realized de commission==0 (async commissionReport
+  nem settle-ölt) → `commission_zero_with_broker_realized`.
+- `scripts/maintenance/backfill_commission.py` + `commission_backfill_map.json`
+  (connector-derived exit-leg, Day 1-15): standardizálja a daily_history commission-t
+  (6/5=4.39, 6/4=3.92 0-ból; korrigálja a felfújt historikus round-trip értékeket).
+- +10 teszt (eod helpers +5, backfill +5). **1916 passing.**
+
 ## 2026-06-08 — Autonóm review-pipeline 1c: connector-wrapper + /daily-review command
 
 > A review-pipeline (`docs/tasks/2026-05-28-automated-daily-review-pipeline.md`)
