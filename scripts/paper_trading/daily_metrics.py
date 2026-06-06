@@ -19,7 +19,7 @@ import gzip
 import json
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -386,32 +386,62 @@ def _load_phase0_vix(target_date: str, logs_dir: Path | None = None) -> float | 
     return latest_vix
 
 
-def _fetch_vix_close(target_date: str) -> float | None:
-    """Fetch VIX close from Polygon (I:VIX) as a fallback for the log parser."""
+def _fetch_vix_from_polygon(target_date: str) -> tuple[float | None, float | None]:
+    """Fetch ``(close, prev_close)`` for I:VIX from Polygon for target_date.
+
+    Polygon ``I:VIX`` is the authoritative same-day VIX source: FRED
+    publishes VIX with a 1-day lag (EOD batch), so the Phase 0 MACRO_REGIME
+    event (FRED-sourced) systematically reports the Day N-1 close on Day N.
+
+    Returns the close of the bar dated ``target_date`` and the close of the
+    immediately preceding trading-day bar (for a self-consistent delta).
+    Either element is ``None`` when its bar is unavailable; ``close`` is
+    ``None`` (triggering the caller's fallback) when no bar matches
+    ``target_date`` — never the stale latest bar.
+    """
     try:
         sys.path.insert(0, str(PROJECT_ROOT / "src"))
         from ifds.data.polygon import PolygonClient
     except ImportError:
-        return None
+        return None, None
 
     api_key = os.environ.get("IFDS_POLYGON_API_KEY")
     if not api_key:
-        return None
+        return None, None
 
-    from_date = (date.fromisoformat(target_date) - timedelta(days=5)).isoformat()
+    from_date = (date.fromisoformat(target_date) - timedelta(days=10)).isoformat()
     try:
         client = PolygonClient(api_key)
         bars = client.get_aggregates("I:VIX", from_date, target_date, timespan="day")
     except Exception as e:
         logger.warning(f"VIX fetch failed: {e}")
-        return None
+        return None, None
 
     if not bars:
-        return None
+        return None, None
 
-    bars_sorted = sorted(bars, key=lambda b: b.get("t", 0))
-    close = bars_sorted[-1].get("c")
-    return float(close) if close is not None else None
+    dated: list[tuple[date, float]] = []
+    for bar in bars:
+        ts = bar.get("t")
+        close = bar.get("c")
+        if ts is None or close is None:
+            continue
+        bar_date = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).date()
+        dated.append((bar_date, float(close)))
+    dated.sort(key=lambda item: item[0])
+    if not dated:
+        return None, None
+
+    target = date.fromisoformat(target_date)
+    close_val = next((c for d, c in dated if d == target), None)
+    if close_val is None:
+        return None, None
+
+    prev_val: float | None = None
+    for d, c in dated:
+        if d < target:
+            prev_val = c  # dated is ascending → keep last bar strictly before target
+    return close_val, prev_val
 
 
 def _load_previous_vix_close(target_date: str) -> float | None:
@@ -812,13 +842,23 @@ def build_daily_metrics(target_date: str) -> dict:
     best = max(trades, key=lambda t: t["pnl"]) if trades else None
     worst = min(trades, key=lambda t: t["pnl"]) if trades else None
 
-    # --- VIX close (Phase 0 MACRO_REGIME event → Polygon I:VIX fallback) ---
-    vix_close = _load_phase0_vix(target_date)
+    # --- VIX close (Polygon I:VIX primary → FRED phase0 log fallback) ---
+    # FRED publishes VIX with a 1-day lag, so the Phase 0 MACRO_REGIME event
+    # reports the Day N-1 close on Day N. Polygon I:VIX carries the true
+    # same-day close. See docs/tasks/2026-06-06-data-quality-fix-package.md #1.
+    vix_close, vix_prev = _fetch_vix_from_polygon(target_date)
     if vix_close is None:
-        vix_close = _fetch_vix_close(target_date)
+        vix_close = _load_phase0_vix(target_date)
+        if vix_close is not None:
+            logger.warning(
+                "VIX: Polygon I:VIX unavailable for %s, falling back to FRED "
+                "phase0 value (may lag 1 day): %.2f",
+                target_date,
+                vix_close,
+            )
     vix_delta_pct: float | None = None
     if vix_close is not None:
-        prev_vix = _load_previous_vix_close(target_date)
+        prev_vix = vix_prev if vix_prev is not None else _load_previous_vix_close(target_date)
         if prev_vix is not None and prev_vix > 0:
             vix_delta_pct = (vix_close - prev_vix) / prev_vix * 100
 

@@ -78,9 +78,7 @@ class TestLoadPhase0Vix:
 class TestVixCloseInOutput:
     """Integration: build_daily_metrics populates market.vix_close + delta."""
 
-    def test_vix_close_populated_from_phase0_log(self, tmp_path, monkeypatch):
-        from scripts.paper_trading.daily_metrics import build_daily_metrics
-
+    def _patch_metrics_dirs(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics.CUM_PNL_FILE",
             tmp_path / "nonexistent_pnl.json",
@@ -93,21 +91,62 @@ class TestVixCloseInOutput:
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
             lambda d: None,
         )
+
+    def test_vix_close_from_polygon_primary(self, tmp_path, monkeypatch):
+        """Polygon I:VIX is the primary source (not FRED phase0)."""
+        from scripts.paper_trading.daily_metrics import build_daily_metrics
+
+        self._patch_metrics_dirs(tmp_path, monkeypatch)
+        # phase0 (FRED) would return a stale value — Polygon must win.
+        monkeypatch.setattr(
+            "scripts.paper_trading.daily_metrics._load_phase0_vix",
+            lambda d, logs_dir=None: 15.78,
+        )
+        monkeypatch.setattr(
+            "scripts.paper_trading.daily_metrics._fetch_vix_from_polygon",
+            lambda d: (21.50, 15.39),
+        )
+
+        metrics = build_daily_metrics("2026-06-05")
+        # Real 6/5 close is 21.50 (Polygon), NOT the stale 15.78 FRED value.
+        assert metrics["market"]["vix_close"] == pytest.approx(21.50)
+        # Delta from Polygon prev_close (15.39) → +39.7% major risk-off.
+        assert metrics["market"]["vix_delta_pct"] == pytest.approx(39.7, abs=0.2)
+
+    def test_vix_day14_from_polygon(self, tmp_path, monkeypatch):
+        """Day 14 (6/4) regression — real Polygon close 15.39."""
+        from scripts.paper_trading.daily_metrics import build_daily_metrics
+
+        self._patch_metrics_dirs(tmp_path, monkeypatch)
+        monkeypatch.setattr(
+            "scripts.paper_trading.daily_metrics._fetch_vix_from_polygon",
+            lambda d: (15.39, 16.06),
+        )
+
+        metrics = build_daily_metrics("2026-06-04")
+        assert metrics["market"]["vix_close"] == pytest.approx(15.39, abs=0.1)
+
+    def test_vix_falls_back_to_phase0_when_polygon_unavailable(self, tmp_path, monkeypatch):
+        """When Polygon I:VIX has no bar for the date, FRED phase0 is the fallback."""
+        from scripts.paper_trading.daily_metrics import build_daily_metrics
+
+        self._patch_metrics_dirs(tmp_path, monkeypatch)
+        monkeypatch.setattr(
+            "scripts.paper_trading.daily_metrics._fetch_vix_from_polygon",
+            lambda d: (None, None),
+        )
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._load_phase0_vix",
             lambda d, logs_dir=None: 18.68,
         )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics._fetch_vix_close",
-            lambda d: None,
-        )
 
         metrics = build_daily_metrics("2026-04-28")
         assert metrics["market"]["vix_close"] == pytest.approx(18.68)
-        # No previous-day metrics file → delta is None
+        # No previous-day metrics file and no Polygon prev → delta is None.
         assert metrics["market"]["vix_delta_pct"] is None
 
-    def test_vix_delta_computed_from_previous_day(self, tmp_path, monkeypatch):
+    def test_vix_delta_from_previous_day_file_when_no_polygon_prev(self, tmp_path, monkeypatch):
+        """Delta falls back to previous day's saved metrics if Polygon prev is None."""
         from scripts.paper_trading.daily_metrics import build_daily_metrics
 
         # Seed yesterday's metrics so delta = (18.5 - 20.0) / 20.0 * 100 = -7.5
@@ -115,53 +154,71 @@ class TestVixCloseInOutput:
         with open(prev_file, "w") as f:
             json.dump({"market": {"vix_close": 20.0}}, f)
 
+        self._patch_metrics_dirs(tmp_path, monkeypatch)
         monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.CUM_PNL_FILE",
-            tmp_path / "nonexistent_pnl.json",
-        )
-        monkeypatch.setattr("scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path)
-        monkeypatch.setattr("scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path)
-        monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
-        monkeypatch.setattr("scripts.paper_trading.daily_metrics.METRICS_DIR", tmp_path)
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics._fetch_spy_return",
-            lambda d: None,
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics._load_phase0_vix",
-            lambda d, logs_dir=None: 18.5,
+            "scripts.paper_trading.daily_metrics._fetch_vix_from_polygon",
+            lambda d: (18.5, None),
         )
 
         metrics = build_daily_metrics("2026-04-28")
         assert metrics["market"]["vix_close"] == pytest.approx(18.5)
         assert metrics["market"]["vix_delta_pct"] == pytest.approx(-7.5)
 
-    def test_vix_close_falls_back_to_polygon_when_log_missing(self, tmp_path, monkeypatch):
-        from scripts.paper_trading.daily_metrics import build_daily_metrics
 
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics.CUM_PNL_FILE",
-            tmp_path / "nonexistent_pnl.json",
-        )
-        monkeypatch.setattr("scripts.paper_trading.daily_metrics.TRADES_DIR", tmp_path)
-        monkeypatch.setattr("scripts.paper_trading.daily_metrics.EXEC_PLAN_DIR", tmp_path)
-        monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
-        monkeypatch.setattr("scripts.paper_trading.daily_metrics.METRICS_DIR", tmp_path)
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics._fetch_spy_return",
-            lambda d: None,
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics._load_phase0_vix",
-            lambda d, logs_dir=None: None,
-        )
-        monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics._fetch_vix_close",
-            lambda d: 19.42,
-        )
+class TestFetchVixFromPolygon:
+    """Unit tests for _fetch_vix_from_polygon with a mocked Polygon client."""
 
-        metrics = build_daily_metrics("2026-04-28")
-        assert metrics["market"]["vix_close"] == pytest.approx(19.42)
+    @staticmethod
+    def _bar(day: str, close: float) -> dict:
+        from datetime import datetime, timezone
+
+        ts = int(
+            datetime(*[int(p) for p in day.split("-")], tzinfo=timezone.utc).timestamp() * 1000
+        )
+        return {"t": ts, "c": close}
+
+    def _patch_client(self, monkeypatch, bars):
+        import scripts.paper_trading.daily_metrics as dm
+
+        monkeypatch.setenv("IFDS_POLYGON_API_KEY", "test_key")
+        fake_client = MagicMock()
+        fake_client.get_aggregates.return_value = bars
+        fake_module = MagicMock()
+        fake_module.PolygonClient.return_value = fake_client
+        monkeypatch.setitem(__import__("sys").modules, "ifds.data.polygon", fake_module)
+        return dm
+
+    def test_returns_close_and_prev_for_target(self, monkeypatch):
+        dm = self._patch_client(
+            monkeypatch,
+            [
+                self._bar("2026-06-03", 16.06),
+                self._bar("2026-06-04", 15.40),
+                self._bar("2026-06-05", 21.51),
+            ],
+        )
+        close, prev = dm._fetch_vix_from_polygon("2026-06-05")
+        assert close == pytest.approx(21.51)
+        assert prev == pytest.approx(15.40)
+
+    def test_returns_none_when_target_bar_missing(self, monkeypatch):
+        # Latest bar is 6/4, target is 6/5 → must NOT return stale 6/4 close.
+        dm = self._patch_client(
+            monkeypatch,
+            [
+                self._bar("2026-06-03", 16.06),
+                self._bar("2026-06-04", 15.40),
+            ],
+        )
+        close, prev = dm._fetch_vix_from_polygon("2026-06-05")
+        assert close is None
+        assert prev is None
+
+    def test_returns_none_when_no_api_key(self, monkeypatch):
+        import scripts.paper_trading.daily_metrics as dm
+
+        monkeypatch.delenv("IFDS_POLYGON_API_KEY", raising=False)
+        assert dm._fetch_vix_from_polygon("2026-06-05") == (None, None)
 
 
 class TestBuildDailyMetrics:
@@ -342,7 +399,7 @@ class TestSwingMetadataSync:
         monkeypatch.setattr(f"{dm}.UW_SHADOW_DIR", tmp_path)
         monkeypatch.setattr(f"{dm}._fetch_spy_return", lambda d: None)
         monkeypatch.setattr(f"{dm}._load_phase0_vix", lambda d, logs_dir=None: None)
-        monkeypatch.setattr(f"{dm}._fetch_vix_close", lambda d: None)
+        monkeypatch.setattr(f"{dm}._fetch_vix_from_polygon", lambda d: (None, None))
         monkeypatch.setattr(f"{dm}._build_swing_state", lambda d, p, s: {"new_entries_today": 1})
 
     def test_exits_commission_opened_from_daily_entry(self, tmp_path, monkeypatch):

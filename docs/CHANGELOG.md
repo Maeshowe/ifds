@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-06-08 — Data-quality fix #1: VIX adatforrás Polygon I:VIX-re
+
+> A data-quality fix-package (`docs/tasks/2026-06-06-data-quality-fix-package.md`)
+> első fixe. A FRED 1 napos késéssel publikálja a VIX-et, így a `daily_metrics`
+> rendszerszerűen a Day N-1 záró VIX-et rögzítette Day N-re — a 6/5 napon
+> `vix_close: 15.78` (a 6/4 FRED-érték) a valós **21.51** (+39.7% risk-off)
+> helyett, ami már átlépi a Strategic-review 18-as leállítási küszöbét.
+
+### data(daily_metrics) — VIX Polygon I:VIX primary
+- `_fetch_vix_from_polygon(target_date) -> (close, prev_close)`: a Polygon `I:VIX`
+  az **elsődleges** forrás (egy hívás adja a záró + előző-záró értéket a
+  konzisztens delta-hoz). A target-napra illeszkedő bart keresi (nem a legutolsót
+  → soha nem stale). FRED phase0 log csak fallback (warninggel jelezve).
+- `build_daily_metrics`: VIX-elsőbbség megfordítva (Polygon → FRED phase0 fallback),
+  a `vix_delta_pct` a Polygon prev_close-ból (fallback: előző napi daily_metrics).
+- **Backfill**: `scripts/maintenance/backfill_polygon_vix.py --start --end --apply`
+  (idempotens, backup-os). Dry-run validálva Day 1-15: 6/5=21.51 (+39.68%),
+  6/4=15.40, 5/27=16.29. **`--apply` Mac Mini-n futtatandó** (a `state/daily_metrics/`
+  gitignored, production a Mac Mini-n).
+- Tesztek: +6 (Polygon primary, day14, FRED fallback, prev-day delta fallback,
+  `_fetch_vix_from_polygon` mock unit tesztek: target-bar match, missing-bar None,
+  no-api-key). **1902 passing.**
+
 ## 2026-06-03 — Mérföldkő: P&L pipeline megbízhatóvá tétel + Telegram modernizáció
 
 > Egy session, P0+P1+P2 mind deploy-olva. A Part A első éles same-day próbája

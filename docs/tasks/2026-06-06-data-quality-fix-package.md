@@ -1,5 +1,5 @@
-Status: OPEN
-Updated: 2026-06-06
+Status: WIP
+Updated: 2026-06-08
 Note: Day 13-15 review-kból összegyűjtött data-quality finding-ek. Külön task a `2026-06-04-recorder-robust-realized-capture.md` Part A robust-realized-capture-tól (azt a hétfői 6/8 live smoke zárja). VIX adatforrás Tamás-explicit kérés szerint: FRED → Polygon `I:VIX` (FRED 1 napos késés).
 
 # Data-quality fix-package (P1/P2/P3)
@@ -22,7 +22,12 @@ A scope-ot Tamás 2026-06-06-i két explicit kérése váltotta ki:
 
 ### P1 — Pénzügyi-rögzítési + napi-tracking pontosság (4 fix)
 
-#### Fix #1 — VIX adatforrás Polygon `I:VIX`-re váltás
+#### Fix #1 — VIX adatforrás Polygon `I:VIX`-re váltás ✅ KÉSZ (2026-06-08)
+
+> **Implementálva** (`daily_metrics._fetch_vix_from_polygon`, Polygon primary,
+> FRED phase0 fallback). Backfill: `scripts/maintenance/backfill_polygon_vix.py`
+> (dry-run validálva Day 1-15: 6/5=21.51 +39.68%, 6/4=15.40, 5/27=16.29).
+> `--apply` Mac Mini-n futtatandó (state/ gitignored). 1902 passing. +6 teszt.
 
 **Probléma**: a `daily_metrics::market::vix_close` mező a FRED VIX-ből vesz, ami 1 napos késéssel publikál (FRED EOD-batch). A 6/5 daily_metrics `vix_close: 15.78, vix_delta_pct: -5.0` — ez a 6/4 FRED-érték. A valódi 6/5 záró VIX (Tamás screenshot + IBKR + Polygon): **21.50**, **+39.70%** intraday ugrás (major risk-off).
 
