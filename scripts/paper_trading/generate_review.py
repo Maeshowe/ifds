@@ -30,7 +30,16 @@ REVIEW_DATA_DIR = PROJECT_ROOT / "state" / "review_data"
 REVIEW_OUT_DIR = PROJECT_ROOT / "docs" / "review"
 
 INITIAL_CAPITAL = 100_000
+# Pre-pivot cash carry: the IBKR paper account was reset to ~$100,208 (not
+# $100,000.00 flat) at the 2026-05-18 swing pivot. cumulative_pnl.json reset to
+# initial_capital=100000 + cumulative=0, but the live account retained ~$208.37
+# of pre-pivot residual cash. Adding it to the implied baseline stops the
+# cross-check false-flagging the known carry. Verified penny-level in
+# docs/analysis/cumulative-drift-investigation-2026-06-08.md (Tamás: option A).
+# Can be overridden per-snapshot via ibkr["baseline_offset"].
+BASELINE_OFFSET_USD = 208.37
 REALIZED_TOL = 1.0  # $ per-day realized gap tolerance
+# Tolerance also absorbs slow-growing accrued credit interest (~$13 as of 6/8).
 CUMULATIVE_DRIFT_TOL = 50.0  # $ cumulative-vs-NetLiq drift tolerance
 
 
@@ -47,6 +56,7 @@ def build_cross_check_flags(review_data: dict, ibkr: dict) -> list[dict]:
       - ``position_tickers``: iterable of current IBKR position symbols
       - ``net_liq``: account NetLiquidation
       - ``unrealized``: total unrealized P&L of open positions
+      - ``baseline_offset``: pre-pivot cash carry (default BASELINE_OFFSET_USD)
 
     Returns a list of flag dicts (same shape as the 1a local flags).
     """
@@ -87,12 +97,13 @@ def build_cross_check_flags(review_data: dict, ibkr: dict) -> list[dict]:
                 }
             )
 
-    # Cumulative drift — cumulative vs (NetLiq − initial − unrealized)
+    # Cumulative drift — cumulative vs (NetLiq − initial − baseline_offset − unrealized)
     cum = pnl.get("cumulative")
     net_liq = ibkr.get("net_liq")
     unrealized = ibkr.get("unrealized")
+    offset = float(ibkr.get("baseline_offset", BASELINE_OFFSET_USD))
     if cum is not None and net_liq is not None and unrealized is not None:
-        implied = float(net_liq) - INITIAL_CAPITAL - float(unrealized)
+        implied = float(net_liq) - INITIAL_CAPITAL - offset - float(unrealized)
         drift = round(float(cum) - implied, 2)
         if abs(drift) > CUMULATIVE_DRIFT_TOL:
             flags.append(
@@ -100,7 +111,8 @@ def build_cross_check_flags(review_data: dict, ibkr: dict) -> list[dict]:
                     "flag": "cumulative_drift",
                     "priority": "P0",
                     "detail": f"cumulative ${float(cum):+.2f} vs implied ${implied:+.2f} "
-                    f"(NetLiq−{INITIAL_CAPITAL}−unrealized) → drift ${drift:+.2f}",
+                    f"(NetLiq−{INITIAL_CAPITAL}−offset${offset:.2f}−unrealized) "
+                    f"→ drift ${drift:+.2f}",
                 }
             )
 

@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-06-08 — Cumulative drift kivizsgálva: baseline-reset artifact (nem tracking-bug)
+
+> A 6/6-i első cross-check P0 `cumulative_drift −$218` flag-je teljesen feloldva
+> (DAYS_30 connector reconciliation). **Penny-szintű eredmény**: a tracked
+> cumulative (+245.25) == broker realized minden reset utáni (>5/18T10:05Z) trade-re.
+> Nulla post-pivot tracking-hiba. A drift = pre-pivot cash carry (+$208.37, az IBKR
+> paper account ~$100,208-ra resetelt, nem $100,000-ra) + accrued interest (+$12.89).
+
+### review(cross-check) — baseline_offset (Tamás: option A)
+- `generate_review.BASELINE_OFFSET_USD = 208.37`: az implied baseline-be
+  beépítve (`NetLiq − initial − offset − unrealized`), így a cross-check nem
+  flageli false-positive-ként a ismert carry-t. Per-snapshot override:
+  `ibkr["baseline_offset"]`. `initial_capital` marad 100000 (swing P&L 0-ból mérve).
+- Finding-doc: `docs/analysis/cumulative-drift-investigation-2026-06-08.md`.
+- +3 teszt (real 6/8 snapshot nem flagel, offset override flagel, offset detail).
+
 ## 2026-06-08 — Data-quality fix #1: VIX adatforrás Polygon I:VIX-re
 
 > A data-quality fix-package (`docs/tasks/2026-06-06-data-quality-fix-package.md`)
