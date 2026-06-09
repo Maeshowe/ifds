@@ -774,7 +774,18 @@ def main():
         # Part A single-writer invariant intact).
         day_change, day_change_pct, day_change_is_best = _record_daily_equity(ib, today_str)
 
-        metrics = build_daily_metrics(today_str)
+        # Today's normalized IBKR fills (BUY+SELL) for broker-authoritative
+        # entry-slippage (#1) and merged trades.details (#2) — reuse the open
+        # clientId-12 connection. Guarded: failure → None → state/CSV fallback.
+        eod_today_fills = None
+        try:
+            from lib.ibkr_reconciliation import fetch_today_executions
+
+            eod_today_fills = fetch_today_executions(ib, today_date)
+        except Exception as exc:
+            logger.warning(f"fetch_today_executions for metrics failed: {exc}")
+
+        metrics = build_daily_metrics(today_str, today_fills=eod_today_fills)
         # #2/#4: P&L block from the Part A authoritative daily_history entry
         # (net + commission), captured by the 22:10 record_pending_exits cron —
         # falls back to eod_report's own fills when no ledger entry exists yet.
@@ -789,7 +800,10 @@ def main():
             metrics["pnl"]["day_change"] = round(day_change, 2)
             metrics["pnl"]["day_change_pct"] = round(day_change_pct, 2) if day_change_pct else None
             metrics["pnl"]["day_change_is_best"] = bool(day_change_is_best)
-        metrics["pnl"]["closed_trades_today"] = len(trades)
+        # #2: count from the merged broker-authoritative trades.details (incl.
+        # 21:40 MOC exits), not eod_report's CSV-only `trades` (which misses them).
+        _details = metrics.get("trades", {}).get("details") or []
+        metrics["pnl"]["closed_trades_today"] = len(_details) if _details else len(trades)
         metrics["pnl"]["circuit_breaker_threshold"] = float(CIRCUIT_BREAKER_USD)
         # day_number left as build_daily_metrics set it (NYSE trading-day count,
         # Telegram-finomítás §1) — do NOT override with cumulative.trading_days.

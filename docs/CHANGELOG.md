@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-06-09 — daily_metrics execution fix: IBKR fill slippage + trades.details MOC (P1+P2)
+
+> Day 16 review findings (`docs/tasks/2026-06-09-daily-metrics-execution-fix.md`).
+> A `build_daily_metrics` a state submit-time árat tette a `slippage_per_ticker::filled`-be
+> (TKR 6/8: planned $131.83 == filled, valós IBKR fill $133.71 = +1.43% rejtett slippage),
+> és a `trades.details` kihagyta a 21:40 MOC exiteket (AMH +$112.96 hiányzott).
+
+### data(daily_metrics) — #1 IBKR-fill slippage + #2 trades.details merge
+- `build_daily_metrics(date, *, today_fills=None)`: injektálható aznapi IBKR fill-lista
+  (`fetch_today_executions` formátum). `main()` `fetch_today_executions_safe`-fel kéri le
+  (clientId 18, a record_pending_exits után), eod_report a saját clientId-12-ből.
+- **#1** `_build_entry_slippage` a `filled`-et az IBKR BUY fill qty-súlyozott árából (nem a
+  state entry_price-ból); fallback state-re ha nincs fill. avg_fill_slippage qty-súlyozott.
+- **#2** `_build_trades_details` broker-authoritative a SLD fill-ekből (realized_pnl, derivált
+  entry = exit − pnl/qty, exit_type a fill-timestampből: 13-14 UTC=TP1, 19-20 UTC=TIME_STOP_MOC);
+  fallback CSV-re offline. best/worst + Telegram `Trades:` innen.
+- Connector-validálva (6/8): TKR filled 133.71 (+1.43%), NSA 43.41 (-0.05%), AMH MOC entry 31.92.
+- +11 teszt. **1933 passing.**
+
 ## 2026-06-08 — Data-quality fix #5/#6: weekly slippage + portfolio_return audit (P2)
 
 > A data-quality fix-package P2 lezárása. P3 (#7/#8) → `docs/planning/backlog.md`

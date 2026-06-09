@@ -256,6 +256,151 @@ class TestBuildEntrySlippage:
         )
         assert dm._build_entry_slippage("2026-06-02", {}) == {}
 
+    def test_filled_from_ibkr_fill_not_state_entry(self, monkeypatch):
+        """Task 2026-06-09 #1: filled = IBKR BUY fill, not submit-time state price."""
+        from types import SimpleNamespace
+
+        import scripts.paper_trading.daily_metrics as dm
+
+        # TKR 6/8: state entry_price == planned == 131.83, real IBKR fill 133.71.
+        positions = [
+            SimpleNamespace(
+                ticker="TKR", entry_date="2026-06-08", entry_price=131.83, qty_remaining=39
+            )
+        ]
+        monkeypatch.setattr(
+            "ifds.state.swing_positions.load_swing_positions", lambda *a, **k: positions
+        )
+        planned = {"TKR": {"limit_price": 131.83}}
+        today_fills = [{"ticker": "TKR", "side": "BOT", "shares": 39, "price": 133.71}]
+        out = dm._build_entry_slippage("2026-06-08", planned, today_fills)
+        assert out["TKR"]["filled"] == pytest.approx(133.71)
+        # (133.71 - 131.83) / 131.83 * 100 = +1.43% (was 0.0 before the fix)
+        assert out["TKR"]["slippage_pct"] == pytest.approx(1.43, abs=0.01)
+
+    def test_falls_back_to_state_entry_when_no_buy_fill(self, monkeypatch):
+        from types import SimpleNamespace
+
+        import scripts.paper_trading.daily_metrics as dm
+
+        positions = [
+            SimpleNamespace(
+                ticker="NSA", entry_date="2026-06-08", entry_price=43.43, qty_remaining=188
+            )
+        ]
+        monkeypatch.setattr(
+            "ifds.state.swing_positions.load_swing_positions", lambda *a, **k: positions
+        )
+        planned = {"NSA": {"limit_price": 43.43}}
+        # today_fills present but no NSA BUY → fallback to state entry_price.
+        out = dm._build_entry_slippage("2026-06-08", planned, [{"ticker": "X", "side": "BOT"}])
+        assert out["NSA"]["filled"] == pytest.approx(43.43)
+        assert out["NSA"]["slippage_pct"] == pytest.approx(0.0)
+
+    def test_aggregate_buy_fills_qty_weighted(self):
+        import scripts.paper_trading.daily_metrics as dm
+
+        fills = [
+            {"ticker": "AAA", "side": "BOT", "shares": 100, "price": 10.0},
+            {"ticker": "AAA", "side": "BOT", "shares": 100, "price": 12.0},
+            {"ticker": "AAA", "side": "SLD", "shares": 50, "price": 20.0},  # ignored
+            {"ticker": "BBB", "side": "BOT", "shares": 10, "price": 5.0},
+        ]
+        agg = dm._aggregate_buy_fills(fills)
+        assert agg["AAA"]["price"] == pytest.approx(11.0)  # qty-weighted (10*100+12*100)/200
+        assert agg["AAA"]["qty"] == 200
+        assert "BBB" in agg
+        assert dm._aggregate_buy_fills(None) == {}
+
+
+class TestBuildTradesDetails:
+    """Fix #2: trades.details merged broker-authoritative from today's SLD fills."""
+
+    def test_moc_exit_from_sld_fill(self):
+        from datetime import datetime, timezone
+
+        import scripts.paper_trading.daily_metrics as dm
+
+        # AMH 6/8: 21:59 MOC fill, exit 32.76, realized 112.96, 135 sh.
+        fills = [
+            {
+                "ticker": "AMH",
+                "side": "SLD",
+                "shares": 135,
+                "price": 32.76,
+                "realized_pnl": 112.96,
+                "commission": 1.12,
+                "order_id": 555,
+                "time": datetime(2026, 6, 8, 19, 59, 32, tzinfo=timezone.utc),
+            }
+        ]
+        details = dm._build_trades_details("2026-06-08", [], fills)
+        assert len(details) == 1
+        d = details[0]
+        assert d["ticker"] == "AMH"
+        assert d["exit"] == pytest.approx(32.76)
+        assert d["pnl"] == pytest.approx(112.96)
+        # entry = exit - pnl/qty = 32.76 - 112.96/135 = 31.92 (matches IBKR avg)
+        assert d["entry"] == pytest.approx(31.92, abs=0.01)
+        assert d["exit_type"] == "TIME_STOP_MOC"  # 19 UTC = 21:59 CEST
+        assert d["qty"] == 135
+
+    def test_exit_type_tp1_from_afternoon_fill(self):
+        from datetime import datetime, timezone
+
+        import scripts.paper_trading.daily_metrics as dm
+
+        fills = [
+            {
+                "ticker": "VNO",
+                "side": "SLD",
+                "shares": 50,
+                "price": 34.5,
+                "realized_pnl": 25.0,
+                "order_id": 1,
+                "time": datetime(2026, 6, 9, 13, 31, 0, tzinfo=timezone.utc),
+            }
+        ]
+        details = dm._build_trades_details("2026-06-09", [], fills)
+        assert details[0]["exit_type"] == "TP1"  # 13 UTC = 15:31 CEST
+
+    def test_falls_back_to_csv_when_no_sld_fills(self):
+        import scripts.paper_trading.daily_metrics as dm
+
+        csv_trades = [
+            {
+                "ticker": "X",
+                "score": 90,
+                "entry_price": 10.0,
+                "exit_price": 11.0,
+                "pnl": 100.0,
+                "pnl_pct": 10.0,
+                "exit_type": "TP1",
+            }
+        ]
+        # today_fills with only BUY legs → no SLD → CSV fallback.
+        details = dm._build_trades_details("2026-06-09", csv_trades, [{"side": "BOT"}])
+        assert len(details) == 1
+        assert details[0]["ticker"] == "X" and details[0]["exit_type"] == "TP1"
+
+    def test_iso_string_fill_time(self):
+        import scripts.paper_trading.daily_metrics as dm
+
+        fills = [
+            {
+                "ticker": "Z",
+                "side": "SLD",
+                "shares": 10,
+                "price": 5.0,
+                "realized_pnl": -2.0,
+                "order_id": 9,
+                "time": "2026-06-08T19:59:32Z",
+            }
+        ]
+        details = dm._build_trades_details("2026-06-08", [], fills)
+        assert details[0]["exit_type"] == "TIME_STOP_MOC"
+        assert details[0]["fill_time"] == "2026-06-08T19:59:32Z"
+
 
 class TestFetchVixFromPolygon:
     """Unit tests for _fetch_vix_from_polygon with a mocked Polygon client."""

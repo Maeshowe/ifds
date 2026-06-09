@@ -295,18 +295,47 @@ def _build_swing_state(target_date: str, planned: dict, snapshot: list) -> dict:
     }
 
 
-def _build_entry_slippage(target_date: str, planned: dict) -> dict[str, dict]:
+def _aggregate_buy_fills(today_fills: list[dict] | None) -> dict[str, dict]:
+    """Qty-weighted average BUY (BOT) fill price per ticker from today's fills.
+
+    ``today_fills`` are normalized execution dicts (the ``fetch_today_executions``
+    shape: ``ticker``, ``side`` "BOT"|"SLD", ``shares``, ``price``, ``time`` …).
+    Returns ``{ticker: {price, qty}}`` for the BOT legs only.
+    """
+    by_ticker: dict[str, dict] = {}
+    for f in today_fills or []:
+        if f.get("side") != "BOT":
+            continue
+        ticker = f.get("ticker")
+        shares = float(f.get("shares") or 0.0)
+        price = float(f.get("price") or 0.0)
+        if not ticker or shares <= 0:
+            continue
+        agg = by_ticker.setdefault(ticker, {"qty": 0.0, "notional": 0.0})
+        agg["qty"] += shares
+        agg["notional"] += shares * price
+    return {
+        t: {"price": a["notional"] / a["qty"], "qty": a["qty"]}
+        for t, a in by_ticker.items()
+        if a["qty"] > 0
+    }
+
+
+def _build_entry_slippage(
+    target_date: str, planned: dict, today_fills: list[dict] | None = None
+) -> dict[str, dict]:
     """Entry-day MKT-fill slippage vs the planned limit, per new entry.
 
-    Data-quality fix #5: slippage must be measured on the ENTRY day (actual
-    fill vs planned limit) for EVERY newly-opened position, carrying ``qty``
-    for a qty-weighted weekly aggregate. The prior logic derived slippage from
-    the exit trades CSV × same-day plan, which on a swing entry day is empty
-    (a freshly-opened ticker has no same-day exit), so only coincidental
-    matches were recorded (e.g. W23 captured MSM only, missing BEN/VNO/FFIV).
+    The ``filled`` price is the broker-authoritative IBKR BUY fill (data-quality
+    task 2026-06-09 #1) — NOT the submit-time ``state.entry_price``, which equals
+    the planned limit and hides real slippage (e.g. TKR 6/8: planned $131.83 vs
+    actual fill $133.71 = +1.43%, recorded as 0.0% before this fix). Falls back
+    to ``state.entry_price`` only when ``today_fills`` carries no BUY for the
+    ticker (offline build, or a fill the connector didn't return).
 
-    Returns ``{ticker: {planned, filled, slippage_pct, qty}}`` for the
-    positions whose ``entry_date == target_date`` and that have a planned row.
+    Builds slippage for EVERY position whose ``entry_date == target_date`` that
+    has a planned row, carrying ``qty`` for the qty-weighted weekly aggregate
+    (fix #5). Returns ``{ticker: {planned, filled, slippage_pct, qty}}``.
     """
     try:
         from ifds.config.loader import Config
@@ -324,6 +353,8 @@ def _build_entry_slippage(target_date: str, planned: dict) -> dict[str, dict]:
     except Exception:
         return {}
 
+    ibkr_buys = _aggregate_buy_fills(today_fills)
+
     out: dict[str, dict] = {}
     for p in positions:
         if getattr(p, "entry_date", None) != target_date:
@@ -334,11 +365,22 @@ def _build_entry_slippage(target_date: str, planned: dict) -> dict[str, dict]:
         limit = plan["limit_price"]
         if limit <= 0:
             continue
-        fill = float(p.entry_price)
+        ibkr = ibkr_buys.get(p.ticker)
+        if ibkr is not None:
+            filled = float(ibkr["price"])  # broker-authoritative qty-weighted avg
+        else:
+            filled = float(p.entry_price)  # fallback: submit-time state entry
+            if today_fills:
+                logger.warning(
+                    "slippage_per_ticker: no IBKR BUY fill for %s on %s, "
+                    "falling back to state entry_price",
+                    p.ticker,
+                    target_date,
+                )
         out[p.ticker] = {
             "planned": round(limit, 4),
-            "filled": round(fill, 4),
-            "slippage_pct": round((fill - limit) / limit * 100, 2),
+            "filled": round(filled, 4),
+            "slippage_pct": round((filled - limit) / limit * 100, 2),
             "qty": int(getattr(p, "qty_remaining", 0) or 0),
         }
     return out
@@ -832,13 +874,175 @@ def record_pending_exits(
     return summary
 
 
+def _fill_utc_hour(t) -> int | None:
+    """UTC hour of a fill ``time`` (datetime or ISO string), or None."""
+    if t is None:
+        return None
+    if hasattr(t, "hour") and hasattr(t, "tzinfo"):
+        try:
+            dt = t.astimezone(timezone.utc) if t.tzinfo else t.replace(tzinfo=timezone.utc)
+            return dt.hour
+        except Exception:
+            return getattr(t, "hour", None)
+    try:
+        s = str(t).replace("Z", "+00:00")
+        dt = datetime.fromisoformat(s)
+        dt = dt.astimezone(timezone.utc) if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return dt.hour
+    except Exception:
+        return None
+
+
+def _exit_type_from_fill_time(t) -> str:
+    """Classify a swing exit by its fill time (task 2026-06-09 #2).
+
+    The CSV mislabels every swing exit as "MOC"; the fill timestamp is the
+    reliable discriminator: ~15:30-16:00 CEST (13-14 UTC) = a TP1 partial,
+    ~21:40-22:00 CEST (19-20 UTC) = the 5-day TIME_STOP market-on-close.
+    """
+    hour = _fill_utc_hour(t)
+    if hour is None:
+        return "UNKNOWN"
+    if 13 <= hour <= 14:
+        return "TP1"
+    if 19 <= hour <= 20:
+        return "TIME_STOP_MOC"
+    return "MOC"
+
+
+def _fill_iso(t) -> str | None:
+    if t is None:
+        return None
+    if hasattr(t, "isoformat"):
+        try:
+            return t.isoformat()
+        except Exception:
+            return str(t)
+    return str(t)
+
+
+def _build_trades_details(
+    target_date: str, csv_trades: list[dict], today_fills: list[dict] | None = None
+) -> list[dict]:
+    """Per-exit trade details — broker-authoritative from today's SLD fills.
+
+    Task 2026-06-09 #2: the trades.details block must include the 21:40 MOC
+    exits, which never reach trades_*.csv (eod_report writes the CSV from the
+    15:30 fills only). When ``today_fills`` carries SLD (exit) legs, the details
+    are built from them (realized_pnl, fill price, derived entry, timestamp-based
+    exit_type) — the complete, correct exit set. Falls back to the CSV when no
+    fills are available (offline / tests).
+
+    Each detail: ``{ticker, score, entry, exit, pnl, pnl_pct, qty, commission,
+    exit_type, fill_time}``, sorted by pnl descending.
+    """
+    sld = [f for f in (today_fills or []) if f.get("side") == "SLD"]
+    if not sld:
+        return [
+            {
+                "ticker": t["ticker"],
+                "score": round(t.get("score", 0) or 0, 1),
+                "entry": round(t["entry_price"], 2),
+                "exit": round(t["exit_price"], 2),
+                "pnl": round(t["pnl"], 2),
+                "pnl_pct": round(t.get("pnl_pct", 0) or 0, 2),
+                "exit_type": t["exit_type"],
+            }
+            for t in sorted(csv_trades, key=lambda x: x["pnl"], reverse=True)
+        ]
+
+    # Aggregate SLD legs per (ticker, order_id) — a ticker may exit in legs.
+    agg: dict[tuple, dict] = {}
+    for f in sld:
+        key = (f.get("ticker"), f.get("order_id"))
+        a = agg.setdefault(
+            key,
+            {
+                "ticker": f.get("ticker"),
+                "qty": 0.0,
+                "exit_notional": 0.0,
+                "realized": 0.0,
+                "commission": 0.0,
+                "time": f.get("time"),
+            },
+        )
+        shares = float(f.get("shares") or 0.0)
+        a["qty"] += shares
+        a["exit_notional"] += shares * float(f.get("price") or 0.0)
+        a["realized"] += float(f.get("realized_pnl") or 0.0)
+        a["commission"] += float(f.get("commission") or 0.0)
+
+    details: list[dict] = []
+    for a in agg.values():
+        qty = a["qty"]
+        if qty <= 0:
+            continue
+        exit_px = a["exit_notional"] / qty
+        pnl = round(a["realized"], 2)
+        entry = round(exit_px - pnl / qty, 2)  # broker-implied entry (matches IBKR avg)
+        pnl_pct = round(pnl / (entry * qty) * 100, 2) if entry and qty else 0.0
+        details.append(
+            {
+                "ticker": a["ticker"],
+                "score": None,
+                "entry": entry,
+                "exit": round(exit_px, 2),
+                "pnl": pnl,
+                "pnl_pct": pnl_pct,
+                "qty": int(qty),
+                "commission": round(a["commission"], 2),
+                "exit_type": _exit_type_from_fill_time(a["time"]),
+                "fill_time": _fill_iso(a["time"]),
+            }
+        )
+    details.sort(key=lambda d: d["pnl"], reverse=True)
+    return details
+
+
+def fetch_today_executions_safe(target_date: str) -> list[dict]:
+    """Fetch today's normalized IBKR executions (BUY + SELL), or [] on failure.
+
+    Standalone IBKR connect→fetch→disconnect (clientId 18, after
+    record_pending_exits has released it) so build_daily_metrics gets the
+    broker-authoritative entry fills for slippage (#1) + the MOC exit fills for
+    trades.details (#2). Fully guarded — never blocks the metrics build.
+    """
+    own_ib = None
+    try:
+        from lib.connection import connect
+        from lib.ibkr_reconciliation import fetch_today_executions
+
+        own_ib = connect(
+            client_id=RECORD_PENDING_CLIENT_ID,
+            context_label="daily_metrics.fetch_today_executions",
+        )
+        return fetch_today_executions(own_ib, date.fromisoformat(target_date))
+    except Exception as exc:  # noqa: BLE001 — IBKR optional; build continues offline
+        logger.warning(f"fetch_today_executions_safe failed: {exc}")
+        return []
+    finally:
+        if own_ib is not None:
+            try:
+                from lib.connection import disconnect
+
+                disconnect(own_ib)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(f"fetch_today_executions_safe disconnect failed: {exc}")
+
+
 # ---------------------------------------------------------------------------
 # Metrics calculation
 # ---------------------------------------------------------------------------
 
 
-def build_daily_metrics(target_date: str) -> dict:
-    """Build the complete daily metrics JSON for a given date."""
+def build_daily_metrics(target_date: str, *, today_fills: list[dict] | None = None) -> dict:
+    """Build the complete daily metrics JSON for a given date.
+
+    ``today_fills`` (optional) are today's normalized IBKR executions (the
+    ``fetch_today_executions`` shape). When provided they drive the
+    broker-authoritative entry-slippage (#1) and the merged trades.details (#2);
+    when ``None`` the build falls back to state/CSV-only data (offline/tests).
+    """
     cum_data = _load_cumulative_pnl()
     daily = _find_daily_entry(cum_data, target_date)
     trades = _load_trades(target_date)
@@ -857,13 +1061,18 @@ def build_daily_metrics(target_date: str) -> dict:
     min_score = min(scores.values()) if scores else 0
     max_score = max(scores.values()) if scores else 0
 
-    # --- Slippage (entry-day MKT fill vs planned limit, per new entry) ---
-    # Fix #5: measured on the ENTRY day for every new position (with qty),
-    # not derived from the exit trades CSV (which misses swing entries).
-    slippage = _build_entry_slippage(target_date, planned)
-    avg_slippage = (
-        sum(s["slippage_pct"] for s in slippage.values()) / len(slippage) if slippage else 0
-    )
+    # --- Slippage (entry-day IBKR fill vs planned limit, per new entry) ---
+    # filled = broker-authoritative IBKR BUY fill (today_fills), not the
+    # submit-time state entry_price (task 2026-06-09 #1). avg is qty-weighted.
+    slippage = _build_entry_slippage(target_date, planned, today_fills)
+    _slip_qty = sum(s.get("qty", 0) or 0 for s in slippage.values())
+    if slippage and _slip_qty > 0:
+        avg_slippage = sum(s["slippage_pct"] * (s.get("qty", 0) or 0) for s in slippage.values())
+        avg_slippage /= _slip_qty
+    elif slippage:
+        avg_slippage = sum(s["slippage_pct"] for s in slippage.values()) / len(slippage)
+    else:
+        avg_slippage = 0
 
     # --- Commission / Exits / P&L ---
     # Swing-era metadata-sync (P0 §0.11 #3b + Day 14 fix): the exits/commission/
@@ -923,9 +1132,11 @@ def build_daily_metrics(target_date: str) -> dict:
         portfolio_return = gross_pnl / INITIAL_CAPITAL * 100
     excess = (portfolio_return - spy_return) if spy_return is not None else None
 
-    # --- Best / worst trade ---
-    best = max(trades, key=lambda t: t["pnl"]) if trades else None
-    worst = min(trades, key=lambda t: t["pnl"]) if trades else None
+    # --- Trade details + best/worst (broker-authoritative from SLD fills) ---
+    # Fix #2: include the 21:40 MOC exits (absent from trades_*.csv).
+    trade_details = _build_trades_details(target_date, trades, today_fills)
+    best = max(trade_details, key=lambda t: t["pnl"]) if trade_details else None
+    worst = min(trade_details, key=lambda t: t["pnl"]) if trade_details else None
 
     # --- VIX close (Polygon I:VIX primary → FRED phase0 log fallback) ---
     # FRED publishes VIX with a 1-day lag, so the Phase 0 MACRO_REGIME event
@@ -1009,17 +1220,7 @@ def build_daily_metrics(target_date: str) -> dict:
                 if worst
                 else None
             ),
-            "details": [
-                {
-                    "ticker": t["ticker"],
-                    "score": round(t["score"], 1),
-                    "entry": round(t["entry_price"], 2),
-                    "exit": round(t["exit_price"], 2),
-                    "pnl": round(t["pnl"], 2),
-                    "exit_type": t["exit_type"],
-                }
-                for t in sorted(trades, key=lambda x: x["pnl"], reverse=True)
-            ],
+            "details": trade_details,
         },
     }
 
@@ -1058,7 +1259,11 @@ def main() -> None:
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"record_pending_exits failed (metrics build continues): {exc}")
 
-    metrics = build_daily_metrics(target_date)
+    # Today's IBKR fills (BUY+SELL) for broker-authoritative entry-slippage (#1)
+    # and merged trades.details (#2). record_pending_exits already released
+    # clientId 18; offline/failure → [] and the build falls back to state/CSV.
+    today_fills = fetch_today_executions_safe(target_date)
+    metrics = build_daily_metrics(target_date, today_fills=today_fills)
 
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
     out_path = METRICS_DIR / f"{target_date}.json"
