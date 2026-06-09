@@ -16,7 +16,7 @@ git stash list
 
 ```bash
 python -m pytest tests/ -q 2>/dev/null | tail -3
-grep -rl "Status: OPEN\|Status: WIP" docs/tasks/ 2>/dev/null
+grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md 2>/dev/null
 ```
 
 - Tesztek zöldek?

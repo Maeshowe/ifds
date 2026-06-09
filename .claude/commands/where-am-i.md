@@ -8,7 +8,7 @@ Futtasd:
 python -m pytest tests/ -q 2>/dev/null | tail -1
 
 # Nyitott taskok
-grep -rl "Status: OPEN\|Status: WIP" docs/tasks/ 2>/dev/null
+grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md 2>/dev/null
 
 # Paper trading státusz
 cat scripts/paper_trading/logs/cumulative_pnl.json 2>/dev/null | python3 -c \

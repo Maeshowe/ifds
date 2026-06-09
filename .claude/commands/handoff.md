@@ -8,7 +8,7 @@ A `/wrap-up`-tól eltérő cél: ez a **következő sessionnek** íródik, nem a
 git status
 git diff --stat
 git log --oneline -5
-grep -rl "Status: OPEN\|Status: WIP" docs/tasks/ 2>/dev/null
+grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md 2>/dev/null
 python -m pytest tests/ -q 2>/dev/null | tail -1
 cat scripts/paper_trading/logs/cumulative_pnl.json 2>/dev/null | python3 -c \
   "import json,sys; d=json.load(sys.stdin); print(f'Day {d[\"trading_days\"]}/21 | \${d[\"cumulative_pnl\"]:+,.2f} ({d[\"cumulative_pnl_pct\"]:+.2f}%)')" 2>/dev/null

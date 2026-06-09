@@ -1,6 +1,6 @@
-Status: WIP
-Updated: 2026-06-06
-Note: (B)+(C) KÉSZ+deploy. (A) opció-1 a 6/4 live smoke-on MEGBUKOTT → **(A.2) `ib.fills()` DEPLOY-OLVA** (commit f95e56d), live smoke = hétfő 6/8. **6/4 + 6/5 restatement KÉSZ** broker-authoritatív értékekre (connector get_account_trades): 6/4 +225.34, 6/5 +63.83, **cumulative +245.25**. Új reusable tool: `restate_day_realized.py` (paraméterezett). A swing-attr nagyot tévedett (6/5 BEN: +47.50 vs valós +123.27). Hátra: az (A.2) hétfői élő igazolása (recorder == connector, 0 fallback).
+Status: DONE
+Updated: 2026-06-09
+Note: **(A.2) `ib.fills()` 6/8 live smoke SIKERES** — `record_pending_exits: AMH TIME_STOP qty=135 @ 32.96 → net $+112.96 (moc_exits, broker_realized_pnl)` + `matched=1 unprocessed=1 warnings=0` (0 fallback; a recorder a broker realized-et olvassa, == connector). LEZÁRVA. ——— Korábbi: (B)+(C) KÉSZ+deploy; (A) opció-1 a 6/4 smoke-on megbukott → (A.2) `ib.fills()` deploy (commit f95e56d); 6/4+6/5 restatement broker-authoritatívra (cumulative +245.25), reusable tool `restate_day_realized.py`.
 
 ## 6/4 LIVE SMOKE EREDMÉNY (2026-06-04 22:10) — (A) opció-1 MEGBUKOTT
 

@@ -105,8 +105,13 @@ CC minden task fájl megnyitásakor frissíti a `Status` sort:
 ### Nyitott taskok gyors lekérdezése
 
 ```bash
-grep -rl "Status: OPEN\|Status: WIP" docs/tasks/ 2>/dev/null
+grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md 2>/dev/null
 ```
+
+> **Archive konvenció**: lezáráskor (`Status: DONE`/`REJECTED`) a task `git mv`-vel
+> a `docs/tasks/archive/`-ba kerül; a gyökérben csak aktív task marad. A lekérdezés
+> nem rekurzív (`*.md` glob) és a `^Status:` header-sorra horgonyoz (egy body-ban
+> idézett "Status: OPEN" string ne okozzon false-positive-ot). Lásd `docs/tasks/archive/README.md`.
 
 ---
 

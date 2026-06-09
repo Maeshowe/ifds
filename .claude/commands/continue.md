@@ -14,7 +14,7 @@ Ha a `docs/journal/` könyvtár nem létezik vagy üres, hagyd ki.
 ## 2. Nyitott taskok
 
 ```bash
-grep -rl "Status: OPEN\|Status: WIP" docs/tasks/ 2>/dev/null
+grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md 2>/dev/null
 ```
 
 ## 3. Gyors állapot
