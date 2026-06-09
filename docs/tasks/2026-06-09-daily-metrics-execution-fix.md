@@ -1,6 +1,6 @@
 Status: WIP
 Updated: 2026-06-09
-Note: A 2026-06-08 (Day 16) review §0.18 + §0.5 új finding-jeire reagáló task. A `daily_metrics::execution::slippage_per_ticker::*::filled` mező a state planned-et tükrözi (NEM a valódi IBKR fill-árat — TKR Day 16 példa: filled=131.83 vs valódi $133.71, +1,45% rejtett kedvezőtlen slippage). Plus a `trades.details` blokk a 21:40 MOC fill-eket NEM tartalmazza (csak 15:30 TP1-eket).
+Note: **Implementáció KÉSZ** (commit 8c28a4b + 937dbcc, 1938 passing). Fix #1 (IBKR-fill slippage), Fix #2 (trades.details MOC merge), backfill script + connector map. Connector-validált 6/8 (TKR +1.43%, NSA -0.05%, AMH MOC entry 31.92). **HÁTRA: push + Mac Mini deploy (a ma esti 22:10 Day 17 cron ELŐTT) + backfill --apply + Day 17 esti EOD verifikáció.** ——— Eredeti finding: A `daily_metrics::execution::slippage_per_ticker::*::filled` mező a state planned-et tükrözi (NEM a valódi IBKR fill-árat — TKR Day 16 példa: filled=131.83 vs valódi $133.71, +1,45% rejtett kedvezőtlen slippage). Plus a `trades.details` blokk a 21:40 MOC fill-eket NEM tartalmazza (csak 15:30 TP1-eket).
 
 # daily_metrics::execution & trades.details fix (P1 + P2)
 
