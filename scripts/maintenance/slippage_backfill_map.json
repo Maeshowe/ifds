@@ -1,0 +1,17 @@
+{
+  "_note": "Connector-derived qty-weighted IBKR BUY (entry) fill price per {date: {ticker: price}}, post-reset (>2026-05-18T10:05:00Z). Source: IBKR get_account_trades(DAYS_30), 2026-06-09. Used by backfill_slippage_per_ticker.py to set daily_metrics[date].execution.slippage_per_ticker[ticker].filled to the real IBKR fill (not the submit-time state entry_price) and recompute slippage_pct from each file's existing planned. Same source the live recorder now uses (task 2026-06-09 #1).",
+  "2026-05-18": {"EC": 13.0719, "MASI": 178.5, "LBRT": 33.33},
+  "2026-05-19": {"PFGC": 96.55},
+  "2026-05-20": {"VLO": 258.2306, "CNC": 59.26, "ON": 109.44},
+  "2026-05-21": {"DXCM": 71.83, "WMB": 78.35},
+  "2026-05-22": {"AMH": 32.21},
+  "2026-05-26": {"AKAM": 146.4, "EOG": 140.4},
+  "2026-05-27": {"JHG": 51.82},
+  "2026-05-28": {"ROIV": 29.7, "ST": 50.22},
+  "2026-05-29": {"CDNS": 374.79, "AMH": 31.91},
+  "2026-06-01": {"WST": 324.33},
+  "2026-06-02": {"MSM": 112.74},
+  "2026-06-03": {"VNO": 33.95, "BEN": 30.5},
+  "2026-06-05": {"FFIV": 408.69},
+  "2026-06-08": {"TKR": 133.71, "NSA": 43.41}
+}

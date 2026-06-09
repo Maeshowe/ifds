@@ -21,7 +21,10 @@
   entry = exit − pnl/qty, exit_type a fill-timestampből: 13-14 UTC=TP1, 19-20 UTC=TIME_STOP_MOC);
   fallback CSV-re offline. best/worst + Telegram `Trades:` innen.
 - Connector-validálva (6/8): TKR filled 133.71 (+1.43%), NSA 43.41 (-0.05%), AMH MOC entry 31.92.
-- +11 teszt. **1933 passing.**
+- **Backfill**: `scripts/maintenance/backfill_slippage_per_ticker.py` + connector-derived
+  `slippage_backfill_map.json` (W21-W24 BUY fill-ek). A `filled`-et az IBKR fill-árra állítja,
+  a `slippage_pct`-et a fájl meglévő `planned`-jéből számolja, qty-súlyozott avg. `--apply` Mac Mini-n.
+- +16 teszt (live #1+#2 +11, backfill +5). **1938 passing.**
 
 ## 2026-06-08 — Data-quality fix #5/#6: weekly slippage + portfolio_return audit (P2)
 
