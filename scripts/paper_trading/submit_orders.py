@@ -244,6 +244,7 @@ def submit_swing_market_only(
                 qty_remaining=t["total_qty"],
                 sector=t.get("sector", ""),
                 direction=t["direction"],
+                entry_score=t.get("score", 0.0),
             )
             new_state.append(pos)
             submitted_tickers.append(sym)
@@ -345,6 +346,7 @@ def submit_swing_market_only(
             qty_remaining=t["total_qty"],
             sector=t.get("sector", ""),
             direction=t["direction"],
+            entry_score=t.get("score", 0.0),
         )
         new_state.append(pos)
         submitted_tickers.append(sym)

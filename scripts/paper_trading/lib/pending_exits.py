@@ -133,6 +133,7 @@ def append_pending_exit(
         "qty": exit_record["qty"],
         "exit_type": exit_record["exit_type"],
         "sector": exit_record.get("sector", ""),
+        "entry_score": exit_record.get("entry_score", 0.0),  # S_j audit (signal attribution)
         "submitted_at": exit_record.get("submitted_at", datetime.now(timezone.utc).isoformat()),
         "processed": False,
     }

@@ -80,6 +80,19 @@ class TestAppend:
         assert r["processed"] is False
         assert "submitted_at" in r
 
+    def test_entry_score_persisted(self, tmp_path):
+        """S_j (entry combined_score) survives into the ledger for attribution."""
+        m = _mod()
+        m.append_pending_exit(_record(entry_score=89.57), ledger_dir=tmp_path, today="2026-05-28")
+        r = m.load_pending_exits("2026-05-28", tmp_path)[0]
+        assert r["entry_score"] == pytest.approx(89.57)
+
+    def test_entry_score_defaults_zero_when_absent(self, tmp_path):
+        m = _mod()
+        m.append_pending_exit(_record(), ledger_dir=tmp_path, today="2026-05-28")
+        r = m.load_pending_exits("2026-05-28", tmp_path)[0]
+        assert r["entry_score"] == 0.0  # backward-compatible default
+
     def test_idempotent_same_key_not_duplicated(self, tmp_path):
         m = _mod()
         m.append_pending_exit(_record(), ledger_dir=tmp_path, today="2026-05-28")

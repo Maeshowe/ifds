@@ -73,6 +73,7 @@ class SwingPosition:
     sector: str = ""
     direction: str = "BUY"
     m_target: float = 1.0  # audit trail — Phase 6 captured at entry
+    entry_score: float = 0.0  # S_j — Phase 4 combined_score at entry (signal-attribution audit)
 
 
 # ---------------------------------------------------------------------------

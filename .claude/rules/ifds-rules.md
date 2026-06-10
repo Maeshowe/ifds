@@ -5,6 +5,23 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## CC edit-stratégia — kis, egyenkénti editek a nagy multi-edit payload helyett (correction, 2026-06-10)
+
+A szerkesztő-connector **lefagy** a nagy, többszerkesztéses `edit_file` payloadoknál
+(sok hunk egy hívásban); a **kis, egyenkénti `Edit`-ek stabilan mennek**.
+
+**Szabály:** ne kötegelj sok hunkot egyetlen nagy edit-payloadba — bontsd
+**egyenkénti, fókuszált `Edit` hívásokra** (egy logikai változás / hívás). Ez a
+meglévő "egyszerre max ~4 fájl egy batch-ben" higiénia kiegészítése a **hunk-szám**
+dimenzióval: nem csak a fájlszám, a **payload-méret** is számít. Egy nagy
+többfájlos refaktort inkább több, kis editre tagolj, mintsem egy óriás payloadra.
+
+**Példa-megfelelés:** a 2026-06-10-i signal_attribution + entry_score-perzisztálás
+(SwingPosition mező + submit_orders ×2 + close_positions + pending_exits) **5+ külön
+kis Edit**-tel ment stabilan, fagyás nélkül.
+
+---
+
 ## Cumulative-drift diagnózis — timestamp-reconciliation + baseline-carry ELŐbb, mint "tracking-bug" (rule, 2026-06-06)
 
 Egy `cumulative_drift` flag (tracked cumulative + unrealized ≠ NetLiq − initial)

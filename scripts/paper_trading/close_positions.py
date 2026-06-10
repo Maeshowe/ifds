@@ -95,6 +95,7 @@ def record_pending_exit_safe(pos, exit_type: str, qty: int, today_str: str) -> N
                 "qty": qty,
                 "exit_type": exit_type,
                 "sector": getattr(pos, "sector", "") or "",
+                "entry_score": float(getattr(pos, "entry_score", 0.0) or 0.0),
             },
             ledger_dir=PENDING_EXITS_DIR,
             today=today_str,
