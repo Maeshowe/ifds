@@ -1,6 +1,6 @@
-Status: OPEN
-Updated: 2026-06-11
-Note: Az S_j (entry_score) capture live-kód (commit 8b487c1) Mac Mini deploy-ja — SZÁNDÉKOSAN a Day 18 (6/11) mega exit-nap UTÁN, Day 19 (6/12) reggel, a 15:31 submit ELŐTT (edge-audit §6: production trading-path nem toljuk be határidő-nyomás alatt). Kód már origin-on (8b487c1 + Gate A/B edbca3f), Mac Mini még a régi a53a5a9-en. A snapshot-recovery miatt az analitikai veszteség a halasztásból nulla.
+Status: WIP
+Updated: 2026-06-12
+Note: **DEPLOY KÉSZ** (Day 19 reggel, 15:31 ELŐTT). Mac Mini pull a53a5a9 → ab689e5. **Gate A éles smoke**: a 6 nyitott pozíció (BEN/FFIV/ACHC/NSA/TKR/VNO) default entry_score=0.0-val tölt, nincs crash. **Pre-flight pytest 1954 passed**, 0 failure. Wiring ✓ (submit×2/close/swing_positions/pending_exits). **HÁTRA: Day 19 esti EOD verifikáció** — a mai új belépő(k) swing_positions.json entry_score ≠ 0, és bármely Day 19 exit ledgere entry_score-t hordoz. ——— A deploy szándékosan a Day 18 mega exit-nap UTÁN (edge-audit §6); a snapshot-recovery miatt a halasztás analitikai vesztesége nulla.
 
 # S_j-capture Mac Mini deploy (Day 19 reggel, 15:31 ELŐTT)
 
