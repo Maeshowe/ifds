@@ -957,7 +957,8 @@ perzisztálása. **A snapshot-recovery verifikáltan elég** (a Phase 4 snapshot
 (submit_orders + close_positions) módosítását nem toljuk be határidő-nyomás
 alatt (edge-audit §6). **Backward-compat (Gate A) verifikálva**: a 7 nyitott
 pozíció entry_score nélkül él a state-ben; a loader default 0.0-val tölti, nem
-dob (`test_load_record_without_entry_score_defaults`). **DEPLOYOLVA: Day 19
-(6/12) reggel, a 15:31 submit előtt** (Mac Mini ab689e5; éles Gate A smoke a 6
-nyitott pozíción zöld, pre-flight 1954 passed). A Day 19 esti EOD verifikálja
-az első éles entry_score-rögzítést.
+dob (`test_load_record_without_entry_score_defaults`). **DEPLOYOLVA + VERIFIKÁLVA: Day 19
+(6/12), 15:31 submit előtt** (Mac Mini ab689e5; éles Gate A smoke zöld,
+pre-flight 1954 passed). **Esti verifikáció**: #1 entry-capture ✓ (új belépők
+NSA=100.71, JAZZ=87.44 a state-ben), #2 ledger-wiring ✓ (a pending_exits
+rekordok tartalmazzák az entry_score mezőt; 0.0 a pre-deploy exitekre — helyes).
