@@ -930,3 +930,32 @@ A Day 7 (2026-05-26, kedd) és Day 8 (2026-05-27, szerda) napi review-kból **9 
 | §9.9 | Reconcile 2/2 + IBKR connector | ✅ pozitív | — | — |
 
 **A következő lépés prioritása**: (1) §0.11 Rész 3 deploy [P0] → (2) §9.2 days_held fix [P1] → (3) §9.3+9.5 ATR floor+ceiling [P1+P2] → (4) review-automatizáció 1. fázis. A §0.11 és §9.2 együtt: a swing pivot tézis tisztességes teszteléséhez **mindkettő elengedhetetlen** a Day 21 checkpoint előtt.
+
+---
+
+## 11. Freeze-ablakos tracking-módosítások (Day 18 → Day 63) — Day 63 melléklet
+
+> Az edge-audit (`docs/foundational/strategic-review/2026-06-10-edge-audit.md`)
+> §4.2/1 paraméter-freeze-e: a freeze alatt KIZÁRÓLAG bugfix (a dokumentált
+> tervezett viselkedés helyreállítása) vagy **display/tracking-fix** (a
+> kereskedési viselkedést NEM érintő) mehet, mindegyik **itt logolva** a Day 63
+> kiértékelés mellékleteként. Egyik bejegyzés sem érinti a scoring/sizing/exit
+> paramétereket vagy a kapu-kritériumokat.
+
+| # | Dátum | Módosítás | Jelleg | Kereskedési viselkedés? | Commit |
+|---|---|---|---|---|---|
+| 11.1 | 2026-06-09 | daily_metrics execution fix (#1 IBKR-fill slippage, #2 trades.details MOC) | tracking/display | **NEM** (mérés-pontosság) | `8c28a4b` |
+| 11.2 | 2026-06-10 | eod_report Telegram `Trades:` a persisted daily_metrics-ből (follow-up) | display | **NEM** | (OPEN task) |
+| 11.3 | 2026-06-11 | **S_j (entry_score) capture** — SwingPosition mező + submit/close/ledger perzisztálás | tracking-metaadat (signal-attribution audit) | **NEM** — csak audit-mező, nem érint döntést | `8b487c1` |
+
+**11.3 részletek (S_j capture)**: a jel-izoláló attribúciós teszthez
+(`2026-06-10-signal-isolating-attribution-spec.md`) az entry combined_score
+perzisztálása. **A snapshot-recovery verifikáltan elég** (a Phase 4 snapshotok
+épek minden entry-dátumra), ezért az analitikai veszteség a deploy-halasztásból
+**nulla**. A deploy **szándékosan a Day 18 mega-exit-nap (4 exit, VNO TP2,
+~$1,000 cumulative-átlépés) UTÁN** történik — a production trading-path
+(submit_orders + close_positions) módosítását nem toljuk be határidő-nyomás
+alatt (edge-audit §6). **Backward-compat (Gate A) verifikálva**: a 7 nyitott
+pozíció entry_score nélkül él a state-ben; a loader default 0.0-val tölti, nem
+dob (`test_load_record_without_entry_score_defaults`). A deploy a Day 18 22:15
+reconcile után vagy Day 19 reggel, a 15:31 submit előtt.

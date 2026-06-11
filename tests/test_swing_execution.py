@@ -94,6 +94,33 @@ def test_save_and_load_roundtrip(tmp_path):
     assert loaded[1].sector == "XLF"
 
 
+def test_load_record_without_entry_score_defaults(tmp_path):
+    """Backward-compat (Gate A, 2026-06-11): the 7 open positions live in
+    swing_positions.json WITHOUT the new entry_score field. The loader must
+    default it (0.0), not raise — so the S_j-capture deploy is safe over the
+    existing live state."""
+    import json
+
+    state_file = tmp_path / "swing.json"
+    legacy = {
+        "ticker": "MSM",
+        "entry_date": "2026-06-02",
+        "entry_price": 112.74,
+        "atr": 2.0,
+        "stop_level": 108.0,
+        "tp1_level": 115.0,
+        "tp2_level": 118.0,
+        "qty": 29,
+        "qty_remaining": 29,
+        "sector": "Industrials",
+    }  # NOTE: no entry_score
+    state_file.write_text(json.dumps({"positions": [legacy]}))
+    loaded = load_swing_positions(state_file)
+    assert len(loaded) == 1
+    assert loaded[0].ticker == "MSM"
+    assert loaded[0].entry_score == 0.0  # default applied, no crash
+
+
 def test_load_returns_empty_when_missing(tmp_path):
     """Missing state file → empty list (Day 1 deploy)."""
     assert load_swing_positions(tmp_path / "nonexistent.json") == []
