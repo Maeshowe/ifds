@@ -1,6 +1,6 @@
-Status: WIP
+Status: DONE
 Updated: 2026-06-12
-Note: **DEPLOY KÉSZ** (Day 19 reggel, 15:31 ELŐTT). Mac Mini pull a53a5a9 → ab689e5. **Gate A éles smoke**: a 6 nyitott pozíció (BEN/FFIV/ACHC/NSA/TKR/VNO) default entry_score=0.0-val tölt, nincs crash. **Pre-flight pytest 1954 passed**, 0 failure. Wiring ✓ (submit×2/close/swing_positions/pending_exits). **HÁTRA: Day 19 esti EOD verifikáció** — a mai új belépő(k) swing_positions.json entry_score ≠ 0, és bármely Day 19 exit ledgere entry_score-t hordoz. ——— A deploy szándékosan a Day 18 mega exit-nap UTÁN (edge-audit §6); a snapshot-recovery miatt a halasztás analitikai vesztesége nulla.
+Note: **DEPLOY + ESTI VERIFIKÁCIÓ KÉSZ.** Mac Mini ab689e5; Gate A éles smoke (6 nyitott pozíció default 0.0, nincs crash); pre-flight 1954 passed; wiring ✓. **#1 entry-capture VERIFIKÁLVA**: a mai új belépők NSA=100.71, JAZZ=87.44 a swing_positions.json-ban (a régiek default 0.0). **#2 ledger-wiring VERIFIKÁLVA**: a mai pending_exits ledger (NSA TP2 + BEN TIME_STOP, mindkettő pre-deploy pozíció) **tartalmazza az entry_score mezőt** (érték 0.0 — helyes, pre-deploy belépés). A non-zero end-to-end majd amikor NSA-új/JAZZ kilép. A deploy szándékosan a Day 18 mega exit-nap UTÁN (edge-audit §6); halasztás analitikai vesztesége nulla. LEZÁRVA.
 
 # S_j-capture Mac Mini deploy (Day 19 reggel, 15:31 ELŐTT)
 
