@@ -30,8 +30,7 @@
 
 ### Edge-audit + jel-izoláló attribúció (a session fő stratégiai vonala)
 - A **`docs/foundational/strategic-review/2026-06-10-edge-audit.md`** (Chat, v1.2) a Day 63/126
-  kiértékelés rögzített referenciája. **⚠️ Ez a fájl jelenleg UNTRACKED** — Chat commitolja
-  (a `2026-05-22-bridgewater-janestreet-research.md` is). CC erre épített.
+  kiértékelés rögzített referenciája. **Git-be téve** (`c884f31`, a `2026-05-22-bridgewater-janestreet-research.md`-vel együtt). CC erre épített.
 - **Jel-izoláló attribúciós spec** (`docs/foundational/strategic-review/2026-06-10-signal-isolating-attribution-spec.md`):
   L0/L1/L2 izoláció, **elsődleges döntési metrika = L2 Spearman, h=5, szektor-relatív**;
   §8 öt fegyelem-pont. A commit = pre-regisztrációs zár (az adat ELŐTT rögzítve).
