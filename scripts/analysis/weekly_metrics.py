@@ -95,8 +95,10 @@ def aggregate_week(days: list[dict]) -> dict:
         all_scores.extend(d.get("scoring", {}).get("scores", {}).values())
     avg_score = mean(all_scores) if all_scores else 0
 
-    # Score → P&L correlation (simple, within-week)
-    score_pnl_pairs = [(t["score"], t["pnl"]) for t in all_trades if t.get("score", 0) > 0]
+    # Score → P&L correlation (simple, within-week). Broker-authoritative
+    # trades.details (SLD-built, 2026-06-09 #2) carry score=None — the entry
+    # score is not recoverable from the exit fill — so guard with `or 0`.
+    score_pnl_pairs = [(t["score"], t["pnl"]) for t in all_trades if (t.get("score") or 0) > 0]
     week_corr = _simple_correlation(score_pnl_pairs)
 
     # Slippage — qty-weighted across ALL entries in the week (fix #5).

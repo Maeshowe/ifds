@@ -134,6 +134,42 @@ class TestWeeklyAggregation:
         assert agg["gross_pnl"] == pytest.approx(120.0)  # 50-30+80-20+40
         assert agg["win_days"] == 3  # days with pnl > 0
 
+    def test_none_score_detail_does_not_crash(self, tmp_path, monkeypatch):
+        """Regression (2026-06-13): broker-authoritative trades.details (SLD-built,
+        fix #2) carry score=None — the entry score is not recoverable from the
+        exit fill. aggregate_week must not raise on `None > 0` (it crashed on the
+        Mac Mini weekly run); None-score trades are filtered from the correlation."""
+        from datetime import date
+
+        from scripts.analysis.weekly_metrics import _load_week_metrics, aggregate_week
+
+        monkeypatch.setattr("scripts.analysis.weekly_metrics.METRICS_DIR", tmp_path)
+        d = _make_daily("2026-06-08", pnl=100.0)
+        d["trades"]["details"] = [
+            {
+                "ticker": "VNO",
+                "score": None,
+                "entry": 33.97,
+                "exit": 36.68,
+                "pnl": 230.47,
+                "exit_type": "TP1",
+            },  # broker-authoritative → score None
+            {
+                "ticker": "AAPL",
+                "score": 91.0,
+                "entry": 150.0,
+                "exit": 152.0,
+                "pnl": 100.0,
+                "exit_type": "TP1",
+            },  # legacy CSV → has score
+        ]
+        _write_daily(tmp_path, d)
+
+        agg = aggregate_week(_load_week_metrics(date(2026, 6, 8)))  # must not raise
+        # Only the scored trade enters the within-week score→pnl correlation;
+        # with a single point the simple correlation is None (need ≥2).
+        assert "week_score_pnl_corr" in agg
+
     def test_slippage_qty_weighted_and_worst_by_abs(self, tmp_path, monkeypatch):
         """Fix #5: qty-weighted avg across ALL entries + worst by abs magnitude."""
         from scripts.analysis.weekly_metrics import _load_week_metrics, aggregate_week
