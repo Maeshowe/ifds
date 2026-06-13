@@ -163,8 +163,15 @@ def load_spy_returns() -> dict[str, float]:
         return json.load(f)
 
 
-def fetch_and_cache_spy_returns(dates: list[str]) -> dict[str, float]:
-    """Fetch SPY daily bars via PolygonClient and cache returns as a dict."""
+def fetch_and_cache_spy_returns(
+    dates: list[str], merge_with: dict[str, float] | None = None
+) -> dict[str, float]:
+    """Fetch SPY daily bars via PolygonClient and cache returns as a dict.
+
+    When ``merge_with`` is given (the existing cache), the freshly fetched
+    returns are merged into it (new values win) before saving, so an
+    incremental fetch of only the missing dates never drops cached days.
+    """
     try:
         sys.path.insert(0, str(PROJECT_ROOT / "src"))
         from ifds.data.polygon import PolygonClient
@@ -191,11 +198,11 @@ def fetch_and_cache_spy_returns(dates: list[str]) -> dict[str, float]:
         bars = client.get_aggregates("SPY", start, end, timespan="day")
     except Exception as e:
         print(f"WARN PolygonClient fetch failed: {e}")
-        return {}
+        return dict(merge_with or {})  # fetch errored → keep the existing cache
 
     if not bars:
         print("WARN no SPY bars returned")
-        return {}
+        return dict(merge_with or {})  # nothing returned → keep the existing cache
 
     # Polygon aggregates: each bar is a dict with 't' (ms timestamp), 'c' (close).
     bars_sorted = sorted(bars, key=lambda b: b.get("t", 0))
@@ -211,12 +218,14 @@ def fetch_and_cache_spy_returns(dates: list[str]) -> dict[str, float]:
             returns[bar_date] = (float(close) - prev_close) / prev_close * 100.0
         prev_close = float(close)
 
-    if returns:
-        OUT_DIR.mkdir(parents=True, exist_ok=True)
-        with open(SPY_CACHE, "w") as f:
-            json.dump(returns, f, indent=2, sort_keys=True)
-        print(f"Cached {len(returns)} SPY returns to {SPY_CACHE}")
-    return returns
+    if not returns:
+        return dict(merge_with or {})  # fetch yielded nothing → keep the existing cache
+    merged = {**(merge_with or {}), **returns}
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    with open(SPY_CACHE, "w") as f:
+        json.dump(merged, f, indent=2, sort_keys=True)
+    print(f"Cached {len(merged)} SPY returns to {SPY_CACHE} (+{len(returns)} this fetch)")
+    return merged
 
 
 # ---------------------------------------------------------------------------
@@ -742,11 +751,19 @@ def main() -> None:
     dates = sorted({t.date for t in trades})
 
     if args.fetch_spy:
-        print("Fetching SPY daily returns via Polygon...")
+        print("Fetching SPY daily returns via Polygon (full refresh)...")
         spy_returns = fetch_and_cache_spy_returns(dates)
     else:
         spy_returns = load_spy_returns()
-        print(f"  {len(spy_returns)} SPY returns loaded from cache")
+        missing = [d for d in dates if d not in spy_returns]
+        if missing:
+            print(
+                f"  {len(spy_returns)} cached; auto-fetching {len(missing)} "
+                f"missing SPY day(s) ({min(missing)}…{max(missing)})..."
+            )
+            spy_returns = fetch_and_cache_spy_returns(missing, merge_with=spy_returns)
+        else:
+            print(f"  {len(spy_returns)} SPY returns loaded from cache (all dates present)")
 
     print("Enriching trades with snapshot sub-scores...")
     enrich_with_snapshot(trades, snapshots)
