@@ -1,6 +1,15 @@
 """IBKR Paper Trading — Order Creation"""
 
+import asyncio
 import logging
+
+# Python 3.14+: event loop must exist before importing ib_insync.
+# Mirrors lib/connection.py — this module imports ib_insync at module level,
+# so the guard must run here too in case orders is imported before connection.
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
 
 from ib_insync import LimitOrder, MarketOrder, Stock, StopOrder
 
