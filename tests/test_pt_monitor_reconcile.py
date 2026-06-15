@@ -38,17 +38,22 @@ def _isolate_pt_env():
 
 def _import_pt_monitor():
     scripts_dir = os.path.join(
-        os.path.dirname(__file__), "..", "scripts", "paper_trading",
+        os.path.dirname(__file__),
+        "..",
+        "scripts",
+        "paper_trading",
     )
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     import scripts.paper_trading.pt_monitor as mod
+
     return mod
 
 
 def _make_swing_position(ticker, entry=100.0, qty=10, sector="Tech"):
     """Minimal SwingPosition factory using the real dataclass."""
     from ifds.state.swing_positions import SwingPosition
+
     return SwingPosition(
         ticker=ticker,
         entry_date="2026-05-18",
@@ -110,7 +115,9 @@ class TestReconcileNoDivergence:
             patch("lib.connection.disconnect"),
         ):
             report = mod._reconcile_state_from_ibkr(
-                positions, str(tmp_path / "state.json"), cfg,
+                positions,
+                str(tmp_path / "state.json"),
+                cfg,
             )
 
         assert report.state_matches_ibkr is True
@@ -138,6 +145,7 @@ class TestReconcileDay4VloScenario:
         vlo = _make_swing_position("VLO", entry=258.55, qty=16)
         # Adjust mental_stop to $244.55 (within 0.5% of $244.61)
         from dataclasses import replace
+
         vlo = replace(vlo, atr=7.0, stop_level=258.55 - 2 * 7.0)  # = 244.55
         positions = [
             _make_swing_position("LBRT", entry=33.34, qty=127),
@@ -156,7 +164,7 @@ class TestReconcileDay4VloScenario:
         fill.execution.shares = 16.0
         fill.execution.price = 244.61
         fill.execution.time = datetime(2026, 5, 21, 17, 19, 54, tzinfo=timezone.utc)
-        fill.execution.orderRef = ""           # manual TWS — empty
+        fill.execution.orderRef = ""  # manual TWS — empty
         fill.execution.orderId = 1234
         fill.contract.symbol = "VLO"
         fill.commissionReport = MagicMock()
@@ -173,7 +181,9 @@ class TestReconcileDay4VloScenario:
             with patch("scripts.paper_trading.pt_monitor.date") as mock_date:
                 mock_date.today.return_value = date(2026, 5, 21)
                 report = mod._reconcile_state_from_ibkr(
-                    positions, str(tmp_path / "state.json"), cfg,
+                    positions,
+                    str(tmp_path / "state.json"),
+                    cfg,
                 )
 
         assert report.state_matches_ibkr is False
@@ -198,7 +208,7 @@ class TestReconcileClosureNoExecution:
         mod = _import_pt_monitor()
         positions = [_make_swing_position("VLO", entry=258.55, qty=16)]
         mock_ib = MagicMock()
-        mock_ib.positions.return_value = []   # nothing in IBKR
+        mock_ib.positions.return_value = []  # nothing in IBKR
         mock_ib.reqExecutions.return_value = []
 
         cfg = MagicMock()
@@ -209,7 +219,9 @@ class TestReconcileClosureNoExecution:
             patch("lib.connection.disconnect"),
         ):
             report = mod._reconcile_state_from_ibkr(
-                positions, str(tmp_path / "state.json"), cfg,
+                positions,
+                str(tmp_path / "state.json"),
+                cfg,
             )
 
         assert report.in_state_not_ibkr == ["VLO"]
@@ -242,9 +254,93 @@ class TestReconcileAvdlCvrOrphan:
             patch("lib.connection.disconnect"),
         ):
             report = mod._reconcile_state_from_ibkr(
-                positions, str(tmp_path / "state.json"), cfg,
+                positions,
+                str(tmp_path / "state.json"),
+                cfg,
             )
 
         # AVDL.CVR is NOT reported as "in_ibkr_not_state"
         assert report.state_matches_ibkr is True
         assert report.in_ibkr_not_state == []
+
+
+# ---------------------------------------------------------------------------
+# 5. RECONCILE alert formatting — "State updated" is sent post-save only
+# ---------------------------------------------------------------------------
+
+
+class TestReconcileAlertFormat:
+    """`_format_reconcile_alert` is called from run_eod_eval AFTER the state
+    write, so the message body is decoupled from the (premature) detection
+    path. These assert the body content for the Day-4 VLO SL closure."""
+
+    def test_format_contains_closure_and_truthful_footer(self):
+        mod = _import_pt_monitor()
+        closures = [
+            {
+                "ticker": "VLO",
+                "exit_type": "SL",
+                "fill_price": 244.61,
+                "gross": -222.97,
+            }
+        ]
+        with patch("scripts.paper_trading.pt_monitor.date") as mock_date:
+            mock_date.today.return_value = date(2026, 5, 21)
+            body = mod._format_reconcile_alert(closures)
+
+        assert "State/IBKR divergence — 2026-05-21" in body
+        assert "VLO: SL @ $244.61" in body
+        assert "(gross $-222.97)" in body
+        # The "State updated" footer is only ever emitted by run_eod_eval
+        # after save_swing_positions succeeds — never by the detector.
+        assert "State updated. Verify with reconcile_state.py 22:15." in body
+
+    def test_format_handles_missing_gross(self):
+        mod = _import_pt_monitor()
+        body = mod._format_reconcile_alert(
+            [{"ticker": "ON", "exit_type": "OTHER", "fill_price": 0.0}]
+        )
+        assert "ON: OTHER @ $0.00 (gross n/a)" in body
+
+    def test_detector_does_not_send_telegram(self, tmp_path):
+        """Regression: _reconcile_state_from_ibkr must NOT send any Telegram —
+        the alert moved to run_eod_eval (post-save). Guards against the
+        pre-fix behaviour where 'State updated' was announced before the
+        state write."""
+        mod = _import_pt_monitor()
+        vlo = _make_swing_position("VLO", entry=258.55, qty=16)
+        from dataclasses import replace
+
+        vlo = replace(vlo, atr=7.0, stop_level=258.55 - 2 * 7.0)
+        positions = [vlo]
+        mock_ib = MagicMock()
+        mock_ib.positions.return_value = []  # VLO gone from IBKR
+        fill = MagicMock()
+        fill.execution.side = "SLD"
+        fill.execution.shares = 16.0
+        fill.execution.price = 244.61
+        fill.execution.time = datetime(2026, 5, 21, 17, 19, 54, tzinfo=timezone.utc)
+        fill.execution.orderRef = ""
+        fill.execution.orderId = 1234
+        fill.contract.symbol = "VLO"
+        fill.commissionReport = MagicMock()
+        fill.commissionReport.commission = 4.09
+        mock_ib.reqExecutions.return_value = [fill]
+        cfg = MagicMock()
+        cfg.tuning = {"swing_positions_state_file": str(tmp_path / "state.json")}
+
+        with (
+            patch("lib.connection.connect", return_value=mock_ib),
+            patch("lib.connection.disconnect"),
+            patch("lib.telegram_helper.send_telegram") as mock_send,
+        ):
+            with patch("scripts.paper_trading.pt_monitor.date") as mock_date:
+                mock_date.today.return_value = date(2026, 5, 21)
+                report = mod._reconcile_state_from_ibkr(
+                    positions,
+                    str(tmp_path / "state.json"),
+                    cfg,
+                )
+
+        assert report.detected_closures  # divergence WAS detected
+        mock_send.assert_not_called()  # ...but the detector stays silent

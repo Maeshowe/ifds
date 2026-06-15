@@ -316,32 +316,43 @@ def _reconcile_state_from_ibkr(positions: list, state_file: str, cfg) -> Any:
     )
 
     if not report.state_matches_ibkr:
+        # Detection only — the caller (run_eod_eval) removes the closed
+        # tickers, persists the cleaned state, and THEN sends the RECONCILE
+        # Telegram, so the "State updated" claim is truthful. Sending it here
+        # would announce the update before the state write — the bug that, on
+        # 2026-05-21 (no auto-removal yet), left a ghost VLO that the 22:15
+        # reconcile_state.py still flagged.
         logger.warning(
             f"[SWING EOD] State/IBKR divergence — "
             f"in_state_not_ibkr={report.in_state_not_ibkr}, "
             f"in_ibkr_not_state={report.in_ibkr_not_state}"
         )
-        try:
-            from lib.telegram_helper import telegram_header
-            from lib.telegram_helper import send_telegram as _tg
-
-            lines = [
-                f"{telegram_header('RECONCILE')}",
-                f"⚠️ State/IBKR divergence — {date.today().isoformat()}",
-            ]
-            for c in report.detected_closures:
-                gross = c.get("gross")
-                gross_s = f"${gross:+.2f}" if gross is not None else "n/a"
-                lines.append(
-                    f"  {c['ticker']}: {c['exit_type']} @ ${c.get('fill_price', 0):.2f} "
-                    f"(gross {gross_s})"
-                )
-            lines.append("State updated. Verify with reconcile_state.py 22:15.")
-            _tg("\n".join(lines))
-        except Exception as tg_exc:
-            logger.warning(f"Telegram reconcile alert failed: {tg_exc}")
 
     return report
+
+
+def _format_reconcile_alert(detected_closures: list) -> str:
+    """Build the RECONCILE Telegram body.
+
+    Sent from ``run_eod_eval`` only AFTER the reconciled state has been
+    persisted (``save_swing_positions``), so the trailing "State updated"
+    line is truthful. See the divergence note in ``_reconcile_state_from_ibkr``.
+    """
+    from lib.telegram_helper import telegram_header
+
+    lines = [
+        telegram_header("RECONCILE"),
+        f"⚠️ State/IBKR divergence — {date.today().isoformat()}",
+    ]
+    for c in detected_closures:
+        gross = c.get("gross")
+        gross_s = f"${gross:+.2f}" if gross is not None else "n/a"
+        lines.append(
+            f"  {c['ticker']}: {c['exit_type']} @ ${c.get('fill_price', 0):.2f} "
+            f"(gross {gross_s})"
+        )
+    lines.append("State updated. Verify with reconcile_state.py 22:15.")
+    return "\n".join(lines)
 
 
 def run_eod_eval() -> None:
@@ -394,12 +405,23 @@ def run_eod_eval() -> None:
             )
             positions = [p for p in positions if p.ticker not in closed_tickers]
             save_swing_positions(state_file, positions)
+            # State is now persisted — send the RECONCILE alert AFTER the
+            # write so the "State updated" line is truthful.
+            try:
+                from lib.telegram_helper import send_telegram as _tg
+
+                _tg(_format_reconcile_alert(_reconcile_report.detected_closures))
+            except Exception as tg_exc:
+                logger.warning(f"Telegram reconcile alert failed: {tg_exc}")
             if evt:
                 for c in _reconcile_report.detected_closures:
                     evt.log(
-                        "monitor", "ibkr_reconcile_closure",
-                        ticker=c["ticker"], exit_type=c["exit_type"],
-                        fill_price=c.get("fill_price"), gross=c.get("gross"),
+                        "monitor",
+                        "ibkr_reconcile_closure",
+                        ticker=c["ticker"],
+                        exit_type=c["exit_type"],
+                        fill_price=c.get("fill_price"),
+                        gross=c.get("gross"),
                     )
     except Exception as exc:
         # Reconcile failure must not break the mental-stop eval downstream.
