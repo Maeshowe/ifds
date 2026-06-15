@@ -947,6 +947,7 @@ A Day 7 (2026-05-26, kedd) és Day 8 (2026-05-27, szerda) napi review-kból **9 
 | 11.1 | 2026-06-09 | daily_metrics execution fix (#1 IBKR-fill slippage, #2 trades.details MOC) | tracking/display | **NEM** (mérés-pontosság) | `8c28a4b` |
 | 11.2 | 2026-06-10 | eod_report Telegram `Trades:` a persisted daily_metrics-ből (follow-up) | display | **NEM** | (OPEN task) |
 | 11.3 | 2026-06-11 | **S_j (entry_score) capture** — SwingPosition mező + submit/close/ledger perzisztálás | tracking-metaadat (signal-attribution audit) | **NEM** — csak audit-mező, nem érint döntést | `8b487c1` |
+| 11.4 | 2026-06-15 | **pt_monitor RECONCILE-alert** a `save_swing_positions` UTÁN küldve (volt: detektorból, mentés előtt → "State updated" megelőzte az írást, lásd 5/21 VLO ghost) | notification-timing/correctness | **NEM** — reconcile/save/mentál-stop logika érintetlen, csak az üzenet időzítése | `5373f38` |
 
 **11.3 részletek (S_j capture)**: a jel-izoláló attribúciós teszthez
 (`2026-06-10-signal-isolating-attribution-spec.md`) az entry combined_score
