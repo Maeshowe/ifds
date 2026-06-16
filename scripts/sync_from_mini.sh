@@ -13,7 +13,10 @@
 
 set -euo pipefail
 
-REMOTE="safrtam@negotium.ddns.net"
+# Use the ifds-mini ssh alias as the single source of truth for host/user/key
+# (see ~/.ssh/config). 2026-06-16: repointed off negotium.ddns.net after the
+# ISP CGNAT migration killed the inbound IPv4 path.
+REMOTE="ifds-mini"
 REMOTE_BASE="~/SSH-Services/ifds"
 LOCAL_BASE="$(cd "$(dirname "$0")/.." && pwd)"
 
