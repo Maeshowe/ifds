@@ -948,6 +948,7 @@ A Day 7 (2026-05-26, kedd) és Day 8 (2026-05-27, szerda) napi review-kból **9 
 | 11.2 | 2026-06-10 | eod_report Telegram `Trades:` a persisted daily_metrics-ből (follow-up) | display | **NEM** | `03c77d8` (2026-06-17) |
 | 11.3 | 2026-06-11 | **S_j (entry_score) capture** — SwingPosition mező + submit/close/ledger perzisztálás | tracking-metaadat (signal-attribution audit) | **NEM** — csak audit-mező, nem érint döntést | `8b487c1` |
 | 11.4 | 2026-06-15 | **pt_monitor RECONCILE-alert** a `save_swing_positions` UTÁN küldve (volt: detektorból, mentés előtt → "State updated" megelőzte az írást, lásd 5/21 VLO ghost) | notification-timing/correctness | **NEM** — reconcile/save/mentál-stop logika érintetlen, csak az üzenet időzítése | `5373f38` |
+| 11.5 | 2026-06-17 | **cumulative_pnl 2026-06-01 zero-row backfill** — a hiányzó no-exit nap sora beillesztve (a §5.4 safety net előtti); `trading_days` 20→21 = NYSE day_number. **Nulla dollár-hatás** (cumulative_pnl változatlan, assertelve; backup készült) | tracking (trading-day count) | **NEM** — zero-P&L bookkeeping completeness, nem érint döntést/P&L-t | `4f75455` (tool) + Mini `--apply` |
 
 **11.3 részletek (S_j capture)**: a jel-izoláló attribúciós teszthez
 (`2026-06-10-signal-isolating-attribution-spec.md`) az entry combined_score
