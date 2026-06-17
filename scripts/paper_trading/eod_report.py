@@ -551,6 +551,31 @@ def make_dummy_trades():
     ]
 
 
+def load_persisted_trades_block(today_str: str) -> dict | None:
+    """Return the authoritative ``trades`` block from the persisted
+    ``state/daily_metrics/{date}.json`` written by the 22:10 record_pending_exits
+    cron (clientId-18 — captures the 21:40/cross-client MOC exits that
+    eod_report's own clientId-12 ``ib.fills()`` miss). Returns None if the file
+    or a populated ``details`` block is absent (early/manual run), so the caller
+    falls back to its own rebuild.
+    """
+    try:
+        from daily_metrics import METRICS_DIR
+
+        path = METRICS_DIR / f"{today_str}.json"
+        if not path.exists():
+            return None
+        with open(path) as f:
+            data = json.load(f)
+        trades_block = data.get("trades")
+        if trades_block and trades_block.get("details"):
+            return trades_block
+        return None
+    except Exception as exc:
+        logger.warning(f"Failed to read persisted daily_metrics trades block: {exc}")
+        return None
+
+
 def main():
     try:
         from lib.trading_day_guard import check_trading_day
@@ -661,8 +686,16 @@ def main():
         # Build trade report (pnl_by_symbol handles MOC closes with orderRef='')
         trades = build_trade_report(todays_fills, meta, pnl_by_symbol=pnl_by_symbol)
 
-        # Print trade summary
-        logger.info(f"Trades: {len(trades)}")
+        # Print trade summary — augment with the persisted (cross-client
+        # authoritative) count; clientId-12 fills miss 21:40/cross-client MOC.
+        _persisted_block = load_persisted_trades_block(today_str)
+        if _persisted_block is not None:
+            logger.info(
+                f"Trades(eod-fills): {len(trades)} | "
+                f"persisted: {len(_persisted_block['details'])}"
+            )
+        else:
+            logger.info(f"Trades: {len(trades)}")
         for t in trades:
             pnl_sign = "+" if t["pnl"] >= 0 else ""
             logger.info(
@@ -800,8 +833,14 @@ def main():
             metrics["pnl"]["day_change"] = round(day_change, 2)
             metrics["pnl"]["day_change_pct"] = round(day_change_pct, 2) if day_change_pct else None
             metrics["pnl"]["day_change_is_best"] = bool(day_change_is_best)
-        # #2: count from the merged broker-authoritative trades.details (incl.
-        # 21:40 MOC exits), not eod_report's CSV-only `trades` (which misses them).
+        # #2 + eod-fix (2026-06-17): prefer the persisted (22:10 cron, clientId-18)
+        # trades block over build_daily_metrics' clientId-12 rebuild, which misses
+        # the cross-client/21:40 MOC exits (→ "Trades: 0" on cross-client MOC days
+        # like 06-15 FFIV / 06-16 TKR). Persisted is authoritative; fall back to the
+        # rebuild/CSV when the 22:10 file is not yet present (early/manual run).
+        _persisted_block = load_persisted_trades_block(today_str)
+        if _persisted_block is not None:
+            metrics["trades"] = _persisted_block
         _details = metrics.get("trades", {}).get("details") or []
         metrics["pnl"]["closed_trades_today"] = len(_details) if _details else len(trades)
         metrics["pnl"]["circuit_breaker_threshold"] = float(CIRCUIT_BREAKER_USD)
