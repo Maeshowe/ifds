@@ -20,6 +20,14 @@ REMOTE="ifds-mini"
 REMOTE_BASE="~/SSH-Services/ifds"
 LOCAL_BASE="$(cd "$(dirname "$0")/.." && pwd)"
 
+# SSH hardening: ConnectTimeout guards the TCP connect; ServerAliveInterval/
+# CountMax kill a session that connects but then STALLS. This matters over
+# Tailscale, where connect() succeeds at the local tailscaled even when the
+# peer is unreachable — so ConnectTimeout alone never fires and the preflight
+# ssh would hang forever (observed 2026-06-17). With these, a stalled session
+# dies in ~ServerAliveInterval×CountMax seconds. BatchMode → never prompt.
+SSH_OPTS=(-o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o BatchMode=yes)
+
 DRY_RUN=""
 if [[ "${1:-}" == "--dry-run" ]]; then
     DRY_RUN="--dry-run"
@@ -33,6 +41,7 @@ RSYNC_OPTS=(
     --exclude="data/cache/"
     --exclude="__pycache__/"
     --exclude=".DS_Store"
+    -e "ssh ${SSH_OPTS[*]}"
     $DRY_RUN
 )
 
@@ -57,14 +66,17 @@ echo ""
 echo "── Pre-flight checks ──"
 
 # (a) SSH connectivity
-if ! ssh -q -o ConnectTimeout=5 -o BatchMode=yes "${REMOTE}" "exit" 2>/dev/null; then
+if ! ssh "${SSH_OPTS[@]}" -q "${REMOTE}" "exit" 2>/dev/null; then
     echo "❌ ERROR: Cannot connect to ${REMOTE}"
-    echo "   Check VPN, firewall, DDNS resolution, or SSH key auth."
+    echo "   Check VPN/Tailscale, firewall, or SSH key auth."
+    echo "   (If it hung before failing: Tailscale SSH 'check' re-auth may be"
+    echo "    intercepting :22 — disable with 'sudo tailscale set --ssh=false'"
+    echo "    on the Mini so the system sshd + key auth answers instead.)"
     exit 1
 fi
 
 # (b) Remote project root exists
-if ! ssh "${REMOTE}" "test -d ${REMOTE_BASE}" 2>/dev/null; then
+if ! ssh "${SSH_OPTS[@]}" "${REMOTE}" "test -d ${REMOTE_BASE}" 2>/dev/null; then
     echo "❌ ERROR: ${REMOTE_BASE} does not exist on ${REMOTE}"
     exit 1
 fi
@@ -72,7 +84,7 @@ fi
 # (c) Source directories exist on remote (warn but continue if any missing)
 SKIP_DIRS=()
 for dir in "${DIRS[@]}"; do
-    if ! ssh "${REMOTE}" "test -d ${REMOTE_BASE}/${dir}" 2>/dev/null; then
+    if ! ssh "${SSH_OPTS[@]}" "${REMOTE}" "test -d ${REMOTE_BASE}/${dir}" 2>/dev/null; then
         echo "⚠️  WARN: Remote dir missing: ${REMOTE_BASE}/${dir} (will skip)"
         SKIP_DIRS+=("${dir}")
     fi
