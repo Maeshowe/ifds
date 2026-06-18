@@ -417,7 +417,8 @@ async def _run_phase5_async(
     uw_key = config.get_api_key("unusual_whales")
     max_dte = config.tuning.get("gex_max_dte", 35)
 
-    if uw_key:
+    uw_gex_fetch = config.tuning.get("uw_gex_fetch_enabled", True)
+    if uw_key and uw_gex_fetch:
         uw_client = AsyncUWClient(
             api_key=uw_key,
             timeout=config.runtime["api_timeout_uw"],
@@ -430,6 +431,9 @@ async def _run_phase5_async(
             logger=logger,
         )
     else:
+        # Polygon-only GEX (uw_gex_fetch_enabled=False or no UW key). Skips the
+        # UW greek-exposure call entirely — output-invariant vs the fallback
+        # chain since UW has been UW-sourced for 0 tickers (see §11.6).
         gex_provider = AsyncPolygonGEXProvider(polygon, max_dte=max_dte)
 
     sorted_candidates = sorted(stock_analyses, key=lambda s: s.combined_score, reverse=True)[:100]

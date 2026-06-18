@@ -475,7 +475,7 @@ def run_pipeline(
                 # GEX provider: UW primary → Polygon fallback
                 max_dte = config.tuning.get("gex_max_dte", 35)
                 uw5 = None
-                if ctx.uw_available:
+                if ctx.uw_available and config.tuning.get("uw_gex_fetch_enabled", True):
                     from ifds.data.unusual_whales import UnusualWhalesClient as UW5
 
                     uw5 = UW5(
@@ -491,6 +491,7 @@ def run_pipeline(
                         logger=logger,
                     )
                 else:
+                    # Polygon-only GEX (uw_gex_fetch_enabled=False or no UW). See §11.6.
                     gex_provider = PolygonGEXProvider(polygon5, max_dte=max_dte)
 
                 try:

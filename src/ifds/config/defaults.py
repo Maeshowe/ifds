@@ -347,6 +347,14 @@ TUNING = {
     # through Day 90 (~2026-08-26) for retroactive Bayesian recalibration analysis.
     "uw_dark_pool_scoring_enabled": False,  # Phase 4: dp_pct bonus gated (default off)
     "uw_gex_sizing_enabled": False,  # Phase 6: M_GEX forced to 1.0 (default off)
+    # Phase 5: call the UW greek-exposure PRIMARY at all. When False, the GEX
+    # provider is Polygon-only (skips the UW call entirely). Default True keeps
+    # the legacy UW→Polygon fallback chain. Proven output-invariant to flip off:
+    # UW greek-exposure was UW-sourced for 0 tickers across 92 days (it 429s /
+    # returns None → Polygon already the sole de-facto source). See
+    # scripts/analysis/verify_gex_uw_invariance.py + 04-risks §11.6.
+    "uw_gex_fetch_enabled": True,
+
     "uw_shadow_logging_enabled": True,  # Daily shadow snapshot to state/uw_shadow/
     "uw_shadow_dir": "state/uw_shadow",  # Shadow log directory
     # Buy Pressure + VWAP (BC10)
