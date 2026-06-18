@@ -25,7 +25,6 @@ import argparse
 import gzip
 import json
 import sys
-from collections import Counter
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any

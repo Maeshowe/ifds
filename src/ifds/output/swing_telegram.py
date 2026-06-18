@@ -9,7 +9,7 @@ Pure formatters for the swing pivot Telegram messages:
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Iterable
+from typing import Any
 
 
 def format_swing_compact_telegram(metrics: dict[str, Any]) -> str:

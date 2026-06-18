@@ -1,5 +1,5 @@
-Status: OPEN
-Updated: 2026-06-09
+Status: DONE
+Updated: 2026-06-17
 Note: A 2026-06-09-daily-metrics-execution-fix Day 17 verifikáció másodlagos finding-je. Az eod_report 22:11 Telegram `Trades:` száma a clientId-12 saját fill-jeiből épül, ami NEM látja a cross-client MOC fill-eket (Day 17: `Trades: 1` vs valós 2). A persisted daily_metrics helyes — az eod onnan olvasson.
 
 # eod_report Telegram: trades.details a persisted daily_metrics-ből (P2)
