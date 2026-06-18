@@ -51,3 +51,6 @@ obsidian_on.json
 *.bak
 *.bak.*
 *.tmp
+
+# Mini-local production config override (Layer-2 --config; never committed)
+state/prod_overrides.json
