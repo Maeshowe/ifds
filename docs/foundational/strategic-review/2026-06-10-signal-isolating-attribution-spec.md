@@ -134,6 +134,23 @@ tartja, de a ledger a kötés-azonosítást). Ez a #1 prioritás (lásd „köve
   **bizonyítottan helyes** eszköz áll készen — n itt még 14, valós futás Day 63.
 - **Freeze**: az egész mérés/tracking → §4.2/1 alatt megengedett.
 
+### 6.1 Data-loader rögzítés (a wiring ELŐTT — ne improvizáljon CC)
+
+Három invariáns, amit a loadernek be kell tartania (Chat, 2026-06-18):
+
+1. **`entry_score` (S_j) hiány-kezelés.** `entry_score <= 0` → hiányzó érték →
+   **snapshot-recovery** az adott ticker/dátumra (`recover_entry_score`). Ha a
+   Phase 4 snapshot sem adja → a trade **kizárva** a mintából (exclusion-listával
+   riportolva). A 6 örökölt pozíció `default-0.0` sentinelje **NEM valós score** —
+   ez ne szivárogjon a ρ-ba.
+2. **Exit-típus forrása kizárólag `state/pending_exits/{date}.json`** (a
+   broker-autoritatív ledger). A `daily_metrics::exit_type` a P1-fixig
+   megbízhatatlan (fill-timestamp-alapú) — a stratifikáció (L0/L1/L2 exit-bontás)
+   **ebből** olvasson, ne a daily_metrics mezőből.
+3. **Read-only + kettős minta-output.** A loader semmit nem ír a trading state-be.
+   Két mintát ad, a §4.2/2-vel illeszkedve: (a) **teljes Day 1–63** és (b) **Day 9+
+   clean-sample** (a korai napi-tracking torzítások után). Mindkettő külön ρ/CI.
+
 ## 7. Korlátok (őszinteség)
 
 - A fix-horizontú forward return **nem azt méri, amit kerestünk** (a valós exit

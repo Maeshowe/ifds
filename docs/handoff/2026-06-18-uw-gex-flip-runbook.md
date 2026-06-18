@@ -69,10 +69,17 @@ echo '{"tuning": {"uw_gex_fetch_enabled": false}}' > state/prod_overrides.json
 
 **Verify after the following intraday run (Polygon-only post-verify):**
 ```bash
-# (a) ZERO UW greek-exposure 429 (the whole point):
+# (a) ZERO UW greek-exposure 429 (the whole point — UW no longer called):
 grep -c "greek-exposure.*429" logs/cron_intraday_<date>_*.log    # expect 0
-# (b) GEX source still polygon, regime + exclusion list unchanged vs the prior run:
-.venv/bin/python scripts/analysis/gex_live_onoff_diff.py | tail -8   # on/off now identical trivially
+# (b) GENUINE per-day invariance re-check. gex_live_onoff_diff.py is
+#     FLAG-INDEPENDENT — it builds the UW + Polygon providers itself and calls
+#     both directly, ignoring uw_gex_fetch_enabled. So post-flip it still does a
+#     REAL UW-vs-Polygon comparison on that day's universe. Expect UW non-None=0
+#     (hard-stop) AND empty regime/exclusion diff → the flip lost nothing for that
+#     universe. This is NOT self-fulfilling (it does not read the flag).
+#     Do NOT instead diff against the STEP-1 run: different days have different
+#     universes (different tickers) → universe-mismatch, proves nothing.
+.venv/bin/python scripts/analysis/gex_live_onoff_diff.py | tail -8   # expect VERDICT: PASS
 # (c) Phase 5 still passed a normal ticker count; M_total unaffected (M_gex was already 1.0)
 ```
 Expected: 0 × greek-exposure 429, GEX regimes identical to STEP-1 baseline,
