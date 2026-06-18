@@ -1,10 +1,19 @@
-# Decision — Factor-Exposure Layer: KILL (data grounds)
+# Decision — Factor-Exposure Layer: KILL (opportunity cost)
 
 **Date:** 2026-06-18
-**Status:** DECIDED — do **not** build the factor-exposure layer (Option C)
+**Status:** DECIDED — do **not** build the factor-exposure layer now (Option C)
 **Type:** Negative result, logged as a legitimate deliverable ("test, don't confirm")
 **Owner:** Chat (strategy) decided; CC ran the read-only data audit + this record
 **Context:** IFDS parameter freeze (Day 18→63); IC Phase A still open
+
+> **Correction note (supersedes the first revision, commit `33bea4e`).** The first
+> revision justified the kill partly on a *data-impossibility* frame ("only 8 Phase 4
+> snapshots 06-08…06-17", "~6 thin overlapping dates", "the test can't be run
+> cheaply"). **Those facts were wrong** — they came from `ls … | tail -N` truncating
+> the directory listing, reported as if complete. Re-audited below. The direction
+> (don't build now) holds, but the rationale is re-based on **opportunity cost**, the
+> argument that never depended on the data. This revision corrects the record so it
+> can be the reliable later reference.
 
 ---
 
@@ -27,63 +36,68 @@ The throwaway probe (`factor_check.py`, ~30-line core: `zscore` / `exposures` /
 **before** committing any architecture. No CC task-file, no IC phase was opened —
 deliberately, to avoid pre-committing to the build.
 
-## Why KILL — the test could not even be run cheaply (3 verified data gaps)
+## Primary rationale — opportunity cost (data-independent)
 
-A read-only audit of the persisted stack (2026-06-18) found the pre-registered
-test is **not runnable** on existing data without first investing in new
-infrastructure — and that investment, for a layer whose payoff is *descriptive,
-not predictive* (≈ zero direct alpha), does not clear the bar.
+The strongest kill argument never depended on the data: the rack is
+**descriptive, not predictive**. A precise characterisation of a signal-weak book
+(IFDS, by its own description) carries a direct alpha contribution near zero. The
+one component with *decision* value is the DIVERGENCE flag (book exposure measured
+**against** the MID regime); the rest is descriptive dressing.
 
-1. **The Barra-style raw inputs are not persisted.** The Phase 4 snapshots
-   (`state/phase4_snapshots/{date}.json.gz`, 8 dates 06-08…06-17) hold IFDS's
-   **own** scoring characteristics (`roe`, `net_margin`, `eps_growth_yoy`,
-   `rs_vs_spy`, `atr_14`, `rvol`, `sector`, …) — **not** `ep` (E/P),
-   `mom_12_1` (12M−1M total return), realised `vol`, or `log_mktcap`. Running the
-   probe needs either historical **as-of** re-fetches (FMP/Polygon, ≈40 tickers ×
-   8 dates ≈ 320 calls, as-of correctness fiddly, rate-limit-sensitive — cf. the
-   `9a169b9` lesson) or **proxies** (`rs_vs_spy` ≈ momentum, `atr/price` ≈ vol),
-   with **no clean proxy for `ep` or `size`**.
+During a parameter **freeze**, with **IC Phase A still open**, spending build
+effort on a ~zero-alpha descriptive layer — even the cheap partial probe, let alone
+the eventual full layer + its as-of data channel + the MID-label mapping — loses to
+finishing IC Phase A. That is the decision: **opportunity cost**, not data
+impossibility.
 
-2. **MID emits no flat `risk_off` / `rates_up` label.** The bundle
-   (`state/mid_bundles/{date}.json.gz`) is a rich, multi-dimensional taxonomy —
-   e.g. `gip.regime=Late_Cycle`, `cross_asset.sb_regime_label=positive_stagflationary`,
-   `catalyst.active_regime=stagflation`, `positioning.gex_regime=negative`,
-   `yield_curve.regime=bull_flattener`. The `divergence()` rules would need a
-   **deliberate MID-label → factor-condition mapping** — a modelling/strategy
-   decision (MID territory), not wiring.
+## Secondary — the real (narrower) data blockers, corrected
 
-3. **The test bed is too thin.** Only **~6 dates** (06-11…06-17) have *both* a book
-   snapshot *and* a MID bundle, all recent and **low regime-variance**. A clean
-   "no divergence" over 6 such dates is **not evidence** either way — too short to
-   be the kill-or-keep arbiter.
+A read-only audit of the persisted stack (2026-06-18, full listings) found the
+data picture is **better** than the first revision claimed — which is exactly why
+the headline is re-based off it:
 
-**Conclusion:** the cost to merely *run* the pre-registered test (as-of factor
-fetch + MID-label mapping + a longer history) is itself the signal. For a
-descriptive, ~zero-alpha layer, during a freeze, with IC Phase A still open, the
-disciplined call is **C — kill on data grounds**.
+- **History is ample, not thin.** `state/phase4_snapshots/` = **85 dates,
+  2026-02-19 → 06-17**. `state/mid_bundles/` = **42 dates, 2026-04-27 → 06-17**.
+  Their intersection = **36 common dates, 2026-04-27 → 06-17 (~7 weeks)** — late
+  April to mid-June, i.e. a window that *does* carry real regime variance. The
+  "too short to decide" argument does **not** hold.
+- **A partial proxy probe IS cheaply runnable today.** The snapshots already carry
+  `rs_vs_spy` (a momentum proxy) and `atr_14`/`price` (a vol proxy) plus `sector`.
+  A momentum+vol DIVERGENCE probe over the 36 dates needs no new fetch.
+- **The genuine blockers are narrow:**
+  1. **`ep` (E/P) and `size`/market-cap are not persisted**, and there is no clean
+     proxy in the snapshot (it holds IFDS's own scoring chars — `roe`, `net_margin`,
+     `eps_growth_yoy`, `rs_vs_spy`, `atr_14`, `rvol`, `sector` — verified by
+     decompressing the 06-17 snapshot). A **full** 4-factor probe needs historical
+     as-of fetches (FMP/Polygon; as-of correctness fiddly, rate-limit-sensitive —
+     cf. the `9a169b9` lesson).
+  2. **The MID regime is a rich multi-dimensional taxonomy, not a flat
+     `risk_off`/`rates_up` label** (verified: `gip.regime=Late_Cycle`,
+     `cross_asset.sb_regime_label=positive_stagflationary`,
+     `catalyst.active_regime=stagflation`, `positioning.gex_regime=negative`,
+     `yield_curve.regime=bull_flattener`). The `divergence()` rules need a
+     **deliberate MID-label → factor-condition mapping** — a modelling/strategy
+     decision (MID territory), not wiring.
 
-## What stays true (the one part that had decision value)
-
-The only component with *decision* value was the **DIVERGENCE flag** (book
-exposure measured **against** the MID regime), not the descriptive rack itself.
-That idea is preserved here as a revisit hook — but it does **not** justify the
-full factor layer on its own.
+These are real, but they are *narrower* than "can't run it" — they bound the
+*full* probe, not the existence of a test. They do not change the verdict; the
+verdict rests on opportunity cost.
 
 ## Revisit condition (the only way this reopens)
 
-Reopen **only if** a clean `ep / mom_12_1 / vol / log_mktcap` (and ideally
-`short_interest`, `13F_crowding`) data channel gets built **for another reason**,
-**and** the freeze has lifted **and** there is a longer history (≥1–2 quarters of
-book snapshots) to make the pre-registered test meaningful. Absent all three, the
-descriptive payoff does not earn the build. Do **not** source any future
-"Quant Sentiment"-style factor from `morning_news` NLP (MID-contamination of IC
-claims — keep it price/fundamentals-based).
+Reopen **only if** the freeze has lifted **and** IC Phase A is closed **and** either
+(a) a clean `ep / size` (ideally also `short_interest`, `13F_crowding`) data channel
+gets built **for another reason**, or (b) you deliberately choose to spend the
+half-day on the partial momentum+vol proxy probe over the 36 dates as a cheap
+empirical pre-check. Absent that, the descriptive payoff does not earn the build.
+Do **not** source any future "Quant Sentiment"-style factor from `morning_news` NLP
+(MID-contamination of IC claims — keep it price/fundamentals-based).
 
 ## Reference — the aspirational "full version" (attachment, Q4 2025 → Q1 2026)
 
 The "Situational Awareness LP — Portfolio Factor Exposures" chart the user attached
-is the *target* shape this layer would produce. Recorded here so the dead-end is
-documented with its reference (Q1 2026 values, z-score units):
+is the *target* shape this layer would produce. It lists **20 factors** (Q1 2026
+values, z-score units):
 
 | Factor | Exp. | Factor | Exp. |
 |---|---:|---|---:|
@@ -98,11 +112,12 @@ documented with its reference (Q1 2026 values, z-score units):
 | Momentum (12M−1M) | +1.75 | Momentum (12M) | +0.97 |
 | Volatility | +1.41 | Reversal (1M) | +0.13 |
 
-Note: this 21-factor view mixes two distinct mathematical objects on one rack —
+Note: this 20-factor view mixes two distinct mathematical objects on one rack —
 **(A)** cross-sectional style factors (characteristics z-scored across the universe,
 position-weighted) and **(B)** time-series macro betas (`Rates Beta`, `Oil Beta`
 = regression coefficients of book return on MID factor streams). The IFDS stack can
-cheaply reproduce *neither* today (gap #1 for A; MID time-series regression for B).
+cheaply reproduce a *partial* (A) today (momentum + vol proxies) but not the full
+(A) (no `ep`/`size`) nor (B) (needs the MID time-series regression).
 
 ---
 
