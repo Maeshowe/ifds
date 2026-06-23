@@ -29,7 +29,12 @@ source .venv/bin/activate 2>/dev/null || true
 # Phase 4-6 (uses saved Phase 1-3 context)
 # Generates output/execution_plan_run_<date>_*.csv for the 15:30 CEST submit cron.
 echo "--- Phase 4-6 ---"
-python -m ifds run --phases 4-6
+# Layer-2 production config override (Mini-local state/prod_overrides.json, gitignored).
+# Dormant-safe: with no override file, $CFG_OVERRIDE is empty → byte-identical to the
+# bare run. See docs/handoff/2026-06-18-uw-gex-flip-runbook.md + 04-risks §11.6.
+CFG_OVERRIDE=""
+[ -f state/prod_overrides.json ] && CFG_OVERRIDE="--config state/prod_overrides.json"
+python -m ifds run --phases 4-6 $CFG_OVERRIDE
 
 # NOTE: 2026-05-18 swing pivot — submit_orders.py + company_intel.py REMOVED
 # from this script. The new architecture runs Phase 4-6 at 14:30 CEST
