@@ -516,8 +516,13 @@ def _print_config_table(config: Config) -> None:
     c = config.core
 
     equity = r.get("account_equity", 100_000)
-    risk_pct = r.get("risk_per_trade_pct", 0.5)
-    risk_usd = equity * risk_pct / 100
+    # The production split-pipeline sizes on the swing risk (TUNING, a fraction);
+    # the legacy runtime risk_per_trade_pct (0.7%) is NOT the realized sizing path
+    # (phase6 line 1371 vs 941). Display the swing value so the footer matches the
+    # actual position sizes. Display-only — touches no sizing logic.
+    risk_frac = t.get("swing_risk_per_trade_pct", 0.0035)
+    risk_pct = round(risk_frac * 100, 3)
+    risk_usd = equity * risk_frac
     max_pos = r.get("max_positions", 8)
     max_sector = t.get("max_positions_per_sector", 2)
     min_score = t.get("combined_score_minimum", 70)

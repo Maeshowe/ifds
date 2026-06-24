@@ -502,7 +502,8 @@ class TestPrintConfigTable:
         assert "Account equity" in out
         assert "$100,000" in out
         assert "Risk per trade" in out
-        assert "0.7%" in out  # BC23: was 0.5%
+        assert "0.35%" in out  # swing_risk_per_trade_pct=0.0035 (the realized path)
+        assert "$350" in out  # 0.35% of $100k — matches live sizing (RBC/NSA/TDG)
         assert "Max positions" in out
         assert "Max per sector" in out
         assert "Min score" in out
