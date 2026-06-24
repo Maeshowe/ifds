@@ -72,3 +72,33 @@ PCR/OTM/GEX-regime all come from there. **No urgency** on cancellation.
    real-world action). Do not run ahead of the flip confirmation.
 3. Keep the 69-row shadow dataset (`state/uw_shadow/`) as the closed retrospective
    artifact — do not delete; a future microstructure iteration may reference it.
+
+## 07-04 deadline — UW subscription dies (UPDATE 2026-06-24)
+
+The UW subscription ($150/mo, **shared with MID**) was **cancelled by Tamás**; it
+stays live until **2026-07-04**, then UW dies for IFDS too. Assessed 2026-06-24:
+
+**IFDS will NOT break on 07-04 — graceful degradation is built in and proven:**
+- Validator: UW key is **optional** (`validator.py:47` "UW is optional (has Polygon
+  fallback)") — a missing key does not abort startup.
+- Phase 0: UW is **non-critical** (`phase0_diagnostics.py` "non-critical, has
+  fallback") — a failed UW health check logs an `api_fallback` and continues.
+- Runner: `if ctx.uw_available:` gates both the darkpool fetch and the GEX
+  construction → when UW is unreachable, `uw_available=False` → dp_provider not
+  built → no darkpool calls, the shadow stops on its own; GEX already Polygon-only.
+- **Airtight proof (2026-06-24):** `IFDS_UW_API_KEY= … ifds run --dry-run` on the
+  Mini → `SKIP unusual_whales /api/darkpool/SPY` → **"Pipeline CAN proceed"**.
+
+**The one clean action before 07-04 (Tamás, Mini `.env`, no code change):**
+- **Remove `IFDS_UW_API_KEY` from the Mini prod `.env`.** Effect: the UW health
+  check is cleanly SKIPPED (no daily failed-call + retry + log noise on the dead
+  feed), `uw_available=False`, Polygon-only everywhere, the darkpool shadow stops.
+  **Zero functional loss** (UW is non-decision post-flip). Do it after today's flip
+  post-verify, or any time up to 07-04 — even leaving the dead key in place degrades
+  gracefully (FAIL → fallback → continue), but removing it is the clean close.
+
+**Post-07-04 optional code cleanup (not required, post-freeze ok):** delete the UW
+clients (`unusual_whales.py`, `async_clients` UW paths, `UWDarkPoolProvider`,
+`UWGEXProvider`), the UW health-check branch in phase0, and `uw_shadow.py`; remove
+the `IFDS_UW_API_KEY` loader mapping. Grep `uw`/`unusual` → 0. Mirrors the MID
+`2026-06-24-uw-decommission` task (MID CC owns that side).
