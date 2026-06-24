@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import gzip
 import importlib.util
+import json
 import math
 import sys
 from pathlib import Path
@@ -176,3 +178,258 @@ def test_render_report_smoke_label():
     md = sa.render_report(rep, "2026-06-10", smoke=True)
     assert "PLUMBING VALIDATION ONLY" in md
     assert "NOT EVIDENCE" in md
+
+
+# ---------------------------------------------------------------------------
+# Data loader — spec §6.1 three pinned invariants
+# ---------------------------------------------------------------------------
+
+
+def _build_state(tmp_path: Path) -> Path:
+    """A minimal trading-state tree the loader reads (read-only)."""
+    state = tmp_path / "state"
+    for sub in ("pending_exits", "daily_metrics", "phase4_snapshots"):
+        (state / sub).mkdir(parents=True)
+    return state
+
+
+def _write_pending(state: Path, date: str, records: list[dict]) -> None:
+    (state / "pending_exits" / f"{date}.json").write_text(json.dumps(records))
+
+
+def _write_metrics(state: Path, date: str, day_number: int, details: list[dict]) -> None:
+    payload = {"day_number": day_number, "trades": {"details": details}}
+    (state / "daily_metrics" / f"{date}.json").write_text(json.dumps(payload))
+
+
+def _write_snapshot(state: Path, date: str, rows: list[dict]) -> None:
+    with gzip.open(state / "phase4_snapshots" / f"{date}.json.gz", "wt") as fh:
+        json.dump(rows, fh)
+
+
+def _load(state: Path):
+    return sa.load_closed_trades(
+        state / "pending_exits", state / "daily_metrics", state / "phase4_snapshots"
+    )
+
+
+def test_loader_happy_path_realized_return(tmp_path):
+    state = _build_state(tmp_path)
+    _write_pending(
+        state,
+        "2026-06-12",
+        [{"ticker": "AAA", "entry_price": 100.0, "entry_date": "2026-06-09",
+          "qty": 10, "exit_type": "TP1", "sector": "Technology", "entry_score": 88.0}],
+    )
+    _write_metrics(state, "2026-06-09", 9, [])  # entry-day metrics → entry_day_number
+    _write_metrics(state, "2026-06-12", 12, [{"ticker": "AAA", "pnl": 50.0}])
+    loaded, excl = _load(state)
+    assert excl == []
+    assert len(loaded) == 1
+    t = loaded[0].trade
+    assert t.entry_score == 88.0
+    assert t.exit_type == "TP1"
+    assert t.realized_r == pytest.approx(50.0 / (100.0 * 10))  # pnl / (entry*qty)
+    assert loaded[0].entry_day_number == 9
+    assert loaded[0].exit_day_number == 12
+
+
+def test_loader_aggregates_multi_leg_position(tmp_path):
+    # One position, two legs (TP1 then TP2) → ONE trade, blended return (cond. b).
+    state = _build_state(tmp_path)
+    _write_pending(state, "2026-06-09",
+                   [{"ticker": "VNO", "entry_price": 50.0, "entry_date": "2026-06-03",
+                     "qty": 60, "exit_type": "TP1", "sector": "Real Estate", "entry_score": 74.0}])
+    _write_pending(state, "2026-06-10",
+                   [{"ticker": "VNO", "entry_price": 50.0, "entry_date": "2026-06-03",
+                     "qty": 40, "exit_type": "TP2", "sector": "Real Estate", "entry_score": 74.0}])
+    _write_metrics(state, "2026-06-03", 9, [])
+    _write_metrics(state, "2026-06-09", 13, [{"ticker": "VNO", "pnl": 120.0}])  # TP1 leg
+    _write_metrics(state, "2026-06-10", 14, [{"ticker": "VNO", "pnl": 80.0}])   # TP2 leg
+    loaded, excl = _load(state)
+    assert excl == []
+    assert len(loaded) == 1  # blended, NOT two per-leg points
+    lt = loaded[0]
+    # Σpnl / (entry × Σqty) = 200 / (50 × 100)
+    assert lt.trade.realized_r == pytest.approx(200.0 / (50.0 * 100))
+    assert lt.trade.exit_type == "TP2"  # final-leg label
+    assert lt.exit_day_number == 14  # final leg
+    assert lt.entry_day_number == 9
+
+
+def test_loader_excludes_position_if_any_leg_pnl_missing(tmp_path):
+    # Multi-leg position where the first (early) leg lacks broker detail → excluded.
+    state = _build_state(tmp_path)
+    _write_pending(state, "2026-06-03",
+                   [{"ticker": "AKAM", "entry_price": 140.0, "entry_date": "2026-05-26",
+                     "qty": 8, "exit_type": "TP1", "sector": "Technology", "entry_score": 61.0}])
+    _write_pending(state, "2026-06-04",
+                   [{"ticker": "AKAM", "entry_price": 140.0, "entry_date": "2026-05-26",
+                     "qty": 9, "exit_type": "TIME_STOP", "sector": "Technology", "entry_score": 61.0}])
+    _write_metrics(state, "2026-06-03", 8, [])  # TP1 leg detail MISSING
+    _write_metrics(state, "2026-06-04", 9, [{"ticker": "AKAM", "pnl": 30.0}])
+    loaded, excl = _load(state)
+    assert loaded == []  # cannot blend a partial position → whole position dropped
+    assert len(excl) == 1
+    assert "≥1 leg" in excl[0].reason
+
+
+def test_loader_invariant1_snapshot_recovery_for_missing_score(tmp_path):
+    # entry_score None (legacy) and 0.0 (sentinel) → recovered from the snapshot.
+    state = _build_state(tmp_path)
+    _write_pending(
+        state,
+        "2026-06-12",
+        [
+            {"ticker": "NONE_TK", "entry_price": 50.0, "entry_date": "2026-06-08",
+             "qty": 4, "exit_type": "TP1", "sector": "Energy", "entry_score": None},
+            {"ticker": "ZERO_TK", "entry_price": 20.0, "entry_date": "2026-06-08",
+             "qty": 5, "exit_type": "TIME_STOP", "sector": "Energy", "entry_score": 0.0},
+        ],
+    )
+    _write_metrics(state, "2026-06-12", 12,
+                   [{"ticker": "NONE_TK", "pnl": 4.0}, {"ticker": "ZERO_TK", "pnl": -2.0}])
+    _write_snapshot(state, "2026-06-08",
+                    [{"ticker": "NONE_TK", "combined_score": 71.0},
+                     {"ticker": "ZERO_TK", "combined_score": 64.5}])
+    loaded, excl = _load(state)
+    assert excl == []
+    scores = {lt.trade.ticker: lt.trade.entry_score for lt in loaded}
+    assert scores == {"NONE_TK": 71.0, "ZERO_TK": 64.5}
+
+
+def test_loader_invariant1_excludes_when_unrecoverable(tmp_path):
+    # Sentinel score AND snapshot lacks the ticker → excluded, never leaks as 0.0.
+    state = _build_state(tmp_path)
+    _write_pending(
+        state,
+        "2026-06-12",
+        [{"ticker": "GHOST", "entry_price": 30.0, "entry_date": "2026-06-08",
+          "qty": 3, "exit_type": "TP1", "sector": "Energy", "entry_score": 0.0}],
+    )
+    _write_metrics(state, "2026-06-12", 12, [{"ticker": "GHOST", "pnl": 1.0}])
+    _write_snapshot(state, "2026-06-08", [{"ticker": "OTHER", "combined_score": 80.0}])
+    loaded, excl = _load(state)
+    assert loaded == []
+    assert len(excl) == 1
+    assert excl[0].ticker == "GHOST"
+    assert "entry_score" in excl[0].reason
+
+
+def test_loader_invariant2_exit_type_from_ledger_not_daily_metrics(tmp_path):
+    # Real-world SJM: ledger=MENTAL_SL, daily_metrics=TP1. Ledger must win.
+    state = _build_state(tmp_path)
+    _write_pending(
+        state,
+        "2026-06-23",
+        [{"ticker": "SJM", "entry_price": 115.99, "entry_date": "2026-06-17",
+          "qty": 49, "exit_type": "MENTAL_SL", "sector": "Consumer Defensive",
+          "entry_score": 77.41}],
+    )
+    _write_metrics(state, "2026-06-23", 25,
+                   [{"ticker": "SJM", "pnl": -330.91, "exit_type": "TP1"}])
+    loaded, excl = _load(state)
+    assert excl == []
+    assert loaded[0].trade.exit_type == "MENTAL_SL"  # NOT the daily_metrics "TP1"
+
+
+def test_loader_excludes_when_realized_pnl_missing(tmp_path):
+    state = _build_state(tmp_path)
+    _write_pending(
+        state,
+        "2026-06-12",
+        [{"ticker": "AAA", "entry_price": 100.0, "entry_date": "2026-06-09",
+          "qty": 10, "exit_type": "TP1", "sector": "Technology", "entry_score": 88.0}],
+    )
+    _write_metrics(state, "2026-06-12", 12, [])  # no detail for AAA
+    loaded, excl = _load(state)
+    assert loaded == []
+    assert "realized pnl unavailable" in excl[0].reason
+
+
+def test_loader_is_read_only(tmp_path):
+    # The loader must not create or modify anything under state/ (spec §6.1/3).
+    state = _build_state(tmp_path)
+    _write_pending(
+        state,
+        "2026-06-12",
+        [{"ticker": "AAA", "entry_price": 100.0, "entry_date": "2026-06-09",
+          "qty": 10, "exit_type": "TP1", "sector": "Technology", "entry_score": 88.0}],
+    )
+    _write_metrics(state, "2026-06-12", 12, [{"ticker": "AAA", "pnl": 50.0}])
+    before = {p: p.stat().st_mtime_ns for p in state.rglob("*") if p.is_file()}
+    _load(state)
+    after = {p: p.stat().st_mtime_ns for p in state.rglob("*") if p.is_file()}
+    assert before == after  # same files, same mtimes → nothing written
+
+
+def test_split_samples_invariant3_entry_based_clean(tmp_path):
+    # EARLY: entry Day 4 (distorted predictor) exit Day 11.
+    # LATE:  entry Day 9 (clean) exit Day 12.
+    # Entry-based clean keeps only LATE; the exit-based diagnostic keeps both.
+    state = _build_state(tmp_path)
+    _write_pending(state, "2026-06-05",
+                   [{"ticker": "EARLY", "entry_price": 10.0, "entry_date": "2026-05-29",
+                     "qty": 5, "exit_type": "TP1", "sector": "Energy", "entry_score": 70.0}])
+    _write_pending(state, "2026-06-12",
+                   [{"ticker": "LATE", "entry_price": 10.0, "entry_date": "2026-06-09",
+                     "qty": 5, "exit_type": "TP1", "sector": "Energy", "entry_score": 80.0}])
+    _write_metrics(state, "2026-05-29", 4, [])   # EARLY entry → Day 4 (pre-clean)
+    _write_metrics(state, "2026-06-05", 11, [{"ticker": "EARLY", "pnl": 1.0}])  # EARLY exit Day 11
+    _write_metrics(state, "2026-06-09", 9, [])   # LATE entry → Day 9 (clean)
+    _write_metrics(state, "2026-06-12", 12, [{"ticker": "LATE", "pnl": 2.0}])
+    loaded, _ = _load(state)
+    samples = sa.split_samples(loaded)
+    assert {t.ticker for t in samples["full"]} == {"EARLY", "LATE"}
+    assert {t.ticker for t in samples["clean"]} == {"LATE"}  # entry Day 9+ only (primary)
+    assert {t.ticker for t in samples["clean_exit"]} == {"EARLY", "LATE"}  # exit Day 9+ diag
+
+
+# ---------------------------------------------------------------------------
+# Forward returns
+# ---------------------------------------------------------------------------
+
+
+def test_horizon_return_uses_trading_day_offset():
+    bars = [
+        {"date": "2026-06-09", "close": 100.0},
+        {"date": "2026-06-10", "close": 101.0},
+        {"date": "2026-06-11", "close": 103.0},
+    ]
+    assert sa._horizon_return(bars, "2026-06-09", 1) == pytest.approx(0.01)
+    assert sa._horizon_return(bars, "2026-06-09", 2) == pytest.approx(0.03)
+    assert sa._horizon_return(bars, "2026-06-09", 5) is None  # not enough bars
+
+
+def test_fetch_forward_returns_with_mock_fetcher():
+    trade = sa.Trade(
+        ticker="AAA", entry_date="2026-06-09", entry_price=100.0, entry_score=80.0,
+        sector="Technology", exit_type="TP1", realized_r=0.02,
+    )
+    series = {
+        "AAA": [{"date": "2026-06-09", "close": 100.0}, {"date": "2026-06-10", "close": 110.0}],
+        "XLK": [{"date": "2026-06-09", "close": 50.0}, {"date": "2026-06-10", "close": 51.0}],
+        "SPY": [{"date": "2026-06-09", "close": 400.0}, {"date": "2026-06-10", "close": 404.0}],
+    }
+
+    def fetcher(symbol, from_date, to_date):
+        return series.get(symbol)
+
+    fwd = sa.fetch_forward_returns([trade], fetcher, horizons=(1,))
+    key = ("AAA", "2026-06-09", 1)
+    assert fwd[key]["stock"] == pytest.approx(0.10)
+    assert fwd[key]["sector"] == pytest.approx(0.02)  # XLK 50→51
+    assert fwd[key]["spy"] == pytest.approx(0.01)  # SPY 400→404
+
+
+def test_fetch_forward_returns_skips_horizon_without_bars():
+    trade = sa.Trade(
+        ticker="AAA", entry_date="2026-06-09", entry_price=100.0, entry_score=80.0,
+        sector="Technology", exit_type="TP1", realized_r=0.02,
+    )
+
+    def fetcher(symbol, from_date, to_date):
+        return [{"date": "2026-06-09", "close": 100.0}]  # only entry bar, no +h
+
+    fwd = sa.fetch_forward_returns([trade], fetcher, horizons=(1, 3, 5))
+    assert fwd == {}  # every horizon lacks a forward bar → omitted

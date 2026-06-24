@@ -21,8 +21,13 @@ are DIRECTION only (power < small effect); Day 126 is the first real read.
 from __future__ import annotations
 
 import argparse
+import gzip
+import json
 import math
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Callable
 
 import numpy as np
 
@@ -215,6 +220,340 @@ def recover_entry_score(snapshot_rows: list[dict], ticker: str) -> float | None:
 
 
 # ---------------------------------------------------------------------------
+# Data loader — ledger + Phase 4 snapshots → Trade objects (spec §6.1)
+#
+# Three pinned invariants (Chat, 2026-06-18), enforced here:
+#   1. entry_score (S_j) missing (None or <= 0) → snapshot-recovery for that
+#      ticker/entry_date. Still missing → trade EXCLUDED (reported). The 6
+#      inherited positions' default-0.0 sentinel is NOT a real score; it must
+#      not leak into ρ.
+#   2. exit_type source is EXCLUSIVELY state/pending_exits/{date}.json (the
+#      broker-authoritative ledger). daily_metrics::exit_type is fill-timestamp
+#      based and unreliable until the P1 fix — never read it for exit_type.
+#   3. read-only + report both samples: full Day 1–63 (official gate) and the
+#      Day 9+ clean cut. The clean cut is ENTRY-based (cleans the S_j predictor,
+#      not only the P&L output); an exit-based cut is reported as a diagnostic.
+#
+# Read-only: this loader writes nothing to the trading state.
+# ---------------------------------------------------------------------------
+
+
+CLEAN_SAMPLE_MIN_DAY = 9  # Day 9+ clean sample boundary (spec §4.2/2, §8/3)
+
+
+@dataclass(frozen=True)
+class LoadedTrade:
+    """A closed (position-level) trade plus the bookkeeping for sample splits."""
+
+    trade: Trade
+    entry_day_number: int  # daily_metrics[entry_date].day_number — PRIMARY clean cut
+    exit_date: str  # final leg's pending_exits / daily_metrics file date
+    exit_day_number: int  # daily_metrics[exit_date].day_number — secondary diagnostic
+
+
+@dataclass(frozen=True)
+class Exclusion:
+    """A closed trade dropped from the sample, with the reason (spec §6.1/1)."""
+
+    ticker: str
+    entry_date: str
+    exit_date: str
+    reason: str
+
+
+def _read_json(path: Path) -> object | None:
+    if not path.exists():
+        return None
+    with path.open() as fh:
+        return json.load(fh)
+
+
+def _read_gzip_json(path: Path) -> object | None:
+    if not path.exists():
+        return None
+    with gzip.open(path, "rt") as fh:
+        return json.load(fh)
+
+
+def load_phase4_snapshot(snapshots_dir: Path, date_str: str) -> list[dict] | None:
+    """Load a Phase 4 snapshot (gzipped JSON list) for S_j recovery."""
+    data = _read_gzip_json(snapshots_dir / f"{date_str}.json.gz")
+    return data if isinstance(data, list) else None
+
+
+def resolve_entry_score(record: dict, snapshots_dir: Path) -> float | None:
+    """Invariant #1: take a real entry_score, else recover from the snapshot.
+
+    Returns None when neither the ledger nor the snapshot yields a positive
+    score — the caller then EXCLUDES the trade (sentinels must not leak).
+    """
+    raw = record.get("entry_score")
+    if raw is not None and float(raw) > 0:
+        return float(raw)
+    snap = load_phase4_snapshot(snapshots_dir, record.get("entry_date", ""))
+    recovered = recover_entry_score(snap or [], record.get("ticker", ""))
+    if recovered is not None and recovered > 0:
+        return recovered
+    return None
+
+
+def load_realized(daily_metrics_dir: Path, exit_date: str) -> tuple[dict[str, dict], int | None]:
+    """Return ({ticker: trade-detail}, day_number) from daily_metrics/{date}.json.
+
+    Only the realized P&L (``pnl``) is taken from here — NEVER exit_type
+    (invariant #2). Last detail wins on a same-day duplicate ticker.
+    """
+    data = _read_json(daily_metrics_dir / f"{exit_date}.json")
+    if not isinstance(data, dict):
+        return {}, None
+    details = (data.get("trades") or {}).get("details") or []
+    by_ticker = {d["ticker"]: d for d in details if d.get("ticker")}
+    day_number = data.get("day_number")
+    return by_ticker, (int(day_number) if day_number is not None else None)
+
+
+def load_closed_trades(
+    pending_exits_dir: Path,
+    daily_metrics_dir: Path,
+    snapshots_dir: Path,
+) -> tuple[list[LoadedTrade], list[Exclusion]]:
+    """Build the POSITION-LEVEL closed-trade sample from the ledger.
+
+    A single position can close in several legs (TP1, then TP2/TIME_STOP) — the
+    ledger records one ``pending_exits`` entry per leg, all sharing the same
+    (ticker, entry_date). Per pre-reg condition (b), legs are aggregated into ONE
+    trade: ``realized_r = Σ(leg net pnl) / (entry_price × Σ(leg qty))``. The pnl
+    is broker-authoritative and NET of commission (Option B, P0 §0.11). A position
+    is excluded if its entry_score is unrecoverable (inv #1) or ANY leg's realized
+    P&L is unavailable (no partial-position returns leak in). Returns
+    (loaded, exclusions).
+    """
+    # Group ledger legs by (ticker, entry_date), preserving discovery order.
+    groups: dict[tuple[str, str], list[dict]] = {}
+    order: list[tuple[str, str]] = []
+    for path in sorted(pending_exits_dir.glob("*.json")):
+        records = _read_json(path)
+        if not isinstance(records, list):
+            continue
+        for rec in records:
+            key = (rec.get("ticker", ""), rec.get("entry_date", ""))
+            if key not in groups:
+                groups[key] = []
+                order.append(key)
+            groups[key].append({**rec, "_exit_date": path.stem})
+
+    dm_cache: dict[str, tuple[dict[str, dict], int | None]] = {}
+
+    def _dm(date_str: str) -> tuple[dict[str, dict], int | None]:
+        if date_str not in dm_cache:
+            dm_cache[date_str] = load_realized(daily_metrics_dir, date_str)
+        return dm_cache[date_str]
+
+    loaded: list[LoadedTrade] = []
+    exclusions: list[Exclusion] = []
+
+    for ticker, entry_date in order:
+        legs = groups[(ticker, entry_date)]
+        final_exit = max(leg["_exit_date"] for leg in legs)
+
+        # Invariant #1: a real entry_score on any leg, else snapshot recovery.
+        score = next(
+            (s for s in (resolve_entry_score(leg, snapshots_dir) for leg in legs) if s),
+            None,
+        )
+        if score is None:
+            exclusions.append(
+                Exclusion(ticker, entry_date, final_exit, "entry_score unrecoverable")
+            )
+            continue
+
+        # Condition (b): aggregate realized P&L across ALL legs (position level).
+        total_qty = 0.0
+        total_pnl = 0.0
+        missing_leg = False
+        for leg in legs:
+            by_ticker, _ = _dm(leg["_exit_date"])
+            detail = by_ticker.get(ticker)
+            if detail is None or detail.get("pnl") is None:
+                missing_leg = True
+                break
+            total_qty += float(leg.get("qty") or 0.0)
+            total_pnl += float(detail["pnl"])
+        if missing_leg:
+            exclusions.append(
+                Exclusion(ticker, entry_date, final_exit, "realized pnl unavailable (≥1 leg)")
+            )
+            continue
+
+        entry_price = float(legs[0].get("entry_price") or 0.0)
+        notional = entry_price * total_qty
+        if notional <= 0:
+            exclusions.append(
+                Exclusion(ticker, entry_date, final_exit, "invalid entry notional")
+            )
+            continue
+
+        # exit_type labels the position by its FINAL leg (stratification is
+        # DESCRIPTIVE only, spec §8/2). Drives no decision.
+        final_leg = max(legs, key=lambda leg: leg["_exit_date"])
+        _, entry_day = _dm(entry_date)
+        _, exit_day = _dm(final_exit)
+
+        trade = Trade(
+            ticker=ticker,
+            entry_date=entry_date,
+            entry_price=entry_price,
+            entry_score=score,
+            sector=legs[0].get("sector", ""),
+            exit_type=final_leg.get("exit_type", ""),  # invariant #2: ledger only
+            realized_r=total_pnl / notional,
+        )
+        loaded.append(
+            LoadedTrade(
+                trade=trade,
+                entry_day_number=entry_day if entry_day is not None else 0,
+                exit_date=final_exit,
+                exit_day_number=exit_day if exit_day is not None else 0,
+            )
+        )
+
+    return loaded, exclusions
+
+
+def split_samples(
+    loaded: list[LoadedTrade], clean_min_day: int = CLEAN_SAMPLE_MIN_DAY
+) -> dict[str, list[Trade]]:
+    """Invariant #3: report both the full and the clean samples.
+
+    - ``full``       — Day 1–63, the official pre-registered gate (bug-distorted).
+    - ``clean``      — PRIMARY clean cut: ENTRY day-number ≥ 9. The early
+      distortion is two-sided (it corrupts the daily P&L tracking AND the entry
+      selection / S_j via stale Phase 1–3 context). Filtering on the entry day
+      cleans the predictor too, and is a strict subset of an exit-based cut.
+    - ``clean_exit`` — secondary diagnostic: EXIT day-number ≥ 9 (output-only).
+    """
+    full = [lt.trade for lt in loaded]
+    clean = [lt.trade for lt in loaded if lt.entry_day_number >= clean_min_day]
+    clean_exit = [lt.trade for lt in loaded if lt.exit_day_number >= clean_min_day]
+    return {"full": full, "clean": clean, "clean_exit": clean_exit}
+
+
+# ---------------------------------------------------------------------------
+# Forward returns — Polygon daily bars (ticker, sector-ETF, SPY)
+#
+# Runs live only at Day 63; injected ``bar_fetcher`` keeps it unit-testable.
+# A SimpleBar is {"date": "YYYY-MM-DD", "close": float}, sorted ascending.
+# ---------------------------------------------------------------------------
+
+
+# Reuses the production map so sector names stay in sync (spec §6 input).
+SECTOR_TO_ETF = {
+    "Technology": "XLK",
+    "Financial Services": "XLF",
+    "Energy": "XLE",
+    "Healthcare": "XLV",
+    "Industrials": "XLI",
+    "Consumer Defensive": "XLP",
+    "Consumer Cyclical": "XLY",
+    "Basic Materials": "XLB",
+    "Communication Services": "XLC",
+    "Real Estate": "XLRE",
+    "Utilities": "XLU",
+}
+
+SPY = "SPY"
+
+# A fetcher maps (ticker, from_date, to_date) → ascending SimpleBars (or None).
+BarFetcher = Callable[[str, str, str], "list[dict] | None"]
+
+
+def _horizon_return(bars: list[dict], entry_date: str, h: int) -> float | None:
+    """Return close[entry+h]/close[entry] − 1 using trading-day offsets.
+
+    ``entry`` is the first bar on/after ``entry_date``. Returns None when the
+    bars don't reach +h trading days (e.g. a very recent entry near Day 63).
+    """
+    if not bars:
+        return None
+    entry_idx = next((i for i, b in enumerate(bars) if b["date"] >= entry_date), None)
+    if entry_idx is None or entry_idx + h >= len(bars):
+        return None
+    c0 = bars[entry_idx]["close"]
+    ch = bars[entry_idx + h]["close"]
+    if c0 <= 0:
+        return None
+    return ch / c0 - 1.0
+
+
+def fetch_forward_returns(
+    trades: list[Trade], bar_fetcher: BarFetcher, horizons: tuple[int, ...] = HORIZONS
+) -> dict:
+    """Build the ``{(ticker, entry_date, h): {stock, sector, spy, beta}}`` map.
+
+    For each trade fetches the ticker, its sector-ETF and SPY daily bars from
+    the entry date forward, then computes per-horizon returns. A horizon with
+    no usable stock return is omitted (run_attribution skips it). beta=1.0
+    (L2_beta is diagnostic only; per-stock beta is out of scope for Day 63).
+    """
+    max_h = max(horizons)
+    # +10 calendar days of buffer comfortably covers max_h trading days.
+    out: dict = {}
+    bar_cache: dict[tuple[str, str], list[dict] | None] = {}
+
+    def _bars(symbol: str, from_date: str) -> list[dict] | None:
+        key = (symbol, from_date)
+        if key not in bar_cache:
+            to_date = _add_calendar_days(from_date, max_h * 2 + 10)
+            bar_cache[key] = bar_fetcher(symbol, from_date, to_date)
+        return bar_cache[key]
+
+    for t in trades:
+        etf = SECTOR_TO_ETF.get(t.sector)
+        stock_bars = _bars(t.ticker, t.entry_date)
+        sector_bars = _bars(etf, t.entry_date) if etf else None
+        spy_bars = _bars(SPY, t.entry_date)
+        for h in horizons:
+            stock_ret = _horizon_return(stock_bars or [], t.entry_date, h)
+            if stock_ret is None:
+                continue
+            sector_ret = _horizon_return(sector_bars or [], t.entry_date, h)
+            spy_ret = _horizon_return(spy_bars or [], t.entry_date, h)
+            out[(t.ticker, t.entry_date, h)] = {
+                "stock": stock_ret,
+                "sector": sector_ret if sector_ret is not None else 0.0,
+                "spy": spy_ret if spy_ret is not None else 0.0,
+                "beta": 1.0,
+            }
+    return out
+
+
+def _add_calendar_days(date_str: str, days: int) -> str:
+    d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    return (d + timedelta(days=days)).isoformat()
+
+
+def polygon_bar_fetcher(client) -> BarFetcher:  # pragma: no cover — live Polygon at Day 63
+    """Adapt a PolygonClient to the BarFetcher interface (SimpleBars)."""
+
+    def _fetch(symbol: str, from_date: str, to_date: str) -> list[dict] | None:
+        results = client.get_aggregates(symbol, from_date, to_date)
+        if not results:
+            return None
+        bars = []
+        for r in results:
+            ts = r.get("t")
+            close = r.get("c")
+            if ts is None or close is None:
+                continue
+            d = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).date().isoformat()
+            bars.append({"date": d, "close": float(close)})
+        bars.sort(key=lambda b: b["date"])
+        return bars or None
+
+    return _fetch
+
+
+# ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
 
@@ -286,7 +625,9 @@ def run_attribution(trades: list[Trade], fwd_returns: dict) -> dict:
     return report
 
 
-def render_report(report: dict, as_of: str, smoke: bool) -> str:
+def render_report(
+    report: dict, as_of: str, smoke: bool, exclusions: list[Exclusion] | None = None
+) -> str:
     L: list[str] = []
     L.append(f"# Signal-isolating attribution — {as_of}")
     L.append("")
@@ -297,6 +638,13 @@ def render_report(report: dict, as_of: str, smoke: bool) -> str:
             "(|ρ|≈0.36–0.38 detectable). This run validates the pipeline, not the signal."
         )
         L.append("")
+    L.append(
+        "_Realized return basis: `realized_r = Σ(leg net pnl) / (entry_price × Σ(leg qty))` "
+        "— position-level aggregate (TP1/TP2 legs blended), broker-authoritative and "
+        "NET of commission (Option B, P0 §0.11). Spearman primary metric → log-vs-simple "
+        "and the commission basis do not move the rank correlation._"
+    )
+    L.append("")
     p = report.get("primary")
     if p:
         excl = "EXCLUDES 0" if p["excludes_zero"] else "contains 0"
@@ -328,21 +676,61 @@ def render_report(report: dict, as_of: str, smoke: bool) -> str:
             f"CI [{l2['ci_low']:+.3f},{l2['ci_high']:+.3f}]"
         )
     L.append("")
+    if exclusions:
+        L.append(f"## Exclusions ({len(exclusions)}) — §6.1/1")
+        for e in exclusions:
+            L.append(f"- {e.ticker} (entry {e.entry_date}, exit {e.exit_date}): {e.reason}")
+        L.append("")
     L.append(
         "_Spec: docs/foundational/strategic-review/2026-06-10-signal-isolating-attribution-spec.md_"
     )
     return "\n".join(L)
 
 
+_STATE = Path("state")
+_OUT_DIR = Path("docs/analysis")
+
+
 def main() -> None:  # pragma: no cover — I/O orchestration, runs at Day 63
+    import os
+
     parser = argparse.ArgumentParser(description="Signal-isolating attribution test")
     parser.add_argument("--as-of", default="today", help="evaluation date label")
-    parser.add_argument("--smoke", action="store_true", help="n=14 plumbing run")
-    parser.parse_args()
-    raise SystemExit(
-        "Data-loading (ledger + Phase 4 snapshots + Polygon bars) wires in at Day 63; "
-        "the tested pure-computation core (run_attribution/correlate_with_ci/...) is ready now."
+    parser.add_argument("--smoke", action="store_true", help="plumbing run (n<40 → NOT EVIDENCE)")
+    parser.add_argument("--state-dir", default=str(_STATE), help="trading state root (read-only)")
+    parser.add_argument("--out-dir", default=str(_OUT_DIR), help="report output directory")
+    args = parser.parse_args()
+
+    state = Path(args.state_dir)
+    loaded, exclusions = load_closed_trades(
+        state / "pending_exits",
+        state / "daily_metrics",
+        state / "phase4_snapshots",
     )
+    samples = split_samples(loaded)
+
+    api_key = os.environ.get("IFDS_POLYGON_API_KEY")
+    if not api_key:
+        raise SystemExit(
+            f"Loaded {len(loaded)} trades ({len(exclusions)} excluded). "
+            "Set IFDS_POLYGON_API_KEY to fetch forward returns and render the report."
+        )
+
+    from ifds.data.cache import FileCache
+    from ifds.data.polygon import PolygonClient
+
+    client = PolygonClient(api_key=api_key, cache=FileCache())
+    fetcher = polygon_bar_fetcher(client)
+
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for label, trades in samples.items():
+        fwd = fetch_forward_returns(trades, fetcher)
+        report = run_attribution(trades, fwd)
+        md = render_report(report, f"{args.as_of} ({label})", args.smoke, exclusions)
+        path = out_dir / f"signal-attribution-{args.as_of}-{label}.md"
+        path.write_text(md)
+        print(f"[{label}] n={len(trades)} → {path}")
 
 
 if __name__ == "__main__":

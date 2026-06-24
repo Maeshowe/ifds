@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-06-24 — signal_attribution data-loader wiring (spec §6.1, freeze-safe)
+
+> A `signal_attribution` Day-63 eszköz adat-betöltő rétege. Read-only analízis,
+> semmit nem ír a trading state-be. Pre-reg döntések Chat-jóváhagyással
+> (`realized_r` képlet + entry-alapú clean cut). Adat-coverage finding:
+> `docs/analysis/signal-attribution-data-coverage-2026-06-24.md`.
+
+### feat(analysis) — ledger → Trade loader + dual-sample wiring
+- `load_closed_trades` a `state/pending_exits/*.json` ledgerből épít, **pozíció-szintű
+  aggregálással** `(ticker, entry_date)`-re: a TP1+TP2/TIME_STOP lábak EGY trade-be
+  blendelődnek, `realized_r = Σ(leg net pnl) / (entry_price × Σ(leg qty))` (broker-
+  authoritative, NET commission — Option B, P0 §0.11). Per-leg double-count kizárva.
+- **§6.1 három invariáns**: (1) `entry_score ≤ 0` → Phase 4 snapshot-recovery, ha az
+  sem adja → kizárás (a 0.0 sentinel sosem szivárog a ρ-ba); (2) `exit_type` KIZÁRÓLAG
+  a ledgerből (a `daily_metrics::exit_type` fill-timestamp-alapú, megbízhatatlan);
+  (3) read-only + kettős minta.
+- **Clean cut entry-alapú** (`entry_day_number ≥ 9`, primary) — a korai szennyezés
+  kétoldali (P&L-tracking ÉS az S_j prediktor stale Phase 1-3 kontextusból); az
+  entry-szűrő a prediktort is tisztítja. Exit-alapú cut diagnosztikaként riportolva
+  (`clean_exit`). A `full` Day 1-63 marad a hivatalos kapu (§4.2/2).
+- `fetch_forward_returns` injektálható `bar_fetcher`-rel (unit-tesztelhető); Polygon
+  factory az éles Day-63 futáshoz (ticker, szektor-ETF, SPY napi bar).
+- `main()`: load → split → fetch → `run_attribution` → 3 riport (`full`/`clean`/
+  `clean_exit`) `docs/analysis/signal-attribution-{date}-{label}.md`-be.
+- **Adat-coverage**: 28 leg → 20 pozíció → **12 included, 8 excluded** (pre-06-09
+  early exit-ek, per-trade realized P&L nem rekonstruálható; recovery megkísérelve,
+  trades CSV megbízhatatlan). Go-forward rés ZÁRVA (06-09 `_build_trades_details` fix).
+- +11 teszt (`test_signal_attribution.py`, össz. 25). **1981 passing.**
+
 ## 2026-06-09 — daily_metrics execution fix: IBKR fill slippage + trades.details MOC (P1+P2)
 
 > Day 16 review findings (`docs/tasks/2026-06-09-daily-metrics-execution-fix.md`).
