@@ -569,6 +569,19 @@ signal_attribution wiring)**:
 újraszámolandó. **Owner**: Dev-chat (a fix), CC (implementáció ha jóváhagyva — read-only
 tooling, freeze-safe). Day 63 edge-audit input.
 
+**Guardrailek a fix felvételekor (Chat, 2026-06-27 — freeze-guardrail):**
+1. **Aszimmetria explicit**: a swing-only újraszámolás **leíró marad, gate-input
+   SOHA nem lesz** — és a visszavonás **független attól, mit mutat a swing-only**. A
+   mostani hiba egy negatív-irányú hamis pozitív; a **tükörveszély** az, hogy egy
+   később *pozitív* swing-only korreláció „edge-bizonyítékként" csússzon a Day 63-ba.
+   Az **ugyanúgy inadmissibilis** a kapuba, mint a mostani negatív. A pre-reg út
+   **kizárólag** a `signal_attribution.py` (3 pinned invariáns, `c5e9ed0`); ez itt
+   csak leíró kiegészítő, iránytól függetlenül.
+2. **Vékony n + CI-fegyelem**: n≈53 swing exit vékony, és a clean-sample boundary
+   (entry-day ≥9) után még kevesebb. Bármilyen korreláció **széles CI-vel** jön — a
+   leíró read **CI/Bonferroni-kontextussal**, túl-interpretálás nélkül. Ez a
+   „signal-validity language banned Day 63-ig" elv közvetlen alkalmazása.
+
 ---
 
 ## 7. Mit NEM csinálunk (és miért)
