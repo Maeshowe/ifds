@@ -524,6 +524,53 @@ A MID — Macro Intelligence Dashboard napi shadow snapshot-okat produkál. A sw
 
 ---
 
+### 6.6 ⚠️ `scoring_validation.py` legacy+swing pooling + félrevezető „Evidence of alpha" (Day 63 edge-input, FIX szükséges)
+
+**Eredet**: Tamás 2026-06-27, a 2026-06-26-i `scoring_validation.py` futás kritikai
+olvasata. A finding **verifikálva** a tényleges `docs/analysis/scoring-validation.md`
+kimenet ellen (CC, 2026-06-27).
+
+**Probléma 1 — a riport legacy + swing adatot KEVER, nem swing-validáció.**
+A saját kimenetében a bizonyíték:
+- **458 trade / „70 trading days"** (Summary) — DE a fejléc **„28 trading days"**
+  (belső inkonzisztencia, ugyanaz a pooling-ellentmondás, mint 06-12-n). A swing-éra
+  csak ~28 nap.
+- **Legacy-only exit-típusok** a §6-ban: `MOC` 332, `LOSS_EXIT` 47, `NUKE` 9, `SL` 17
+  (= ~405 legacy intraday). A swing exitjei: `TP1` 41 + `TP2` 5 + `TRAIL` 7 = **~53**
+  (a swing nem használ LOSS_EXIT/NUKE/SL/MOC-ot — TIME_STOP/MENTAL_SL/TP1/TP2/TRAIL).
+- **Score range 0–142.5** — a 142.5 legacy; a swing S_j-skálája ~75–105.
+
+**Probléma 2 — a §5 „Evidence of alpha" konklúzió KÉTSZERESEN félrevezető.**
+- A §5 maga írja: **score vs excess Pearson = −0.151\*\*** (p=0.001) — **NEGATÍV**.
+  A negatív korreláció = magasabb score → **rosszabb** excess-hozam = a **„magas
+  pontszám paradoxon"** (lásd [§5.1](#51-a-magas-pontszám-paradoxon)), NEM pozitív
+  alpha. Az auto-generált „Evidence of alpha" felirat egy negatív együtthatóra hibás:
+  a market-neutral excess-szel való korreláció *léte* ≠ kedvező *iránya*.
+- Megerősíti a **§2 kvintilis**: a **Q5 (legmagasabb score, 94.5–142.5) a legrosszabb**
+  — Total P&L **−$566.81**, win rate **42.4%** (a legalacsonyabb), miközben a Q2
+  (közepes) pozitív (+$23.97, 54.3%). Tankönyvi high-score paradox, nem alpha.
+
+**Következmény Day 63-ra**: a fájl jelen formájában **NEM használható** a swing-rendszer
+jel-érvényességi inputjaként, és az „Evidence of alpha" felirat **NEM propagálható** a
+Day 63 döntésbe (épp a fordított veszély áll fenn: egy auto-felirat hamis pozitív
+benyomást kelt). A `signal_attribution.py` a **pre-regisztrált út** (spec §6.1, a 3
+invariáns pinned, `c5e9ed0`); a `scoring_validation.py` ennek csak **leíró kiegészítője**.
+
+**Javasolt fix (Dev-chat, freeze-safe — read-only analízis-tooling, mint a
+signal_attribution wiring)**:
+1. **Swing-only szűrő**: `entry_date >= 2026-05-18` ÉS/VAGY `exit_type ∈
+   {TIME_STOP, MENTAL_SL, TP1, TP2, TRAIL}`; a `LOSS_EXIT/NUKE/SL/MOC`-legacy kizárva.
+   Csak így ad tiszta swing-attribúciót a Day 63 edge-audithoz.
+2. **Irány-tudatos konklúzió-felirat**: negatív koeff → „high-score paradox", nem
+   „Evidence of alpha". A felirat ne pusztán a korreláció létét, hanem az irányát nézze.
+3. **A 28-vs-70 nap fejléc/Summary inkonzisztencia** javítása.
+
+**Status**: a jelenlegi pooled „alpha"-állítás **VISSZAVONVA**; swing-only szűrővel
+újraszámolandó. **Owner**: Dev-chat (a fix), CC (implementáció ha jóváhagyva — read-only
+tooling, freeze-safe). Day 63 edge-audit input.
+
+---
+
 ## 7. Mit NEM csinálunk (és miért)
 
 | Korábbi terv | Akció | Indoklás |
