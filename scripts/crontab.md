@@ -97,6 +97,11 @@
 # 22:15 Budapest = 16:15 EDT (5 perccel a metrics után, mielőtt Tamás review jön)
 15 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/reconcile_state.py
 
+# Daily review-data aggregátum (1a) — Chat napi review inputja
+# 22:20 Budapest = 16:20 EDT (a reconcile UTÁN, hogy a state settled; review_data → sync a MacBookra)
+# Csak az 1a (determinisztikus aggregátor, lokális fájlokból); az 1c cross-check az IBKR MCP-t igényli → CC-kézi lépés. Hozzáadva 2026-07-10.
+20 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/generate_review_data.py
+
 # Events → SQLite import (log elemzéshez)
 # 22:45 Budapest = 16:45 EDT
 45 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/tools/events_to_sqlite.py
