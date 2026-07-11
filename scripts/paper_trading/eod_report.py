@@ -282,6 +282,104 @@ def build_trade_report(executions, meta, pnl_by_symbol=None):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Ledger-sourced trade report (P1 fix 2026-07-11) — authoritative, not fills
+#
+# The fill-reconstruction build_trade_report() (a) mis-pairs a same-day re-entry
+# (self-reentry: the new BUY basis paired with the OLD position's exit), (b)
+# misses exits outside the eod-fills fetch window, and (c) carries plan-metadata
+# (score/sector) + a hardcoded "MOC" exit_type. This builder sources each row
+# from the authoritative ledgers instead:
+#   - exit list + exit_type + entry_score + sector → state/pending_exits/{date}.json
+#   - entry basis + exit + realized P&L + commission → daily_metrics::trades::details
+#   - sl/tp levels → swing_positions (only for still-open partial-exit tickers)
+# Display/tracking only: feeds the CSV + Telegram display, NOT cumulative_pnl.json
+# (record_pending_exits is the sole writer) nor daily_metrics::details.
+# ---------------------------------------------------------------------------
+
+
+STATE_DIR = Path(__file__).resolve().parents[2] / "state"
+
+
+def _read_processed_exits(target_date: str) -> list[dict]:
+    """Processed swing exits for the date from the broker-authoritative ledger."""
+    path = STATE_DIR / "pending_exits" / f"{target_date}.json"
+    if not path.exists():
+        return []
+    with open(path) as f:
+        entries = json.load(f)
+    return [e for e in entries if e.get("processed")]
+
+
+def _details_by_ticker(target_date: str) -> dict:
+    """daily_metrics trades.details keyed by ticker (broker-authoritative P&L)."""
+    path = STATE_DIR / "daily_metrics" / f"{target_date}.json"
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        dm = json.load(f)
+    details = (dm.get("trades") or {}).get("details") or []
+    return {d["ticker"]: d for d in details if d.get("ticker")}
+
+
+def _levels_by_ticker() -> dict:
+    """Current swing_positions keyed by ticker — for sl/tp of still-open partials."""
+    path = STATE_DIR / "swing_positions.json"
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        data = json.load(f)
+    positions = data.get("positions", data) if isinstance(data, dict) else data
+    return {p["ticker"]: p for p in positions if p.get("ticker")}
+
+
+def build_trade_report_from_ledger(processed_exits, details_by_ticker, levels_by_ticker, today_str):
+    """Build the daily trade CSV rows from authoritative ledgers (P1 fix).
+
+    One row per processed swing exit. entry/exit/P&L come from the
+    broker-authoritative daily_metrics detail; exit_type/entry_score/sector from
+    the pending_exits ledger (the daily_metrics exit_type is fill-timestamp based
+    and unreliable). A same-day re-entry is NOT an exit, so it never becomes a row.
+    """
+    trades = []
+    for exit_rec in processed_exits:
+        if exit_rec.get("processed") is False:  # defensive: only settled exits
+            continue
+        ticker = exit_rec.get("ticker")
+        detail = details_by_ticker.get(ticker)
+        if detail is None or detail.get("pnl") is None:
+            logger.warning("trade CSV: no broker detail for %s exit — row skipped", ticker)
+            continue
+        qty = int(exit_rec.get("qty") or detail.get("qty") or 0)
+        entry_price = round(float(detail["entry"]), 2)
+        exit_price = round(float(detail["exit"]), 2)
+        pnl = round(float(detail["pnl"]), 2)
+        notional = entry_price * qty
+        pnl_pct = round(pnl / notional * 100, 2) if notional else 0.0
+        levels = levels_by_ticker.get(ticker, {})
+        trades.append(
+            {
+                "date": today_str,
+                "ticker": ticker,
+                "direction": "LONG",
+                "entry_price": entry_price,
+                "entry_qty": qty,
+                "exit_price": exit_price,
+                "exit_qty": qty,
+                "exit_type": exit_rec.get("exit_type", ""),  # ledger-authoritative
+                "pnl": pnl,
+                "pnl_pct": pnl_pct,
+                "commission": round(float(detail.get("commission") or 0), 2),
+                "score": exit_rec.get("entry_score", 0) or 0,  # entry-time, not plan
+                "sector": exit_rec.get("sector", "N/A") or "N/A",
+                "sl_price": round(float(levels.get("stop_level") or 0), 2),
+                "tp1_price": round(float(levels.get("tp1_level") or 0), 2),
+                "tp2_price": round(float(levels.get("tp2_level") or 0), 2),
+            }
+        )
+    return trades
+
+
 def save_daily_csv(trades, today_str):
     """Save daily trade CSV."""
     Path(LOG_DIR).mkdir(parents=True, exist_ok=True)
@@ -661,46 +759,35 @@ def main():
 
     ib = connect(client_id=12)
     account = get_account(ib)
-
-    # --- Query today's executions ---
-    executions = ib.fills()
-
-    # Filter to today
     today_date = date.today()
-    todays_fills = [e for e in executions if e.execution.time.date() == today_date]
 
-    # Portfolio P&L for MOC closes (entry on previous day, orderRef='')
-    portfolio = ib.portfolio()
-    pnl_by_symbol = {
-        item.contract.symbol: item.realizedPNL for item in portfolio if item.realizedPNL != 0.0
-    }
+    # --- Daily trade report (ledger-sourced, P1 fix 2026-07-11) ---
+    # Source the CSV from the authoritative ledgers (pending_exits +
+    # daily_metrics::details + swing_positions), NOT clientId-12 ib.fills() — those
+    # miss cross-client MOC exits and mis-pair same-day re-entries (the root cause
+    # of the trades_*.csv corruption). Runs unconditionally (independent of fills).
+    # Display/tracking only; does NOT feed cumulative_pnl.json (record_pending_exits
+    # is the sole writer) nor daily_metrics::details.
+    trades = build_trade_report_from_ledger(
+        _read_processed_exits(today_str),
+        _details_by_ticker(today_str),
+        _levels_by_ticker(),
+        today_str,
+    )
 
-    if not todays_fills:
-        logger.info("No fills today")
-        # Still cancel orders and update P&L with empty trades
-        trades = []
+    # Trade summary — augment with the persisted (cross-client authoritative) count.
+    _persisted_block = load_persisted_trades_block(today_str)
+    if _persisted_block is not None:
+        logger.info(
+            f"Trades(ledger): {len(trades)} | persisted: {len(_persisted_block['details'])}"
+        )
     else:
-        # Load execution plan metadata
-        meta = load_execution_plan_metadata(today_str)
-
-        # Build trade report (pnl_by_symbol handles MOC closes with orderRef='')
-        trades = build_trade_report(todays_fills, meta, pnl_by_symbol=pnl_by_symbol)
-
-        # Print trade summary — augment with the persisted (cross-client
-        # authoritative) count; clientId-12 fills miss 21:40/cross-client MOC.
-        _persisted_block = load_persisted_trades_block(today_str)
-        if _persisted_block is not None:
-            logger.info(
-                f"Trades(eod-fills): {len(trades)} | "
-                f"persisted: {len(_persisted_block['details'])}"
-            )
-        else:
-            logger.info(f"Trades: {len(trades)}")
-        for t in trades:
-            pnl_sign = "+" if t["pnl"] >= 0 else ""
-            logger.info(
-                f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}"
-            )
+        logger.info(f"Trades: {len(trades)}")
+    for t in trades:
+        pnl_sign = "+" if t["pnl"] >= 0 else ""
+        logger.info(
+            f"  {t['ticker']}: {t['exit_type']} | Entry ${t['entry_price']} → Exit ${t['exit_price']} | P&L {pnl_sign}${t['pnl']}"
+        )
 
     # --- Save daily CSV ---
     if trades:
