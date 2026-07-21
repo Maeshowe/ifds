@@ -1,4 +1,4 @@
-Status: OPEN
+Status: WIP
 Updated: 2026-07-21
 Note: Freeze-safe (read-only elemző-tooling, signal_attribution-wiring precedens). Production kódot NEM érint. Spec: docs/design/2026-07-21-factor-research-loop-spec.md (§4, §11). R1#1: a task KÉT fázisú — A-fázis (FRL-0 kapu) önállóan fut és jelent, a B-fázis (loader-build) KIZÁRÓLAG a GO-verdikt után indulhat.
 
@@ -102,8 +102,111 @@ Tesztek (`tests/test_frl_loader.py`):
 
 `feat(research): FRL cross-section loader + score-semantics audit (freeze-safe, read-only)`
 
-## Eredmény (a végrehajtás tölti)
+## Eredmény — FRL-0 kapu-riport (2026-07-21, CC)
 
-- V1 válaszok: …
-- V2 polygon-cache: …
-- V3 keresztvalidáció: …
+### VERDIKT: **GO** — egy kötelező scope-módosítással (a JSONL nem score-validátor a swing-érában)
+
+A swing-érás kanonikus score-oszlop **azonosított, éra-konzisztens és NEM degenerált**.
+A `full_scan_matrix.Total_Score` a swing-érában a **swing S_j EWMA(5)** érték; a
+"115/257" nem adathiba, hanem az előjeles S_j-eloszlás nulla körüli centrálása.
+
+### V1/1 — Mit tartalmaz a `Total_Score` érá-nként (kódból verifikálva)
+
+`write_full_scan_matrix` ([execution_plan.py:203](src/ifds/output/execution_plan.py#L203)):
+`Total_Score = round(stock.combined_score, 2)` — a Phase 4 **futás VÉGI** állapota.
+A `_apply_swing_scoring` ([phase4_stocks.py:110](src/ifds/phases/phase4_stocks.py#L110))
+felülírja a `combined_score`-t az EWMA-simított S_j-vel **minden candidate**-en (= minden
+ticker, ami a strukturális filtereket túlélte), és ez a hívás **megelőzi** a CSV-írást
+(run_phase4 vége, [runner.py:428](src/ifds/pipeline/runner.py#L428)). Mindkét kódúton
+(sync 481, async 1663) azonos.
+
+| Éra | `Total_Score` jelentése | Skála | Granularitás |
+|---|---|---|---|
+| legacy (≤05-15) | legacy kompozit `0.60·Flow + 0.10·Funda + 0.30·Tech + sector_adj` | ~0…108, ritkán kis negatív | **100% .0/.5 rács** |
+| swing (≥05-18) | `EWMA₅(100·(PCR_pct − OTM_pct) + sector_adj)` | −125…+107 | **54-61% folytonos** |
+
+**A két éra skálája és eloszlása inkompatibilis** → a spec **G5 éra-bontása nem
+opcionális, hanem matematikai kényszer**. Pooled IC éra-bontás nélkül értelmetlen.
+
+### V1/2 — Miért `Total_Score > 0` csak 115 a 257 pontozottból (07-20)
+
+**Megoldva, nem bug.** A 433 sor bontása: **176 tech_filter** (SMA200 alatt → a ticker
+soha nem került scoringba, `combined_score` marad a 0 default) + **257 scored** (250
+`swing_score` reject + 7 ACCEPTED). A 257-en belül 115 pozitív / 142 negatív — pontosan
+az, amit egy percentilis-**különbség** jeltől várunk (medián ≈ 0).
+
+Gépi bizonyíték mind a 4 mintanapon: a `Total_Score == 0` halmaz **pontosan egyenlő** a
+`Tech Filter (Price < SMA200)` halmazzal (551/551, 357/357, 258/258, 176/176).
+→ **Loader-szabály:** a 0-értékű tech_filter sorok **NEM faktorérték-nullák**, hanem
+hiányzó megfigyelések → az IC-panelből `NaN`-ként kizárandók, nem 0-ként bevonva.
+(Ez lett volna a dp_pct-strukturális-nulla harmadik előfordulása, ha 0-ként kerül be.)
+
+### V1/3 — Mit logol a `TICKER_SCORED` a swing-érában
+
+**A legacy kompozitot, a swing-rescore ELŐTT** — kódból ([phase4_stocks.py:396](src/ifds/phases/phase4_stocks.py#L396)
+sync, [1573](src/ifds/phases/phase4_stocks.py#L1573) async: az emitter a legacy
+min_score/clipping ág `else`-ében ül, a `_apply_swing_scoring` jóval később fut).
+Empirikusan: a JSONL score-tartomány mind a 4 napon **70.00–95.00, 100% .0/.5 rács**
+(= a legacy `min_score=70` / `clipping=95` kapu), miközben a CSV −99…+88 folytonos.
+
+**Ez a handoffban jelzett (b) gyanú megerősítve — de ártalmatlan, mert a CSV a kanonikus.**
+Következmény a scope-ra: **a JSONL a swing-érában NEM használható score-validátornak**
+(más mennyiséget mér), és ráadásul **torzított részhalmaz** (csak a legacy-passed ~50-90
+ticker, nem a teljes 257-es keresztmetszet). A loader JSONL-rétege ezért:
+- legacy éra: valódi score-cross-check (lásd V3);
+- swing éra: **kizárólag** ticker-halmaz-lefedettség és `TICKER_FILTERED` kizárási-ok
+  forrás — score-egyezést tilos elvárni (különben hamis riasztás).
+
+### V3 — CSV ↔ JSONL keresztvalidáció (3+1 mintanap)
+
+| Nap | Éra | CSV sor | TICKER_SCORED | JSONL ⊆ CSV | Score-egyezés | JSONL tartomány |
+|---|---|---|---|---|---|---|
+| 2026-04-15 | legacy | 1372 | 138 | ✅ | **138/138** | 70.0–93.0 (.0/.5) |
+| 2026-06-25 | swing | 876 | 176 | ✅ | 0/176 *(várt)* | 70.0–94.0 (.0/.5) |
+| 2026-07-14 | swing | 653 | 90 | ✅ | 0/90 *(várt)* | 70.0–94.5 (.0/.5) |
+| 2026-07-20 | swing | 433 | 50 | ✅ | 0/50 *(várt)* | 70.0–95.0 (.0/.5) |
+
+A legacy napon **tökéletes egyezés** (a két sink ugyanazt a mennyiséget írja) — ez
+validálja magát a keresztvalidációs módszert. A swing napok 0%-os egyezése a V1/3
+kódolvasat közvetlen empirikus visszaigazolása, nem inkonzisztencia.
+04-15 megjegyzés: a `phase4_snapshot` aznapi mock-pollúciója a CSV-t **nem érinti**
+(1372 valós sor, 138 ACCEPTED).
+
+### Teljes 102-napos éra-sweep (degeneráció-keresés)
+
+| Éra | Napok | Σsor (átl.) | Pontozott (átl.) | ACCEPTED (átl.) | Negatív score (átl.) | Folytonos-arány |
+|---|---|---|---|---|---|---|
+| legacy (02-11→05-15) | 66 | 1324 | 861 | 275 | 1.6 | 0.00 |
+| swing (05-18→07-20) | 36 | 759 | 425 | 34 | 216 | 0.43–0.61 |
+
+**Éra-határ empirikusan tiszta:** 05-15 az utolsó .0/.5-rácsos nap, 05-18 az első
+folytonos + `swing_score` reason-os nap; átmeneti/kevert nap **nincs**.
+**Degenerált swing-nap: 0** (nincs olyan nap, ahol a folytonos-arány < 0.2 vagy hiányzik
+a `swing_score` reason). A 05-20-i univerzum-zsugorodás (1479 → 329 sor) valós
+univerzum-váltás, nem adathiba — a loader panel-lefedettségi riportjában megjelenítendő.
+
+### V2 — Mini polygon-cache: **ÜRES** (negatív lelet)
+
+`ssh ifds-mini du -sh ~/SSH-Services/ifds/data/cache` → **0B**, `data/cache/polygon` 0 fájl.
+A lokális MacBook-cache is 16K (gyakorlatilag üres). → **A return-mátrix forrása a Polygon API.**
+
+**Költség-optimalizáció (új lelet, a taskban nem szerepelt):** a
+`PolygonClient.get_grouped_daily(date)` ([polygon.py:113](src/ifds/data/polygon.py#L113))
+EGY hívásban adja a teljes US piac napi OHLCV-jét, és **cache-elt**. A return-mátrix így
+~**110-130 hívásból** (nap/hívás) felépíthető a ~1500 ticker × per-ticker aggregates
+helyett. A loader ezt használja elsődlegesen, `get_aggregates` fallbackkel.
+
+### Következmények a B-fázisra (kötelezően kódolandó)
+
+1. `Total_Score == 0` ∧ `Reason` = Tech Filter → **NaN**, nem 0 (faktor-panel).
+2. Éra-oszlop kötelező; **pooled score-faktor tilos** (skála-inkompatibilitás).
+3. JSONL-validátor: score-egyezés csak legacy érán; swing érán ticker-lefedettség +
+   `TICKER_FILTERED` ok — a diff-riport ezt éra-függően értékeli.
+4. Return-mátrix: `get_grouped_daily` napi-loop + cache; `research/cache/returns.parquet`.
+5. A swing score **EWMA(5)-simított** és **kereszmetszeti percentilis-alapú**, változó
+   univerzumon (144–830 pontozott/nap) → a faktor auto-korrelált (a half-life mérés ezt
+   a simítást méri, nem csak a nyers jel perzisztenciáját) — a riportban jelölendő.
+
+### Nyitott (nem blokkoló)
+
+- V4 (legacy phase4_snapshot mock-szűrő) — csak ha a snapshot forrásként bejön; most nem.

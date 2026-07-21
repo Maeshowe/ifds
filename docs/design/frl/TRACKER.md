@@ -63,9 +63,9 @@ S6  FRL-5 enrichment sink — build+teszt bármikor, DEPLOY csak D_A után + Tam
 
 | Lépés | Fázis | Státusz | Task | Commit | Megjegyzés |
 |---|---|---|---|---|---|
-| S0 | — | TODO | — | — | spec + 4 task untracked |
-| S1 | FRL-0 | WIP | `frl-scan-matrix-loader` (A-fázis) | — | kapu-riport → GO/STOP |
-| S2 | FRL-1 | TODO | `frl-scan-matrix-loader` (B-fázis) | — | S1 GO-ra vár |
+| S0 | — | DONE | — | `a7e186f`, `6457abe`, `30b948c` | spec+task a másik session commitolta; tracker: `30b948c` |
+| S1 | FRL-0 | **DONE — GO** | `frl-scan-matrix-loader` (A-fázis) | — | kapu-riport a task §Eredmény-ben |
+| S2 | FRL-1 | WIP | `frl-scan-matrix-loader` (B-fázis) | — | 5 kötelező kódolandó következmény (lásd lent) |
 | S3 | FRL-2 | TODO | `frl-ic-engine` | — | |
 | S4 | FRL-3 | TODO | `frl-hypothesis-registry` | — | tartalom: Chat |
 | S5 | FRL-4 | TODO | — | — | HYP-004 |
@@ -81,8 +81,20 @@ Státusz-jelölés: TODO → WIP → DONE / BLOCKED / STOP.
 | D_B | Holdout K | DÖNTVE: 4 hét |
 | D_C | FDR q | DÖNTVE: 0.10 |
 
+## S1 kapu-eredmény → kötelező B-fázis következmények
+
+**GO** (2026-07-21). Részletek: `docs/tasks/2026-07-21-frl-scan-matrix-loader.md` §Eredmény.
+
+1. `Total_Score == 0` ∧ Reason=Tech Filter → **NaN**, nem 0 (a 0-halmaz mind a 4 mintanapon *pontosan* a tech_filter-halmaz).
+2. **Éra-oszlop kötelező, pooled score-faktor tilos** — legacy .0/.5-rács 0…108 vs swing folytonos −125…+107.
+3. **JSONL a swing-érában NEM score-validátor** (legacy kompozitot logol, a rescore előtt, torzított részhalmazon) → validátor-réteg éra-függő.
+4. Return-mátrix: `get_grouped_daily` napi-loop (~110-130 hívás) — a **Mini polygon-cache ÜRES** (V2 negatív).
+5. A swing score EWMA(5)-simított, változó univerzumon → a half-life a simítást is méri; riportban jelölendő.
+
 ## Változásnapló
 
 | Dátum | Változás |
 |---|---|
 | 2026-07-21 | Tracker létrehozva; sorrend rögzítve (S0–S6, 3 eltéréssel a spectől); környezeti tények felvéve (statsmodels hiány → kézi NW). |
+| 2026-07-21 | **S0 DONE** (spec+task már commitolva `a7e186f`/`6457abe`; tracker `30b948c`). |
+| 2026-07-21 | **S1 FRL-0 DONE → GO.** V1/1-3 + V3 + 102-napos éra-sweep + V2 (Mini-cache üres). 5 kötelező B-fázis következmény rögzítve. S2 WIP. |
