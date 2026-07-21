@@ -71,9 +71,11 @@ a return-mátrix builder ezt használja elsődleges forrásként, Polygon API fa
 - `build_return_matrix(tickers, start, end) -> DataFrame` — Polygon daily close,
   forward h-napos hozamok h∈{1,3,5,7}; cache: `research/cache/returns.parquet`
   (gitignore); forrás-prioritás: Mini-cache (ha V2 pozitív) → Polygon API
-- `build_cost_model() -> research/cost_model.json` — R1#3: a `pending_exits/`
-  slippage-mezőiből a next-day-fill |slippage| medián és p75 (bp/oldal); induló
-  fallback 75 bp ⚠️ kis-n címkével; a heti batch frissíti
+- `build_cost_model() -> research/cost_model.json` — R1#3; forrás-korrekció (8b8b216):
+  `state/daily_metrics/<date>.json → execution.slippage_per_ticker[*].slippage_pct`
+  (a pending_exits-ben nincs slippage-mező); next-day-fill |slippage| medián és p75
+  bp/oldal, `era=swing` default; első output: 95.5/137.0 bp (n=28, small_n_warning);
+  a heti batch frissíti
 - Szektor-mapping: a CSV `Sector_Name` oszlopa a kanonikus (konzisztens a
   sector-relative IC-hez)
 
