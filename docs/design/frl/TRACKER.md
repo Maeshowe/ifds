@@ -66,8 +66,8 @@ S6  FRL-5 enrichment sink — build+teszt bármikor, DEPLOY csak D_A után + Tam
 | S0 | — | DONE | — | `a7e186f`, `6457abe`, `30b948c` | spec+task a másik session commitolta; tracker: `30b948c` |
 | S1 | FRL-0 | **DONE — GO** | `frl-scan-matrix-loader` (A-fázis) | — | kapu-riport a task §Eredmény-ben |
 | S2 | FRL-1 | **DONE** | `frl-scan-matrix-loader` (B-fázis) | `8b8b216` | 4 modul + 25 teszt (2010 passing); cost-modell: swing 95.5 bp/oldal |
-| S3 | FRL-2 | WIP | `frl-ic-engine` | — | NW kézzel; cost-input 95.5 bp |
-| S4 | FRL-3 | TODO | `frl-hypothesis-registry` | — | tartalom: Chat |
+| S3 | FRL-2 | **DONE** | `frl-ic-engine` | `a02bc1d` | 6 modul + 74 teszt (2084 passing); NW statsmodels ellen validálva |
+| S4 | FRL-3 | WIP | `frl-hypothesis-registry` | — | tartalom: Chat (HYP-004 előre) |
 | S5 | FRL-4 | TODO | — | — | HYP-004 |
 | S6 | FRL-5 | BLOCKED | `frl-cross-section-enrichment` | — | **D_A** Tamás-megerősítésre vár |
 
@@ -98,4 +98,5 @@ Státusz-jelölés: TODO → WIP → DONE / BLOCKED / STOP.
 | 2026-07-21 | Tracker létrehozva; sorrend rögzítve (S0–S6, 3 eltéréssel a spectől); környezeti tények felvéve (statsmodels hiány → kézi NW). |
 | 2026-07-21 | **S0 DONE** (spec+task már commitolva `a7e186f`/`6457abe`; tracker `30b948c`). |
 | 2026-07-21 | **S1 FRL-0 DONE → GO.** V1/1-3 + V3 + 102-napos éra-sweep + V2 (Mini-cache üres). 5 kötelező B-fázis következmény rögzítve. S2 WIP. |
+| 2026-07-21 | **S3 FRL-2 DONE** (`a02bc1d`). factors/ sanity-kontraktus + IC-motor + ledger + holdout + riport + batch; **+74 teszt → 2084 passing**, ruff/black tiszta, 0 prod-írás. Kézi Newey-West **statsmodels ellen validálva** (rel 1e-6, dev-only dep, skipif-fel). Két TDD-fogás: (1) `daily_ic` degenerált-rang guard — szektoron belül konstans faktor pct-rangjainak szórása 1e-16, a pandas `corr` 1.0-t ad rá → tiszta szektor-fogadás tökéletes szektor-neutrális jelnek látszott volna; (2) a batch-teszt a valós `returns.parquet`-et olvasta → `returns_frame` injektálás + guard-teszt. |
 | 2026-07-21 | **S2 FRL-1 DONE** (`8b8b216`). 4 modul (config/loader/returns/cost) + 25 teszt → **2010 passing**, 0 prod-state írás. Live schema-verifikáció: `get_grouped_daily` 12 388 sor, `T`/`c` igazolva. E2E smoke 06-29→07-20: 8 nap, 0 unexpected-missing, h=1 join 100%. **Cost-modell forrás-korrekció**: `daily_metrics.execution.slippage_per_ticker` (nem `pending_exits`) → swing medián **95.5 bp/oldal**, p75 137, n=28 (a 75 bp ~27%-kal alábecsül); legacy referencia 19 bp (5×, végrehajtási stílus-váltás → nem prior). |

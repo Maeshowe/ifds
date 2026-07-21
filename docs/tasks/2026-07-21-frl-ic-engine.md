@@ -1,4 +1,4 @@
-Status: OPEN
+Status: DONE
 Updated: 2026-07-21
 Note: Freeze-safe (read-only elemző-tooling). Előfeltétel: frl-scan-matrix-loader B-fázis DONE (FRL-0 kapu GO). Spec: docs/design/2026-07-21-factor-research-loop-spec.md (§5, §6, §7, §10) — v2, R1 beépítve. D_B=4 hét és D_C=q0.10 DÖNTVE (review-konszenzus).
 
