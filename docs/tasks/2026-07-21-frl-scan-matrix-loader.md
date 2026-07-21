@@ -1,4 +1,4 @@
-Status: WIP
+Status: DONE
 Updated: 2026-07-21
 Note: Freeze-safe (read-only elemző-tooling, signal_attribution-wiring precedens). Production kódot NEM érint. Spec: docs/design/2026-07-21-factor-research-loop-spec.md (§4, §11). R1#1: a task KÉT fázisú — A-fázis (FRL-0 kapu) önállóan fut és jelent, a B-fázis (loader-build) KIZÁRÓLAG a GO-verdikt után indulhat.
 
@@ -210,3 +210,85 @@ helyett. A loader ezt használja elsődlegesen, `get_aggregates` fallbackkel.
 ### Nyitott (nem blokkoló)
 
 - V4 (legacy phase4_snapshot mock-szűrő) — csak ha a snapshot forrásként bejön; most nem.
+
+---
+
+## Eredmény — B-fázis (loader-build, 2026-07-21, CC)
+
+### Szállított modulok
+
+Flat modulok a `scripts/research/`-ben (nincs `__init__.py`) — a
+`scripts/paper_trading/` ház-minta szerint minden belépési pont a saját könyvtárát
+teszi a `sys.path`-ra. **Indok:** a `scripts/research/` csomagnév ütközne a
+top-level `research/` adat-könyvtárral (namespace-package shadowing), ha a projekt
+gyökér is a `sys.path`-on van — `python -m pytest` esetén az.
+
+| Modul | Tartalom |
+|---|---|
+| `frl_config.py` | éra-határok, D_B=4 hét, D_C=q0.10, horizontok, `MIN_SECTOR_N`, `ERA_BAR_FLOOR`, ismert gap-ek, összes útvonal |
+| `frl_loader.py` | `load_cross_section` / `load_panel` / `require_single_era` / `validate_with_events` / `available_days` |
+| `frl_returns.py` | `closes_from_grouped` / `forward_returns` / `build_return_matrix` / `research_cache` |
+| `frl_cost.py` | `collect_slippage` / `build_cost_model` / `load_cost_model` / `round_trip_cost_bps` |
+
+`research/` bootstrap kész (`README.md` a §4.3 sync-indoklással, `cache/`, `runs/`),
+`.gitignore`: `research/cache/*` (a ledger és a runs **tracked**).
+
+**Tesztek: 25 új, `tests/test_frl_loader.py` — suite 1985 → 2010 passing, 0 failure.**
+Teszt-környezet higiénia ([[test-env-hygiene]]): a teljes suite lefutása után a
+`state/`, `output/`, `logs/`, `research/` alatt **egyetlen fájl mtime-ja sem változott**.
+
+### Az öt kötelező FRL-0 következmény kódolva
+
+| # | Hol | Regressziós teszt |
+|---|---|---|
+| 1 | `load_cross_section`: tech_filter → `NaN`, `scored=False`; a nem-tech_filter 0.0 megmarad és anomália-számlálóba kerül | `TestTechFilterIsNaN` (2) |
+| 2 | `require_single_era()` `ValueError`-t dob pooled score-faktorra | `TestEraLabelling` (4, határnapok 05-15/16/18) |
+| 3 | `validate_with_events()`: score-összevetés **csak** legacy érán, swing érán ticker-lefedettség | `TestEventLogValidator` (4) |
+| 4 | `build_return_matrix()` `get_grouped_daily`-vel, `research/cache/api` FileCache-sel | `TestForwardReturns` (3) |
+| 5 | EWMA-simítás megjegyzés a modul-docstringben + a batch-riportba kerül (S3) | — |
+
+### Live API schema-verifikáció (ház-szabály: commit ELŐTT)
+
+`get_grouped_daily("2026-07-20")` → **12 388 sor**, kulcsok:
+`['T','c','h','l','n','o','t','v','vw']`. A `T`/`c` mezőnév-feltevés **élőben
+igazolva** (AAPL c=326.59). Nem placeholder-ből dolgoztunk.
+
+### End-to-end smoke (valós adat, 06-29 → 07-20)
+
+- Panel: **8 nap, 5 544 sor**, coverage 53.3% — a 7 hiányzó nap **mind ismert gap**
+  (Mini-outage 06-29→07-06, áramszünet 07-15/16), `unexpected_missing = []`. ✅
+- Anomáliák: `zero_score_not_tech_filter = 0`, `tech_filter_with_nonzero_score = 0`
+  → a 0↔tech_filter identitás a teljes ablakon is tartja magát.
+- Pontozott/nap átlag: 417.8; egyedi pontozott ticker: 572.
+- Return-mátrix: 24 nap, 13 728 sor, **13.9 s** (cache-eltelten újrafuttatva ~0 s).
+- Join-lefedettség a pontozott sorokon: **h=1 → 100.0%**, h=5 → 80.0% (a hiányzó
+  20% a mai naphoz közeli napok, ahol a forward-ablak még nem telt le — helyesen
+  NaN, nem eldobva).
+
+**Következmény a batch-re:** a dev-ablak vége mindig `max(h)` trading nappal
+korábbi, mint a legutolsó elérhető bar-nap; ezt a riport kiírja.
+
+### `build_cost_model()` első valós output (Chat kérésére)
+
+**Forrás-korrekció:** a task `state/pending_exits/`-et jelölt meg, de azok a
+rekordok **nem tartalmaznak slippage mezőt** (kulcs, ticker, entry_price,
+entry_date, qty, exit_type, sector, entry_score, submitted_at, processed). A
+hiteles slippage-sorozat: `state/daily_metrics/<date>.json` →
+`execution.slippage_per_ticker[*].slippage_pct` (előjeles %, belépési MKT-fill vs
+tervezett limit), amit a `daily_metrics.py::_build_entry_slippage` ír.
+
+`research/cost_model.json` (2026-07-21):
+
+| Éra | n | medián \|slip\| | p75 | max | modell-input |
+|---|---|---|---|---|---|
+| **swing** (05-20 → 07-20) | **28** | **95.5 bp/oldal** | **137.0 bp** | 377.0 bp | **95.5 bp** ⚠️ kis-n |
+| legacy (referencia) | 99 | 19.0 bp | 31.0 bp | 450.0 bp | — (nem használjuk) |
+
+**Értelmezés:** a 75 bp-s induló feltevés **alábecsül ~27%-kal** a swing-érán
+(95.5 vs 75), a p75 pedig 137 bp — a round-trip **~191 bp** a medián-inputtal.
+Az 5x-ös legacy/swing különbség (19 → 95.5 bp) végrehajtási stílus-váltás
+(intraday LMT → next-day MKT open), tehát a legacy minta **nem prior** a swingre —
+ezért az `era=swing` az alapértelmezett szűrő. `small_n_warning: true` (28 < 30),
+a heti batch minden futáskor újraszámolja.
+
+**A HYP-004 costed-IC riportja ezen a 95.5 bp-os inputon fut**, nem a 75-ösön.

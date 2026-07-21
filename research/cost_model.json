@@ -1,0 +1,16 @@
+{
+  "era": "swing",
+  "n": 28,
+  "median_bps_per_side": 95.5,
+  "p75_bps_per_side": 137.0,
+  "max_bps_per_side": 377.0,
+  "cost_bps_per_side": 95.5,
+  "estimator": "median(|entry slippage|) from daily_metrics.execution",
+  "source": "state/daily_metrics/*.json::execution.slippage_per_ticker",
+  "window": {
+    "start": "2026-05-20",
+    "end": "2026-07-20"
+  },
+  "small_n_warning": true,
+  "fallback_used": false
+}

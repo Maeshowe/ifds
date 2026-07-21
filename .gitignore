@@ -54,3 +54,7 @@ obsidian_on.json
 
 # Mini-local production config override (Layer-2 --config; never committed)
 state/prod_overrides.json
+
+# FRL research cache (rebuildable from Polygon API; ledger/runs ARE tracked)
+research/cache/*
+!research/cache/.gitkeep
