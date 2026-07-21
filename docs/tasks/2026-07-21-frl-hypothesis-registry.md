@@ -1,4 +1,4 @@
-Status: OPEN
+Status: DONE
 Updated: 2026-07-21
 Note: Struktúra: CC (freeze-safe, csak docs + könyvtár). Hipotézis-TARTALOM: Chat (Dev) írja — CC a template-et és a lint-et szállítja. Spec: docs/design/2026-07-21-factor-research-loop-spec.md (§8).
 
@@ -48,3 +48,21 @@ Tesztek (`tests/test_frl_lint.py`):
 ## Commit
 
 `feat(research): FRL hypothesis registry structure + lint (hypothesis-first enforced)`
+
+## Eredmény (2026-07-21, CC)
+
+- `docs/design/frl/hypotheses/_TEMPLATE.md` + **7 hipotézis-fájl** (HYP-001a/b, 002a/b,
+  003a/b, 004), mind `Status: DRAFT` — a lint futás-tiltással kezeli.
+- **HYP-004 tartalma teljes** (Chat, 2026-07-21): mechanizmus (Jegadeesh/Lehmann +
+  likviditás-nyújtás kompenzáció; a „magas pontszám paradoxon" tükörmérése a teljes
+  keresztmetszeten), `expected_sign = -1`, h=3-5 maximum, magas turnover / half-life
+  2-4 nap, 3 ágú kill/park-kritérium (a (c) ág: bruttó-pass + costed-IC ≤ 0 → PARK
+  `execution-style-input` címkével). A `REGISTERED` átállítás Chat/Tamás lépése.
+- `scripts/research/frl_lint.py`: fejléc-, szekció- és placeholder-ellenőrzés,
+  Status-átmenet térkép (HOLDOUT-PASS csak PROMOTED-ból; SHADOW csak HOLDOUT-PASS-ból),
+  **SHADOW dátum-guard** (Day 63 = 2026-08-17, NYSE-naptárból számolva),
+  `assert_runnable()` + `assert_sanity_pair()`.
+- **A batch gate-elve**: `run_frl_batch` a sanity-kapu UTÁN hívja az `assert_runnable`-t;
+  DRAFT vagy hiányzó HYP → `BLOCKED` sor a riportban, **nincs ledger-sor**.
+- Tesztek: +25 (`tests/test_frl_lint.py`) + 2 batch-gate teszt → **2109 passing**.
+  A checked-in registry saját maga is lint-clean (regressziós teszt).

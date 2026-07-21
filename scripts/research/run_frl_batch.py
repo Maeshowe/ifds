@@ -35,6 +35,7 @@ import frl_cost  # noqa: E402
 import frl_holdout  # noqa: E402
 import frl_ic  # noqa: E402
 import frl_ledger as ledger  # noqa: E402
+import frl_lint  # noqa: E402
 import frl_loader as loader  # noqa: E402
 import frl_report  # noqa: E402
 import frl_returns  # noqa: E402
@@ -83,6 +84,7 @@ def run_batch(
     ledger_path: Path | None = None,
     runs_dir: Path | None = None,
     returns_frame=None,
+    hypothesis_dir: Path | None = None,
 ) -> str:
     """Execute one batch and return the rendered report.
 
@@ -104,14 +106,22 @@ def run_batch(
         and (factor_filter is None or f.name == factor_filter)
     ]
 
-    # --- 1. sanity gate ----------------------------------------------------
+    # --- 1. sanity gate + hypothesis-first gate ----------------------------
+    # Order matters: a factor must both compute correctly (sanity) and serve a
+    # written, registered hypothesis (lint) before it may become an attempt.
     sanity_lines: list[str] = []
     runnable = []
     for factor in selected:
         result = factor_base.run_sanity(factor)
         sanity_lines.append(result.line())
-        if result.passed:
-            runnable.append(factor)
+        if not result.passed:
+            continue
+        try:
+            frl_lint.assert_runnable(factor.hyp_id, directory=hypothesis_dir)
+        except frl_lint.HypothesisNotRunnable as exc:
+            sanity_lines.append(f"BLOCKED {factor.name}: {exc}")
+            continue
+        runnable.append(factor)
 
     windows = frl_holdout.compute_windows(run_date, first_day=cfg.SWING_START)
     panels = _era_panels(windows)

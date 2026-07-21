@@ -32,7 +32,7 @@ def _register(name: str, sign: int, compute) -> fb.Factor:
     return fb.register(
         fb.Factor(
             name=name,
-            hyp_id="HYP-TEST",
+            hyp_id="HYP-004",
             data_lane="v1",
             expected_sign=sign,
             compute=compute,
@@ -56,6 +56,44 @@ def _returns(days: list[date]) -> pd.DataFrame:
                     }
                 )
     return pd.DataFrame(rows)
+
+
+_REGISTERED_HYP = """Status: REGISTERED
+Updated: 2026-07-21
+Data-lane: v1
+
+# HYP-004 — teszt hipotézis
+
+## Mechanizmus (MIÉRT létezne — kötelező, teszt ELŐTT írva)
+
+Likviditás-nyújtás kompenzációja.
+
+## Várt előjel és horizont
+
+NEGATÍV IC, h=5.
+
+## Ki a vesztes oldal / milyen frikció tartja fenn
+
+Flow-chaser kereslet.
+
+## Költségprofil (várt turnover)
+
+Magas turnover.
+
+## Pre-reg metrika és kill-kritérium
+
+Spearman IC h=5.
+"""
+
+
+def _registry(tmp_path: Path, status: str = "REGISTERED") -> Path:
+    """A minimal hypothesis registry so the hypothesis-first gate lets us run."""
+    directory = tmp_path / "hypotheses"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "HYP-004-test.md").write_text(
+        _REGISTERED_HYP.replace("Status: REGISTERED", f"Status: {status}")
+    )
+    return directory
 
 
 def _scan_files(scan_dir: Path, days: list[date]) -> None:
@@ -92,6 +130,7 @@ class TestSanityGateBlocksAttempts:
             ledger_path=ledger_path,
             runs_dir=tmp_path / "runs",
             returns_frame=_returns(days),
+            hypothesis_dir=_registry(tmp_path),
         )
 
         assert "SANITY_FAIL flipped" in text
@@ -108,6 +147,7 @@ class TestSanityGateBlocksAttempts:
             ledger_path=tmp_path / "ledger.jsonl",
             runs_dir=tmp_path / "runs",
             returns_frame=_returns([date(2026, 5, 18)]),
+            hypothesis_dir=_registry(tmp_path),
         )
         assert "PASS clean" in text
 
@@ -125,9 +165,48 @@ class TestSanityGateBlocksAttempts:
             ledger_path=ledger_path,
             runs_dir=runs_dir,
             returns_frame=_returns([date(2026, 5, 18)]),
+            hypothesis_dir=_registry(tmp_path),
         )
         assert not ledger_path.exists()
         assert not runs_dir.exists()
+
+    def test_draft_hypothesis_blocks_the_attempt(self, tmp_path, monkeypatch):
+        """Hypothesis-first: a factor whose hypothesis is still DRAFT never runs."""
+        _register("clean", 1, lambda panel: panel["score"])
+        scan_dir = tmp_path / "output"
+        _scan_files(scan_dir, [date(2026, 5, 18)])
+        monkeypatch.setattr("frl_loader.cfg.SCAN_MATRIX_DIR", scan_dir)
+
+        ledger_path = tmp_path / "ledger.jsonl"
+        text = batch.run_batch(
+            run_date=date(2026, 7, 20),
+            ledger_path=ledger_path,
+            runs_dir=tmp_path / "runs",
+            returns_frame=_returns([date(2026, 5, 18)]),
+            hypothesis_dir=_registry(tmp_path, status="DRAFT"),
+        )
+        assert "BLOCKED clean" in text
+        assert "PASS clean" in text, "sanity passed; only the registry gate blocked it"
+        assert ledger.read_ledger(ledger_path) == []
+
+    def test_missing_hypothesis_file_blocks_the_attempt(self, tmp_path, monkeypatch):
+        _register("clean", 1, lambda panel: panel["score"])
+        scan_dir = tmp_path / "output"
+        _scan_files(scan_dir, [date(2026, 5, 18)])
+        monkeypatch.setattr("frl_loader.cfg.SCAN_MATRIX_DIR", scan_dir)
+
+        empty_registry = tmp_path / "empty"
+        empty_registry.mkdir()
+        ledger_path = tmp_path / "ledger.jsonl"
+        text = batch.run_batch(
+            run_date=date(2026, 7, 20),
+            ledger_path=ledger_path,
+            runs_dir=tmp_path / "runs",
+            returns_frame=_returns([date(2026, 5, 18)]),
+            hypothesis_dir=empty_registry,
+        )
+        assert "BLOCKED clean" in text
+        assert ledger.read_ledger(ledger_path) == []
 
     def test_injected_returns_bypass_cache_and_api(self, tmp_path, monkeypatch):
         """Guard: a test run must never read the parquet cache or call Polygon."""
@@ -147,6 +226,7 @@ class TestSanityGateBlocksAttempts:
             ledger_path=tmp_path / "ledger.jsonl",
             runs_dir=tmp_path / "runs",
             returns_frame=_returns([date(2026, 5, 18)]),
+            hypothesis_dir=_registry(tmp_path),
         )
 
 
