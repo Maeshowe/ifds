@@ -5,6 +5,53 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## Statisztikai degeneráció-ellenőrzés — tolerancia-alapú, SOHA `== 0` (rule, 2026-07-21)
+
+Rang-, korrelációs- és szórás-alapú guardokat **TILOS** egzakt egyenlőséggel írni
+(`std == 0`, `x == y`, `var == 0`). A float-aritmetika degenerált inputon nem
+nullát, hanem **~1e-16 nagyságrendű maradékot** ad, a guard csendben átengedi az
+esetet, a downstream statisztika pedig **hamis tökéletes együttmozgást** jelent.
+
+**Szabály:** minden degeneráció-check tolerancián alapul (`< 1e-12` nagyságrend),
+és a teszt **kifejezetten a degenerált esetre** íródik, nem csak a normálisra.
+
+**Példa-sértés (elkapva, 2026-07-21, FRL `daily_ic`):** a szektoron belül
+**konstans** faktor `rank(pct=True)` értékei szektoronként azonosak; a pooled
+sorozat szórása `1.1e-16`, nem `0.0`. A `if fr.std(ddof=0) == 0` guard nem fogta,
+a pandas `corr` pedig két ilyen sorozatra **1.0**-t adott. Következmény, ha
+élesbe megy: egy **tiszta szektor-fogadás tökéletes szektor-neutrális jelként**
+mérődik — nem crash, hanem **hamis alfa-generátor**, ami csak PROMOTE után,
+hónapokkal később derül ki. Fix: `< _RANK_STD_EPS (1e-12)` + dedikált regressziós
+teszt (`test_sector_neutrality_removes_pure_sector_effect`).
+
+**Referencia:** `scripts/research/frl_ic.py::daily_ic`, commit `a02bc1d`.
+
+---
+
+## Hermetikus teszt — a prod-state NEM teheti hamisan zölddé a tesztet (rule, 2026-07-21)
+
+A [test-env higiénia](#test-environment-higiénia--production-state-path-írás-tilos)
+**tükörképe**: ott a teszt szennyezi a prodot, itt a **prod-state teszi zölddé a
+tesztet**. Egy teszt, ami véletlenül valós cache-t / state-fájlt / élő API-t ér el,
+azon a gépen zöld, ahol az az artefakt megvan — máshol (CI, Mini, friss clone)
+élő hívást indít vagy elbukik.
+
+**Szabály:** minden külső adatforrás (cache-fájl, parquet, API-kliens) a
+tesztben **explicit injektálandó**, és a modulnak legyen olyan paramétere, ami
+ezt lehetővé teszi. Plusz **guard-teszt**: a fallback-utat (`load_cached_*`,
+kliens-factory) monkeypatch-eld hard error-ra, és futtasd le a normál utat —
+ha a kód mégis odanyúl, a teszt **hangosan** bukik.
+
+**Példa-sértés (elkapva, 2026-07-21, FRL batch):** a `run_frl_batch` tesztjei
+zöldek voltak, de csak azért, mert a smoke-futásból ottmaradt a valós
+`research/cache/returns.parquet`. Fix: `returns_frame` injektálás +
+`test_injected_returns_bypass_cache_and_api` (a `load_cached_returns` és a
+`_polygon_client` is `AssertionError`-t dob, ha meghívódik).
+
+**Referencia:** `tests/test_frl_batch.py`, commit `a02bc1d`.
+
+---
+
 ## CC edit-stratégia — kis, egyenkénti editek a nagy multi-edit payload helyett (correction, 2026-06-10)
 
 A szerkesztő-connector **lefagy** a nagy, többszerkesztéses `edit_file` payloadoknál
