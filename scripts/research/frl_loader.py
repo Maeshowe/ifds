@@ -91,8 +91,22 @@ def load_cross_section(day: date, scan_dir: Path | None = None) -> pd.DataFrame:
     df["era"] = era
     df["date"] = day
     df = df[
-        ["date", "ticker", "sector", "sector_etf", "status", "reason", "score", "scored",
-         "era", "flow_score", "funda_score", "tech_score", "price", "atr"]
+        [
+            "date",
+            "ticker",
+            "sector",
+            "sector_etf",
+            "status",
+            "reason",
+            "score",
+            "scored",
+            "era",
+            "flow_score",
+            "funda_score",
+            "tech_score",
+            "price",
+            "atr",
+        ]
     ].reset_index(drop=True)
 
     df.attrs["anomalies"] = {

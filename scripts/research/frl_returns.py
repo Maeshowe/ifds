@@ -60,8 +60,10 @@ def closes_from_grouped(
             day_map[symbol] = float(close)
         records[day] = day_map
 
-    columns = sorted(wanted) if wanted is not None else sorted(
-        {t for day_map in records.values() for t in day_map}
+    columns = (
+        sorted(wanted)
+        if wanted is not None
+        else sorted({t for day_map in records.values() for t in day_map})
     )
     frame = pd.DataFrame(
         [[records[day].get(col) for col in columns] for day in sorted(records)],
@@ -96,11 +98,7 @@ def forward_returns(
 
     for h in horizons:
         fwd = ordered.shift(-h) / ordered - 1.0
-        melted = (
-            fwd.stack(future_stack=True)
-            .rename(f"fwd_ret_{h}")
-            .reset_index()
-        )
+        melted = fwd.stack(future_stack=True).rename(f"fwd_ret_{h}").reset_index()
         melted.columns = ["date", "ticker", f"fwd_ret_{h}"]
         out = out.merge(melted, on=["date", "ticker"], how="left")
 
