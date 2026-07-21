@@ -11,7 +11,7 @@ import importlib
 
 # Factor modules the batch loads. Adding a factor means adding it here, which
 # keeps the registry explicit and reviewable.
-LOADABLE: tuple[str, ...] = ()
+LOADABLE: tuple[str, ...] = ("reversal",)
 
 
 def load_all() -> None:

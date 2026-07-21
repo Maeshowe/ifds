@@ -86,8 +86,21 @@ def load_cross_section(day: date, scan_dir: Path | None = None) -> pd.DataFrame:
     tech_filter_nonzero = int(((df["score"] != 0) & is_tech_filter).sum())
 
     # The dp_pct-class guard: never let an unscored row enter the panel as 0.0.
-    df.loc[is_tech_filter, "score"] = float("nan")
-    df["scored"] = ~is_tech_filter
+    #
+    # The condition is `score == 0`, NOT the Reason string. The scan writer
+    # OVERWRITES Reason with "Sector VETO (...)" whenever the sector is vetoed
+    # (execution_plan.py), which masks the real exclusion reason — 6179 legacy
+    # rows are tech-filter drop-outs wearing a VETO label. A reason-based rule
+    # would let every one of them into the panel as a 0.0 factor value.
+    #
+    # `score == 0` is safe as the unscored marker: across all 102 production days
+    # no ACCEPTED row carries 0.0 and the smallest genuine |score| is 0.01, so an
+    # exact zero is always the dataclass default of a ticker that never reached
+    # scoring. A vetoed row that WAS scored keeps its value — the veto is a
+    # portfolio decision, not a missing measurement.
+    unscored = is_tech_filter | (df["score"] == 0)
+    df.loc[unscored, "score"] = float("nan")
+    df["scored"] = ~unscored
     df["era"] = era
     df["date"] = day
     df = df[
@@ -110,7 +123,9 @@ def load_cross_section(day: date, scan_dir: Path | None = None) -> pd.DataFrame:
     ].reset_index(drop=True)
 
     df.attrs["anomalies"] = {
-        "zero_score_not_tech_filter": zero_elsewhere,
+        # Unscored rows whose Reason does NOT say tech filter — almost always a
+        # Sector VETO label masking the real reason. Reported, not hidden.
+        "unscored_masked_by_reason": zero_elsewhere,
         "tech_filter_with_nonzero_score": tech_filter_nonzero,
     }
     return df

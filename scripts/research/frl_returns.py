@@ -105,6 +105,27 @@ def forward_returns(
     return out.drop(columns=["close"])
 
 
+def trailing_returns(
+    closes: pd.DataFrame,
+    lookbacks: Sequence[int] = (1, 5),
+) -> pd.DataFrame:
+    """Long-format *trailing* returns — the input side of reversal/momentum factors.
+
+    ``past_ret_k`` at day t is the return over the k trading days ENDING at t, so
+    it uses only information available at t. Keeping it in the same matrix as the
+    forward returns makes the look-ahead boundary explicit: ``past_*`` may be a
+    factor input, ``fwd_*`` may only ever be the target.
+    """
+    ordered = closes.sort_index()
+    frames = []
+    for k in lookbacks:
+        past = ordered / ordered.shift(k) - 1.0
+        melted = past.stack(future_stack=True).rename(f"past_ret_{k}").reset_index()
+        melted.columns = ["date", "ticker", f"past_ret_{k}"]
+        frames.append(melted.set_index(["date", "ticker"]))
+    return pd.concat(frames, axis=1).reset_index()
+
+
 def fetch_grouped_daily(
     days: Sequence[date],
     client,
@@ -127,6 +148,7 @@ def build_return_matrix(
     client,
     tickers: Iterable[str] | None = None,
     horizons: Sequence[int] = cfg.IC_HORIZONS,
+    lookbacks: Sequence[int] = (1, 5),
     cache_path: Path | None = RETURNS_CACHE,
 ) -> pd.DataFrame:
     """Build (and cache) the forward-return panel for [start, end].
@@ -139,7 +161,9 @@ def build_return_matrix(
     days = trading_days_between(start, end)
     grouped = fetch_grouped_daily(days, client)
     closes = closes_from_grouped(grouped, tickers)
-    frame = forward_returns(closes, horizons)
+    frame = forward_returns(closes, horizons).merge(
+        trailing_returns(closes, lookbacks), on=["date", "ticker"], how="left"
+    )
 
     if cache_path is not None:
         cache_path.parent.mkdir(parents=True, exist_ok=True)

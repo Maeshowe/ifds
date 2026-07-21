@@ -246,3 +246,40 @@ class TestPersistenceAndCost:
 
         model = frl_cost.load_cost_model()
         assert model["cost_bps_per_side"] >= 50.0, "3 bp-class cost inputs are forbidden"
+
+
+class TestCostedView:
+    def test_gross_minus_cost_is_the_net(self):
+        view = frl_ic.costed_view(mean_ic=0.05, sigma_cs=0.04, horizon=5, cost_annual_bps=1000.0)
+        assert view.periods_per_year == pytest.approx(252 / 5)
+        assert view.gross_annual_bps == pytest.approx(0.05 * 0.04 * (252 / 5) * 10_000)
+        assert view.net_annual_bps == pytest.approx(view.gross_annual_bps - 1000.0)
+
+    def test_breakeven_ic_is_the_ic_that_exactly_pays_the_cost(self):
+        view = frl_ic.costed_view(0.05, 0.04, 5, cost_annual_bps=1000.0)
+        at_breakeven = frl_ic.costed_view(view.breakeven_ic, 0.04, 5, 1000.0)
+        assert at_breakeven.net_annual_bps == pytest.approx(0.0, abs=1e-6)
+
+    def test_high_turnover_factor_fails_the_cost_gate(self):
+        """The HYP-004 pre-registered (c) branch: gross pass, costed fail."""
+        view = frl_ic.costed_view(0.09, 0.05, 5, cost_annual_bps=19_000.0)
+        assert view.survives_cost is False
+        assert view.breakeven_ic > abs(view.mean_ic)
+
+    def test_sign_of_ic_does_not_change_the_gross_magnitude(self):
+        positive = frl_ic.costed_view(0.05, 0.04, 5, 1000.0)
+        negative = frl_ic.costed_view(-0.05, 0.04, 5, 1000.0)
+        assert positive.gross_annual_bps == pytest.approx(negative.gross_annual_bps)
+
+    def test_cross_sectional_sigma_is_the_mean_daily_dispersion(self):
+        panel = pd.DataFrame(
+            {
+                "date": [date(2026, 6, 1)] * 3 + [date(2026, 6, 2)] * 3,
+                "fwd_ret_5": [0.01, 0.02, 0.03, 0.10, 0.20, 0.30],
+            }
+        )
+        sigma = frl_ic.cross_sectional_sigma(panel, "fwd_ret_5")
+        expected = (
+            pd.Series([0.01, 0.02, 0.03]).std(ddof=1) + pd.Series([0.10, 0.20, 0.30]).std(ddof=1)
+        ) / 2
+        assert sigma == pytest.approx(expected)

@@ -273,6 +273,68 @@ def half_life(panel: pd.DataFrame, factor_col: str) -> float:
     return -math.log(2) / math.log(rho)
 
 
+def cross_sectional_sigma(panel: pd.DataFrame, return_col: str) -> float:
+    """Mean daily cross-sectional standard deviation of the forward return."""
+    per_day = panel.groupby("date")[return_col].std(ddof=1)
+    value = float(per_day.mean())
+    return value if math.isfinite(value) else float("nan")
+
+
+@dataclass(frozen=True)
+class CostedView:
+    """Gross vs cost-charged view of a factor (spec §5.3).
+
+    Deliberately explicit about its one modelling assumption: a dollar-neutral
+    portfolio weighted by the normalized factor score earns approximately
+    ``IC × σ_cs`` per horizon (the standard Grinold approximation). Everything
+    else — the per-side cost and the turnover — is empirical.
+
+    ``breakeven_ic`` is the honest headline: the |IC| this factor would need
+    before it pays for its own trading at the observed slippage.
+    """
+
+    horizon: int
+    mean_ic: float
+    sigma_cs: float
+    periods_per_year: float
+    gross_annual_bps: float
+    cost_annual_bps: float
+    net_annual_bps: float
+    breakeven_ic: float
+
+    @property
+    def survives_cost(self) -> bool:
+        return math.isfinite(self.net_annual_bps) and self.net_annual_bps > 0
+
+    def to_dict(self) -> dict:
+        return asdict(self) | {"survives_cost": self.survives_cost}
+
+
+def costed_view(
+    mean_ic: float,
+    sigma_cs: float,
+    horizon: int,
+    cost_annual_bps: float,
+    trading_days_per_year: int = 252,
+) -> CostedView:
+    """Charge the empirical trading cost against the factor's gross IC."""
+    periods = trading_days_per_year / horizon if horizon > 0 else float("nan")
+    gross = abs(mean_ic) * sigma_cs * periods * 10_000.0
+    net = gross - cost_annual_bps
+    denominator = sigma_cs * periods * 10_000.0
+    breakeven = cost_annual_bps / denominator if denominator else float("inf")
+    return CostedView(
+        horizon=horizon,
+        mean_ic=mean_ic,
+        sigma_cs=sigma_cs,
+        periods_per_year=periods,
+        gross_annual_bps=gross,
+        cost_annual_bps=cost_annual_bps,
+        net_annual_bps=net,
+        breakeven_ic=breakeven,
+    )
+
+
 def implied_turnover_cost_bps(
     half_life_days: float,
     cost_bps_per_side: float,

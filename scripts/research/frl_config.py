@@ -51,6 +51,19 @@ PRIMARY_HORIZON: Final[int] = 5
 MIN_SECTOR_N: Final[int] = 5  # sectors with fewer names are dropped that day
 ERA_BAR_FLOOR: Final[float] = 0.02  # era_bar = max(floor, 2 * SE(mean IC))
 
+# --- Day 63 gate ------------------------------------------------------------
+# EXPLICIT FLAG, never a computed date. Only a Tamás decision flips this to True.
+#
+# Why not a date: the NYSE calendar puts the 63rd trading day after the swing
+# pivot at 2026-08-17, but the pipeline's own day counter showed 37 on 2026-07-20
+# against 43 NYSE days — the outage/orphan days are excluded from the edge sample
+# (04-risks §11.10), and the gate is about 63 days of *actual edge sample*, not
+# the 63rd calendar trading day. The working target is ≈2026-09-15 (W37). While
+# the trading-days invariant is an open Dev item, every date derivation is
+# ambivalent; a flag cannot err in the permissive direction.
+DAY63_GATE_PASSED: Final[bool] = False
+DAY63_NYSE_DATE_INFORMATIVE: Final[date] = date(2026, 8, 17)  # informational only
+
 # --- Cost model (spec §5.3, R1#3) -------------------------------------------
 # Fallback only — the real value comes from build_cost_model() over the observed
 # |slippage| distribution. 3 bp-class assumptions are FORBIDDEN for this

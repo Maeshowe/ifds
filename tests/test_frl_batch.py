@@ -117,6 +117,7 @@ class TestSanityGateBlocksAttempts:
     def test_failing_sanity_writes_no_ledger_row(self, tmp_path, monkeypatch):
         """R1#6: a bugged factor must not spend an attempt — or a holdout touch."""
         _register("flipped", 1, lambda panel: -panel["score"])
+        # isolate from the real HYP-004 factor that factors.load_all() registers
 
         scan_dir = tmp_path / "output"
         days = [date(2026, 5, 18) + timedelta(days=i) for i in range(3)]
@@ -127,6 +128,7 @@ class TestSanityGateBlocksAttempts:
         ledger_path = tmp_path / "ledger.jsonl"
         text = batch.run_batch(
             run_date=date(2026, 7, 20),
+            factor_filter="flipped",
             ledger_path=ledger_path,
             runs_dir=tmp_path / "runs",
             returns_frame=_returns(days),
@@ -144,6 +146,7 @@ class TestSanityGateBlocksAttempts:
 
         text = batch.run_batch(
             run_date=date(2026, 7, 20),
+            factor_filter="clean",
             ledger_path=tmp_path / "ledger.jsonl",
             runs_dir=tmp_path / "runs",
             returns_frame=_returns([date(2026, 5, 18)]),
@@ -161,6 +164,7 @@ class TestSanityGateBlocksAttempts:
         runs_dir = tmp_path / "runs"
         batch.run_batch(
             run_date=date(2026, 7, 20),
+            factor_filter="clean",
             dry_run=True,
             ledger_path=ledger_path,
             runs_dir=runs_dir,
@@ -223,6 +227,7 @@ class TestSanityGateBlocksAttempts:
 
         batch.run_batch(
             run_date=date(2026, 7, 20),
+            factor_filter="clean",
             ledger_path=tmp_path / "ledger.jsonl",
             runs_dir=tmp_path / "runs",
             returns_frame=_returns([date(2026, 5, 18)]),

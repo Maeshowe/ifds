@@ -50,9 +50,12 @@ TRANSITIONS: dict[str, tuple[str, ...]] = {
     "KILLED": (),
 }
 
-# Swing paper-trading day 63 (day 1 = 2026-05-18, NYSE calendar). Nothing may
-# reach live shadow persistence before the gate.
-DAY63_GATE = date(2026, 8, 17)
+# SHADOW means live persistence in production — allowed only after the Day 63
+# gate. The condition is the explicit `cfg.DAY63_GATE_PASSED` flag, NOT a computed
+# date: the NYSE-calendar 63rd trading day (2026-08-17) is ~a month earlier than
+# the working target (≈2026-09-15), because the gate counts actual edge-sample
+# days and the outage days are excluded (04-risks §11.10). A date-derived guard
+# would open early; a flag cannot.
 
 REQUIRED_SECTIONS = (
     "Mechanizmus",
@@ -161,9 +164,12 @@ def lint_file(path: Path, today: date | None = None) -> LintResult:
     else:
         result.warnings.append("DRAFT — attempts are blocked until REGISTERED")
 
-    if status == "SHADOW" and today < DAY63_GATE:
+    if status == "SHADOW" and not cfg.DAY63_GATE_PASSED:
         result.errors.append(
-            f"SHADOW is not allowed before the Day 63 gate ({DAY63_GATE.isoformat()})"
+            "SHADOW is not allowed before the Day 63 gate — set "
+            "frl_config.DAY63_GATE_PASSED only after Tamás' gate decision "
+            f"(NYSE-calendar estimate for reference: "
+            f"{cfg.DAY63_NYSE_DATE_INFORMATIVE.isoformat()}, working target ≈2026-09-15)"
         )
 
     return result

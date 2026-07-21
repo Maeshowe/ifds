@@ -47,6 +47,7 @@ class FactorResult:
     half_life_days: float = float("nan")
     implied_cost_bps: float = float("nan")
     attempt_id: str = ""
+    costed: dict[str, dict] = field(default_factory=dict)  # era -> CostedView dict
 
 
 @dataclass
@@ -163,6 +164,32 @@ def build_report(ctx: BatchContext) -> str:
             f"| `{result.factor}` | {_fmt(result.half_life_days, 1)} | "
             f"{_fmt(result.implied_cost_bps, 0)} |"
         )
+
+    lines += [
+        "",
+        "## Bruttó vs költséggel terhelt IC (§5.3 cost-kapu)",
+        "",
+        "> Feltevés (az egyetlen): egy dollár-semleges, normalizált faktor-súlyú "
+        "portfólió horizontonként ≈ `IC × σ_cs` hozamot termel (Grinold-közelítés). "
+        "A per-oldal költség és a forgás **empirikus**.",
+        "",
+        "| Faktor | h | Éra | mean IC | σ_cs | bruttó bp/év | költség bp/év | **nettó bp/év** | breakeven IC |",
+        "|---|---|---|---|---|---|---|---|---|",
+    ]
+    for result in sorted(ctx.results, key=lambda r: (r.factor, r.horizon)):
+        for era in (cfg.ERA_LEGACY, cfg.ERA_SWING):
+            view = result.costed.get(era)
+            if not view:
+                continue
+            net = view.get("net_annual_bps")
+            mark = "" if (net is not None and net > 0) else " ❌"
+            lines.append(
+                f"| `{result.factor}` | {result.horizon} | {era} | "
+                f"{_fmt(view.get('mean_ic'))} | {_fmt(view.get('sigma_cs'), 4)} | "
+                f"{_fmt(view.get('gross_annual_bps'), 0)} | "
+                f"{_fmt(view.get('cost_annual_bps'), 0)} | "
+                f"**{_fmt(net, 0)}**{mark} | {_fmt(view.get('breakeven_ic'), 4)} |"
+            )
 
     lines += ["", "## Döntések", ""]
     for result in sorted(ctx.results, key=lambda r: (r.factor, r.horizon)):

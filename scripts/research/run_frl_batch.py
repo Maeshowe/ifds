@@ -156,6 +156,8 @@ def run_batch(
     for factor in runnable:
         for horizon in cfg.IC_HORIZONS:
             era_summaries: dict[str, dict] = {}
+            costed: dict[str, dict] = {}
+            sigma_by_era: dict[str, float] = {}
             half_life = float("nan")
 
             spec = ledger.AttemptSpec(
@@ -174,21 +176,31 @@ def run_batch(
             attempt_id = "" if dry_run else ledger.open_attempt(spec, path=ledger_path)
 
             for era, panel in panels.items():
+                # Returns are merged FIRST: factors may consume trailing (past_*)
+                # columns, so they must be present before compute() runs.
                 frame = panel.frame.copy()
-                frame["_factor"] = factor.compute(frame).to_numpy()
                 if returns_frame is not None:
                     frame = frame.merge(returns_frame, on=["date", "ticker"], how="left")
+                frame["_factor"] = factor.compute(frame).to_numpy()
                 return_col = f"fwd_ret_{horizon}"
                 if return_col not in frame.columns:
                     continue
                 ic_series = frl_ic.daily_ic(frame, "_factor", return_col)
                 era_summaries[era] = frl_ic.aggregate(ic_series, horizon, era).to_dict()
+                sigma_by_era[era] = frl_ic.cross_sectional_sigma(frame, return_col)
                 if era == cfg.ERA_SWING:
                     half_life = frl_ic.half_life(frame, "_factor")
 
             cost_bps = frl_ic.implied_turnover_cost_bps(
                 half_life, cost_model.get("cost_bps_per_side", cfg.FALLBACK_COST_BPS_PER_SIDE)
             )
+            for era, summary in era_summaries.items():
+                costed[era] = frl_ic.costed_view(
+                    summary.get("mean_ic", float("nan")),
+                    sigma_by_era.get(era, float("nan")),
+                    horizon,
+                    cost_bps,
+                ).to_dict()
             results.append(
                 frl_report.FactorResult(
                     factor=factor.name,
@@ -201,6 +213,7 @@ def run_batch(
                     half_life_days=half_life,
                     implied_cost_bps=cost_bps,
                     attempt_id=attempt_id,
+                    costed=costed,
                 )
             )
 

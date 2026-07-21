@@ -41,8 +41,12 @@ def _write_scan(dirpath: Path, day: str, rows: list[str]) -> None:
 
 
 def _row(ticker: str, status: str, reason: str, score: float, sector: str = "Tech") -> str:
+    # Reasons contain commas ("Sector VETO (Technology, laggard, neutral)") and the
+    # production writer quotes them — the fixture must too, or the parse silently
+    # shifts every column.
+    quoted = f'"{reason}"' if "," in reason else reason
     return (
-        f"{ticker},{status},{reason},{score},50,50,10,LONG,XLK,55.0,BULLISH,"
+        f"{ticker},{status},{quoted},{score},50,50,10,LONG,XLK,55.0,BULLISH,"
         f"100.0,2.5,{sector}\n"
     )
 
@@ -70,19 +74,46 @@ class TestTechFilterIsNaN:
         assert df.loc[df.ticker == "BBB", "score"].iloc[0] == -12.3
         assert df["scored"].tolist() == [True, True, False]
 
-    def test_zero_score_outside_tech_filter_is_kept_and_flagged(self, tmp_path):
-        """A genuine 0.0 swing score is a real observation — keep it, but flag it."""
+    def test_sector_veto_masks_tech_filter_and_those_rows_are_nan(self, tmp_path):
+        """The scan writer OVERWRITES Reason with 'Sector VETO', hiding the real
+        exclusion reason. A tech-filter row inside a vetoed sector therefore looks
+        like a scored row with a 0.0 value — 6179 such rows exist in the legacy era.
+        """
+        _write_scan(
+            tmp_path,
+            "2026-04-15",
+            [
+                _row("AAA", "REJECTED", "Sector VETO (Technology, laggard, neutral)", 0.0),
+                _row("BBB", "REJECTED", "Sector VETO (Technology, laggard, neutral)", 61.5),
+                _row("CCC", "REJECTED", "Tech Filter (Price < SMA200)", 0.0),
+            ],
+        )
+        df = loader.load_cross_section(date(2026, 4, 15), scan_dir=tmp_path)
+
+        assert pd.isna(
+            df.loc[df.ticker == "AAA", "score"].iloc[0]
+        ), "a VETO-masked unscored row must not enter the panel as 0.0"
+        assert df.loc[df.ticker == "BBB", "score"].iloc[0] == 61.5, (
+            "a vetoed but genuinely scored row keeps its factor value — the veto is "
+            "a portfolio decision, not a missing measurement"
+        )
+        assert df.attrs["anomalies"]["unscored_masked_by_reason"] == 1
+
+    def test_exact_zero_is_never_a_real_score(self, tmp_path):
+        """Empirically verified over all 102 production days: zero ACCEPTED rows
+        carry 0.0, and the smallest genuine |score| is 0.01. A 0.0 is always the
+        dataclass default of a ticker that never reached scoring."""
         _write_scan(
             tmp_path,
             "2026-07-20",
             [
                 _row("AAA", "REJECTED", "swing_score", 0.0),
-                _row("CCC", "REJECTED", "Tech Filter (Price < SMA200)", 0.0),
+                _row("BBB", "REJECTED", "swing_score", -0.01),
             ],
         )
         df = loader.load_cross_section(date(2026, 7, 20), scan_dir=tmp_path)
-        assert df.loc[df.ticker == "AAA", "score"].iloc[0] == 0.0
-        assert df.attrs["anomalies"]["zero_score_not_tech_filter"] == 1
+        assert pd.isna(df.loc[df.ticker == "AAA", "score"].iloc[0])
+        assert df.loc[df.ticker == "BBB", "score"].iloc[0] == -0.01
 
 
 # ---------------------------------------------------------------------------
@@ -263,8 +294,12 @@ class TestCostModel:
             "date": day,
             "execution": {
                 "slippage_per_ticker": {
-                    t: {"planned": 100.0, "filled": 100.0 * (1 + p / 100), "slippage_pct": p,
-                        "qty": 10}
+                    t: {
+                        "planned": 100.0,
+                        "filled": 100.0 * (1 + p / 100),
+                        "slippage_pct": p,
+                        "qty": 10,
+                    }
                     for t, p in slips.items()
                 }
             },

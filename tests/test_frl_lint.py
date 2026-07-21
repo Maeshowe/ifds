@@ -99,16 +99,31 @@ class TestFileLint:
         assert any("HYP-###" in e for e in lint.lint_file(_write(tmp_path, body=body)).errors)
 
 
-class TestShadowDateGuard:
-    def test_shadow_before_day63_is_rejected(self, tmp_path):
+class TestShadowGateGuard:
+    """The guard is a flag, not a date — a date would open ~a month early."""
+
+    def test_shadow_is_rejected_while_the_gate_flag_is_false(self, tmp_path):
         path = _write(tmp_path, status="SHADOW")
         result = lint.lint_file(path, today=date(2026, 7, 21))
-        assert any("Day 63" in e for e in result.errors)
+        assert any("Day 63 gate" in e for e in result.errors)
 
-    def test_shadow_after_day63_is_allowed(self, tmp_path):
+    def test_passing_the_nyse_date_alone_does_not_open_the_gate(self, tmp_path, monkeypatch):
+        """2026-08-17 is the 63rd NYSE day but NOT the gate event (§11.10)."""
+        monkeypatch.setattr(lint.cfg, "DAY63_GATE_PASSED", False)
         path = _write(tmp_path, status="SHADOW")
-        result = lint.lint_file(path, today=date(2026, 8, 18))
+        result = lint.lint_file(path, today=date(2026, 9, 30))
+        assert not result.ok, "a later calendar date must not authorise SHADOW"
+
+    def test_shadow_is_allowed_once_the_gate_flag_is_set(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(lint.cfg, "DAY63_GATE_PASSED", True)
+        path = _write(tmp_path, status="SHADOW")
+        result = lint.lint_file(path, today=date(2026, 7, 21))
         assert result.ok, result.errors
+
+    def test_gate_flag_ships_closed(self):
+        import frl_config
+
+        assert frl_config.DAY63_GATE_PASSED is False
 
 
 class TestTransitions:

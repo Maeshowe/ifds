@@ -1,12 +1,13 @@
-Status: DRAFT
+Status: REGISTERED
 Updated: 2026-07-21
 Data-lane: v1
-Attempt-family: —
+Attempt-family: A-0001..
 
 # HYP-004 — 5-napos szektor-relatív reversal
 
-> Tartalom: Chat (Dev), 2026-07-21. A `Status: REGISTERED` átállítás Chat/Tamás
-> lépése — a lint addig futás-tiltással kezeli (hypothesis-first).
+> Tartalom: Chat (Dev), 2026-07-21; **Tamás-jóváhagyás rögzítve** (2026-07-21).
+> `REGISTERED` a `factors/reversal.py` zöld `sanity()` párja UTÁN — a sorrendet
+> a saját lint (`assert_sanity_pair`) is kikényszeríti.
 > Ez az egyetlen azonnal, teljes értékűen tesztelhető hipotézis (tiszta v1 OHLCV),
 > ezért az első éles batch-futás jelöltje.
 
