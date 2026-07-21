@@ -92,9 +92,9 @@ tehát a **hipotézis-térben** történik, nem a paraméter-térben.
 
 | Rang | Forrás | Tartalom | Lefedés | Ismert korlát |
 |---|---|---|---|---|
-| 1 | `output/full_scan_matrix_*.csv` | teljes napi scan-keresztmetszet: Total/Flow/Funda/Tech_Score, Status, Reason, Price, ATR, Sector | 2026-02-09 → , ~105 nap | nyers al-komponens nincs; ⚠️ score-szemantika audit kell (§11 V1) |
-| 2 | `logs/ifds_run_*.jsonl` | TICKER_SCORED (+sub-score a message-ben), TICKER_FILTERED (kizárási ok), GEX_EXCLUSION, POSITION_SIZED | 2026-02-11 → | message-parse törékenység; a swing-érában legacy nyers kompozitot logol (⚠️ V1) |
-| 3 | Polygon daily bars (API + Mini `data/cache/polygon` ha releváns) | return-mátrix + OHLCV-faktorok a teljes univerzumra | visszamenőleg korlátlan | API-idő; cache-tartalom CC-verifikálandó (V2) |
+| 1 | `output/full_scan_matrix_*.csv` | teljes napi scan-keresztmetszet: Total/Flow/Funda/Tech_Score, Status, Reason, Price, ATR, Sector | 2026-02-09 → , ~105 nap | **FRL-0 GO (30b948c):** a Total_Score éra-konzisztens kanonikus oszlop — legacy: rácsos kompozit (05-15-ig), swing: folytonos S_j EWMA(5) (05-18-tól); a rescore megelőzi a CSV-írást. 66 legacy + 36 swing nap, degenerált swing-nap: 0 |
+| 2 | `logs/ifds_run_*.jsonl` | TICKER_SCORED (+sub-score a message-ben), TICKER_FILTERED (kizárási ok), GEX_EXCLUSION, POSITION_SIZED | 2026-02-11 → | **FRL-0 verdikt (30b948c):** a swing-érában NEM score-validátor — legacy nyers kompozitot logol (emitter a legacy min_score ágban, a `_apply_swing_scoring` ELŐTT), és torzított részhalmazon (csak legacy-passed ~50-90 ticker). Validátor-szerep legacy-érára korlátozva; swing-érában diagnosztikai forrás |
+| 3 | Polygon daily bars (`get_grouped_daily` — teljes piac/hívás, V2 verdikt) | return-mátrix + OHLCV-faktorok a teljes univerzumra | visszamenőleg korlátlan | ~110-130 hívás a teljes történeti mátrixhoz; Mini-cache üres, nem forrás |
 | 4 | `state/uw_shadow/` | gex_value/gex_regime nyers keresztmetszet | 2026-05-18 → , ~25-40 név/nap | kis N; dp_pct halott (UW 07-04); 05-19 elveszett |
 | 5 | `state/phase4_snapshots/` | gazdag nyers mezők, csak winnerek (~3-7/nap) | 2026-02-19 → | nem keresztmetszet; legacy-éra pollution-gyanús (04-15 = AAPL mock, verifikált) |
 
@@ -143,6 +143,7 @@ késlekedő nap egy nappal rövidíti a Day 63 utáni v2 dev-ablakot.
 
 | Hézag | Kezelés |
 |---|---|
+| tech_filter (nem pontozott) sorok | **NaN, SOHA nem 0** (FRL-0 tanulság: a `Total_Score==0` halmaz mind a 4 mintanapon pontosan a tech_filter halmaz — 0-ként bevonva a swing-panel ~40%-a hamis nulla lenne, dp_pct-hibaosztály) |
 | 06-27 → 07-06 (Mini SSH-orphan) | kimarad a dev-mintából; IC-idősorban explicit NaN, nem interpoláció |
 | 07-15/16 (áramszünet) | ugyanígy; konzisztens a §11.10 Day 63 edge-minta kizárással |
 | 2026-06-19 (Juneteenth), ünnepek | NYSE-naptár a kanonikus napszámláló (`trading_days_between`) |
@@ -185,12 +186,22 @@ turnover-becsléssel (rank-változásból) és a legacy súrlódás-tanulsággal
 teljes költségteher volt) szembesítendő. Riport-mező: `implied_annual_turnover_cost_bps`.
 
 **Költség-input (R1#3): empirikus, nem feltevés.** A per-oldal költség forrása a
-`research/cost_model.json`, amit a heti batch a `pending_exits/` slippage-mezőiből
-frissít: a next-day-fill |slippage| eloszlás mediánja és p75-e (előjeles nyomatok —
-pl. GTES −1.0% / JAZZ +1.0% — az overnight driftet is tartalmazzák, ezért az
+`research/cost_model.json`, amit a heti batch a `state/daily_metrics/<date>.json →
+execution.slippage_per_ticker[*].slippage_pct` sorozatból frissít (forrás-korrekció
+8b8b216: a pending_exits-ben nincs slippage-mező). Becslő: next-day-fill |slippage|
+medián és p75 (előjeles nyomatok az overnight driftet is tartalmazzák, ezért az
 abszolútérték-eloszlás a torzítatlan cost-becslő, nem a legrosszabb printek).
-Induló érték: 75 bp/oldal ⚠️ kis-n címkével; a 3 bp-osztályú feltevések ehhez a
-végrehajtási stílushoz (next-day MKT open) tiltottak.
+
+**Első valós output (8b8b216, 2026-07-21):** swing (05-20→07-20, n=28,
+small_n_warning): medián **95.5 bp/oldal**, p75 137.0, max 377.0 — round-trip ~191 bp.
+Legacy referencia: 19.0 bp medián (n=99) — az 5× szorzó a végrehajtási stílus-váltás
+(intraday LMT → next-day MKT open) ára, ezért `era=swing` a default szűrő, a legacy
+költség-minta NEM prior. Következmény: h=5 + teljes heti rotáció ≈ 50 round-trip/év
+→ **~9.5%/év végrehajtási költség-korlát** — a faktor-szelekciónak strukturálisan az
+alacsony-turnover jelöltek felé kell húznia. (G3-határ: költség-megfigyelés, nem
+signal-állítás; Day 63-inputként jegyezve a végrehajtási stílus későbbi vitájához.)
+A 3 bp-osztályú feltevések ehhez a stílushoz tiltottak; a korábbi 75 bp-s induló
+érték ~27%-kal alábecsült — a HYP-004 costed-IC riport 95.5 bp-on fut.
 
 ### 5.4 Defláció — az attempt-ledger él
 
@@ -208,12 +219,19 @@ végrehajtási stílushoz (next-day MKT open) tiltottak.
 - Egy hipotézis h-variánsai (h=1..7) EGY attempt-családnak számítanak, de a családon
   belüli max-IC szelekció ellen a családszintű p a Šidák-korrigált családi minimum-p
 
-### 5.5 Erő-realizmus (előzetes, a loader-audit után frissítendő)
+### 5.5 Erő-realizmus (FRL-0 után frissítve, 2026-07-21)
 
-N≈250 (swing scan) → SE(IC_napi) ≈ 0.063. T_eff ≈ T/h overlap-diszkonttal: a ~31 tiszta
-swing-napon T_eff(h=5) ≈ 6 → csak |IC| ≳ 0.08 detektálható — ezért a swing-only nézet
-Day 63 előtt jellemzően "inconclusive" lesz, és ezt a riport KÖTELEZŐEN kiírja. A
-legacy+swing kombinált (éra-bontott) nézet a valódi munkafelület.
+FRL-0-verifikált panelméretek: swing N≈257 pontozott/nap, T=36 nap; legacy N≈820
+pontozott/nap, T=66 nap.
+
+- Swing: SE(IC_napi) ≈ 1/√257 ≈ 0.062; T_eff(h=5) ≈ 7 → SE(mean IC) ≈ 0.024 →
+  **bar_swing ≈ 0.05** (a §5.2 képlettel). A swing-only nézet Day 63 előtt továbbra
+  is gyakran "inconclusive" lesz — a riport ezt KÖTELEZŐEN kiírja —, de a bar a
+  paper-hetekkel automatikusan lazul (~+5 nap/hét).
+- Legacy: SE(IC_napi) ≈ 0.035; T_eff(h=5) ≈ 13 → SE(mean IC) ≈ 0.010 →
+  **bar_legacy = 0.02 floor**.
+- A legacy+swing kombinált (éra-bontott) nézet a valódi munkafelület; PROMOTE-hoz
+  a swing-előjel minimum (§5.4 d) mindenkor kötelező.
 
 ---
 
@@ -345,9 +363,9 @@ az IC-motor, shadow-adaton).
 
 | # | Tétel | Miért blokkoló | Hol |
 |---|---|---|---|
-| V1 | **Score-szemantika audit — FRL-0 GO/STOP KAPU (R1#1)**: mit ír pontosan a full_scan_matrix Total_Score (legacy nyers vs S_j, érá-nként), miért Total_Score>0 csak 115/257 a 07-20-i fájlban, és mit logol a TICKER_SCORED a swing-érában (a 07-14 minta legacy-stílusú kompozitot mutatott). Önálló, jelentés-köteles futás; a loader-BUILD a GO-verdikt előtt NEM indul. STOP-kritérium: ha a swing-érás score-oszlop éra-inkonzisztens vagy degenerált → STOP + re-scope (a v1 sáv érvénytelen, a v2/OHLCV sávra szűkül a scope) | a dp_pct-strukturális-nulla és az AAPL-mock hibaosztály harmadik előfordulásának kizárása | FRL-0 (kód: `_apply_swing_scoring`, scan-matrix writer, TICKER_SCORED emitter) |
-| V2 | **Mini `data/cache/polygon` felmérés**: `du -sh` + fájlminta + tartalom-típus (daily bars? options?) — használható-e a return-mátrixhoz | nem blokkoló, költség-optimalizáció | Mini SSH, 5 perc |
-| V3 | **Scan-matrix ↔ JSONL keresztvalidáció** 3 mintanapon (1 legacy, 2 swing): ticker-halmaz és score-egyezés | a két sink konzisztenciája a loader alapfeltevése | loader-task teszt-szekció |
+| V1 | **Score-szemantika audit — FRL-0 GO/STOP KAPU (R1#1)** — **EREDMÉNY: GO (30b948c + 990d855, 2026-07-21).** Mindhárom gyanús jel feloldva, egyik sem adathiba: (1) 115/257 = pozitív/negatív osztás egy medián≈0 percentilis-különbség jelen, a Total_Score==0 halmaz mind a 4 mintanapon pontosan a tech_filter halmaz; (2) a JSONL legacy-kompozit logolása megerősítve — validátor-szerep éra-függővé téve; (3) tizedes S_j helyes (folytonos EWMA). 102-napos sweep: éra-határ tiszta (05-15 utolsó rácsos / 05-18 első folytonos), degenerált swing-nap 0. Teljes riport: loader-task §Eredmény; tracker: docs/design/frl/TRACKER.md | LEZÁRVA — B-fázis felszabadítva | FRL-0 DONE |
+| V2 | **Mini `data/cache/polygon` felmérés** — EREDMÉNY (990d855): cache üres (0B), NEM használható. Helyette: `get_grouped_daily(date)` — teljes US piaci napi OHLCV egy hívásban, a return-mátrix ~110-130 hívásból felépül (vs ~1500/nap per-ticker) | LEZÁRVA | loader B-fázis, return-builder |
+| V3 | **Scan-matrix ↔ JSONL keresztvalidáció — ÉRA-FÜGGŐ (FRL-0 szűkítés)**: legacy-érán ticker-halmaz + score-egyezés; swing-érán KIZÁRÓLAG ticker-halmaz-részhalmaz check (JSONL ⊆ CSV pontozott), score-összevetés TILOS (más mennyiség) | a validátor-réteg hamis riasztásainak kizárása | loader B-fázis teszt-szekció |
 | V4 | Legacy phase4_snapshot integritás-szűrő (mock-szignatúra detektor) | csak ha snapshot forrásként használatba kerül | loader-task, alacsony prioritás |
 
 ---
