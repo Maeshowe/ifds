@@ -276,6 +276,9 @@ TUNING = {
     "swing_score_threshold": 50.0,
     "swing_ewma_span": 5,
     "swing_ewma_state_file": "state/swing_ewma_state.json",
+    # v2 research cross-section sink (FRL spec §4.4, D_A 2026-07-21) — write-only
+    # freeze carve-out, feeds no trading decision.
+    "research_cross_section_dir": "state/research_cross_section",
     # Phase 6 multiplier chain gates for swing horizon (Day 63 §3.13)
     # M_GEX already gated by uw_gex_sizing_enabled (Fázis 1).
     # M_VIX deactivated: VIX-sensitivity less sharp on swing horizon

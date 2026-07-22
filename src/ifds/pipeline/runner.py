@@ -433,6 +433,33 @@ def run_pipeline(
                         run_id,
                         logger,
                     )
+
+                    # v2 research cross-section sink (FRL spec §4.4, D_A approved
+                    # 2026-07-21). Write-only freeze carve-out: no scoring, sizing
+                    # or exit path reads this. Guarded so a sink failure can never
+                    # stop the pipeline.
+                    try:
+                        from ifds.output.research_cross_section import write_cross_section
+
+                        write_cross_section(
+                            phase4.analyzed,
+                            ctx.sector_scores or [],
+                            swing_scoring_enabled=bool(
+                                config.tuning.get("swing_scoring_enabled", False)
+                            ),
+                            output_dir=config.tuning.get(
+                                "research_cross_section_dir",
+                                "state/research_cross_section",
+                            ),
+                        )
+                    except Exception as exc:  # noqa: BLE001 — sink must never break the run
+                        logger.log(
+                            EventType.CONFIG_WARNING,
+                            Severity.WARNING,
+                            phase=4,
+                            message=f"Research cross-section sink failed: {exc}",
+                        )
+
                     print_scan_summary(phase4)
                 finally:
                     polygon4.close()

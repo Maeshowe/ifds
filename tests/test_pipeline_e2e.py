@@ -277,6 +277,7 @@ class TestEndToEnd:
     @patch("ifds.output.telegram.send_trading_plan", return_value=True)
     @patch("ifds.output.telegram.send_macro_snapshot", return_value=True)
     @patch("ifds.pipeline.context_persistence.save_phase13_context", return_value=None)
+    @patch("ifds.output.research_cross_section.write_cross_section", return_value=None)
     @patch("ifds.data.uw_shadow.write_shadow_snapshot", return_value=None)
     @patch("ifds.data.phase4_snapshot.save_phase4_snapshot", return_value=None)
     @patch("ifds.output.execution_plan.write_trade_plan", return_value="/tmp/trade.csv")
@@ -306,6 +307,7 @@ class TestEndToEnd:
         mock_trade,
         mock_save_snapshot,
         mock_write_shadow,
+        mock_write_cross_section,
         mock_save_phase13,
         mock_tg_macro,
         mock_tg_trading,
@@ -374,6 +376,7 @@ class TestSnapshotIsolation:
     @patch("ifds.output.telegram.send_trading_plan", return_value=True)
     @patch("ifds.output.telegram.send_macro_snapshot", return_value=True)
     @patch("ifds.pipeline.context_persistence.save_phase13_context", return_value=None)
+    @patch("ifds.output.research_cross_section.write_cross_section", return_value=None)
     @patch("ifds.data.uw_shadow.write_shadow_snapshot", return_value=None)
     @patch("ifds.data.phase4_snapshot.save_phase4_snapshot", return_value=None)
     @patch("ifds.output.execution_plan.write_trade_plan", return_value="/tmp/t.csv")
@@ -403,6 +406,7 @@ class TestSnapshotIsolation:
         mock_trade,
         mock_save_snapshot,
         mock_write_shadow,
+        mock_write_cross_section,
         mock_save_phase13,
         mock_tg_macro,
         mock_tg_trading,
@@ -411,7 +415,7 @@ class TestSnapshotIsolation:
         tmp_path,
         monkeypatch,
     ):
-        """Both save_phase4_snapshot and write_shadow_snapshot must be mocked."""
+        """Every runner state/ sink must be mocked and provably invoked."""
         monkeypatch.setenv("IFDS_LOG_DIR", str(tmp_path))
         result = run_pipeline()
         assert result.success is True
@@ -424,6 +428,47 @@ class TestSnapshotIsolation:
         assert mock_write_shadow.called, (
             "write_shadow_snapshot mock was not invoked — runner may have "
             "bypassed the patch and written to production state/uw_shadow/."
+        )
+        assert mock_write_cross_section.called, (
+            "write_cross_section mock was not invoked — runner may have "
+            "bypassed the patch and written to production "
+            "state/research_cross_section/."
+        )
+
+    def test_runner_sinks_are_all_covered_by_the_patch_stack(self):
+        """Grep audit: every state/-writing sink called by runner.py appears in
+        both e2e patch stacks.
+
+        The "test mocked itself out" assert above only protects the sinks we
+        already know about — it cannot notice a NEW sink someone adds to
+        runner.py. That gap is exactly how write_shadow_snapshot slipped through
+        after the save_phase4_snapshot fix (04-risks §8.1.6-8.1.9). This test
+        fails the moment an unpatched sink appears.
+        """
+        import re
+        from pathlib import Path
+
+        runner_src = (
+            Path(__file__).resolve().parents[1] / "src" / "ifds" / "pipeline" / "runner.py"
+        ).read_text()
+        e2e_src = Path(__file__).read_text()
+
+        known_sinks = {
+            "save_phase4_snapshot",
+            "write_shadow_snapshot",
+            "save_phase13_context",
+            "write_cross_section",
+            "write_execution_plan",
+            "write_full_scan_matrix",
+            "write_trade_plan",
+            "save_mid_bundle_snapshot",
+        }
+        called = {name for name in known_sinks if re.search(rf"\b{name}\s*\(", runner_src)}
+        unpatched = {name for name in called if f"{name}\", return_value" not in e2e_src}
+
+        assert not unpatched, (
+            f"runner.py calls {sorted(unpatched)} but the e2e patch stack does not "
+            "mock them — the test suite would write to production state/."
         )
 
     @patch("ifds.output.telegram.send_macro_snapshot", return_value=True)
