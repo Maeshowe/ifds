@@ -1029,3 +1029,28 @@ dob (`test_load_record_without_entry_score_defaults`). **DEPLOYOLVA + VERIFIKÁL
 pre-flight 1954 passed). **Esti verifikáció**: #1 entry-capture ✓ (új belépők
 NSA=100.71, JAZZ=87.44 a state-ben), #2 ledger-wiring ✓ (a pending_exits
 rekordok tartalmazzák az entry_score mezőt; 0.0 a pre-deploy exitekre — helyes).
+
+---
+
+## 12. FRL-eredetű nyitott tételek (2026-07-21, Dev chat)
+
+### 12.1 P3 — `execution_plan.py:179` Reason-felülírás (post-Day-63 fix-jelölt)
+
+A full_scan_matrix writer a `Reason` mezőt "Sector VETO (...)"-ra írja felül,
+**elfedve a valódi `exclusion_reason`-t** (pl. tech_filter). Következmény: a
+vetózott szektorok tech_filter-kiesői pontozott sornak látszanak a CSV-ben — az
+FRL első batch-futása fogta ki (9f49a38: 6179 legacy sor hamis 0.0 faktor-értékkel).
+Az FRL oldalán kezelve (score==0→NaN, empirikusan megalapozva a 102 napon); a
+prod-oldali fix (Reason-mező megőrzése, VETO külön oszlopba) **freeze alatt NEM
+megy** — display/audit-minőségű hiba, kereskedési viselkedést nem érint. Fix-task
+a Day 63 kapu után. Hibaosztály: dp_pct-strukturális-nulla rokona (elfedett
+valódi státusz).
+
+### 12.2 Jegyzet — swing végrehajtási költség empirikus szintje (Day 63-input)
+
+Az FRL cost-modell első valós outputja (8b8b216): swing next-day-fill |slippage|
+medián **95.5 bp/oldal** (p75 137, n=28, small_n) vs legacy 19 bp — az 5× a
+next-day MKT open stílus ára. h=5 + teljes heti rotáció ≈ **~9.5%/év
+költség-korlát**. NEM signal-állítás (G3); a végrehajtási stílus (LMT/LOO vs MKT)
+post-Day-63 vitájának kvantitatív inputja. Forrás: `research/cost_model.json`,
+heti frissítéssel.
