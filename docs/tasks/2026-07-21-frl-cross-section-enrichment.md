@@ -75,9 +75,9 @@ Módosuló (MINIMÁLIS, sink-only):
 
 | # | Lépés | Felelős | Állapot |
 |---|---|---|---|
-| 1 | build + teszt (sink + mindkét e2e patch-stack + regressziós assertek) | CC | — |
-| 2 | **Előfeltétel-1 bizonyítás**: teljes pytest-suite után a `state/research_cross_section/` mtime **és tartalom változatlan**, a riportban dokumentálva | CC | — |
-| 3 | push-jóváhagyás | **Tamás** | — |
+| 1 | build + teszt (sink + mindkét e2e patch-stack + regressziós assertek) | CC | **DONE** `08d072d` |
+| 2 | **Előfeltétel-1 bizonyítás**: teljes pytest-suite után a `state/research_cross_section/` mtime **és tartalom változatlan**, a riportban dokumentálva | CC | **DONE** (lásd §Deploy-riport) |
+| 3 | push-jóváhagyás | **Tamás** | ⏳ **most itt tartunk** |
 | 4 | Mini `git pull` | Tamás | — |
 | 5 | első 14:30 cron élesben ír | (automatikus) | — |
 | 6 | **első-fájl verifikáció**: sor-szám ≈ scan-matrix scored; mező-teljesség; **S_j és legacy kompozit KÜLÖN mezőben** | CC | — |
@@ -87,3 +87,62 @@ Módosuló (MINIMÁLIS, sink-only):
 keresztmetszeti nap után indul a **40-napos minimum-minta** számláló (spec §4.2) →
 a HYP-001b/002b/003b legkorábban **~2026 szeptember közepén** válik tesztelhetővé,
 nagyjából a Day 63 kapuval egyidőben — a v2-fordulat a kapu utáni iterációs fázisra érik be.
+
+## Deploy-riport — Előfeltétel-1 bizonyítás (2026-07-21, CC)
+
+### Módszer
+
+Egy **üres könyvtár nem bizonyíték**: az csak azt mutatná, hogy nem *keletkezik*
+fájl, azt nem, hogy egy **meglévő napi fájlt nem ír felül** a suite. Ezért a
+próba sentinel-fájllal ment, 24 órával visszadátumozott mtime-mal — pontosan
+úgy, ahogy egy előző napi cron-output nézne ki:
+
+```
+state/research_cross_section/2026-07-21.json.gz
+  mtime_ns: 1784643122894255161
+  sha256:   e6abcfcfe823936b0acd9fca3fdb20bee83010752f0a896f7abcb5b77e6ffbee
+```
+
+### Eredmény: ✅ TELJESÜL
+
+A **teljes pytest-suite (2159 passed)** lefutása után:
+
+| Ellenőrzés | Eredmény |
+|---|---|
+| Fájl-halmaz | **változatlan** (nincs új, nincs törölt) |
+| mtime_ns | **változatlan** (1784643122894255161) |
+| sha256 tartalom-hash | **változatlan** |
+| Könyvtár-mtime | **változatlan** |
+
+### Negatív kontroll — a check nem vacuous
+
+Ideiglenesen **eltávolítottam** a `write_cross_section` patchet mindkét e2e
+stackből, és újrafuttattam:
+
+- a suite **valóban írt a prodba**: `state/research_cross_section/2026-07-22.json.gz`
+- az új **grep-audit teszt elkapta**: `test_runner_sinks_are_all_covered_by_the_patch_stack` **FAILED**
+
+A patch visszaállítva, az artefakt törölve, a sentinel eltávolítva — a könyvtár
+tiszta, az **első fájlt a Mini cron hozza létre**.
+
+**Ez a bizonyítás előfeltétel volt, nem utólagos ellenőrzés** (R1 kikötés).
+
+### Sink-audit fegyelem — a réteg, ami eddig hiányzott
+
+A `save_phase4_snapshot` fix után a `write_shadow_snapshot` **ugyanazon a résen**
+csúszott át: a "test mocked itself out" assert csak a **meglévő** patcheket védi,
+egy **új** sinket nem vesz észre. Ezért az `@patch` + `assert called` páron felül
+bekerült a `test_runner_sinks_are_all_covered_by_the_patch_stack` — grep-alapú
+audit, ami a runner.py sink-hívásait veti össze az e2e patch-stackkel, és
+**bukik, amint patch-eletlen sink jelenik meg**. Ez a harmadik előfordulást
+strukturálisan zárja.
+
+### Ami Tamásra vár (3-7. lépés)
+
+3. **push-jóváhagyás** — a commitok: `08d072d` (sink), `43c07a5` + `3d50bb9` (docs)
+4. Mini `git pull`
+5. első 14:30 cron élesben ír
+6. **első-fájl verifikáció** (CC): sor-szám ≈ scan-matrix scored (~250-260 a
+   mai szinten); mező-teljesség (nyers `pcr`/`otm_call_ratio`/`rvol` nem null a
+   pontozott sorokon); `swing_score` kitöltve, `legacy_composite` null
+7. `04-risks` §11 sor (11.11) — CC írja a verifikáció után
