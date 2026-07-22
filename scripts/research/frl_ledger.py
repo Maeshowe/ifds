@@ -93,6 +93,8 @@ def open_attempt(spec: AttemptSpec, path: Path | None = None) -> str:
         "implied_turnover_cost_bps": None,
         "decision": PENDING,
         "decision_note": "",
+        "decision_source": None,
+        "human_confirmed": False,
         "holdout_touched": False,
         "code_ref": spec.code_ref,
     }
@@ -112,6 +114,12 @@ def close_attempt(
     path: Path | None = None,
 ) -> dict:
     """Fill in the results of a previously opened attempt (rewrite-on-close).
+
+    The verdict written here is the *machine* verdict: it lands with
+    ``decision_source: "auto"`` and ``human_confirmed: False``, because spec §10
+    puts the decision with Tamás (Chat proposes). The auto verdict is a
+    mechanically-triggered default on a pre-registered criterion, not the
+    decision itself — ``confirm_decision()`` is what closes the audit chain.
 
     The whole file is rewritten through a temp file, with a ``.bak`` copy of the
     previous state kept — an append-only log that gets rewritten needs a
@@ -135,6 +143,8 @@ def close_attempt(
             entry["half_life_days"] = half_life_days
             entry["implied_turnover_cost_bps"] = implied_turnover_cost_bps
             entry["closed_at"] = _now_iso()
+            entry["decision_source"] = "auto"
+            entry["human_confirmed"] = False
             if holdout_touched is not None:
                 entry["holdout_touched"] = bool(holdout_touched)
             updated = entry
@@ -143,12 +153,79 @@ def close_attempt(
     if updated is None:
         raise ValueError(f"attempt not found in ledger: {attempt_id}")
 
+    _write_ledger(entries, target)
+    return updated
+
+
+def _write_ledger(entries: list[dict], target: Path) -> None:
+    """Rewrite the ledger atomically, keeping a ``.bak`` of the prior state."""
     if target.exists():
         shutil.copy2(target, target.with_suffix(target.suffix + ".bak"))
     tmp = target.with_suffix(target.suffix + ".tmp")
     tmp.write_text("".join(json.dumps(e) + "\n" for e in entries))
     tmp.replace(target)
-    return updated
+
+
+def confirm_decision(
+    attempt_id: str,
+    by: str,
+    decision: str | None = None,
+    note: str = "",
+    path: Path | None = None,
+) -> dict:
+    """Record the human decision on a closed attempt (spec §10).
+
+    Pass ``decision`` to override the machine verdict — the override is the whole
+    point of the confirmation step, and the original is preserved in
+    ``auto_decision`` so the audit chain shows what the machine proposed and what
+    the human decided.
+
+    Raises:
+        ValueError: if the attempt is unknown, still PENDING, or the override
+            decision is not a legal one.
+    """
+    target = Path(path) if path is not None else cfg.LEDGER_PATH
+    entries = read_ledger(target)
+
+    for entry in entries:
+        if entry.get("attempt_id") != attempt_id:
+            continue
+        if entry.get("decision") == PENDING:
+            raise ValueError(
+                f"{attempt_id} is still PENDING — a decision must be closed before "
+                "it can be confirmed"
+            )
+        if decision is not None:
+            if decision not in DECISIONS:
+                raise ValueError(f"unknown decision: {decision} (allowed: {DECISIONS})")
+            entry["auto_decision"] = entry["decision"]
+            entry["decision"] = decision
+
+        entry["human_confirmed"] = True
+        entry["decision_source"] = "human"
+        entry["confirmed_by"] = by
+        entry["confirmed_at"] = _now_iso()
+        if note:
+            existing = entry.get("decision_note") or ""
+            entry["decision_note"] = f"{existing} | {note}".strip(" |")
+
+        _write_ledger(entries, target)
+        return entry
+
+    raise ValueError(f"attempt not found in ledger: {attempt_id}")
+
+
+def unconfirmed_decisions(path: Path | None = None) -> list[dict]:
+    """Closed attempts still carrying only a machine verdict.
+
+    Surfaced in every batch report so an auto verdict cannot quietly become the
+    record of a decision nobody made.
+    """
+    return [
+        e
+        for e in read_ledger(path)
+        if e.get("decision") != PENDING and not e.get("human_confirmed")
+    ]
 
 
 def pending_attempts(path: Path | None = None) -> list[dict]:

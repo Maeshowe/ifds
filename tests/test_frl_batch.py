@@ -328,3 +328,68 @@ class TestReportRendering:
     def test_no_pooled_era_row_is_emitted(self):
         text = report.build_report(self._ctx())
         assert "| pooled |" not in text
+
+
+class TestUnconfirmedDecisionsInReport:
+    def _ctx_with(self, unconfirmed):
+        return report.BatchContext(
+            run_date=date(2026, 7, 24),
+            windows_line="dev ... | purge ... | holdout ...",
+            cost_model={"cost_bps_per_side": 95.5, "n": 28, "era": "swing"},
+            panel_days={"swing": 19},
+            missing_days=[],
+            unexpected_missing=[],
+            sanity_lines=["PASS reversal: ic=-0.980 expected_sign=-1"],
+            results=[],
+            deflation_rows=[],
+            holdout_congestion=0,
+            unconfirmed=unconfirmed,
+        )
+
+    def test_auto_verdicts_are_listed_for_confirmation(self):
+        text = report.build_report(
+            self._ctx_with(
+                [
+                    {
+                        "attempt_id": "A-0001",
+                        "hyp_id": "HYP-004",
+                        "variant": "reversal_h1",
+                        "decision": "KILL",
+                        "closed_at": "2026-07-21T20:00:00+00:00",
+                    },
+                ]
+            )
+        )
+        assert "Megerősítésre váró döntések" in text
+        assert "A-0001" in text
+        assert "1 döntés vár emberi megerősítésre" in text
+
+    def test_report_states_that_the_verdict_is_only_a_default(self):
+        text = report.build_report(self._ctx_with([]))
+        assert "A döntés Tamásé" in text
+
+    def test_empty_backlog_is_stated_explicitly(self):
+        text = report.build_report(self._ctx_with([]))
+        assert "Nincs megerősítésre váró döntés" in text
+
+    def test_batch_run_surfaces_its_own_auto_verdicts(self, tmp_path, monkeypatch):
+        """End-to-end: the run's own KILLs appear in its confirmation backlog."""
+        _register("clean", 1, lambda panel: panel["score"])
+        scan_dir = tmp_path / "output"
+        _scan_files(scan_dir, [date(2026, 5, 18)])
+        monkeypatch.setattr("frl_loader.cfg.SCAN_MATRIX_DIR", scan_dir)
+
+        ledger_path = tmp_path / "ledger.jsonl"
+        text = batch.run_batch(
+            run_date=date(2026, 7, 20),
+            factor_filter="clean",
+            ledger_path=ledger_path,
+            runs_dir=tmp_path / "runs",
+            returns_frame=_returns([date(2026, 5, 18)]),
+            hypothesis_dir=_registry(tmp_path),
+        )
+        entries = ledger.read_ledger(ledger_path)
+        assert entries, "the run must have written attempts"
+        assert all(e["decision_source"] == "auto" for e in entries)
+        assert all(e["human_confirmed"] is False for e in entries)
+        assert f"{len(entries)} döntés vár emberi megerősítésre" in text

@@ -159,3 +159,68 @@ class TestDeflate:
         rows = ledger.deflate(ledger.read_ledger(path))
         assert all(r["bh_pass"] for r in rows)
         assert not any(r["bonferroni_pass"] for r in rows)
+
+
+class TestDecisionProvenance:
+    """Audit chain: an auto verdict is a default, never a human decision (spec §10)."""
+
+    def test_auto_close_is_marked_unconfirmed(self, tmp_path):
+        path = tmp_path / "l.jsonl"
+        attempt_id = ledger.open_attempt(_spec(), path=path)
+        entry = ledger.close_attempt(attempt_id, metrics={}, decision="KILL", path=path)
+        assert entry["decision_source"] == "auto"
+        assert entry["human_confirmed"] is False
+
+    def test_unconfirmed_decisions_are_listable(self, tmp_path):
+        path = tmp_path / "l.jsonl"
+        for i in range(3):
+            attempt_id = ledger.open_attempt(_spec(f"v{i}"), path=path)
+            ledger.close_attempt(attempt_id, metrics={}, decision="KILL", path=path)
+        assert [e["attempt_id"] for e in ledger.unconfirmed_decisions(path)] == [
+            "A-0001",
+            "A-0002",
+            "A-0003",
+        ]
+
+    def test_pending_rows_are_not_unconfirmed_decisions(self, tmp_path):
+        """A PENDING row has no decision yet — it is a crash signal, not a backlog item."""
+        path = tmp_path / "l.jsonl"
+        ledger.open_attempt(_spec(), path=path)
+        assert ledger.unconfirmed_decisions(path) == []
+
+    def test_human_confirmation_records_who_and_when(self, tmp_path):
+        path = tmp_path / "l.jsonl"
+        attempt_id = ledger.open_attempt(_spec(), path=path)
+        ledger.close_attempt(attempt_id, metrics={}, decision="KILL", path=path)
+
+        entry = ledger.confirm_decision(attempt_id, by="Tamás", note="pre-reg (a)", path=path)
+        assert entry["human_confirmed"] is True
+        assert entry["decision_source"] == "human"
+        assert entry["confirmed_by"] == "Tamás"
+        assert entry["confirmed_at"]
+        assert "pre-reg (a)" in entry["decision_note"]
+        assert ledger.unconfirmed_decisions(path) == []
+
+    def test_confirmation_may_override_the_auto_verdict(self, tmp_path):
+        """The human decision wins — that is the point of the confirmation step."""
+        path = tmp_path / "l.jsonl"
+        attempt_id = ledger.open_attempt(_spec(), path=path)
+        ledger.close_attempt(attempt_id, metrics={}, decision="KILL", path=path)
+
+        entry = ledger.confirm_decision(attempt_id, by="Tamás", decision="PARK", path=path)
+        assert entry["decision"] == "PARK"
+        assert entry["auto_decision"] == "KILL"
+        assert entry["human_confirmed"] is True
+
+    def test_confirming_a_pending_attempt_is_an_error(self, tmp_path):
+        path = tmp_path / "l.jsonl"
+        attempt_id = ledger.open_attempt(_spec(), path=path)
+        with pytest.raises(ValueError, match="PENDING"):
+            ledger.confirm_decision(attempt_id, by="Tamás", path=path)
+
+    def test_confirmation_keeps_a_backup(self, tmp_path):
+        path = tmp_path / "l.jsonl"
+        attempt_id = ledger.open_attempt(_spec(), path=path)
+        ledger.close_attempt(attempt_id, metrics={}, decision="KILL", path=path)
+        ledger.confirm_decision(attempt_id, by="Tamás", path=path)
+        assert path.with_suffix(path.suffix + ".bak").exists()

@@ -285,6 +285,7 @@ def run_batch(
         deflation_rows=deflation_rows,
         holdout_congestion=frl_holdout.holdout_congestion(history, windows.holdout_start),
         parked_retests=sorted(set(parked_retests)),
+        unconfirmed=ledger.unconfirmed_decisions(ledger_path) if not dry_run else (),
         anomalies=anomalies,
         notes=(
             "A swing score-oszlop EWMA(5)-simított — a half-life a simítást is méri, "

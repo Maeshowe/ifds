@@ -65,6 +65,7 @@ class BatchContext:
     deflation_rows: Sequence[dict]
     holdout_congestion: int
     parked_retests: Sequence[str] = field(default_factory=tuple)
+    unconfirmed: Sequence[dict] = field(default_factory=tuple)
     anomalies: dict = field(default_factory=dict)
     notes: Sequence[str] = field(default_factory=tuple)
 
@@ -191,13 +192,41 @@ def build_report(ctx: BatchContext) -> str:
                 f"**{_fmt(net, 0)}**{mark} | {_fmt(view.get('breakeven_ic'), 4)} |"
             )
 
-    lines += ["", "## Döntések", ""]
+    lines += [
+        "",
+        "## Döntések",
+        "",
+        "> A batch verdiktje **auto** (mechanikusan triggerelt pre-reg kritérium), "
+        "`human_confirmed: false`-szal születik. A döntés Tamásé (spec §10) — "
+        "a megerősítés vagy felülírás explicit művelet.",
+        "",
+    ]
     for result in sorted(ctx.results, key=lambda r: (r.factor, r.horizon)):
         reason = "; ".join(result.reasons) if result.reasons else "—"
         lines.append(
-            f"- **{result.decision}** — `{result.factor}` h={result.horizon} "
+            f"- **{result.decision}** (auto) — `{result.factor}` h={result.horizon} "
             f"({result.hyp_id}, {result.data_lane}, attempt {result.attempt_id or '—'}): {reason}"
         )
+
+    lines += ["", "### Megerősítésre váró döntések", ""]
+    if ctx.unconfirmed:
+        lines.append("| Attempt | Hipotézis | Variáns | Auto-verdikt | Zárva |")
+        lines.append("|---|---|---|---|---|")
+        for entry in sorted(ctx.unconfirmed, key=lambda e: e.get("attempt_id", "")):
+            lines.append(
+                f"| {entry.get('attempt_id', '?')} | {entry.get('hyp_id', '?')} | "
+                f"`{entry.get('variant', '?')}` | {entry.get('decision', '?')} | "
+                f"{entry.get('closed_at', '—')} |"
+            )
+        lines.append("")
+        lines.append(
+            f"**{len(ctx.unconfirmed)} döntés vár emberi megerősítésre.** "
+            "Megerősítés: `frl_ledger.confirm_decision(attempt_id, by=..., note=...)`; "
+            "felülírás: ugyanaz `decision=` paraméterrel (az auto-verdikt "
+            "`auto_decision`-ként megmarad)."
+        )
+    else:
+        lines.append("- Nincs megerősítésre váró döntés. ✅")
 
     lines += [
         "",

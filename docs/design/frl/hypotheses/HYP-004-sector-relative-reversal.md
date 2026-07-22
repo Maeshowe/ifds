@@ -1,7 +1,7 @@
-Status: REGISTERED
+Status: KILLED
 Updated: 2026-07-21
 Data-lane: v1
-Attempt-family: A-0001..
+Attempt-family: A-0001..A-0004 (KILL, Tamás megerősítve 2026-07-21)
 
 # HYP-004 — 5-napos szektor-relatív reversal
 
@@ -74,8 +74,50 @@ javulására, nem a minta növekedésére figyel.
 
 ## Eredmény (a batch tölti)
 
-—
+Első éles batch: `research/runs/2026-07-20/report.md` (attempt A-0001..A-0004).
+Dev-ablak: legacy 59 nap / swing 19 nap; holdout-érintés **0**.
+
+| h | Éra | mean IC | NW t | p | éra-bar | verdikt |
+|---|---|---|---|---|---|---|
+| 1 | legacy | −0.0183 | −0.94 | 0.350 | 0.0388 | inconclusive |
+| 3 | legacy | −0.0143 | −0.82 | 0.421 | 0.0347 | inconclusive |
+| 5 | legacy | −0.0298 | −1.52 | 0.157 | 0.0393 | inconclusive |
+| 7 | legacy | −0.0278 | −1.42 | 0.199 | 0.0392 | inconclusive |
+| 1 | swing | −0.0144 | −0.40 | 0.693 | 0.0718 | inconclusive |
+| 3 | swing | −0.0705 | −1.88 | 0.118 | 0.0749 | inconclusive |
+| 5 | swing | −0.0950 | −2.54 | 0.085 | 0.0749 | mérhető |
+| 7 | swing | −0.1087 | −3.36 | 0.078 | 0.0647 | mérhető |
+
+Šidák-családi p (4 h-variáns): **legacy 0.4946**, **swing 0.2787** — mindkettő BH-fail
+(q=0.10). Half-life **2.4 nap** → implikált forgási költség **19 827 bp/év**; a legjobb
+bruttó 3 151 bp/év (h=5 swing). Breakeven IC 0.29–0.74.
 
 ## KILL/PARK indoklás (ha releváns)
 
-—
+**KILL** — a pre-reg **(a)** kritérium szerint (Chat-javaslat 2026-07-21,
+**Tamás megerősítette**; ledger `human_confirmed: true`).
+
+A legacy családi p 0.4946 **elégséges T_eff mellett** (≈13) — tiszta bukás. A swing
+p 0.2787 kis T_eff-en önmagában inconclusive lenne, de a döntéshez nem kell. A (b) ág
+nem aktiválódott (az előjel helyes), a (c) sem (bruttó-pass hiányában).
+
+**Fegyelmi pont:** a swing h=7 cella (−0.109, NW t=−3.36) **nem ok a felülbírálatra**.
+A Šidák-családi p pontosan az ilyen cellakiemelés ellen véd; ha az első érdekes
+t-statra kivételt tennénk, a teljes deflációs réteg dekoráció lenne.
+
+### Két tanulság a loop visszacsatolásához
+
+1. **A mechanizmus-tézis NEM dőlt meg — a tradeable erősség tézise bukott.**
+   Mind a **8/8 cella negatív előjelű**, ami a mechanizmus irányát támogatja; a jel
+   azonban a jelenlegi mintán **defláció után nem válik el a zajtól**.
+
+2. **A költség-oldal önmagában is halálos lett volna.** Breakeven IC **0.29–0.74** vs
+   éra-bar **0.03–0.07** — **nagyságrendi rés, nem határeset**. Következmény a
+   hipotézis-térre: **gyors-turnover faktor ennél a végrehajtási stílusnál
+   (next-day MKT open, 95.5 bp/oldal) strukturálisan halott.**
+
+### Mi marad nyitva
+
+Egy **alacsonyabb forgású reversal-variáns** (hosszabb formációs ablak,
+overlap-portfólió implementáció) **ÚJ hipotézisként**, saját mechanizmus-indoklással
+regisztrálható. **A KILL erre a specifikációra terminális, nem a témára.**
