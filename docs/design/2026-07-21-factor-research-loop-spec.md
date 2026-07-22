@@ -136,13 +136,15 @@ Javaslat: a Phase 4 futás végén a teljes pontozott tábla (nyers mezőkkel, a
 phase4_snapshot rekord-sémájával) írása `state/research_cross_section/YYYY-MM-DD.json.gz`
 fájlba. Jelleg: display/tracking-carve-out (§4.2/1) — kereskedési viselkedést nem érint,
 kizárólag perzisztálás. Sink-audit fegyelem KÖTELEZŐ: az új sink mindkét e2e patch-stackbe
-felveendő (04-risks §8.1.6-8.1.9 szabály). **Freeze alatti deploy: Tamás-döntés.** Minden
+felveendő (04-risks §8.1.6-8.1.9 szabály). **Freeze alatti deploy: D_A DÖNTVE IGEN (Tamás, 2026-07-21).** Minden
 késlekedő nap egy nappal rövidíti a Day 63 utáni v2 dev-ablakot.
 
 ### 4.5 Ismert lefedettségi hézagok és kezelésük
 
 | Hézag | Kezelés |
 |---|---|
+| **score == 0 → NaN (9f49a38, FRL-0 szabály-revizió)** | a reason-alapú tech_filter-azonosítás szűknek bizonyult: az `execution_plan.py:179` a Reason-t "Sector VETO"-ra írja felül, elfedve a valódi exclusion_reason-t — 6179 legacy sor lépett volna panelbe hamis 0.0-val. Új szabály empirikusan megalapozva a 102 napon: 0 db ACCEPTED 0.0-val, min valós |score| 0.01. A pontozott VETO-sorok (4357) maradnak — a veto portfólió-döntés, nem hiányzó mérés. A mögöttes Reason-felülírás prod-bug: post-Day-63 fix-jelölt (04-risks) |
+| 2026-04-06, 04-07 scan-matrix hiányzik | nem dokumentált gap (fájlok 04-03 → 04-08 ugranak), ok nem vizsgált — kezelés azonos: explicit hiányzó nap, nem interpoláció |
 | tech_filter (nem pontozott) sorok | **NaN, SOHA nem 0** (FRL-0 tanulság: a `Total_Score==0` halmaz mind a 4 mintanapon pontosan a tech_filter halmaz — 0-ként bevonva a swing-panel ~40%-a hamis nulla lenne, dp_pct-hibaosztály) |
 | 06-27 → 07-06 (Mini SSH-orphan) | kimarad a dev-mintából; IC-idősorban explicit NaN, nem interpoláció |
 | 07-15/16 (áramszünet) | ugyanígy; konzisztens a §11.10 Day 63 edge-minta kizárással |
@@ -379,14 +381,14 @@ az IC-motor, shadow-adaton).
 | FRL-2 | IC-motor + attempt-ledger + batch-riport (task: frl-ic-engine) | ~4-6h CC | freeze alatt build+teszt OK |
 | FRL-3 | Registry-bootstrap + HYP-001..004 (task: frl-hypothesis-registry; hipotézis-szöveg: Chat) | ~1h CC + ~2h Chat | FRL-1 után |
 | FRL-4 | Első éles batch-futás (HYP-004 a v1-tiszta jelölt) | ~1h CC | FRL-2+3 után; output "Day 63-input, leíró" címkével |
-| FRL-5 | v2 enrichment sink (task: frl-cross-section-enrichment) | ~2-3h CC | **D_A Tamás-döntés** — freeze-carve-out érv a taskban |
+| FRL-5 | v2 enrichment sink (task: frl-cross-section-enrichment) | ~2-3h CC | **D_A DÖNTVE: IGEN** (2026-07-21) — build+teszt kész, deploy a szekvencia szerint |
 | FRL-6 | Shadow-integráció + deploy-út | ~3-4h CC | KIZÁRÓLAG Day 63 után |
 
 ## 13. Nyitott döntési pontok (Tamás)
 
 | # | Döntés | Státusz (2026-07-21) |
 |---|---|---|
-| D_A | v2 enrichment sink freeze alatti deploy-a | Két chat egybehangzó ajánlása: **IGEN**, két kemény előfeltétellel (R1): (1) sink-audit regressziós tesztek zöldek ÉS a teszt-suite futása után a `state/research_cross_section/` mtime változatlan (test-env-hygiene check ELŐFELTÉTELKÉNT, nem utólag); (2) napi ops-checklist sor a Log Review chatnél (sor-szám ≈ scan-matrix scored). **Tamás megerősítésére vár.** |
+| D_A | v2 enrichment sink freeze alatti deploy-a | **DÖNTVE: IGEN (Tamás, 2026-07-21)**, az R1-előfeltételekkel: (1) sink-audit regressziós tesztek zöldek ÉS a teszt-suite futása után a `state/research_cross_section/` mtime **változatlan** (test-env-hygiene check ELŐFELTÉTELKÉNT, nem utólag); (2) napi ops-checklist sor a Log Review chatnél (sor-szám ≈ scan-matrix scored). Deploy-szekvencia: `docs/tasks/2026-07-21-frl-cross-section-enrichment.md`. |
 | D_B | Holdout-ablak K | **DÖNTVE: 4 hét** (review-konszenzus). Kaveát rögzítve: a swing-holdout közeltávon alulfeszített (T_eff≈4-6) — eredményei informatívak, nem kötők, amíg a paper-hetek nem akkumulálnak. |
 | D_C | FDR-szint q | **DÖNTVE: 0.10** (review-konszenzus). Megkötés: a valódi szűk keresztmetszet a holdout-touch budget — a §7 "≥3 érintés → várj" governor szigorúan betartandó; az éra-kvalifikált bar (§5.2) a swing-oldali zajátengedést zárja. |
 
@@ -414,5 +416,5 @@ az IC-motor, shadow-adaton).
 | R1#5 | v1-proxy a transzformot méri, nem a nyers jelet | Elfogadva + HYP-a/b ID-szétválasztás, aszimmetria-szabállyal | §8.2 |
 | R1#6 | Per-faktor sanity-gate hiányzik | Elfogadva (holdout-touch budget védelme) | §10, ic-engine + registry task |
 
-Döntések: D_B=4 hét és D_C=q0.10 LOCKED (két-chat konszenzus); D_A ajánlás IGEN két
-előfeltétellel, Tamás megerősítésére vár.
+Döntések: D_B=4 hét és D_C=q0.10 LOCKED (két-chat konszenzus); **D_A: IGEN — Tamás,
+2026-07-21**, a két R1-előfeltétellel.

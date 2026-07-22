@@ -1,6 +1,6 @@
-Status: BLOCKED
+Status: OPEN
 Updated: 2026-07-21
-Note: D_A Tamás-megerősítésre vár (spec §13) — KÉT CHAT EGYBEHANGZÓ AJÁNLÁSA: IGEN, az R1 két kemény előfeltételével (lásd §Deploy-előfeltételek). A build+teszt a döntéstől függetlenül freeze-safe; KIZÁRÓLAG a Mini-deploy a döntési pont.
+Note: **D_A MEGERŐSÍTVE (Tamás, 2026-07-21, chat)** — a v2 enrichment sink freeze alatti deploy-a jóváhagyva, az R1 két kemény előfeltételével (lásd §Deploy-előfeltételek). A build+teszt freeze-safe; a deploy a §Deploy-szekvencia szerint, sorrendben kötelező.
 
 # FRL-5 — v2 nyers keresztmetszet forward-perzisztálás (enrichment sink)
 
@@ -64,4 +64,26 @@ Módosuló (MINIMÁLIS, sink-only):
 
 ## Döntési napló
 
-- D_A: … (Tamás, dátum)
+- **D_A: IGEN — Tamás, 2026-07-21** (chat). A v2 nyers keresztmetszet forward-gyűjtése
+  a freeze alatt elindul, mert minden csúszó nap **végleges adatveszteség** a Day 63
+  utáni v2 dev-ablakból. A carve-out jellege: **display/tracking** (§4.2/1) — a sink
+  kizárólag ír, kereskedési viselkedést nem érint.
+  Előfeltételek (R1, a deploy része): (1) pytest-suite utáni mtime+tartalom-invariancia
+  bizonyítva a deploy-riportban; (2) napi ops-checklist sor a Log Review chatnél.
+
+## Deploy-szekvencia (sorrendben kötelező)
+
+| # | Lépés | Felelős | Állapot |
+|---|---|---|---|
+| 1 | build + teszt (sink + mindkét e2e patch-stack + regressziós assertek) | CC | — |
+| 2 | **Előfeltétel-1 bizonyítás**: teljes pytest-suite után a `state/research_cross_section/` mtime **és tartalom változatlan**, a riportban dokumentálva | CC | — |
+| 3 | push-jóváhagyás | **Tamás** | — |
+| 4 | Mini `git pull` | Tamás | — |
+| 5 | első 14:30 cron élesben ír | (automatikus) | — |
+| 6 | **első-fájl verifikáció**: sor-szám ≈ scan-matrix scored; mező-teljesség; **S_j és legacy kompozit KÜLÖN mezőben** | CC | — |
+| 7 | `04-risks` §11 freeze-melléklet sor (11.x formátum: mit / miért carve-out / viselkedés-hatás NEM / commit) | CC | — |
+
+**Amit a deploy elindít:** a v2 forward-gyűjtés órája. Az első teljes nyers
+keresztmetszeti nap után indul a **40-napos minimum-minta** számláló (spec §4.2) →
+a HYP-001b/002b/003b legkorábban **~2026 szeptember közepén** válik tesztelhetővé,
+nagyjából a Day 63 kapuval egyidőben — a v2-fordulat a kapu utáni iterációs fázisra érik be.
