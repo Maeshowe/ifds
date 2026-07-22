@@ -69,7 +69,7 @@ S6  FRL-5 enrichment sink — build+teszt bármikor, DEPLOY csak D_A után + Tam
 | S3 | FRL-2 | **DONE** | `frl-ic-engine` | `a02bc1d` | 6 modul + 74 teszt (2084 passing); NW statsmodels ellen validálva |
 | S4 | FRL-3 | **DONE** | `frl-hypothesis-registry` | `7f74c58` | template + 7 HYP (DRAFT) + lint + batch-gate; 2109 passing |
 | S5 | FRL-4 | **DONE** | — | `9f49a38`, `48451ce` | HYP-004 **KILLED** (pre-reg (a), Tamás megerősítve); 2139 passing |
-| S6 | FRL-5 | BLOCKED | `frl-cross-section-enrichment` | — | **D_A** Tamás-megerősítésre vár |
+| S6 | FRL-5 | **build DONE** | `frl-cross-section-enrichment` | `08d072d`, `faa56d3` | D_A **IGEN**; előfeltétel-1 bizonyítva → **Tamás push-jóváhagyására vár** |
 
 Státusz-jelölés: TODO → WIP → DONE / BLOCKED / STOP.
 
@@ -77,7 +77,7 @@ Státusz-jelölés: TODO → WIP → DONE / BLOCKED / STOP.
 
 | # | Döntés | Állapot |
 |---|---|---|
-| D_A | v2 enrichment sink freeze alatti deploy | **Tamás megerősítésére vár** (ajánlás: IGEN, 2 kemény előfeltétellel) — csak S6-ot fogja |
+| D_A | v2 enrichment sink freeze alatti deploy | **DÖNTVE: IGEN** (Tamás, 2026-07-21) — build+teszt kész, deploy a 7 lépéses szekvencia szerint (3. lépésnél tartunk) |
 | D_B | Holdout K | DÖNTVE: 4 hét |
 | D_C | FDR q | DÖNTVE: 0.10 |
 
@@ -98,6 +98,7 @@ Státusz-jelölés: TODO → WIP → DONE / BLOCKED / STOP.
 | 2026-07-21 | Tracker létrehozva; sorrend rögzítve (S0–S6, 3 eltéréssel a spectől); környezeti tények felvéve (statsmodels hiány → kézi NW). |
 | 2026-07-21 | **S0 DONE** (spec+task már commitolva `a7e186f`/`6457abe`; tracker `30b948c`). |
 | 2026-07-21 | **S1 FRL-0 DONE → GO.** V1/1-3 + V3 + 102-napos éra-sweep + V2 (Mini-cache üres). 5 kötelező B-fázis következmény rögzítve. S2 WIP. |
+| 2026-07-21 | **S6 FRL-5 build DONE** (`08d072d`). **D_A: IGEN** (Tamás) → doc-átvezetés (`43c07a5`) + `04-risks` §12 (`3d50bb9`). Sink: a teljes pontozott keresztmetszet napi gzip-perzisztálása, **swing_score és legacy_composite külön mezőben** (az FRL-0 szemantika-tanulság a forrásnál kódolva), tech_filter/danger_zone → null (nem 0.0). **Előfeltétel-1 bizonyítva** (`faa56d3`): sentinel-fájllal, 2159-teszt után mtime+sha256+fájlhalmaz változatlan, **negatív kontrollal** (patch nélkül a suite tényleg prodba ír, és az új grep-audit teszt elkapja). **+20 teszt → 2159 passing.** ⏳ Tamás push-jóváhagyására vár. |
 | 2026-07-21 | **S5 FRL-4 DONE — a loop első teljes fordulata lezárult.** `factors/reversal.py` (HYP-004) + első éles batch (`research/runs/2026-07-20/`) → **KILL** a pre-reg (a) szerint, **Tamás megerősítette** (A-0001..A-0004 `human_confirmed: true`), HYP-004 `Status: KILLED`. Két adathiba és egy governance-rés kifogva, mindhárom teszttel zárva: (1) **VETO-maszkolt 0.0 sorok** (`9f49a38`) — a scan-writer felülírja a Reason-t, 6179 legacy sor lépett volna be 0.0 faktor-értékkel → `score == 0` → NaN; (2) **SHADOW-guard flag-esítve** (`DAY63_GATE_PASSED`) a számított dátum helyett; (3) **decision provenance** (`48451ce`) — `decision_source`/`human_confirmed` + riport-backlog. **2109 → 2139 passing.** |
 | 2026-07-21 | **S4 FRL-3 DONE** (`7f74c58`). Template + 7 HYP-fájl (mind DRAFT) + `frl_lint.py` + batch hypothesis-first gate (DRAFT → `BLOCKED`, nincs ledger-sor). HYP-004 tartalma teljes (Chat). **+25 teszt → 2109 passing.** Két új szabály az `ifds-rules`-ba (`45ee0a4`): tolerancia-alapú degeneráció-guard, hermetikus teszt. |
 | 2026-07-21 | **S3 FRL-2 DONE** (`a02bc1d`). factors/ sanity-kontraktus + IC-motor + ledger + holdout + riport + batch; **+74 teszt → 2084 passing**, ruff/black tiszta, 0 prod-írás. Kézi Newey-West **statsmodels ellen validálva** (rel 1e-6, dev-only dep, skipif-fel). Két TDD-fogás: (1) `daily_ic` degenerált-rang guard — szektoron belül konstans faktor pct-rangjainak szórása 1e-16, a pandas `corr` 1.0-t ad rá → tiszta szektor-fogadás tökéletes szektor-neutrális jelnek látszott volna; (2) a batch-teszt a valós `returns.parquet`-et olvasta → `returns_frame` injektálás + guard-teszt. |
