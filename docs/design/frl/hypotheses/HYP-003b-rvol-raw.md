@@ -3,20 +3,22 @@ Updated: 2026-07-21
 Data-lane: v2
 Attempt-family: —
 
-# HYP-003B — RVOL — nyers jel a swing-horizonton
+# HYP-003b — nyers RVOL a swing-horizonton
 
-> **a/b aszimmetria-szabály (spec §8.2):** a transzform-szintű (a) változat az
-> ÉLŐ pipeline-transzformot minősíti (EWMA, küszöbök, sign-flip együtt), NEM a
-> mögöttes nyers jelet. Az a-eredmény a b-hipotézisre nézve **sem megerősítés,
-> sem cáfolat** — külön attempt-családok, külön fájl.
+> **Viszony a transzform-szintű teszthez (spec §8.2, 2026-07-21):** a korábbi
+> a-változat (`HYP-00Xa`) **[[HYP-005]]**-be konszolidálva — a swing-érás
+> Flow/Tech/Funda sub-score oszlopok szemantikája verifikálatlan, komponens-szintű
+> a-teszt csak a CC oszlop-audit után hozható vissza. A HYP-005 eredménye erre a
+> nyers hipotézisre nézve **sem megerősítés, sem cáfolat** — külön attempt-család.
 
 ## Mechanizmus (MIÉRT létezne — kötelező, teszt ELŐTT írva)
 
-<VÁZ — a tartalmat Chat (Dev) tölti. Irány: A legacy-n +0.147* volt, de intraday mintán mérve — az ÚJ horizonton újraértékelendő.>
+Nyers RVOL a swing-horizonton (legacy-n +0.147* volt, intraday mintán mérve) — kikapcsolt komponens újraértékelése az ÚJ horizonton.
 
-> Párja: `HYP-003a-rvol-transform.md` — az a/b aszimmetria-szabály miatt KÜLÖN attempt-család.
->
-> **v2 sáv:** nem tesztelhető, amíg az enrichment forward-mintája < 40 nap (D_A).
+<VÁZ — a teljes mechanizmus-indoklást Chat (Dev) írja, amint az enrichment-minta beérik.>
+
+> **v2 sáv:** nem tesztelhető, amíg a forward-minta < 40 nap. Az óra az első
+> éles `state/research_cross_section/` fájllal indul (D_A deploy, 2026-07-21).
 
 ## Várt előjel és horizont
 

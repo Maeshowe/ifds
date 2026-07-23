@@ -148,6 +148,7 @@ késlekedő nap egy nappal rövidíti a Day 63 utáni v2 dev-ablakot.
 | tech_filter (nem pontozott) sorok | **NaN, SOHA nem 0** (FRL-0 tanulság: a `Total_Score==0` halmaz mind a 4 mintanapon pontosan a tech_filter halmaz — 0-ként bevonva a swing-panel ~40%-a hamis nulla lenne, dp_pct-hibaosztály) |
 | 06-27 → 07-06 (Mini SSH-orphan) | kimarad a dev-mintából; IC-idősorban explicit NaN, nem interpoláció |
 | 07-15/16 (áramszünet) | ugyanígy; konzisztens a §11.10 Day 63 edge-minta kizárással |
+| 2026-07-22 (áramszünet #2) | Mini elérhetetlen, 14:30 cron kimaradt — explicit hiányzó nap; Day 63 edge-minta: kizárva (§11.10-konvenció) |
 | 2026-06-19 (Juneteenth), ünnepek | NYSE-naptár a kanonikus napszámláló (`trading_days_between`) |
 | legacy snapshot pollution (pl. 04-15) | snapshot forrásként csak integritás-check után (len>3 ÉS nem mock-szignatúra) |
 
@@ -311,14 +312,15 @@ Attempt-family: A-00xx..
 ## KILL/PARK indoklás (ha releváns)
 ```
 
-### 8.2 Első négy regisztrálandó hipotézis (Chat írja, külön fájlokban)
+### 8.2 Regisztrált hipotézisek (Chat írja, külön fájlokban)
 
 | ID | Tartalom | Sáv | Megjegyzés |
 |---|---|---|---|
-| HYP-001a/b | PCR: (a) transzform-szintű IC (v1 — az ÉLŐ flow-sub-score-t méri, ami ténylegesen fut); (b) nyers PCR-percentilis IC-görbe h=1..7, a §5.2 mutual-information tézis (I ∝ h·ρ²) közvetlen tesztje | a: v1 / b: v2 | R1#5: az a-változat a b-t sem megerősíteni, sem ölni NEM tudja — külön attempt-család |
-| HYP-002a/b | OTM-inverse: (a) transzform-szintű (v1); (b) nyers decay-profil h=1..7 (v2) | a: v1 / b: v2 | a második Bonferroni-szignifikáns komponens; a/b aszimmetria-szabály érvényes |
-| HYP-003a/b | RVOL: (a) transzform-szintű (v1); (b) nyers, swing-horizonton (legacy-n +0.147* volt, intraday mintán mérve) | a: v1 / b: v2 | kikapcsolt komponens újraértékelése az ÚJ horizonton |
-| HYP-004 | 5-napos szektor-relatív reversal (a "magas pontszám paradoxon" mean-reversion olvasata OHLCV-ből) | **v1 (tiszta)** | az egyetlen azonnal teljes értékűen tesztelhető — az első batch-futás jelöltje |
+| HYP-005 | **S_j élő aggregát keresztmetszeti IC (transzform-szintű)** — a signal_attribution kapu-teszt LEÍRÓ ikertestje; G1 mindkét irányban; éra: kizárólag swing | v1 | az a-trió (001a/002a/003a) helyett konszolidálva (2026-07-21): a swing-érás Flow/Tech/Funda sub-score oszlopok szemantikája verifikálatlan — komponens-szintű a-teszt csak a CC oszlop-audit után hozható vissza |
+| HYP-001b | nyers PCR-percentilis IC-görbe h=1..7, a §5.2 mutual-information tézis (I ∝ h·ρ²) közvetlen tesztje | v2 | enrichment + 40 nap forward-minta után (óra indul: első éles sink-fájl) |
+| HYP-002b | nyers OTM-inverse decay-profil h=1..7 | v2 | a második Bonferroni-szignifikáns komponens |
+| HYP-003b | nyers RVOL swing-horizonton (legacy-n +0.147* volt, intraday mintán mérve) | v2 | kikapcsolt komponens újraértékelése az ÚJ horizonton |
+| HYP-004 | 5-napos szektor-relatív reversal | v1 | **KILLED (2026-07-21, A-0001..A-0004)** — mechanizmus-irány támogatva (8/8 negatív előjel), tradeable erősség és costed-IC bukott; alacsony-turnover variáns új HYP-ként nyitva |
 
 **a/b aszimmetria-szabály (R1#5):** a transzform-szintű (a) eredmény a megépített
 pipeline-transzformot minősíti (EWMA, küszöbök, sign-flip együtt), nem a mögöttes nyers
