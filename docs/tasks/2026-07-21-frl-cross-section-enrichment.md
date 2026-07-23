@@ -1,5 +1,5 @@
-Status: OPEN
-Updated: 2026-07-21
+Status: WIP
+Updated: 2026-07-23
 Note: **D_A MEGERŐSÍTVE (Tamás, 2026-07-21, chat)** — a v2 enrichment sink freeze alatti deploy-a jóváhagyva, az R1 két kemény előfeltételével (lásd §Deploy-előfeltételek). A build+teszt freeze-safe; a deploy a §Deploy-szekvencia szerint, sorrendben kötelező.
 
 # FRL-5 — v2 nyers keresztmetszet forward-perzisztálás (enrichment sink)
@@ -77,11 +77,11 @@ Módosuló (MINIMÁLIS, sink-only):
 |---|---|---|---|
 | 1 | build + teszt (sink + mindkét e2e patch-stack + regressziós assertek) | CC | **DONE** `08d072d` |
 | 2 | **Előfeltétel-1 bizonyítás**: teljes pytest-suite után a `state/research_cross_section/` mtime **és tartalom változatlan**, a riportban dokumentálva | CC | **DONE** (lásd §Deploy-riport) |
-| 3 | push-jóváhagyás | **Tamás** | ⏳ **most itt tartunk** |
-| 4 | Mini `git pull` | Tamás | — |
-| 5 | első 14:30 cron élesben ír | (automatikus) | — |
-| 6 | **első-fájl verifikáció**: sor-szám ≈ scan-matrix scored; mező-teljesség; **S_j és legacy kompozit KÜLÖN mezőben** | CC | — |
-| 7 | `04-risks` §11 freeze-melléklet sor (11.x formátum: mit / miért carve-out / viselkedés-hatás NEM / commit) | CC | — |
+| 3 | push-jóváhagyás | **Tamás** | **DONE** 2026-07-23 (22 commit → `d10c8de`) |
+| 4 | Mini `git pull` | Tamás | **DONE** 2026-07-23 (ff-only `ee6b557` → `d10c8de`; Mini pytest **2158 passed, 1 skipped**, a `state/research_cross_section/` a suite után NEM jött létre) |
+| 5 | első 14:30 cron élesben ír | (automatikus) | ⏳ **holnap 2026-07-24 14:30 CEST** |
+| 6 | **első-fájl verifikáció**: sor-szám ≈ scan-matrix scored; mező-teljesség; **S_j és legacy kompozit KÜLÖN mezőben** | CC | ⏳ az 5. lépés után |
+| 7 | `04-risks` §11 freeze-melléklet sor (11.x formátum: mit / miért carve-out / viselkedés-hatás NEM / commit) | CC | **DONE** — §11.11 |
 
 **Amit a deploy elindít:** a v2 forward-gyűjtés órája. Az első teljes nyers
 keresztmetszeti nap után indul a **40-napos minimum-minta** számláló (spec §4.2) →

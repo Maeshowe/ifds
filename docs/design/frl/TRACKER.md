@@ -1,5 +1,5 @@
 Status: WIP
-Updated: 2026-07-21
+Updated: 2026-07-23
 Note: FRL build lane élő haladás-követő. CC vezeti (minden lépésnél frissül). Spec: `docs/design/2026-07-21-factor-research-loop-spec.md` (v2). Session-indító: `docs/handoff/2026-07-21-frl-build-session-starter.md`.
 
 # FRL — Fejlesztési Tracker
@@ -69,7 +69,7 @@ S6  FRL-5 enrichment sink — build+teszt bármikor, DEPLOY csak D_A után + Tam
 | S3 | FRL-2 | **DONE** | `frl-ic-engine` | `a02bc1d` | 6 modul + 74 teszt (2084 passing); NW statsmodels ellen validálva |
 | S4 | FRL-3 | **DONE** | `frl-hypothesis-registry` | `7f74c58` | template + 7 HYP (DRAFT) + lint + batch-gate; 2109 passing |
 | S5 | FRL-4 | **DONE** | — | `9f49a38`, `48451ce` | HYP-004 **KILLED** (pre-reg (a), Tamás megerősítve); 2139 passing |
-| S6 | FRL-5 | **build DONE** | `frl-cross-section-enrichment` | `08d072d`, `faa56d3` | D_A **IGEN**; előfeltétel-1 bizonyítva → **Tamás push-jóváhagyására vár** |
+| S6 | FRL-5 | **DEPLOYOLVA** | `frl-cross-section-enrichment` | `08d072d`, `faa56d3`, `d10c8de` | push+Mini pull kész (2158 passed/1 skipped); ⏳ első éles fájl: **07-24 14:30** |
 
 Státusz-jelölés: TODO → WIP → DONE / BLOCKED / STOP.
 
@@ -95,6 +95,8 @@ Státusz-jelölés: TODO → WIP → DONE / BLOCKED / STOP.
 
 | Dátum | Változás |
 |---|---|
+| 2026-07-23 | **S6 DEPLOYOLVA.** Push (22 commit `6457abe`→`d10c8de`) + Mini ff-only pull, Tamás-jóváhagyással. Mini-verifikáció: **2158 passed, 1 skipped** (a skip a statsmodels-referencia — dev-only, szándék szerint), `state/research_cross_section/` a suite után **nem jött létre** (előfeltétel-1 élesben is áll). `04-risks` **§11.11** rögzítve. Doc-átvezetés (`d10c8de`): §8.2 tábla — az a-trió **HYP-005**-be konszolidálva (S_j élő aggregát, REGISTERED), HYP-001b/002b/003b vázak v2 sávra újraírva, §4.5 gap-sor a 07-22 áramszünetre. ⏳ Első éles sink-fájl: **07-24 14:30 CEST**; az FRL v2 40-napos órája ekkor indul. |
+| 2026-07-23 | **Mini-restart ellenőrzés a 07-22 outage után**: boot 07-22 09:30 (a tegnapi elérhetetlenség **hálózat**, nem gép), 0 orphan, mai 14:30 cron hibátlan. **07-22 teljesen kimaradt** (nincs cron log). Outage-hatás verifikálva: 1 késett exit (**USFD** MENTAL_SL, a 07-21 eod már flag-elte, stop 95.08 vs close 94.75) — ára **+$7.28 a javunkra** (07-22 open 94.63 vs 07-23 open 94.50), nem P1; a nyitott pozíciók közül **egyik sem tört stopot** 07-22-én; ledger ép (38 nap, cum $107.62). |
 | 2026-07-21 | Tracker létrehozva; sorrend rögzítve (S0–S6, 3 eltéréssel a spectől); környezeti tények felvéve (statsmodels hiány → kézi NW). |
 | 2026-07-21 | **S0 DONE** (spec+task már commitolva `a7e186f`/`6457abe`; tracker `30b948c`). |
 | 2026-07-21 | **S1 FRL-0 DONE → GO.** V1/1-3 + V3 + 102-napos éra-sweep + V2 (Mini-cache üres). 5 kötelező B-fázis következmény rögzítve. S2 WIP. |
