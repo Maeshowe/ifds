@@ -5,6 +5,41 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## Freeze alatt `git add` KIZÁRÓLAG explicit path-listával — a `-A` / `.` sweep TILOS (rule, 2026-07-23)
+
+Freeze-ablakban (és általában prod-repóban) a staging **soha nem lehet
+broad-sweep**. A `git add -A <dir>` / `git add .` minden untracked fájlt bevisz,
+amit a working tree éppen tartalmaz — beleértve a gép-generált artefaktokat, a
+sync-halmazból származó fájlokat és a más lane által odatett dolgokat.
+
+**Szabály:** minden commit előtt a fájlokat **egyenként, névvel** kell stage-elni
+(`git add path/a path/b`), és a `git status --short | grep -v '^??'` outputot
+**el kell olvasni** a commit előtt. Ha egy sweep mégis megtörtént, a
+`git show --stat <commit>` a commit UTÁN kötelező — de ez már kármentés.
+
+**Példa-sértés (elkapva, 2026-07-23):** egy `git add -A docs` a szándékolt
+3 fájl mellé **60+ korábbi untracked doc-fájlt** vitt a commitba
+(`docs/analysis/`, `docs/review/`). Következmény: a Mini `git merge --ff-only`
+**elakadt** ("untracked working tree files would be overwritten"), mert ugyanazok
+a fájlok ott is untracked-ként léteztek — vagyis a broad-sweep **a production-gép
+deployát blokkolta**. Helyreállítás: sha256-ekvivalencia mindkét gépen (mind a 14
+ütköző fájl bájtra azonos volt) → backup → törlés → ff-merge → integritás-check a
+backup ellen → backup takarítás.
+
+**Másodlagos tanulság ugyanebből:** a véletlenül becommitolt `docs/analysis/` a
+`sync_from_mini.sh --delete` halmazban van → **tracked ÉS syncelt** lett, ami a
+[[sync-delete-vs-local-commits]] konfliktus-osztály. Feloldás (2026-07-23,
+Tamás-döntés): `docs/analysis/` **untrackelve + .gitignore** (a Mini generálja
+futásidőben → rsync-terület), `docs/review/` **tracked marad** (MacBookon
+születik, nincs a sync-halmazban). Ház-elv: **rsync a gép-generált state-nek,
+git az ember-írta dokumentumoknak.**
+
+**Referencia:** commit `6ece241` (a sértés), `8e0d296` (az aszimmetrikus feloldás).
+Hibaalak: ugyanaz, mint a sink-audit rés — nem az egyes előfordulást, a **rést**
+zárjuk.
+
+---
+
 ## Statisztikai degeneráció-ellenőrzés — tolerancia-alapú, SOHA `== 0` (rule, 2026-07-21)
 
 Rang-, korrelációs- és szórás-alapú guardokat **TILOS** egzakt egyenlőséggel írni
