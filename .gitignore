@@ -58,3 +58,9 @@ state/prod_overrides.json
 # FRL research cache (rebuildable from Polygon API; ledger/runs ARE tracked)
 research/cache/*
 !research/cache/.gitkeep
+
+# Mini-generated analysis outputs (weekly_metrics, attribution tooling) — rsync
+# territory, not git: a git-side update would be reverted by the next
+# sync_from_mini.sh --delete run. House rule: rsync for machine-generated state,
+# git for human-written documents.
+docs/analysis/
