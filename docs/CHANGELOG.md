@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-07-24 — test-env-hygiene: pt_events izoláció + e2e sys.modules ordering-leak (freeze-safe)
+
+> Két teszt-only, viselkedés-invariáns fix a Support-sessionből. A production kódút
+> változatlan; a baseline 2175 → 2177 (+2 regressziós teszt), 0 fail/warn.
+
+### fix(test) — PTEventLogger izoláció a production pt_events logtól (`db95c13`)
+- `event_logger.py`: `log_dir` env-vezérelt (`IFDS_PT_EVENT_DIR`), default bitre `logs/`
+  (viselkedés-invariáns). `conftest.py`: modul-tetős `setdefault` a kollekció előtt, hogy az
+  import-idejű `evt = PTEventLogger()` a tmp-dirbe írjon. Gyökérok: a Phase 1-3 vasárnapi cron
+  pre-flight pytest heti szennyezést dumpolt a valós logba (47-soros fixture-blokk).
+- +4 teszt (`test_pt_event_isolation.py`). A test-env-hygiene szabály 3. rése.
+
+### fix(test) — megosztott sys.modules C-ext izoláció (e2e ordering-leak)
+- Gyökérok (korrigált): `test_close_positions_split.py` `patch.dict("sys.modules", …)`-je a
+  kilépéskor törli+visszaállítja a `sys.modules`-t; a `close_positions.main()` a blokkon belül
+  lazy-n importálja a `ifds.utils.calendar → exchange_calendars → numpy` láncot → a numpy C-ext
+  kiesik → későbbi `import numpy` = "cannot load module more than once per process". Sorrend-flaki
+  (a teljes suite zöld, de bizonyos fájl-részhalmazokon ~16 fail).
+- Fix: `conftest.py` eager-importja a numpy-láncot a kollekció előtt → minden `patch.dict`
+  snapshotban benne van, sorrend-függetlenül. +2 teszt (`test_sys_modules_isolation.py`).
+
 ## 2026-06-24 — signal_attribution data-loader wiring (spec §6.1, freeze-safe)
 
 > A `signal_attribution` Day-63 eszköz adat-betöltő rétege. Read-only analízis,

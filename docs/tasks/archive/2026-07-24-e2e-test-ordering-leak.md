@@ -1,4 +1,4 @@
-Status: OPEN
+Status: DONE
 Updated: 2026-07-24
 Note: Freeze-safe (teszt-izoláció; ha a fix a Config defenzív-copy-ig nyúl, az VISELKEDÉS-INVARIÁNS). A bugfix-session lane-je (NEM a review, NEM a FRL build). Forrás: 2026-07-23 pt_events fix melléktalálata (bugfix-session, stash-igazolt pre-existing).
 
@@ -84,8 +84,54 @@ invariáns (a default-értékek azonosak), de nagyobb felület, ezért csak ha a
 
 `fix(test): izoláld a megosztott defaults-dicteket a teszt-teszt szivárgástól (e2e ordering-leak)`
 
-## Eredmény (a végrehajtás tölti)
+## Eredmény (2026-07-24, Support-session)
 
-- Kiváltó fájlhalmaz / seed: …
-- A mutáló teszt + a szivárgó kulcs(ok): …
-- Fix-réteg (2.a és/vagy 2.b): …
+### ⚠️ Gyökérok-korrekció — NEM a config-dictek (#1 hipotézis elvetve)
+
+A #1 hipotézis (megosztott mutálható `defaults` dictek) **téves volt**. A hibák nem
+`AssertionError`-ok egy szennyezett configból, hanem **`ImportError: cannot load module
+more than once per process`** (numpy C-ext) + **`AttributeError: module 'lib' has no
+attribute 'connection'`**. A valódi ok a #2-höz áll közel (modul-szintű import-állapot):
+
+**`test_close_positions_split.py:78` `patch.dict("sys.modules", {"lib":…, "ib_insync":…})`.**
+A `unittest.mock._patch_dict._unpatch_dict` a kilépéskor **`_clear_dict(sys.modules)` +
+`update(entry_snapshot)`**-tal állít vissza — tehát a blokk KÖZBEN importált, a belépési
+snapshotban NEM szereplő modul **kiesik**. A `close_positions.main()` a blokkon belül
+**lazy**-n importálja a `ifds.utils.calendar → exchange_calendars → numpy` láncot
+(close_positions.py:317). Ha a numpy még nincs betöltve (nincs a snapshotban), a restore
+kiejti a `numpy._core._multiarray_umath`-ot — de a C-ext a process-ben már inicializált →
+a későbbi `import numpy` (`test_pipeline_e2e` → `run_pipeline` → calendar) **bukik**.
+
+- **Kiváltó fájl (nem halmaz):** `test_close_positions_split.py` — egyedül a `patch.dict`-je
+  ejti a numpy-t (probe: `close_positions_split + numpy-probe` → FAIL; `monitor_positions +
+  numpy-probe` → PASS). Egyedül azért zöld, mert saját tesztjei nem importálják újra a numpy-t.
+- **Minimál repró:** `pytest test_close_positions_split.py test_pipeline_e2e.py` → 8 fail;
+  fordítva 14 pass; külön-külön zöld. A teljes suite azért zöld, mert egy korábbi teszt
+  előbb betölti a numpy-t (minden rákövetkező snapshotba bekerül) — ez a sorrend-flaki.
+- **A szivárgó "állapot":** nem config-kulcs, hanem a **`sys.modules` numpy C-ext bejegyzése**.
+
+### Fix (strukturális, viselkedés-invariáns, teszt-only)
+
+- `tests/conftest.py`: **eager-import `ifds.utils.calendar`** (→ exchange_calendars → numpy +
+  pandas) a kollekció előtt → a numpy MINDEN `patch.dict("sys.modules")` entry-snapshotban
+  benne van, így a restore soha nem árvítja el, **sorrend-függetlenül**. Ez a
+  [[test-env-hygiene]] mintája a sys.modules/C-ext szintre vetítve (a 2.b analógja, de a
+  VALÓS szivárgó állapotra — nem a config-dictekre).
+- **2.a nem kellett:** a `patch.dict`-mintát nem írtam át (nagyobb felület, a close_positions
+  lazy `from lib.connection import connect` a main()-en belül — a sys.modules-injekció indokolt).
+  A conftest-guard strukturálisan elég.
+- **pytest-randomly: szándékosan kihagyva** — új dev-dep + CI-változás freeze alatt scope-creep.
+  A strukturális fix a sorrendtől függetlenül lehetetlenné teszi a szivárgást; az elfogadási
+  bizonyíték a korábban bukó fájlhalmaz zöldje.
+- `tests/test_sys_modules_isolation.py` (ÚJ): 2 teszt — (1) numpy pre-load invariáns,
+  (2) reprodukció: `patch.dict("sys.modules")` blokk + lazy calendar-import után a numpy
+  importálható marad. RED igazolva fix nélkül (2 failed), GREEN a fixszel.
+
+### Bizonyíték
+
+- Regressziós teszt: 2 passed (RED→GREEN igazolt).
+- **A korábban bukó 6-fájlos halmaz: 47 passed** (volt 16 failed).
+- Minimál repró (`close_positions_split → pipeline_e2e`): 14 passed.
+- **Teljes suite: 2177 passed, 0 fail, 0 warning** (2175 + 2 új teszt).
+- Megjegyzés: a 6-fájlos részhalmaz egy `DeprecationWarning`-ot mutat (`connection.py:11`
+  asyncio, pre-existing) — a teljes suite-ban nem jelenik meg, nem e fix okozza, freeze-scope-on kívül.

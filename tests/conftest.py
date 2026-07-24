@@ -3,6 +3,17 @@
 import os
 import tempfile
 
+# Eager-import the numpy chain BEFORE any test runs (e2e ordering-leak fix,
+# 2026-07-24). test_close_positions_split.py calls close_positions.main() inside a
+# ``patch.dict("sys.modules", {...})`` block; main() lazily imports
+# ifds.utils.calendar → exchange_calendars → numpy. patch.dict restores by
+# clearing sys.modules and reinstating the entry snapshot, so a numpy imported
+# *inside* the block gets dropped — orphaning its already-initialised C-extension
+# and making a later ``import numpy`` fail ("cannot load module more than once per
+# process"). Loading numpy here puts it in every patch.dict entry snapshot, so it
+# survives every restore regardless of test order. See test_sys_modules_isolation.py.
+import ifds.utils.calendar  # noqa: E402,F401  (→ exchange_calendars → numpy)
+
 # Disable trading day guard in all tests (production guard exits on NYSE holidays)
 os.environ["IFDS_SKIP_TRADING_DAY_GUARD"] = "1"
 
