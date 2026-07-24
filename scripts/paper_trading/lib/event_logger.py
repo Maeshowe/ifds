@@ -15,7 +15,12 @@ from datetime import datetime, timezone
 class PTEventLogger:
     """Append-only JSONL writer for business events."""
 
-    def __init__(self, log_dir: str = "logs") -> None:
+    def __init__(self, log_dir: str | None = None) -> None:
+        # Behaviour-invariant default: without IFDS_PT_EVENT_DIR the path is
+        # exactly ``logs/`` — the production cron path is unchanged. The env var
+        # exists so the test suite (conftest.py) can redirect every import-time
+        # ``evt = PTEventLogger()`` to a tmp dir and never pollute the real log.
+        log_dir = log_dir or os.environ.get("IFDS_PT_EVENT_DIR", "logs")
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         self.path = os.path.join(log_dir, f"pt_events_{today}.jsonl")
         os.makedirs(log_dir, exist_ok=True)

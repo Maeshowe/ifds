@@ -1,5 +1,5 @@
-Status: OPEN
-Updated: 2026-07-23
+Status: DONE
+Updated: 2026-07-24
 Note: Freeze-safe (teszt-env-higiénia; a production kódút VISELKEDÉS-INVARIÁNS — a default útvonal változatlan, ha az env var nincs beállítva). Forrás: 2026-07-23 daily review §6/P1. A test-env-hygiene szabály 3. rése (phase4_snapshot/04-15, uw_shadow/05-19 után).
 
 # pt_events production-log teszt-izoláció (test-env-hygiene P1)
@@ -101,8 +101,28 @@ Adat-cleanup (nem kód):
 
 `fix(test): izoláld a PTEventLogger-t a production pt_events logtól (test-env-hygiene P1)`
 
-## Eredmény (a végrehajtás tölti)
+## Eredmény (2026-07-24, CC)
 
-- Trigger (0. lépés): …
-- pt_events méret-eloszlás (napi szennyezés-e?): …
-- 07-23 cleanup: megtartott/eldobott sorok száma …
+- **Trigger (0. lépés):** a **deploy pre-flight pytest**. A méret-eloszlás egyértelmű
+  ujjlenyomatot ad: **azonos 47-soros / 7613-bájtos blokk** ismétlődik **minden vasárnap**
+  (06-07, 06-21, 06-28, 07-12, 07-19 — mind vasárnap, a `deploy_daily.sh` Phase 1-3
+  22:00 cron pre-flight-je), tehát **periodikus, nem egyszeri** szennyezés. A 07-23 (csütörtök,
+  194 sor) egy **manuális** futásból származik. A fix trigger-agnosztikus (env-redirect), így
+  mindkét forrást lefedi.
+- **pt_events méret-eloszlás:** a swing-éra napi mérete jellemzően 6-16 sor (valós ops), a
+  szennyezett napok 47 vagy 194 sorral kilógnak. → **igen, ismétlődő (heti) szennyezés volt**.
+- **Fix (1-3. lépés) — KÉSZ, validálva:**
+  - `event_logger.py`: `log_dir` env-vezérelt (`IFDS_PT_EVENT_DIR`), default bitre `"logs"`
+    (viselkedés-invariáns — a negatív guard-teszt bizonyítja).
+  - `conftest.py`: modul-tetős `os.environ.setdefault("IFDS_PT_EVENT_DIR", mkdtemp(...))` —
+    a kollekció ELŐTT fut, így az import-idejű `evt = PTEventLogger()` mind a tmp-dirbe ír.
+  - `test_pt_event_isolation.py`: 4 teszt (conftest-env, tmp-path redirect, mtime-invariancia,
+    default-védő). Mind zöld.
+  - **Bizonyíték:** a **teljes suite lefutott (2175 passed, 0 fail, 0 warn)** ÉS **nem jött létre**
+    `logs/pt_events_2026-07-24.jsonl` — a fix előtt ugyanez a futás szennyezte volna a logot.
+- **07-23 cleanup:** a szűrő verifikálva (drop = a 14:34-14:51 UTC ablak 4×47 = **188 teszt-esemény**;
+  keep = **6 valós** esemény, pontosan a review §2-§5: USFD exit+reentry 13:30-31, eod
+  leftover_warning 5/5 + reconcile no_divergence 5/5 @ 20:11-20:15). A destruktív production-log
+  újraírást az **auto-mode write-guard blokkolta** (helyesen — agent-typed prod-log write) →
+  verifikált cleanup-script átadva Tamásnak: `scratchpad/clean_pt_events_0723.py` (backup kötelező,
+  local + Mini, byte-identikus output). **A cleanup NEM blokkolja a code-fixet** — külön lane.
