@@ -55,7 +55,7 @@ HYP-005 G1 szerint NEM tradeability-állítás** (leíró ikertest), ezért a
 costed-fail **informatív, nem a verdikt-hajtó**. Ha a jel valaha megszilárdul,
 a costed-IC egy **második, független kapu** lesz (a jelnek ~3×-ára kell nőnie).
 
-## Azonosított logikai rés az auto-verdiktben (javítva: `<this commit>`)
+## Azonosított logikai rés az auto-verdiktben (javítva: `079e4a1`)
 
 **A rés:** a `promote_verdict` a `PARK_UNTIL_SWING_POWER`-t **csak** legacy-támogatás
 mellett engedte. Egy **swing-only** faktornál (mint a HYP-005) nincs legacy láb →

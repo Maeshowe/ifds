@@ -236,6 +236,29 @@ pontozott/nap, T=66 nap.
 - A legacy+swing kombinált (éra-bontott) nézet a valódi munkafelület; PROMOTE-hoz
   a swing-előjel minimum (§5.4 d) mindenkor kötelező.
 
+#### T_eff-adekvácia gate — a KILL (a) vs PARK (c) gépi elválasztása (2026-07-25)
+
+A pre-reg kill/park-kritériumok gépi kikényszerítéséhez a terminális KILL
+**effektív-minta-küszöbhöz** kötött: `MIN_ADEQUATE_T_EFF = 6.0`
+(`scripts/research/frl_config.py`; commit `079e4a1`). Indoklás: e T_eff alatt a
+fenti erő-elemzés szerint még egy mérsékelt IC (~0.08) is **detektálhatatlan**,
+ezért egy családi-p bukás ott **alulfeszített**, nem „nincs jel".
+
+A `promote_verdict` gate (BH-fail esetén):
+1. **(b)** swing előjel-ellentmondás → **KILL** (a mechanizmus keresztmetszeti
+   formája cáfolva, nem alulfeszített).
+2. **(a)** bármely éra **adekvát T_eff-en** (≥ 6) tisztán bukott → **KILL** (valódi null).
+3. Egyébként (előjel helyes ÉS minden éra alulfeszített) → **PARK_UNTIL_SWING_POWER (c)**,
+   a **swing-only** faktorokra is (nincs legacy-láb-függés — ez volt a `079e4a1` előtti rés).
+
+**Invariáns (regressziós teszttel védve):** a HYP-004 KILL változatlan (legacy
+T_eff=11.8 ≥ 6 + bukott → (a) KILL). A floor **döntés-hajtó governance-paraméter** —
+módosítása minden jövőbeli verdiktet érint, ezért csak explicit döntéssel változhat,
+és a változás a ledgerben visszakövethető (`auto_decision` megőrzés).
+
+**Első alkalmazás (HYP-005, A-0005..A-0008, 2026-07-25):** h=1/h=3 KILL (T_eff 23 / 7.7 ≥ 6,
+valódi null), h=5/h=7 PARK (T_eff 4.6 / 3.3 < 6, jó előjel). Tamás-megerősítve.
+
 ---
 
 ## 6. Attempt-ledger séma
