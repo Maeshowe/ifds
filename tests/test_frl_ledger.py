@@ -224,3 +224,29 @@ class TestDecisionProvenance:
         ledger.close_attempt(attempt_id, metrics={}, decision="KILL", path=path)
         ledger.confirm_decision(attempt_id, by="Tamás", path=path)
         assert path.with_suffix(path.suffix + ".bak").exists()
+
+
+class TestConfirmIdempotency:
+    """Re-confirming must never corrupt the preserved machine verdict."""
+
+    def test_double_override_keeps_the_original_auto_decision(self, tmp_path):
+        path = tmp_path / "l.jsonl"
+        attempt_id = ledger.open_attempt(_spec(), path=path)
+        ledger.close_attempt(attempt_id, metrics={}, decision="KILL", path=path)
+
+        # First override: KILL -> PARK, auto_decision snapshots KILL.
+        ledger.confirm_decision(attempt_id, by="Tamás", decision="PARK", path=path)
+        # Second confirm (accidental re-run): auto_decision must STILL be KILL.
+        entry = ledger.confirm_decision(attempt_id, by="Tamás", decision="PARK", path=path)
+
+        assert entry["auto_decision"] == "KILL", "re-confirm corrupted the machine verdict"
+        assert entry["decision"] == "PARK"
+
+    def test_reconfirming_without_override_preserves_auto_decision(self, tmp_path):
+        path = tmp_path / "l.jsonl"
+        attempt_id = ledger.open_attempt(_spec(), path=path)
+        ledger.close_attempt(attempt_id, metrics={}, decision="KILL", path=path)
+        ledger.confirm_decision(attempt_id, by="Tamás", decision="PARK", path=path)
+        entry = ledger.confirm_decision(attempt_id, by="Tamás", path=path)  # no decision
+        assert entry["auto_decision"] == "KILL"
+        assert entry["decision"] == "PARK"

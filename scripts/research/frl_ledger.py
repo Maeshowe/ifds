@@ -198,7 +198,11 @@ def confirm_decision(
         if decision is not None:
             if decision not in DECISIONS:
                 raise ValueError(f"unknown decision: {decision} (allowed: {DECISIONS})")
-            entry["auto_decision"] = entry["decision"]
+            # Snapshot the machine verdict ONCE, on the first override. Re-confirming
+            # must not overwrite auto_decision with the already-overridden value —
+            # that would erase the fact that a human changed a KILL to a PARK.
+            if "auto_decision" not in entry:
+                entry["auto_decision"] = entry["decision"]
             entry["decision"] = decision
 
         entry["human_confirmed"] = True
