@@ -8,6 +8,12 @@ Batch: `research/runs/2026-07-24/report.md` (run_date 2026-07-24, attempt A-0005
 Dev-ablak: swing **23 nap** (05-18..06-18), legacy üres (a faktor swing-only);
 holdout-érintés **0**.
 
+> **DÖNTVE (Tamás, 2026-07-24):** a javaslat elfogadva — h5/h7 **PARK_UNTIL_SWING_POWER**,
+> h1/h3 **KILL**; a HYP-005 registry `Status: PARKED`. Ledger: A-0005..A-0008
+> `human_confirmed: true`, az A-0007/8 `auto_decision: KILL` → override auditálható.
+> **Ébresztési család pre-reg: {h5, h7}, Šidák m=2**, rögzítve a retest-adat ELŐTT
+> (lásd a HYP-005 registry-fájlt). A logika-fix jóváhagyva.
+
 ## VERDIKT-JAVASLAT: **PARK-until-swing-power** (családi szinten, a primary h=5 alapján)
 
 **A ledger auto-verdiktje mind a 4 horizonton KILL** — de ez egy azonosított
@@ -17,7 +23,7 @@ emberi döntés a `confirm_decision` override-dal:
 | Attempt | h | T_eff | mean IC | NW t | p | éra-bar | verdikt | **javaslat** |
 |---|---|---|---|---|---|---|---|---|
 | A-0005 | 1 | 23.0 | +0.0079 | 0.51 | 0.617 | 0.0311 | inconclusive | **KILL** (adekvát T_eff, valódi null) |
-| A-0006 | 3 | 7.7 | +0.0235 | 1.01 | 0.347 | 0.0467 | inconclusive | **KILL** (T_eff≥6, valódi null) |
+| A-0006 | 3 | 7.7 | +0.0235 | 1.01 | 0.347 | 0.0467 | inconclusive | **KILL** (szabály-vezérelt lezárás marginális erőn — floor fölött, de bar≈0.045 vs mért 0.024, nem erős null-bizonyíték) |
 | A-0007 | **5** | **4.6** | **+0.0435** | **2.37** | 0.077 | 0.0367 | **mérhető** | **PARK** (alulfeszített, jó előjel) |
 | A-0008 | 7 | 3.3 | +0.0522 | 3.54 | 0.071 | 0.0295 | mérhető | **PARK** (alulfeszített, jó előjel) |
 
@@ -33,7 +39,10 @@ A hipotézis regisztrált kill/park-kritériuma: **(a)** családi Šidák p ≥ 
 
 - **Az előjel helyes** mind a 4 horizonton (pozitív, a mechanizmussal egyező),
   és a h-görbe **emelkedő** (0.008 → 0.052, h=1→7) — a mechanizmus keresztmetszeti
-  formája irányban konzisztens. A (b) ág **nem** aktiválódott.
+  formája irányban konzisztens. A (b) ág **nem** aktiválódott. **A maximum nem
+  lokalizált** a mért ablakon belül (a görbe h=7-ig monoton nő) — vagyis a h=5
+  primary-választás nem a legjobb cella utólagos kiemelése; a horizont-multiplicitást
+  a Šidák-családi p kezeli.
 - **A primary horizont (h=5) T_eff = 4.6**, a h=7 pedig 3.3 — mindkettő a §5.5
   szerinti **detektálhatósági küszöb (≈6) alatt**. A családi p 0.2564-es bukása
   tehát **erő-korlátos, nem null-jelzés**. Ez pontosan a **(c) ág**.
@@ -71,6 +80,12 @@ T_eff=11.8 adekvát és bukott → KILL) — dedikált regressziós teszt védi.
 **A ledger A-0005..A-0008 sorai auto-KILL-en maradnak** (nem futottam újra a batch-et,
 hogy ne inflálódjon az attempt-szám); a javasolt verdiktek a `confirm_decision`
 override-jával kerülnek be. A javított logika a **következő** batch-futásra natív.
+
+**Érzékenységi ellenőrzés (a floor=6 nem cherry-pick):** a `MIN_ADEQUATE_T_EFF`
+floor ∈ **[5, 7]** tartományban a családi verdikt **stabil** (h1/h3 KILL, h5/h7
+PARK). Csak floor=4-nél billen h5 KILL-be (T_eff 4.6 ≥ 4), és floor=8-nál h3 PARK-ba
+(T_eff 7.7 < 8). A választott 6 a stabil sáv közepén, a §5.5 detektálhatósági
+küszöbből (≈6) forrásolva — nem az eredmény felé hangolva.
 
 ## Ha PARK: mi történik ezután
 

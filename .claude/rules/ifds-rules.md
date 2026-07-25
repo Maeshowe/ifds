@@ -5,6 +5,60 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## Értékelő-motor fix csak pre-reg szöveghez igazításként — a pre-reg a kánon (rule, 2026-07-25)
+
+Egy statisztikai/verdikt-motort (FRL `promote_verdict`, defláció, holdout-gate,
+scoring_validation) fix eredmények **látása UTÁN** módosítani **KIZÁRÓLAG** akkor
+szabad, ha a változás egy **írásban, előre rögzített** kritériumhoz igazítja a
+motort — soha nem az eredmény felé hangolva. **A pre-reg szöveg a kánon; a motor
+csak implementál.** Ha a motor és a pre-reg eltér, a motor a hibás.
+
+**Kötelező kísérők minden ilyen fixhez:**
+1. **A pre-reg forrás megnevezése** a commit-üzenetben és a kódkommentben (melyik
+   §, melyik hipotézis-fájl (a)/(b)/(c) kritériuma).
+2. **Érzékenységi ellenőrzés**: az új küszöb/konstans egy tartományon belül
+   **verdikt-stabil** legyen, és a választott érték a tartomány belsejéből, egy
+   **független forrásból** (nem a mért adatból) legyen kalibrálva — a riportba írva.
+3. **Regressziós teszt, ami egy KORÁBBI, megerősített verdiktet őriz** (bizonyítja,
+   hogy a fix nem írja felül visszamenőleg a már meghozott döntéseket).
+4. **Nincs újrafuttatás verdikt-generálásért**: a meglévő ledger-sorok a régi
+   auto-verdikten maradnak; a korrekció a `confirm_decision` emberi override-ján
+   keresztül auditálható, nem a batch újrafuttatásával (az attempt-inflációt okozna).
+
+**Példa-megfelelés (2026-07-25, HYP-005):** az első HYP-005 batch auto-KILL-t adott
+mind a 4 horizonton, mert a `promote_verdict` a PARK-utat csak legacy-támogatás
+mellett engedte — egy **swing-only** faktornál ez soha nem tüzel. Ez **ellentmondott
+a HYP-005 saját pre-reg (c) kritériumának** ("T_eff elégtelen → PARK"). A fix
+(`079e4a1`): T_eff-adekvácia gate (§5.5-ből, floor=6, verdikt-stabil [5,7]), a
+HYP-004 KILL-t őrző regressziós teszttel, a ledger újrafuttatás nélkül (Tamás
+`confirm_decision` override-ja). A pre-reg (c) volt a kánon, a motor implementálta.
+
+**Kapcsolódó veszély — az ébresztési család utólagos szűkítése:** ha egy család
+egy részét (pl. adekvát-erős KILL horizontok) kivesszük a jövőbeli retestből,
+a maradék család (kisebb Šidák-m) **a retest-adat ELŐTT** rögzítendő írásban,
+különben garden-of-forking-paths. Lásd HYP-005: {h5,h7}, m=2, pre-reg 2026-07-24.
+
+---
+
+## Ledger `confirm_decision` idempotencia — az `auto_decision` egyszer rögzül (rule, 2026-07-25)
+
+A `confirm_decision` **kétszeri** hívása egy soron **korrumpálta** az `auto_decision`
+mezőt (a második hívás a már-override-olt értékkel írta felül a gépi verdiktet),
+elrejtve, hogy egy ember KILL→PARK váltást csinált. Fix (`<this commit>`): az
+`auto_decision` **csak az első override-nál** rögzül (`if "auto_decision" not in
+entry`). **Szabály:** az audit-lánc "mit javasolt a gép / mit döntött az ember"
+mezője **immutábilis** az első rögzítés után; minden confirm-jellegű művelet
+idempotens kell legyen az eredeti-verdikt mezőre. Regressziós teszt:
+`test_double_override_keeps_the_original_auto_decision`.
+
+**Gyökérok-tanulság:** a korrupciót egy **cross-session dupla-confirm** okozta (egy
+korábbi session on-disk, nem-commitolt megerősítése + egy újabb). A helyreállítás:
+a commitolt (tiszta auto) ledgerből `git checkout` → az index a helyes 07:42-es
+állapotot tartotta → kanonikus felülírás Tamás pontos szövegével. **A commitolt
+állapot a source-of-truth, nem a working-tree/`.bak`.**
+
+---
+
 ## Freeze alatt `git add` KIZÁRÓLAG explicit path-listával — a `-A` / `.` sweep TILOS (rule, 2026-07-23)
 
 Freeze-ablakban (és általában prod-repóban) a staging **soha nem lehet

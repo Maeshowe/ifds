@@ -56,6 +56,10 @@ ERA_BAR_FLOOR: Final[float] = 0.02  # era_bar = max(floor, 2 * SE(mean IC))
 # family-p fail there is "underpowered", not "no signal" — it PARKs and retests as
 # the swing sample grows, rather than dying. At or above it, a clean fail is a
 # genuine null and KILLs. This makes pre-reg criteria (a) vs (c) machine-enforced.
+#
+# Pinned at 6 = the §5.5 detectability threshold, NOT tuned to any result. On the
+# HYP-005 batch the family verdict is stable for floor ∈ [5, 7] (h1/h3 KILL,
+# h5/h7 PARK); it only flips at 4 (h5→KILL) or 8 (h3→PARK). 6 sits mid-band.
 MIN_ADEQUATE_T_EFF: Final[float] = 6.0
 
 # --- Day 63 gate ------------------------------------------------------------
