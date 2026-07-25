@@ -5,16 +5,18 @@ Multi-faktoros kvantitatív kereskedési rendszer (swing trading, US equities).
 6-fázisú pipeline: BMI regime → Universe → Sectors → Stock Analysis → GEX/MMS → Position Sizing.
 Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek: docs/PARAMETERS.md
 
-## Státusz (2026-04-03)
+## Státusz
+
+> ⚠️ **Élő állapot: `docs/STATUS.md`** — az EGYETLEN dinamikus állapotfájl (session-start hook betölti).
+> Teszt-szám, paper trading nap, cumulative P&L, nyitott tételek, következő mérföldkő: **mind ott**.
+> Itt SOHA ne duplikáld — a korábbi inline státusz-blokk 3,5 hónapig elavultan élt (1291 teszt vs. valós 2182;
+> Day 33 vs. valós 47), és félreorientálta a friss sessionöket.
+
 - **Production** — Mac Mini, split pipeline: Phase 1-3 (22:00) + Phase 4-6 (15:45 Budapest)
-- **1291 teszt**, 0 failure, 0 warning
-- **BC1–BC21 kész** — Pipeline, SIM, async, MMS, IBKR, Cross-Asset Regime, Corr Guard, VaR
-- **BC20A kész** — Swing Hybrid Exit (5 fázis: VWAP, PositionTracker, Pipeline Split, Swing Close, SimEngine)
-- **Log Infra kész** — Daily rotation, JSONL events, SQLite query
-- **NYSE Calendar kész** — Trading day guard, early close handling
-- **Telegram kész** — Split: MACRO SNAPSHOT (22:00) + TRADING PLAN (15:45)
-- **Paper Trading**: Day 33/63 (IBKR paper account DUH118657, cum. PnL −$1,113.16, −1.11%)
-- **Következő**: BC22 (~máj, HRP Allokáció), Day 63 kiértékelés (~máj 14)
+- **Architektúra** — swing pivot (2026-05-18 óta): 5-napos hold, mentális stop, MKT entry.
+  A BC1–BC21 + BC20A (Swing Hybrid Exit) alapréteg kész; részletek: `CHANGELOG.md`.
+- **Paper trading** — IBKR paper `DUH118657`, 63 napos periódus. Aktuális nap/P&L: `docs/STATUS.md`.
+- **Parameter freeze** — Day 63-ig érvényes (kivételek + log: `docs/master-reference/04-risks-and-open-questions.md` §11).
 
 ## Alapszabályok
 - Ez PÉNZÜGYI rendszer — Human-in-the-loop minden döntésnél
