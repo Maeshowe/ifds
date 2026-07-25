@@ -32,7 +32,7 @@
 | `frl-cross-section-enrichment` | FRL | 🔨 WIP | enrichment sink (D_A jóváhagyva, §11.11) |
 | `automated-daily-review-mini` | Review→Mini | 📋 OPEN | Phase B, deploy **Day 63 után** |
 | historikus vasárnapi log-szennyezés | FRL-loader | 📋 OPEN (cross-flag `5ba8c95`) | **tartalom-alapú loader-szűrés** (ajánlás) |
-| scoring_validation előjel-fix + éra-bontás | Review | 📋 backlog | a 2 biweekly-flag (report-bug + G5) |
+| scoring_validation előjel-fix + éra-bontás | Review | KESZ (2026-07-25) | e155c53; a bontas feltarta: legacy(442) +0.022 NULL vs swing(28) -0.509 p=0.006 (leiro, n=28) |
 | FileVault outage-gyökérok | ops | ⏸ Tamás-döntés | FileVault OFF + auto power-on + auto-login |
 | **Kapu-protokoll D1/D2** | Review | ⏸ **Tamás-döntés** | „mi a swing Day 63" + dátum-bázis — Day 63 (~08-17) ELŐTT |
 | **STOP-trigger monitor (P1)** | Review | ✅ **KÉSZ** (2026-07-25) | `stop_trigger_monitor.py` + 15 teszt; v6 §5 kötelező sor; jelenleg **nincs breach** |
