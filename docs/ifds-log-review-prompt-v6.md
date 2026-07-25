@@ -1,7 +1,9 @@
 # IFDS — Daily Log Review Prompt v6 (swing pivot)
 
 **Verzió**: v6 — 2026-06-11. A v5-öt (legacy intraday: bracket/AVWAP/BMI architektúra) teljes egészében leváltja; a v5 archiválandó.
-**Executor**: Chat vagy CC — azonos szabályok (a review-automatizáció ezt a fájlt tekinti kanonikus specnek).
+**Executor**: **CC** (2026-07-25 óta az IFDS CC-only, egyelőre — a napi review + heti report + biweekly
+scoring_validation mind CC-nél; korábban „Chat vagy CC", azonos szabályokkal). A review-automatizáció ezt a
+fájlt tekinti kanonikus specnek.
 **Hatókör**: READ-ONLY a production filesystemen; írás kizárólag `docs/review/` (+ `docs/handoff/`).
 
 ---

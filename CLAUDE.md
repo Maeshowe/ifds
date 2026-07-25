@@ -68,7 +68,13 @@ Ha nincs task fájl: rövid imperatív mondat + kontextus a body-ban.
 
 ## Task Files
 
-CC a taskokat a `docs/tasks/YYYY-MM-DD-*.md` fájlokból kapja (Chat írja).
+> **2026-07-25 — IFDS = CC-only, egyelőre** (Tamás-döntés): a Dev/Chat-szál szüneteltetve; CC felel a teljes
+> review-stackért (napi + heti `weekly_metrics.py` + biweekly `scoring_validation.py` + interpretáció) és
+> minden IFDS operatív munkáért (task-írás, bugfix, FRL, journal, STATUS). Az epistemikus guardrailek
+> (freeze, G1 gate-szeparáció, G3 no-signal-validity-nyelv Day 63-ig, pre-reg) VÁLTOZATLANOK. Lásd memória:
+> [[division-of-labor-chat-cc]]. Reverzibilis („egyelőre").
+
+A taskok a `docs/tasks/YYYY-MM-DD-*.md` fájlokban élnek (a CC-only alatt CC írja és implementálja).
 Minden task fájl tartalmazza: probléma, megközelítés, implementációs terv, tesztelés, commit üzenet.
 
 ### Task fájl kötelező fejléc (minden task fájlban az első 3 sor)
@@ -174,13 +180,14 @@ Speciális feladatokhoz: @lead-dev, @code-reviewer, @test-engineer, @refactor, @
 
 ## Journal — Megosztott Kontextus
 
-A `docs/journal/` könyvtár tartalmazza a Claude Chat session-ök állapotmentéseit.
-Ezek a stratégiai döntéseket, architektúrális gondolkodást, és a "miértek"-et tartalmazzák.
+A `docs/journal/` könyvtár tartalmazza a session-ök állapotmentéseit (stratégiai döntések, architektúrális
+gondolkodás, a "miértek").
 
 Session elején a hook automatikusan betölti az utolsó 2 journal entry-t.
 
-**A journal a Chat-ben keletkezik, nem CC-ben.** Te (CC) olvasod, de nem írod.
-Ha a user hivatkozik egy korábbi döntésre vagy kontextusra, keresd a journal-ban.
+**2026-07-25 óta (CC-only): a journalt CC írja** a `/wrap-up`-kor (`docs/journal/YYYY-MM-DD-session-close.md`).
+Korábban a Chat-szál termelte; a Dev-szál szüneteltetéséig CC a szerző is. A korábbi Chat-journalok
+READ-ONLY referenciák maradnak.
 
 ---
 
@@ -232,9 +239,9 @@ scripts/tools/                  # events_to_sqlite.py
 scripts/deploy_daily.sh         # Phase 1-3 (22:00) or full pipeline
 scripts/deploy_intraday.sh      # Phase 4-6 + submit (15:45)
 sim/configs/                    # YAML variant configs (1d vs swing, freshness A/B, etc.)
-docs/tasks/                     # CC task fájlok (Chat írja, CC implementálja)
+docs/tasks/                     # CC task fájlok (CC-only óta CC írja+implementálja)
 docs/planning/                  # Design docs, roadmap, backlog
-docs/journal/                   # Chat session állapotmentések (READ ONLY for CC)
+docs/journal/                   # session állapotmentések (CC-only óta CC írja /wrap-up-kor)
 docs/CODEMAPS/                  # Architecture docs (architecture, backend, data, dependencies)
 ```
 
