@@ -51,6 +51,29 @@ A „Day 126 ≈ 09-15" tehát **naptári** számlálással konzisztens, a revie
 A kiesés-delta (07-15, 07-16, 07-22 + a 06-29→07-07 outage) **bármelyik bázisra ugyanaz**
 (a kiesés *pause*, nem csökkenti a követelményt — replan §2.1).
 
+### D3 — Mi az „excess vs SPY" mérvadó definíciója? (a STOP-monitor építése hozta felszínre)
+A pre-reg kritérium „excess vs SPY"-t mond, de a `daily_metrics::excess_return` mező
+**realized-only**: `portfolio_return_pct` = aznapi realizált P&L / tőke.
+**Verifikálva (2026-07-25):** 07-20 realized −$438,55 / $99 901 = **−0,44%**, pontosan a mező
+értéke; és a **swing-napok 38%-án** (15/39) `portfolio_return_pct = 0.0`, tehát azokon
+`excess = −SPY` — a mező **indexirányt mér, nem stratégiai teljesítményt**.
+
+| Olvasat | Definíció | Jelenlegi 10-napos átlag |
+|---|---|---|
+| **Realized-only** (a pre-reg mező, ahogy van) | realizált P&L / tőke − SPY | **−0,04%** |
+| **Mark-to-market** (diagnosztika) | NetLiq nap/nap Δ − SPY | **−0,01%** |
+
+Ma a kettő **egyetért** (mindkettő messze a −1,0% küszöbtől), tehát nincs gyakorlati
+következménye — de ez **szerencse, nem garancia**: egy nagy nyitott-pozíció-mozgás
+szétnyithatja őket. A `stop_trigger_monitor.py` **mindkettőt** számolja és riportálja.
+
+**Javaslat (CC):** a **pre-reg mező marad a mérvadó** (realized-only) — mert az szerepel a
+pre-registrációban, és utólag mérőszámot cserélni ugyanaz a hibaosztály, mint kritériumot
+cserélni. A mark-to-market **diagnosztikaként** fut mellette; ha a kettő valaha
+**ellentétes irányba** mutat egy küszöb körül, az önmagában P1-es jelzés Tamásnak — nem
+automatikus felülbírálás. Alternatíva, ha te másképp döntesz: az MTM lesz a mérvadó, de
+akkor ezt **most** kell rögzíteni, nem a kapunál.
+
 ## 3. A pre-regisztrált kritériumok (szó szerint, `2026-05-14…§3.14`) — NEM módosítható
 
 **ÉLESÍTÉS — mind a három EGYIDEJŰLEG:**
