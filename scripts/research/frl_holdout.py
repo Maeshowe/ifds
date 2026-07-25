@@ -128,6 +128,16 @@ def _era_view(summary: Mapping | None) -> tuple[float, float, bool]:
     return mean_ic, bar, inconclusive
 
 
+def _t_eff(summary: Mapping | None) -> float:
+    """Effective sample size for an era's IC series (0 if the era is absent)."""
+    if not summary:
+        return 0.0
+    try:
+        return float(summary.get("t_eff", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def promote_verdict(
     era_summaries: Mapping[str, Mapping],
     expected_sign: int,
@@ -143,13 +153,23 @@ def promote_verdict(
     (6-hour bracket, 800-1370 names, different horizon), so it is a weak prior for
     swing behaviour. Legacy-positive with an underpowered swing view parks with an
     automatic retest trigger rather than dying.
+
+    KILL vs PARK encodes pre-reg criteria (a)/(b)/(c): a terminal KILL requires
+    either a sign contradiction (b) or a clean fail at **adequate** T_eff (a). If
+    the sign is correct but every era with data is underpowered (T_eff below
+    ``MIN_ADEQUATE_T_EFF``, spec §5.5), the fail is power-driven, not a null — it
+    PARKs and retests as the swing sample grows (c). This holds for swing-only
+    factors too, which have no legacy leg to lean on.
     """
     reasons: list[str] = []
 
     swing_ic, swing_bar, swing_inconclusive = _era_view(era_summaries.get(cfg.ERA_SWING))
     legacy_ic, legacy_bar, legacy_inconclusive = _era_view(era_summaries.get(cfg.ERA_LEGACY))
+    swing_t_eff = _t_eff(era_summaries.get(cfg.ERA_SWING))
+    legacy_t_eff = _t_eff(era_summaries.get(cfg.ERA_LEGACY))
 
-    swing_sign_ok = swing_ic == swing_ic and (swing_ic > 0) == (expected_sign > 0)
+    swing_present = swing_ic == swing_ic  # not NaN
+    swing_sign_ok = swing_present and (swing_ic > 0) == (expected_sign > 0)
     legacy_sign_ok = legacy_ic == legacy_ic and (legacy_ic > 0) == (expected_sign > 0)
 
     if not bh_pass:
@@ -168,18 +188,42 @@ def promote_verdict(
         )
         return PromoteVerdict("PROMOTE", tuple(reasons))
 
+    # Criterion (b): a swing sign contradiction is always terminal — the
+    # cross-sectional form of the mechanism is refuted, not underpowered.
+    if swing_present and not swing_sign_ok:
+        reasons.append("swing sign contradiction — terminal (pre-reg b)")
+        return PromoteVerdict("KILL", tuple(reasons))
+
+    # Legacy-positive + swing catching up: park with the auto-retest trigger.
     legacy_supports = legacy_sign_ok and not legacy_inconclusive
-    if legacy_supports and swing_sign_ok:
+    if legacy_supports:
         reasons.append(
-            f"legacy supports ({legacy_ic:+.4f} >= bar {legacy_bar:.4f}) but legacy-only "
-            "PROMOTE is forbidden — parked until the swing sample carries the bar"
+            f"legacy supports ({legacy_ic:+.4f}) but legacy-only PROMOTE is forbidden — "
+            "parked until the swing sample carries the bar"
         )
         return PromoteVerdict("PARK_UNTIL_SWING_POWER", tuple(reasons))
-    if legacy_supports and swing_inconclusive:
-        reasons.append("legacy supports; swing underpowered, no sign contradiction yet")
-        return PromoteVerdict("PARK_UNTIL_SWING_POWER", tuple(reasons))
 
-    return PromoteVerdict("KILL", tuple(reasons))
+    # Criterion (a) vs (c): is there any era with ADEQUATE power that cleanly
+    # fails? If so the fail is a genuine null → KILL. Otherwise every leg is
+    # underpowered and the sign is not contradicted → PARK and retest.
+    legacy_adequate_fail = (
+        legacy_t_eff >= cfg.MIN_ADEQUATE_T_EFF and legacy_ic == legacy_ic
+    )  # legacy present here always means it failed to PROMOTE
+    swing_adequate_fail = swing_present and swing_t_eff >= cfg.MIN_ADEQUATE_T_EFF
+
+    if legacy_adequate_fail or swing_adequate_fail:
+        reasons.append(
+            f"adequate T_eff clean fail (swing T_eff={swing_t_eff:.1f}, "
+            f"legacy T_eff={legacy_t_eff:.1f} vs floor {cfg.MIN_ADEQUATE_T_EFF:.0f}) — "
+            "genuine null (pre-reg a)"
+        )
+        return PromoteVerdict("KILL", tuple(reasons))
+
+    reasons.append(
+        f"sign correct, all eras underpowered (swing T_eff={swing_t_eff:.1f} < "
+        f"{cfg.MIN_ADEQUATE_T_EFF:.0f}) — power-driven fail, retest as sample grows (pre-reg c)"
+    )
+    return PromoteVerdict("PARK_UNTIL_SWING_POWER", tuple(reasons))
 
 
 def retest_due(parked_entry: Mapping, swing_summary: Mapping) -> bool:

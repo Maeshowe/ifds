@@ -17,10 +17,10 @@ import frl_config as cfg  # noqa: E402
 import frl_holdout as holdout  # noqa: E402
 
 
-def _summary(mean_ic, bar, inconclusive=None):
+def _summary(mean_ic, bar, inconclusive=None, t_eff=20.0):
     if inconclusive is None:
         inconclusive = abs(mean_ic) < bar
-    return {"mean_ic": mean_ic, "era_bar": bar, "inconclusive": inconclusive}
+    return {"mean_ic": mean_ic, "era_bar": bar, "inconclusive": inconclusive, "t_eff": t_eff}
 
 
 class TestWindows:
@@ -114,6 +114,76 @@ class TestPromoteVerdict:
             {cfg.ERA_LEGACY: _summary(0.09, 0.02)}, expected_sign=1, bh_pass=True
         )
         assert verdict.decision == "PARK_UNTIL_SWING_POWER"
+
+
+class TestSwingOnlyParkPath:
+    """A swing-only factor (no legacy leg) must be able to PARK, not just KILL.
+
+    HYP-005 exposed the gap: legacy_supports is always False for a swing-only
+    factor, so the old logic could only PROMOTE or KILL — contradicting the
+    hypothesis's own pre-reg criterion (c) 'T_eff elégtelen → PARK'.
+    """
+
+    def test_swing_only_underpowered_correct_sign_parks(self):
+        """HYP-005 h=5 shape: sign correct, |IC|>=bar, but T_eff inadequate, BH fail."""
+        verdict = holdout.promote_verdict(
+            {cfg.ERA_SWING: _summary(0.0435, 0.0367, inconclusive=False, t_eff=4.6)},
+            expected_sign=1,
+            bh_pass=False,
+        )
+        assert verdict.decision == "PARK_UNTIL_SWING_POWER"
+        assert any("underpowered" in r or "pre-reg c" in r for r in verdict.reasons)
+
+    def test_swing_only_adequate_teff_clean_fail_kills(self):
+        """HYP-005 h=1 shape: T_eff ample (23), IC tiny, sign ok — a genuine null."""
+        verdict = holdout.promote_verdict(
+            {cfg.ERA_SWING: _summary(0.0079, 0.0311, inconclusive=True, t_eff=23.0)},
+            expected_sign=1,
+            bh_pass=False,
+        )
+        assert verdict.decision == "KILL"
+        assert any("pre-reg a" in r or "genuine null" in r for r in verdict.reasons)
+
+    def test_swing_only_sign_contradiction_is_terminal(self):
+        verdict = holdout.promote_verdict(
+            {cfg.ERA_SWING: _summary(-0.05, 0.03, inconclusive=False, t_eff=4.0)},
+            expected_sign=1,
+            bh_pass=False,
+        )
+        assert verdict.decision == "KILL"
+        assert any("contradiction" in r for r in verdict.reasons)
+
+    def test_adequacy_threshold_is_the_pivot(self):
+        """Same IC and sign; only T_eff crossing the floor flips PARK <-> KILL."""
+        below = holdout.promote_verdict(
+            {
+                cfg.ERA_SWING: _summary(
+                    0.03, 0.02, inconclusive=False, t_eff=cfg.MIN_ADEQUATE_T_EFF - 1
+                )
+            },
+            expected_sign=1,
+            bh_pass=False,
+        )
+        at = holdout.promote_verdict(
+            {cfg.ERA_SWING: _summary(0.03, 0.02, inconclusive=False, t_eff=cfg.MIN_ADEQUATE_T_EFF)},
+            expected_sign=1,
+            bh_pass=False,
+        )
+        assert below.decision == "PARK_UNTIL_SWING_POWER"
+        assert at.decision == "KILL"
+
+    def test_legacy_adequate_fail_still_kills_a_factor_with_a_weak_swing(self):
+        """HYP-004 shape: legacy T_eff adequate and fails -> terminal, even if the
+        swing leg is underpowered. Preserves the confirmed HYP-004 KILL."""
+        verdict = holdout.promote_verdict(
+            {
+                cfg.ERA_LEGACY: _summary(-0.0298, 0.0393, inconclusive=True, t_eff=11.8),
+                cfg.ERA_SWING: _summary(-0.0950, 0.0749, inconclusive=False, t_eff=3.8),
+            },
+            expected_sign=-1,
+            bh_pass=False,
+        )
+        assert verdict.decision == "KILL"
 
 
 class TestParkAutoRetest:

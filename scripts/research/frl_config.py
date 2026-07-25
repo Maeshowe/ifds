@@ -51,6 +51,13 @@ PRIMARY_HORIZON: Final[int] = 5
 MIN_SECTOR_N: Final[int] = 5  # sectors with fewer names are dropped that day
 ERA_BAR_FLOOR: Final[float] = 0.02  # era_bar = max(floor, 2 * SE(mean IC))
 
+# Effective-sample adequacy floor for a terminal KILL (spec §5.5). Below this
+# T_eff the power analysis says even a moderate IC (~0.08) is undetectable, so a
+# family-p fail there is "underpowered", not "no signal" — it PARKs and retests as
+# the swing sample grows, rather than dying. At or above it, a clean fail is a
+# genuine null and KILLs. This makes pre-reg criteria (a) vs (c) machine-enforced.
+MIN_ADEQUATE_T_EFF: Final[float] = 6.0
+
 # --- Day 63 gate ------------------------------------------------------------
 # EXPLICIT FLAG, never a computed date. Only a Tamás decision flips this to True.
 #
