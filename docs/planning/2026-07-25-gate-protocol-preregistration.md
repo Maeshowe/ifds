@@ -95,7 +95,14 @@ akkor ezt **most** kell rögzíteni, nem a kapunál.
 > **−$423.70 (−0.42%)**. A Sharpe és a pozitív-excess-nap számláló **nincs kiszámolva**
 > (lásd §4). A kapu-kimenetel előrejelzése tilos; a távolság riportálható.
 
-## 4. 🔴 P1 HIÁNYOSSÁG: a LEÁLLÍTÁS-triggereket SEMMI nem monitorozza
+## 4. ✅ P1 LEZÁRVA (2026-07-25) — a monitor élesítve
+
+> **MEGVALÓSÍTVA** (`ad4b28b`): `scripts/analysis/stop_trigger_monitor.py` + 15 teszt
+> (2182 → **2197 passing**), a v6 §5 kötelező napi sorral. **Jelenlegi állás: nincs breach**
+> egyik olvasat szerint sem (10d mean −0,04%, MTM −0,01% vs a −1,0% küszöb).
+> Az alábbi a feltárás eredeti leírása (megőrizve, mert a *hiba osztálya* a tanulság).
+
+### Az eredeti hiányosság: a LEÁLLÍTÁS-triggereket SEMMI nem monitorozta
 
 **Verifikálva (2026-07-25):** sem a `generate_review_data.py`, sem a `weekly_metrics.py`,
 sem a review `flags` mezője nem számol **gördülő 10/15 napos excess-átlagot** vagy
@@ -156,6 +163,7 @@ belépő-jel ellentmondás), nem külső üzemzavarból. Day 63-input megfigyel�
 |---|---|---|---|
 | D1 | „Mi a swing Day 63" — freeze-feloldás + leíró futás, vagy önálló kapu? | **Tamás** | Day 63 (~08-17) ELŐTT |
 | D2 | Dátum-bázis feloldása (trading vs naptári nap) | **Tamás** | ugyanaz |
+| D3 | Az excess vs SPY mérvadó definíciója (realized-only vs MTM) — *javaslat: marad a pre-reg mező* | **Tamás** | ugyanaz |
 | P1 | STOP-trigger monitor implementálása (§4) | CC | **most** (freeze-safe) |
 | — | A kizárási lista véglegesítése a kapu-futás előtt | CC + Tamás | Day 63 előtt |
 
