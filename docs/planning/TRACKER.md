@@ -35,7 +35,7 @@
 | scoring_validation előjel-fix + éra-bontás | Review | 📋 backlog | a 2 biweekly-flag (report-bug + G5) |
 | FileVault outage-gyökérok | ops | ⏸ Tamás-döntés | FileVault OFF + auto power-on + auto-login |
 | **Kapu-protokoll D1/D2** | Review | ⏸ **Tamás-döntés** | „mi a swing Day 63" + dátum-bázis — Day 63 (~08-17) ELŐTT |
-| **STOP-trigger monitor (P1)** | Review | 📋 OPEN | a pre-reg leállítási triggereket SEMMI nem számolja (§4) |
+| **STOP-trigger monitor (P1)** | Review | ✅ **KÉSZ** (2026-07-25) | `stop_trigger_monitor.py` + 15 teszt; v6 §5 kötelező sor; jelenleg **nincs breach** |
 | Process: model/effort tuning | ops | ⏸ Tamás | `model` settings.json-be; effortLevel xhigh→high |
 
 ## Napi rutin (Review-lane)
