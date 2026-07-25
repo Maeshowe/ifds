@@ -62,6 +62,16 @@ PLOTS_DIR = OUT_DIR / "plots"
 REPORT_PATH = OUT_DIR / "scoring-validation.md"
 SPY_CACHE = OUT_DIR / "spy_returns.json"
 
+# --- Era boundaries (G5: legacy and swing are different strategies) ---------
+# The 2026-05-18 swing pivot replaced the 6-hour bracket architecture. Pooling
+# the two eras into one correlation mixes them, so every correlation is reported
+# per era and the pooled view carries an explicit caveat.
+ERA_LEGACY = "legacy"
+ERA_SWING = "swing"
+ERA_UNKNOWN = "unknown"
+ERA_LEGACY_END = "2026-05-15"  # last legacy trading day
+ERA_SWING_START = "2026-05-18"  # swing pivot Day 1
+
 # Approximate weights reconstructed from the pipeline (flow=0.40, funda=0.30, tech=0.30).
 # The raw component sums differ — they're normalized downstream. Here we just
 # group sub-scores into "flow-ish" / "tech-ish" / "funda-ish" buckets to see
@@ -419,6 +429,67 @@ def fmt_corr(r: float, p: float) -> str:
     return f"{r:+.3f}{stars} (p={p:.3f})"
 
 
+def classify_era(date: str) -> str:
+    """Which strategy era a trade date belongs to (G5).
+
+    The pivot weekend (05-16/05-17) belongs to neither and is returned as
+    ``ERA_UNKNOWN`` rather than silently absorbed into one side.
+    """
+    if date <= ERA_LEGACY_END:
+        return ERA_LEGACY
+    if date >= ERA_SWING_START:
+        return ERA_SWING
+    return ERA_UNKNOWN
+
+
+def split_by_era(trades: list["Trade"]) -> dict[str, list["Trade"]]:
+    """Partition trades by era — every trade lands in exactly one bucket."""
+    buckets: dict[str, list["Trade"]] = {ERA_LEGACY: [], ERA_SWING: [], ERA_UNKNOWN: []}
+    for trade in trades:
+        buckets[classify_era(trade.date)].append(trade)
+    return buckets
+
+
+def excess_verdict(raw_r: float, ex_r: float) -> str:
+    """Sign-aware, G3-compliant one-line reading of the §5 correlations.
+
+    Two defects are fixed here (2026-07-24 review flags):
+
+    1. **Sign blindness** — the previous check was ``abs(ex_r) > 0.1``, so the
+       actual −0.144 (higher score -> *lower* excess, the "high score paradox")
+       was announced as "Evidence of alpha".
+    2. **Signal-validity language** — G3 forbids "alpha/edge/validated" claims
+       before Day 63. The wording is descriptive; the gate verdict belongs to
+       ``signal_attribution.py`` alone (G1).
+    """
+    if raw_r != raw_r or ex_r != ex_r:  # NaN guard
+        return ""
+
+    if ex_r <= -0.1:
+        return (
+            f"→ Leíró megfigyelés: a score **inverz** kapcsolatban áll a piac-semleges "
+            f"excess hozammal (r={ex_r:+.3f}) — a magasabb pontszám alacsonyabb excesshez "
+            f"társul ('magas pontszám paradoxon' iránya). NEM jel-érvényességi ítélet "
+            f"(G1/G3); a kapu-input kizárólag a `signal_attribution.py`."
+        )
+    if ex_r >= 0.1:
+        return (
+            f"→ Leíró megfigyelés: a score **pozitív** irányú kapcsolatot mutat a "
+            f"piac-semleges excess hozammal (r={ex_r:+.3f}). NEM jel-érvényességi ítélet "
+            f"(G1/G3) — a kapu-input kizárólag a `signal_attribution.py`."
+        )
+    if abs(raw_r) > 0.1 and abs(ex_r) < 0.05:
+        return (
+            f"→ Leíró megfigyelés: a nyers P&L-korreláció (r={raw_r:+.3f}) a **SPY "
+            f"eltávolítása után eltűnik** (r={ex_r:+.3f}) — a mért együttmozgás a piaci "
+            f"irányt tükrözi."
+        )
+    return (
+        f"→ Leíró megfigyelés: nincs érdemi együttmozgás sem nyersen (r={raw_r:+.3f}), "
+        f"sem SPY-eltávolítás után (r={ex_r:+.3f}) — inconclusive ezen a mintán."
+    )
+
+
 def generate_report(
     trades: list[Trade], snapshots: dict, cum_pnl: dict, spy_returns: dict[str, float]
 ) -> str:
@@ -640,23 +711,45 @@ def generate_report(
         # Interpretation hint
         raw_r, _ = pearson(scores_e, raw)
         ex_r, _ = pearson(scores_e, excess)
-        if raw_r == raw_r and ex_r == ex_r:
-            if abs(ex_r) > 0.1:
-                lines.append(
-                    "→ Score correlates with market-neutral excess return. "
-                    "**Evidence of alpha.**"
-                )
-            elif abs(raw_r) > 0.1 and abs(ex_r) < 0.05:
-                lines.append(
-                    "→ Score correlates with raw P&L but the correlation "
-                    "**disappears after SPY removal**. The scoring is "
-                    "mirroring market direction, not generating alpha."
-                )
-            else:
-                lines.append(
-                    "→ Score does not meaningfully correlate with P&L "
-                    "before or after SPY removal — inconclusive or no edge."
-                )
+        verdict = excess_verdict(raw_r, ex_r)
+        if verdict:
+            lines.append(verdict)
+            lines.append("")
+
+        # --- Era split (G5): legacy and swing are different strategies -----
+        lines.append("### 5.1 Éra-bontás (G5 — kötelező)")
+        lines.append("")
+        lines.append(
+            "A pooled sor **két különböző stratégiát kever** (legacy: 6 órás bracket, "
+            f"≤{ERA_LEGACY_END}; swing: 5 napos mental-stop, ≥{ERA_SWING_START}), ezért "
+            "önmagában nem swing-érvényes."
+        )
+        lines.append("")
+        lines.append("| Éra | N | Pearson (score vs excess) | Pearson (score vs raw P&L%) |")
+        lines.append("|---|---|---|---|")
+        era_buckets = split_by_era(with_spy)
+        for era in (ERA_LEGACY, ERA_SWING, ERA_UNKNOWN):
+            bucket = era_buckets.get(era, [])
+            if not bucket:
+                continue
+            b_scores = [t.score for t in bucket]
+            b_excess = [t.excess_return_pct for t in bucket]
+            b_raw = [t.pnl_pct for t in bucket]
+            lines.append(
+                f"| {era} | {len(bucket)} | {fmt_corr(*pearson(b_scores, b_excess))} "
+                f"| {fmt_corr(*pearson(b_scores, b_raw))} |"
+            )
+        lines.append(
+            f"| **pooled** ⚠️ | {len(with_spy)} | {fmt_corr(*pearson(scores_e, excess))} "
+            f"| {fmt_corr(*pearson(scores_e, raw))} |"
+        )
+        lines.append("")
+        swing_bucket = era_buckets.get(ERA_SWING, [])
+        if swing_bucket:
+            lines.append(
+                f"A **swing-éra** ({len(swing_bucket)} trade) a jelenlegi architektúra "
+                "egyetlen releváns nézete; a legacy sor történeti kontextus."
+            )
             lines.append("")
 
     # --- 6. Exit type breakdown
