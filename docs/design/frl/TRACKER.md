@@ -1,5 +1,5 @@
 Status: WIP
-Updated: 2026-07-23
+Updated: 2026-07-25
 Note: FRL build lane élő haladás-követő. CC vezeti (minden lépésnél frissül). Spec: `docs/design/2026-07-21-factor-research-loop-spec.md` (v2). Session-indító: `docs/handoff/2026-07-21-frl-build-session-starter.md`.
 
 # FRL — Fejlesztési Tracker
@@ -95,6 +95,7 @@ Státusz-jelölés: TODO → WIP → DONE / BLOCKED / STOP.
 
 | Dátum | Változás |
 |---|---|
+| 2026-07-25 | **Első éles sink-fájl verifikálva** (07-24): n_rows 433=csv 433, n_scored **238=238** (pontos), nyers mezők 100% non-null a pontozott sorokon, swing_score 238/238 + legacy_composite 0/238, unscored→null (0 leak). **A 40-napos v2 óra elindult.** — **Második fordulat batch** (HYP-005, run 07-24): előjel helyes mind a 4 h-n, emelkedő görbe (0.008→0.052), Šidák-p 0.2564 (BH-fail), half-life 10.3 nap. **Verdikt-javaslat: PARK-until-swing-power** (primary h=5 alulfeszített/jó előjel; h=1/h=3 KILL) → Tamásra vár. **Auto-verdikt logikai rés javítva** (`079e4a1`): swing-only faktor eddig nem tudott PARK-olni (nincs legacy láb) → T_eff-adekvácia gate (§5.5, floor=6); HYP-004 KILL változatlan (regressziós teszt). cost-model n=28→31, 95.5→97.0 bp. **+17 teszt → 2182 passing.** |
 | 2026-07-23 | **HYP-005 faktor kész** (`bc651b3`): `factors/sj_live.py` — az élő swing score, swing-only éra-guarddal a faktorban is; sanity PASS (+1.000). **A batch NEM futott**: a §10 heti-egy-batch kadencia szerint a HYP-005 futás a **pénteki (07-24) sync utáni ablakban** megy (+2-3 swing-nap a T_eff-hez). **+12 teszt → 2171 passing.** |
 | 2026-07-23 | **Tracked-vs-syncelt feloldás** (Tamás-döntés, `8e0d296`): `docs/analysis/` **untrackelve + .gitignore** (Mini generálja → rsync-terület), `docs/review/` **tracked marad** (MacBookon születik). Mini: backup → pull (a git törölte) → visszaállítás → `diff -rq` **0 eltérés** → backup takarítva; 2158 passed/1 skipped. Ház-elv rögzítve: rsync a gép-generált state-nek, git az ember-írta dokumentumoknak. Új szabály az `ifds-rules`-ba (`56043c3`): **freeze alatt `git add` csak explicit path-listával, `-A`/`.` sweep TILOS**. |
 | 2026-07-23 | **S6 DEPLOYOLVA.** Push (22 commit `6457abe`→`d10c8de`) + Mini ff-only pull, Tamás-jóváhagyással. Mini-verifikáció: **2158 passed, 1 skipped** (a skip a statsmodels-referencia — dev-only, szándék szerint), `state/research_cross_section/` a suite után **nem jött létre** (előfeltétel-1 élesben is áll). `04-risks` **§11.11** rögzítve. Doc-átvezetés (`d10c8de`): §8.2 tábla — az a-trió **HYP-005**-be konszolidálva (S_j élő aggregát, REGISTERED), HYP-001b/002b/003b vázak v2 sávra újraírva, §4.5 gap-sor a 07-22 áramszünetre. ⏳ Első éles sink-fájl: **07-24 14:30 CEST**; az FRL v2 40-napos órája ekkor indul. |
