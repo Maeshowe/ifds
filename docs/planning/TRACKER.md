@@ -34,6 +34,9 @@
 | historikus vasárnapi log-szennyezés | FRL-loader | 📋 OPEN (cross-flag `5ba8c95`) | **tartalom-alapú loader-szűrés** (ajánlás) |
 | scoring_validation előjel-fix + éra-bontás | Review | 📋 backlog | a 2 biweekly-flag (report-bug + G5) |
 | FileVault outage-gyökérok | ops | ⏸ Tamás-döntés | FileVault OFF + auto power-on + auto-login |
+| **Kapu-protokoll D1/D2** | Review | ⏸ **Tamás-döntés** | „mi a swing Day 63" + dátum-bázis — Day 63 (~08-17) ELŐTT |
+| **STOP-trigger monitor (P1)** | Review | 📋 OPEN | a pre-reg leállítási triggereket SEMMI nem számolja (§4) |
+| Process: model/effort tuning | ops | ⏸ Tamás | `model` settings.json-be; effortLevel xhigh→high |
 
 ## Napi rutin (Review-lane)
 
