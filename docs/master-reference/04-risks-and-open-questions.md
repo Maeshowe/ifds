@@ -1050,9 +1050,17 @@ valódi státusz).
 
 ### 12.2 Jegyzet — swing végrehajtási költség empirikus szintje (Day 63-input)
 
-Az FRL cost-modell első valós outputja (8b8b216): swing next-day-fill |slippage|
-medián **95.5 bp/oldal** (p75 137, n=28, small_n) vs legacy 19 bp — az 5× a
-next-day MKT open stílus ára. h=5 + teljes heti rotáció ≈ **~9.5%/év
-költség-korlát**. NEM signal-állítás (G3); a végrehajtási stílus (LMT/LOO vs MKT)
-post-Day-63 vitájának kvantitatív inputja. Forrás: `research/cost_model.json`,
-heti frissítéssel.
+Az FRL cost-modell swing next-day-fill |slippage| mediánja vs legacy 19 bp — az
+~5× a next-day MKT open stílus ára. NEM signal-állítás (G3); a végrehajtási stílus
+(LMT/LOO vs MKT) post-Day-63 vitájának kvantitatív inputja. Forrás:
+`research/cost_model.json`, **heti frissítéssel** (a batch minden futáskor
+újraszámolja):
+
+| Batch-dátum | n | medián bp/oldal | p75 |
+|---|---|---|---|
+| 2026-07-20 (8b8b216, első) | 28 | 95.5 | 137 |
+| 2026-07-24 (2. fordulat) | 31 | **97.0** | 137 |
+
+A minta a paper-hetekkel nő; a medián stabil ~96 bp körül. h=5 + teljes heti
+rotáció ≈ **~9.5%/év költség-korlát**. A HYP-005 batch-ben ezen a 97.0 bp-on a
+breakeven IC 0.15–0.18 (h=5/h=7).
