@@ -36,7 +36,7 @@
 | FileVault outage-gyökérok | ops | ⏸ Tamás-döntés | FileVault OFF + auto power-on + auto-login |
 | **Kapu-protokoll D1/D2** | Review | ⏸ **Tamás-döntés** | „mi a swing Day 63" + dátum-bázis — Day 63 (~08-17) ELŐTT |
 | **STOP-trigger monitor (P1)** | Review | ✅ **KÉSZ** (2026-07-25) | `stop_trigger_monitor.py` + 15 teszt; v6 §5 kötelező sor; jelenleg **nincs breach** |
-| Process: model/effort tuning | ops | ⏸ Tamás | `model` settings.json-be; effortLevel xhigh→high |
+| Process: model/effort tuning | ops | KESZ (2026-07-28) | Tamas dontes: **Opus 5 + effortLevel xhigh MARAD** (jelenleg megfelelo); nincs settings-valtoztatas |
 
 ## Napi rutin (Review-lane)
 
