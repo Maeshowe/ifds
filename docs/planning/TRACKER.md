@@ -34,7 +34,9 @@
 | historikus vasárnapi log-szennyezés | FRL-loader | 📋 OPEN (cross-flag `5ba8c95`) | **tartalom-alapú loader-szűrés** (ajánlás) |
 | scoring_validation előjel-fix + éra-bontás | Review | KESZ (2026-07-25) | e155c53; a bontas feltarta: legacy(442) +0.022 NULL vs swing(28) -0.509 p=0.006 (leiro, n=28) |
 | FileVault outage-gyökérok | ops | ⏸ Tamás-döntés | FileVault OFF + auto power-on + auto-login |
-| **Kapu-protokoll D1/D2** | Review | ⏸ **Tamás-döntés** | „mi a swing Day 63" + dátum-bázis — Day 63 (~08-17) ELŐTT |
+| Kapu-protokoll D1/D2/D3 | Review | ✅ KÉSZ (2026-07-28) | D1: Day 63 = freeze-feloldás + leíró futás; D2: kapu-dátum **2026-09-22**; D3: realized-only marad |
+| **Day 63 esemény (~08-17)** | Review | 📋 OPEN | freeze-feloldás + az ELSŐ leíró `signal_attribution` futás |
+| **Kapu-futás 2026-09-22** | Review | 📋 OPEN | `signal_attribution` (pinned `c5e9ed0`), egyszeri; a kizárási lista előtte zárandó |
 | **STOP-trigger monitor (P1)** | Review | ✅ **KÉSZ** (2026-07-25) | `stop_trigger_monitor.py` + 15 teszt; v6 §5 kötelező sor; jelenleg **nincs breach** |
 | Process: model/effort tuning | ops | KESZ (2026-07-28) | Tamas dontes: **Opus 5 + effortLevel xhigh MARAD** (jelenleg megfelelo); nincs settings-valtoztatas |
 
