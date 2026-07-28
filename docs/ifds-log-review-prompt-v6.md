@@ -70,7 +70,10 @@ A napi review **mérési jegyzőkönyv, nem narratíva**. Három olvasója van: 
 
 **4. Nyitott pozíciók tábla**: ticker · days_held · mark · unrealized · stop-buffer % · next_action (EOD flag). Összesítő sor: total unrealized.
 
-**5. Ops-checklist** (soronként egy tétel, ✓/⚠️): reconcile N/N silent OK (futó számláló) · cron-időzítés-eltérések · ERROR/WARNING a logokban · Telegram-render egyezik-e a `daily_metrics`-szel (ha nem: ⚠️ + melyik mező) · **STOP-triggerek** (KÖTELEZŐ, minden nap): a `python scripts/analysis/stop_trigger_monitor.py --review-line` kimenete szó szerint. A pre-reg halt-kritériumok (10/15 napi excess < −1.0%, 30 napi kumulatív < −3.0%; 2026-05-14 §3.14) folyamatos monitorozása — a monitor **csak jelez**, a leállítás Tamás-döntés. Breach esetén a §6-ba is P1-ként.
+**5. Ops-checklist** (soronként egy tétel, ✓/⚠️): reconcile N/N silent OK (futó számláló) · cron-időzítés-eltérések · ERROR/WARNING a logokban · Telegram-render egyezik-e a `daily_metrics`-szel (ha nem: ⚠️ + melyik mező) · **v2 enrichment sink** (KÖTELEZŐ, minden nap — FRL-5 deploy-előfeltétel 2): a
+`state/research_cross_section/{date}.json.gz` `n_rows`/`n_scored` mezője egyezzen a napi `full_scan_matrix`
+sor- és scored-számával. Eltérés → ⚠️ + §6-ba. *(Ellenőrzés: a gz `records` kulcsa a tábla; a `n_scored` a
+nem-null score-ú sorok száma.)* · **STOP-triggerek** (KÖTELEZŐ, minden nap): a `python scripts/analysis/stop_trigger_monitor.py --review-line` kimenete szó szerint. A pre-reg halt-kritériumok (10/15 napi excess < −1.0%, 30 napi kumulatív < −3.0%; 2026-05-14 §3.14) folyamatos monitorozása — a monitor **csak jelez**, a leállítás Tamás-döntés. Breach esetén a §6-ba is P1-ként.
 
 **6. Anomáliák** — **csak ÚJ vagy változott** tételek: P-prioritás · leírás · forrás-útvonal · javasolt gazda (CC-task / megfigyelés / Day 63-input). Ismert, visszatérő anomália: 1 sor + az első előfordulás dátum-hivatkozása. Tilos ugyanazt a findingot a review több pontján megismételni.
 

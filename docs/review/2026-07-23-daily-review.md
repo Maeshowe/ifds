@@ -53,9 +53,13 @@ nincs holnapra ütemezett exit-flag.
   UTÁN): `circuit_breaker cum_pnl=-6000`, `moc_submitted`, `trail_activated`, tickerek **AAA/BBB/CCC** (teszt-fixture
   nevek) + AAPL/LION/SDRL. Diagnózis: egy **pytest-futás** a Mini-n, ahol az event-logger (`evt.log`) nem volt
   mockolva — a swing-pivot óta halott legacy kódutak (circuit_breaker, AVWAP-trail) írták a valós logot.
-  **Hatás: a hiteles P&L-lánc érintetlen** (IBKR trades ma csak USFD → nem adott be valós order), DE a `pt_events`
-  a **v6 §5 ops-forrás ÉS az FRL loader rank-2 forrása** (spec §4.1) — az FRL éles indulásakor ez a szennyezés
-  megismételné a dp_pct/AAPL-mock hibaosztályt. Ugyanaz az osztály, mint a `save_phase4_snapshot` (04-15) és a
+  **Hatás: a hiteles P&L-lánc érintetlen** (IBKR trades ma csak USFD → nem adott be valós order). A `pt_events`
+  a **v6 §5 ops-forrás**.
+  > ⚠️ **KORREKCIÓ (2026-07-28):** ez a bekezdés eredetileg azt is állította, hogy a `pt_events` az **FRL loader
+  > rank-2 forrása** — **ez téves volt**. A `scripts/research/` fában nulla hivatkozás van rá; a loader a
+  > `full_scan_matrix` (rank-1) és az `ifds_run_*.jsonl` (rank-2) forrásokat olvassa, és **az `ifds_run` tiszta**.
+  > A szennyezésnek tehát **nincs kutatási/kapu-hatása**, csak az ops-review felületét érinti. Részletek és a
+  > lezárás: `docs/tasks/archive/2026-07-24-frl-historical-log-contamination-crossflag.md`. Ugyanaz az osztály, mint a `save_phase4_snapshot` (04-15) és a
   `write_shadow_snapshot` (05-19) — a szabály zártnak hitt, ez a 3. rés. **Gazda: CC-task** (az érintett tesztek
   event-logger-mockja; freeze-safe, teszt-only). Forrás: `logs/pt_events_2026-07-23.jsonl`.
 - **P2 (n=2) — USFD self-reentry, ugyanaznapi stop↔belépő ellentmondás.** A MENTAL_SL 15:30-kor kiléptette

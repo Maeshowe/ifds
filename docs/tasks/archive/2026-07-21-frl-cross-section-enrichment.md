@@ -1,5 +1,5 @@
-Status: WIP
-Updated: 2026-07-23
+Status: DONE
+Updated: 2026-07-28
 Note: **D_A MEGERŐSÍTVE (Tamás, 2026-07-21, chat)** — a v2 enrichment sink freeze alatti deploy-a jóváhagyva, az R1 két kemény előfeltételével (lásd §Deploy-előfeltételek). A build+teszt freeze-safe; a deploy a §Deploy-szekvencia szerint, sorrendben kötelező.
 
 # FRL-5 — v2 nyers keresztmetszet forward-perzisztálás (enrichment sink)
@@ -146,3 +146,18 @@ strukturálisan zárja.
    mai szinten); mező-teljesség (nyers `pcr`/`otm_call_ratio`/`rvol` nem null a
    pontozott sorokon); `swing_score` kitöltve, `legacy_composite` null
 7. `04-risks` §11 sor (11.11) — CC írja a verifikáció után
+
+
+## Lezárás (2026-07-28)
+
+Mindkét R1 deploy-előfeltétel teljesült:
+
+1. **Sink-audit + teszt-pollúció-próba**: bizonyítva a deploy ELŐTT (`faa56d3`) sentinel-fájllal
+   (visszadátumozott mtime), a teljes suite után mtime+sha256+fájlhalmaz változatlan, negatív
+   kontrollal. Grep-audit teszt zárja a jövőbeli patch-eletlen sinket. 19 teszt zöld.
+2. **Napi ops-monitoring**: a v6 §5 ops-checklist megkapta a kötelező sort (n_rows/n_scored vs
+   scan-matrix). Korábban hiányzott — 2026-07-28-án pótolva.
+
+**Éles verifikáció (2026-07-28):** a sink két napra termelt, mindkettő pontosan egyezik a
+scan-matrix-szal — 07-24: n_rows 433 / n_scored 238 ≡ 433/238; 07-27: 226/113 ≡ 226/113.
+Deploy: `08d072d`, freeze-log: 04-risks §11.11. A v2 40-napos óra 2026-07-24-én elindult.

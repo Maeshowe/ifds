@@ -29,9 +29,9 @@
 |---|---|---|---|
 | HYP-005 verdikt | FRL | ✅ **PARK(h5,h7)/KILL(h1,h3) — Tamás-megerősítve 2026-07-25** | a PARK auto-retestel; v2 ~szept közepe |
 | T_eff-adekvácia gate | FRL | ✅ jóváhagyva + §5.5 dokumentálva | native a köv. batchre |
-| `frl-cross-section-enrichment` | FRL | 🔨 WIP | enrichment sink (D_A jóváhagyva, §11.11) |
+| `frl-cross-section-enrichment` | FRL | ✅ KÉSZ (2026-07-28) | mindkét R1 előfeltétel teljesült; v6 §5 ops-sor pótolva; éles verifikáció: 07-24 433/238 ≡ 07-27 226/113 ≡ scan-matrix |
 | `automated-daily-review-mini` | Review→Mini | 📋 OPEN | Phase B, deploy **Day 63 után** |
-| historikus vasárnapi log-szennyezés | FRL-loader | 📋 OPEN (cross-flag `5ba8c95`) | **tartalom-alapú loader-szűrés** (ajánlás) |
+| historikus vasárnapi log-szennyezés | ops | ✅ KÉSZ (2026-07-28) | **A premissza hibás volt**: a `pt_events` NEM FRL-forrás (a loader `ifds_run`-t olvas, az tiszta) → **nincs loader-szűrés**. 5 tiszta-fixture vasárnapi fájl karanténba; a vegyes fájlok érintetlenül (valós P&L-t tartalmaznak) |
 | scoring_validation előjel-fix + éra-bontás | Review | KESZ (2026-07-25) | e155c53; a bontas feltarta: legacy(442) +0.022 NULL vs swing(28) -0.509 p=0.006 (leiro, n=28) |
 | FileVault outage-gyökérok | ops | ⏸ Tamás-döntés | FileVault OFF + auto power-on + auto-login |
 | Kapu-protokoll D1/D2/D3 | Review | ✅ KÉSZ (2026-07-28) | D1: Day 63 = freeze-feloldás + leíró futás; D2: kapu-dátum **2026-09-22**; D3: realized-only marad |
