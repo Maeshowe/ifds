@@ -30,13 +30,36 @@ futás** (leíró) alkalma. A tényleges élesítési/leállítási döntés a D
 
 ## 2. Két nyitott definíciós kérdés — TAMÁS-DÖNTÉS (D1, D2)
 
+> ## ✅ MIND A HÁROM DÖNTÉS MEGSZÜLETETT — Tamás, 2026-07-28
+>
+> - **D1:** a swing Day 63 (~08-17) = **freeze-feloldás + első, LEÍRÓ `signal_attribution` futás**. NEM go/no-go.
+> - **D2:** a kapu **konkrét naptári dátumot** kap — **2026-09-22** —, a „Day N" címke elhagyva.
+>   A kritérium-ablakok (60-napi Sharpe, 25/63 pozitív excess nap) az utolsó N **trading** napra.
+> - **D3:** a **pre-reg realized-only mező marad a mérvadó**; a mark-to-market variáns diagnosztika.
+>
+> A §3 küszöbök (+$2 000 / Sharpe>0,5 / 25+ nap) **változatlanok** — a döntések a *definíciót* tisztázták.
+
 ### D1 — Mi történik a swing Day 63-nál (~2026-08-17)?
+**✅ DÖNTÉS (Tamás, 2026-07-28): (a) freeze-feloldás + (b) első LEÍRÓ `signal_attribution` futás + (c) a
+kapu előkészítése — NEM élesítési/leállítási döntés.** Indoklás: a freeze nem húzódik szeptemberig (a
+scoring-revíziók elindulhatnak), és a kapu-eszköz tényleges outputját **időben látjuk**, mielőtt éles
+döntés függne tőle (ha bug/adathiány van benne, nem a legrosszabb pillanatban derül ki).
+
 Javaslat (CC): **(a) freeze feloldása** + **(b) első teljes `signal_attribution` futás,
 leíró jelleggel** + **(c) a Day 126 kapu előkészítése** — de **NEM** élesítési/leállítási
 döntés. Alternatíva, ha te másképp látod: a Day 63 maradjon önálló köztes kapu saját
 (újra-pre-regisztrálandó) kritériumokkal.
 
 ### D2 — Dátum-bázis: a „Day 126 ≈ 2026-09-15" és a trading-nap-számolás nem egyezik
+**✅ DÖNTÉS (Tamás, 2026-07-28): a kapu KONKRÉT NAPTÁRI DÁTUMOT kap — `2026-09-22` —, a „Day N" címke
+elhagyva.** A kritérium-ablakok (60-napi Sharpe, 25/63 pozitív excess nap) az utolsó N **trading** napra
+vonatkoznak. Indoklás: a „melyik Day 126" kétértelműség így **véglegesen megszűnik**.
+
+A dátum kalibrációja (CC-számolás, 2026-07-28): az eredeti ~09-15 szándék + az eddigi outage-delta ~1 hét.
+Adat-elégségesség: **07-28 → 09-22 ≈ 40 trading nap**, a jelenlegi 41 tényleges adatnaphoz adva
+**≈ 81 tényleges nap** — a 63-as kritérium-ablakhoz bőven elég, további outage-ok mellett is.
+*(Referenciaként: a 63. tényleges adatnap ~2026-08-26 — a kapu ennél lényegesen később van, szándékosan.)*
+
 A `2026-07-01-day126-replan-proposal.md` §2.1 ezt már flagelte, és **máig nyitott**.
 Az aritmetika (CC, 2026-07-25) egy valószínű magyarázatot ad — **egység-keveredés**:
 
@@ -52,6 +75,11 @@ A kiesés-delta (07-15, 07-16, 07-22 + a 06-29→07-07 outage) **bármelyik báz
 (a kiesés *pause*, nem csökkenti a követelményt — replan §2.1).
 
 ### D3 — Mi az „excess vs SPY" mérvadó definíciója? (a STOP-monitor építése hozta felszínre)
+**✅ DÖNTÉS (Tamás, 2026-07-28): a pre-reg realized-only mező MARAD a mérvadó; a mark-to-market variáns
+diagnosztikaként fut mellette.** Ha a kettő valaha **ellentétes irányba** mutat egy küszöb körül, az
+**P1 jelzés Tamásnak — nem automatikus felülbírálás**. Indoklás: utólag mérőszámot cserélni ugyanaz a
+hibaosztály, mint kritériumot cserélni. A `stop_trigger_monitor.py` már mindkettőt számolja.
+
 A pre-reg kritérium „excess vs SPY"-t mond, de a `daily_metrics::excess_return` mező
 **realized-only**: `portfolio_return_pct` = aznapi realizált P&L / tőke.
 **Verifikálva (2026-07-25):** 07-20 realized −$438,55 / $99 901 = **−0,44%**, pontosan a mező
@@ -159,13 +187,15 @@ belépő-jel ellentmondás), nem külső üzemzavarból. Day 63-input megfigyel�
 
 ## 8. Következő lépések
 
-| # | Tétel | Kié | Mikor |
-|---|---|---|---|
-| D1 | „Mi a swing Day 63" — freeze-feloldás + leíró futás, vagy önálló kapu? | **Tamás** | Day 63 (~08-17) ELŐTT |
-| D2 | Dátum-bázis feloldása (trading vs naptári nap) | **Tamás** | ugyanaz |
-| D3 | Az excess vs SPY mérvadó definíciója (realized-only vs MTM) — *javaslat: marad a pre-reg mező* | **Tamás** | ugyanaz |
-| P1 | STOP-trigger monitor implementálása (§4) | CC | **most** (freeze-safe) |
-| — | A kizárási lista véglegesítése a kapu-futás előtt | CC + Tamás | Day 63 előtt |
+| # | Tétel | Kié | Mikor | Státusz |
+|---|---|---|---|---|
+| D1 | Mi a swing Day 63 | Tamás | — | ✅ **freeze-feloldás + leíró futás** (2026-07-28) |
+| D2 | Dátum-bázis | Tamás | — | ✅ **konkrét dátum: 2026-09-22**, „Day N" elhagyva (2026-07-28) |
+| D3 | Az excess mérvadó definíciója | Tamás | — | ✅ **realized-only marad**, MTM diagnosztika (2026-07-28) |
+| P1 | STOP-trigger monitor (§4) | CC | — | ✅ **KÉSZ** (`ad4b28b`, 2026-07-25) |
+| **A** | **Day 63 (~08-17) esemény**: freeze-feloldás + az ELSŐ leíró `signal_attribution` futás | CC | **~08-17** | 📋 nyitott |
+| **B** | A kizárási lista véglegesítése (a §5 lista zárása a kapu-futás előtt) | CC + Tamás | **2026-09-22 előtt** | 📋 nyitott |
+| **C** | Kapu-futás: `signal_attribution` (pinned `c5e9ed0`), egyszeri, a §6 protokoll szerint | CC | **2026-09-22** | 📋 nyitott |
 
 **Ez a dokumentum a pre-regisztráció.** A §3 kritériumok nem módosíthatók; a D1/D2
 döntés a *definíciót* tisztázza, nem a küszöböket. Minden későbbi változtatás
