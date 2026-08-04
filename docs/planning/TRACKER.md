@@ -34,7 +34,7 @@
 | historikus vasárnapi log-szennyezés | ops | ✅ KÉSZ (2026-07-28) | **A premissza hibás volt**: a `pt_events` NEM FRL-forrás (a loader `ifds_run`-t olvas, az tiszta) → **nincs loader-szűrés**. 5 tiszta-fixture vasárnapi fájl karanténba; a vegyes fájlok érintetlenül (valós P&L-t tartalmaznak) |
 | scoring_validation előjel-fix + éra-bontás | Review | KESZ (2026-07-25) | e155c53; a bontas feltarta: legacy(442) +0.022 NULL vs swing(28) -0.509 p=0.006 (leiro, n=28) |
 | FileVault outage-gyökérok | ops | ⏸ Tamás-döntés | FileVault OFF + auto power-on + auto-login |
-| Kapu-protokoll D1/D2/D3 | Review | ✅ KÉSZ (2026-07-28) | D1: Day 63 = freeze-feloldás + leíró futás; D2: kapu-dátum **2026-09-22**; D3: realized-only marad |
+| Kapu-protokoll D1/D2/D3/D4 | Review | ✅ KÉSZ (D4: 2026-08-04) | D1: Day 63 = freeze-feloldás + leíró futás; D2: kapu-dátum **2026-09-22**; D3: realized-only marad; **D4: `mean` az irányadó** (a 08-03-i első breach `sum`-on volt) |
 | **Day 63 esemény (~08-17)** | Review | 📋 OPEN | freeze-feloldás + az ELSŐ leíró `signal_attribution` futás |
 | **Kapu-futás 2026-09-22** | Review | 📋 OPEN | `signal_attribution` (pinned `c5e9ed0`), egyszeri; a kizárási lista előtte zárandó |
 | **STOP-trigger monitor (P1)** | Review | ✅ **KÉSZ** (2026-07-25) | `stop_trigger_monitor.py` + 15 teszt; v6 §5 kötelező sor; jelenleg **nincs breach** |

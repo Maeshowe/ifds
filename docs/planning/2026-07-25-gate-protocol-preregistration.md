@@ -74,6 +74,27 @@ A „Day 126 ≈ 09-15" tehát **naptári** számlálással konzisztens, a revie
 A kiesés-delta (07-15, 07-16, 07-22 + a 06-29→07-07 outage) **bármelyik bázisra ugyanaz**
 (a kiesés *pause*, nem csökkenti a követelményt — replan §2.1).
 
+### D4 — `mean` vagy `sum` olvasat a STOP-triggereknél?
+**✅ DÖNTÉS (Tamás, 2026-08-04): a `mean` az irányadó**; a `sum` **megfigyelésként** tovább riportálódik.
+
+**Kontextus — a döntés az első breach UTÁN született, ezért a ház-szabály hatálya alá esik**
+(`ifds-rules.md`: *„Értékelő-motor fix csak pre-reg szöveghez igazításként — a pre-reg a kánon"*).
+A 4 kötelező kísérő:
+
+1. **Pre-reg forrás**: `2026-05-14 §3.14` szó szerint *„10 napi excess vs SPY **átlag** < −1,0%"* —
+   az **„átlag" = mean**. A döntés a **szöveghez** igazít, nem az eredmény felé. A D4-kétértelműség
+   **előre, 2026-07-25-én** rögzítve (e dokumentum §2 eredeti változata), a breach **előtt**.
+2. **Érzékenység**: a 2026-08-03-i breach-nél `mean` = −0,22% vs a −1,0% küszöb (**a küszöb ~4,5×-e a
+   mért értéknek → verdikt-stabil**); `sum` = −2,21% (breach). A két olvasat **érdemben eltér**, ezért a
+   döntés nem kozmetikai.
+3. **Regressziós védelem**: a `stop_trigger_monitor.py` **mindkét olvasatot** számolja és riportálja
+   továbbra is; csak a **halt-jelzés** kötődik a `mean`-hez. A `sum` elmozdulása látható marad.
+4. **Nincs újrafuttatás verdiktért**: a monitor determinisztikus, egyetlen futás/nap.
+
+**Következmény**: a 2026-08-03-i breach **nem halt-feltétel**. A `sum`-olvasat −2,21%-os értéke
+megfigyelésként rögzítve (a könyv 10 nap alatt ~2,2%-kal maradt el a SPY-tól — **MTM-mel is igazolva**,
+tehát valós lemaradás, nem mérési artifact).
+
 ### D3 — Mi az „excess vs SPY" mérvadó definíciója? (a STOP-monitor építése hozta felszínre)
 **✅ DÖNTÉS (Tamás, 2026-07-28): a pre-reg realized-only mező MARAD a mérvadó; a mark-to-market variáns
 diagnosztikaként fut mellette.** Ha a kettő valaha **ellentétes irányba** mutat egy küszöb körül, az
@@ -192,6 +213,7 @@ belépő-jel ellentmondás), nem külső üzemzavarból. Day 63-input megfigyel�
 | D1 | Mi a swing Day 63 | Tamás | — | ✅ **freeze-feloldás + leíró futás** (2026-07-28) |
 | D2 | Dátum-bázis | Tamás | — | ✅ **konkrét dátum: 2026-09-22**, „Day N" elhagyva (2026-07-28) |
 | D3 | Az excess mérvadó definíciója | Tamás | — | ✅ **realized-only marad**, MTM diagnosztika (2026-07-28) |
+| D4 | `mean` vagy `sum` olvasat a STOP-triggereknél | Tamás | — | ✅ **`mean` az irányadó** (a pre-reg „átlag" szó szerint); `sum` megfigyelés (2026-08-04) |
 | P1 | STOP-trigger monitor (§4) | CC | — | ✅ **KÉSZ** (`ad4b28b`, 2026-07-25) |
 | **A** | **Day 63 (~08-17) esemény**: freeze-feloldás + az ELSŐ leíró `signal_attribution` futás | CC | **~08-17** | 📋 nyitott |
 | **B** | A kizárási lista véglegesítése (a §5 lista zárása a kapu-futás előtt) | CC + Tamás | **2026-09-22 előtt** | 📋 nyitott |
