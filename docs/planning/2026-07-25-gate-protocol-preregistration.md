@@ -172,10 +172,14 @@ review-pipeline mellé (a `daily_equity` + `daily_metrics::excess_return` soroza
 
 A kapu-futás **kizárja**:
 - **Outage-napok**: 06-29→07-07 (Mini SSH-orphan), **07-15, 07-16** (áramszünet),
-  **07-22** (FileVault-zárolás) — nincs pipeline-esemény.
-- **Outage-késleltetett exitek (n=3)**: ITT/XPO (07-15), PFGC/BIRK (07-20), USFD (07-23)
-  — a stratégia szándéka szerinti időpontnál 2 nappal később, mérhetően rosszabbul zártak
-  (§11.10; az USFD-nél ~−$91 a becsléshez képest).
+  **07-22** (FileVault-zárolás), **08-07** (FileVault-zárolás, ~13h a feloldó-képernyőn)
+  — nincs pipeline-esemény.
+- **Outage-késleltetett exitek (n=4)**: ITT/XPO (07-15), PFGC/BIRK (07-20), USFD (07-23),
+  **DE (08-07 → 08-10, 1 trading nap késés)**. Az első három a szándékolt időpontnál
+  **rosszabbul** zárt (§11.10; az USFD-nél ~−$91 a becsléshez képest); a **DE-nél a késés
+  eddig KEDVEZ** (08-06 mark 613,71 / `várt` +$152 → 08-08 mark 620,83 / +$223).
+  📌 **Az outage-kontamináció tehát KÉTIRÁNYÚ** — a kizárás oka nem a veszteség, hanem hogy
+  a végrehajtás **nem a stratégia szándéka szerinti időpontban** történt.
 - Indoklás: `docs/planning/2026-07-01-day126-replan-proposal.md` §3 D2 (pause-and-resume,
   gate criteria UNCHANGED) + 04-risks §11.10.
 
