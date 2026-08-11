@@ -175,11 +175,14 @@ A kapu-futás **kizárja**:
   **07-22** (FileVault-zárolás), **08-07** (FileVault-zárolás, ~13h a feloldó-képernyőn)
   — nincs pipeline-esemény.
 - **Outage-késleltetett exitek (n=4)**: ITT/XPO (07-15), PFGC/BIRK (07-20), USFD (07-23),
-  **DE (08-07 → 08-10, 1 trading nap késés)**. Az első három a szándékolt időpontnál
-  **rosszabbul** zárt (§11.10; az USFD-nél ~−$91 a becsléshez képest); a **DE-nél a késés
-  eddig KEDVEZ** (08-06 mark 613,71 / `várt` +$152 → 08-08 mark 620,83 / +$223).
-  📌 **Az outage-kontamináció tehát KÉTIRÁNYÚ** — a kizárás oka nem a veszteség, hanem hogy
-  a végrehajtás **nem a stratégia szándéka szerinti időpontban** történt.
+  **DE (08-07 → 08-10, 1 trading nap késés)**. **Mind a négy a szándékolt időpontnál rosszabbul
+  zárt**: PFGC/BIRK ~−$295, USFD ~−$91, **DE −$111,50** (a pénteki záró 620,83 → hétfői MOC 609,68;
+  §11.10 + a 2026-08-10 review §2).
+  ⚠️ **Korrekció (2026-08-10):** a 08-08-i heti zárás azt rögzítette, hogy a DE-nél a késés „eddig
+  kedvez" — ez a szombati pillanatban igaz volt, de a **hétfői kimenetel megfordította**. A
+  mechanizmus **elvben kétirányú**, a **realizált kimenetel eddig 4/4 kedvezőtlen**. A kizárás oka
+  ettől függetlenül változatlan: a végrehajtás **nem a stratégia szándéka szerinti időpontban**
+  történt — nem a veszteség iránya.
 - Indoklás: `docs/planning/2026-07-01-day126-replan-proposal.md` §3 D2 (pause-and-resume,
   gate criteria UNCHANGED) + 04-risks §11.10.
 
