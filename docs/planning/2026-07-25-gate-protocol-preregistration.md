@@ -1,6 +1,6 @@
 Status: OPEN
 Updated: 2026-08-18
-Note: PRE-REGISZTRÁCIÓ — a kapu-végrehajtás rögzítése MIELŐTT az adat beérkezik. D1–D4 lezárva. 2026-08-18: a §5 kizárási lista LEZÁRVA, a §D3/M realized-only korlát rögzítve, a §9 első LEÍRÓ futás megtörtént (NEM go/no-go; a kapu 2026-09-22). NYITOTT Tamás-döntés: §5.6 mechanizmus (a §5 kizárás nincs a pinelt eszközben) — ez a kapu-futás blokkolója. CC nem módosít pre-reg kritériumot; ez a végrehajtás protokollja.
+Note: PRE-REGISZTRÁCIÓ — a kapu-végrehajtás rögzítése MIELŐTT az adat beérkezik. D1–D4 lezárva. 2026-08-18: a §5 kizárási lista LEZÁRVA, a §D3/M realized-only korlát rögzítve, a §9 első LEÍRÓ futás megtörtént (NEM go/no-go; a kapu 2026-09-22). 2026-08-18 (2. kör): D5 (`≥ 25` a megfigyelt napokra), D6 (kétsávos: prod fagyva 09-22-ig + revíziók SIM-ben) és §5.6 (pinelt WRAPPER, implementálva: `gate_sample.py`) MIND DÖNTVE. Nyitott: a wrapper pinelése a kapu előtt. CC nem módosít pre-reg kritériumot; ez a végrehajtás protokollja.
 
 # Kapu-protokoll pre-regisztráció — Day 63 / Day 126
 
@@ -198,6 +198,47 @@ igaz, tehát a minta ebből a szempontból **homogén** — **nem éra-keveredé
 
 **DEFAULT: PAPER FOLYTATÁS**, Day 180 újraértékelés.
 
+### D5 ✅ DÖNTVE (Tamás, 2026-08-18) — a 3. kritérium számlálási bázisa
+
+A „> 25 / 63 nap" szöveg **két ponton** kétértelmű volt, és a Day 63-as tény (**pontosan 25**)
+mindkettőt élesre állította: `> 25`-nek nem felel meg, `≥ 25`-nek igen; a nevező pedig lehet
+63 (nominális) vagy 54 (megfigyelt, a 9 outage-nap nélkül).
+
+**✅ DÖNTÉS: `≥ 25`, a MEGFIGYELT napokra vetítve (arány-alapú, 40%).**
+
+Indoklás: a §5 kizárási elv (az outage-napok nem számítanak bele) **már így működik a
+STOP-triggereknél** — a kettő közti következetlenség önmagában hiba lenne. A küszöb **nem
+változott** (a 40%-os arány a pre-reg szám); a döntés a *számlálási bázist* tisztázza,
+ahogy a D1–D4 is definíciót tisztázott.
+
+⚠️ **Rögzítve az eredmény ismeretében** — ez elfogultsági kockázat, és így is van
+dokumentálva. A választás azért vállalható, mert (a) a kapunál dönteni **nagyobb** kockázat
+lenne (ott a döntés már közvetlenül egy kimenetelt választ), és (b) a döntés a projekt
+**máshol már alkalmazott** elvét terjeszti ki, nem újat vezet be.
+
+**A §D3/M korlát ezen a kritériumon külön kimutatandó**: a 25 pozitív napból **5 nap 0-exites**,
+ahol `excess ≡ −SPY` (piaci irány, nem stratégiai teljesítmény). Exites napokra szűkítve: **20/35**.
+
+### D6 ✅ DÖNTVE (Tamás, 2026-08-18) — kétsávos folytatás a kapuig
+
+**A feszültség:** a **D1** megengedte, hogy „a scoring-revíziók elindulhatnak"; a **D2** viszont
+a kritérium-ablakokat az utolsó N **trading napra** tette. A 2026-09-22-vel záruló 63 napos ablak
+**2026-06-24-én kezdődik**, és ebből **25 nap (40%) a freeze-feloldás UTÁNRA esik**. Prod-paraméter
+változtatás most **éra-poolozná** a kapu-mintát — a G5-hibaosztály.
+
+**✅ DÖNTÉS: KÉTSÁVOS.**
+1. **A production konfiguráció FAGYVA marad 2026-09-22-ig** — a kapu-ablak homogén marad.
+2. **A revíziók a meglévő SIM-infrán futnak** (`sim/rescore.py` Mode 2 re-score,
+   `sim/comparison.py` párosított t-teszt, `python -m ifds compare`). A D1 szándéka így
+   **maradéktalanul teljesül** — csak nem az élő számlán.
+3. **A SIM-eredmények G1 szerint NEM kapu-inputok**, sem mellette, sem ellene. A SIM a
+   **kapu utáni** döntés inputja.
+
+**SIM-napirend** (a periódus adatai szerint priorizálva —
+`docs/planning/2026-08-18-day63-period-summary-and-proposal.md` §4):
+`max_hold`-érzékenység (az exitek **79,5%-a** itt zárul) → MENTAL_SL kalibráció (0/4 win) →
+TP2-elérés (4/4 win, ritka) → végrehajtási stílus.
+
 > Jelenlegi állás (2026-07-24, tényszerű, **előrejelzés nélkül** — G3): cumulative
 > **−$423.70 (−0.42%)**. A Sharpe és a pozitív-excess-nap számláló **nincs kiszámolva**
 > (lásd §4). A kapu-kimenetel előrejelzése tilos; a távolság riportálható.
@@ -305,25 +346,35 @@ a kapu-mintát nem érinti.
 A self-reentry esetek (PFGC 07-21, USFD 07-23) — a stratégia normál működéséből fakadnak
 (max_hold ↔ belépő-jel ellentmondás), nem külső üzemzavarból. Day 63-input megfigyelésként.
 
-### 5.6 ⚠️ NYITOTT — a §5 kizárás **nincs implementálva a pinelt eszközben** (Tamás-döntés kell)
+### 5.6 ✅ DÖNTVE (Tamás, 2026-08-18) — a §5 kizárás **pinelt WRAPPER**-be kerül
 
-A pinelt `c5e9ed0` **csak adat-elérhetőségi** kizárást ismer (`entry_score` visszanyerhetetlen,
-hiányzó leg-P&L, érvénytelen notional). A §5 minta-integritási kizárás **nincs benne** — miközben
-a §6/2 a mintát „entry-alapú clean cut **+ a §5 kizárások**"-ként definiálja. A pre-reg a kánon,
-tehát **az eszköz tér el a protokolltól**, nem fordítva.
+A pinelt `c5e9ed0` **csak adat-elérhetőségi** kizárást ismer; a §5 minta-integritási kizárás
+nincs benne, miközben a §6/2 a mintát „entry-alapú clean cut **+ a §5 kizárások**"-ként
+definiálja. A pre-reg a kánon → **az eszköz tér el**, nem fordítva.
 
-A 2026-08-18-i leíró futás ezt úgy kerülte meg, hogy a **pinelt függvényeket változatlanul**
-hívta, csak a **mintát** szűrte előttük (kód-módosítás nélkül). A kapu-futás előtt viszont
-**mechanizmus-döntés kell** — a két út:
+**✅ DÖNTÉS: (b) dokumentált wrapper** — a pin **érintetlen** marad. Indoklás: a pin
+sérthetetlensége a **G1** lényege, és a §6/2 a mintát amúgy is a **protokoll** (nem az eszköz)
+hatáskörébe teszi. **Következmény:** ez **NEM értékelő-motor-módosítás** — a
+`signal_attribution.py` egyetlen sora sem változik, tehát az ifds-rules 4 kötelező kísérője
+(pre-reg forrás, érzékenységi ellenőrzés, regressziós teszt, nincs újrafuttatás) itt
+**nem alkalmazandó**.
 
-| Út | Mit jelent | Ára |
-|---|---|---|
-| **(a) Újra-pinelés** | a §5 szűrő bekerül az eszközbe, új pin + ok a 04-risks-be a futás **ELŐTT** (§6/1) | értékelő-motor-módosítás → a 4 kötelező kísérő (pre-reg forrás, érzékenységi ellenőrzés, regressziós teszt egy korábbi verdiktre, nincs újrafuttatás verdiktért) |
-| **(b) Dokumentált wrapper** | a pin érintetlen; a minta-szűrő külön, **a kapu-futás előtt** pinelt szkript | a wrapper maga is pinelendő, különben a „minta" nem auditálható |
+**Implementáció: `scripts/analysis/gate_sample.py`** (2026-08-18, 13 teszt). A wrapper:
 
-**CC javaslata: (b)** — a pin sérthetetlensége a G1 lényege, és a §6/2 a mintát amúgy is a
-protokoll (nem az eszköz) hatáskörébe teszi. A wrappert **2026-09-22 előtt** pinelni kell.
-**Határidő: a kapu-futás előtt. Gazda: Tamás (döntés) + CC (végrehajtás).**
+| Garancia | Hogyan |
+|---|---|
+| A pin nem változhat a futás előtt (**§6/1 gépileg**) | `verify_pin()` — `git diff --quiet c5e9ed0`; eltérés → leáll |
+| A §5 lista **befagyasztott adat**, nem futásidejű konfig | modul-szintű `frozenset`/tuple, protokoll-forrással |
+| **Új outage nem csúszhat át némán** | `verify_outage_days()` — a deklarált lista ütköztetve a `daily_metrics` tényleges hiányával, **a data-frontierig** (nem az utolsó ismert outage-ig, különben pont a következőre lenne vak) |
+| A kizárás **pozíció-kulcsú** (ticker + entry_date) | különben a 3 PFGC-tételből 3 esne ki 1 helyett — **regressziós teszt őrzi** |
+| Az analízis-kód **nem másolódik** | a pinelt függvények **importálva** hívódnak |
+| Read-only | a trading state-be nem ír |
+
+**Verifikálva:** a wrapper a 2026-08-18-i ad-hoc futás számait **pontosan** reprodukálja —
+n=39, L2 Spearman h=5 **ρ=−0,008 CI [−0,323, +0,308]**.
+
+**A wrapper maga is pinelendő a kapu-futás előtt** — a pin (commit-hash) a futás előtt ide és a
+04-risks-be kerül, ugyanazzal a fegyelemmel, mint a `c5e9ed0`.
 
 ## 6. A kapu-futás végrehajtási protokolja
 
@@ -360,10 +411,11 @@ protokoll (nem az eszköz) hatáskörébe teszi. A wrappert **2026-09-22 előtt*
 | **A** | **Day 63 esemény**: freeze-feloldás + az ELSŐ leíró `signal_attribution` futás | CC | 08-17 / 08-18 | ✅ **KÉSZ** (freeze 08-17, leíró futás **2026-08-18**, §9) |
 | **B** | A kizárási lista véglegesítése (a §5 lista zárása a kapu-futás előtt) | CC + Tamás | 2026-09-22 előtt | ✅ **LEZÁRVA** (2026-08-18, §5) — csak új outage bővítheti |
 | **C** | Kapu-futás: `signal_attribution` (pinned `c5e9ed0`), egyszeri, a §6 protokoll szerint | CC | **2026-09-22** | 📋 nyitott |
-| **D** | **§5-mechanizmus döntés** (újra-pinelés vs. pinelt wrapper, §5.6) | **Tamás** | **2026-09-22 ELŐTT** | 🔴 **NYITOTT — a C blokkolója** |
+| **D** | §5-mechanizmus döntés (újra-pinelés vs. pinelt wrapper, §5.6) | Tamás | — | ✅ **WRAPPER** (2026-08-18); implementálva: `gate_sample.py`, 13 teszt |
+| **D'** | A `gate_sample.py` **pinelése** (commit-hash ide + 04-risks-be) | CC | **2026-09-22 ELŐTT** | 📋 nyitott |
 | **E** | A D3/M korlát + az UW-proveniencia mondat idézése a kapu-riportban | CC | 2026-09-22 | 📋 nyitott |
-| **D5** | A 3. kritérium számlálási bázisa (`>` vs `≥`; 63 vs megfigyelt nevező) — **egyetlen napon múlik** | **Tamás** | **2026-09-22 ELŐTT** | 🔴 **NYITOTT** |
-| **D6** | A paraméter-revíziók útja a kapu-ablakban (a D1↔D2 feszültség; CC javaslata: kétsávos, prod fagyva + SIM) | **Tamás** | **most** | 🔴 **NYITOTT** |
+| **D5** | A 3. kritérium számlálási bázisa | Tamás | — | ✅ **`≥ 25`, megfigyelt napokra (40%)** (2026-08-18) |
+| **D6** | A paraméter-revíziók útja a kapu-ablakban (D1↔D2 feszültség) | Tamás | — | ✅ **KÉTSÁVOS** — prod fagyva 09-22-ig + revíziók SIM-ben (2026-08-18) |
 
 **Ez a dokumentum a pre-regisztráció.** A §3 kritériumok nem módosíthatók; a D1/D2
 döntés a *definíciót* tisztázza, nem a küszöböket. Minden későbbi változtatás

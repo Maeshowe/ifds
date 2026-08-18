@@ -1052,15 +1052,41 @@ kapuig (**2026-09-22**) és azon túl is.
   **NEM go/no-go.** Elsődleges metrika (L2 Spearman h=5): **−0,018** (n=43) / **−0,008**
   (n=39), a CI mindkettőn tartalmazza a 0-t.
 
-### 11.13 🔴 NYITOTT (a kapu-futás blokkolója) — a §5 kizárás nincs a pinelt eszközben
+### 11.13 ✅ LEZÁRVA (2026-08-18, Tamás) — a §5 kizárás pinelt WRAPPER-be került
 
-A pinelt `c5e9ed0` **csak adat-elérhetőségi** kizárást ismer; a **§5 minta-integritási**
-kizárás (outage-napok, késett exitek) **nincs implementálva**, miközben a protokoll §6/2 a
-mintát „entry-alapú clean cut **+ a §5 kizárások**"-ként definiálja. **A pre-reg a kánon → az
-eszköz tér el.** A 2026-08-18-i leíró futás a **pinelt függvényeket változatlanul** hívta és
-csak a mintát szűrte előttük; a **kapu-futás előtt mechanizmus-döntés kell** (újra-pinelés vs.
-külön pinelt wrapper — CC javaslata a wrapper). **Gazda: Tamás. Határidő: 2026-09-22 előtt.**
-Részletek: gate-protokoll **§5.6**.
+A pinelt `c5e9ed0` csak adat-elérhetőségi kizárást ismert; a §5 minta-integritási kizárás
+hiányzott, miközben a §6/2 megköveteli. **Döntés: WRAPPER, nem újra-pinelés** — a pin
+sérthetetlensége a G1 lényege. **Ez NEM értékelő-motor-módosítás** (a `signal_attribution.py`
+egyetlen sora sem változik), tehát a 4 kötelező kísérő nem alkalmazandó.
+
+**Implementálva:** `scripts/analysis/gate_sample.py` + `tests/test_gate_sample.py` (13 teszt).
+Garanciák: futásidejű **pin-verifikáció** (§6/1 gépileg kikényszerítve), befagyasztott §5-lista,
+**pozíció-kulcsú** kizárás (regressziós teszt őrzi, hogy a 3 PFGC-tételből csak 1 esik ki), és
+`verify_outage_days()` — a deklarált outage-lista ütköztetve a `daily_metrics` tényleges
+hiányával **a data-frontierig**, hogy egy ÚJ outage ne csúszhasson át némán.
+
+**Verifikálva:** a wrapper a 08-18-i ad-hoc futás számait pontosan reprodukálja (n=39,
+L2 h=5 ρ=−0,008 CI [−0,323, +0,308]).
+
+📋 **Nyitott maradék:** a `gate_sample.py` **pinelése** (commit-hash a protokoll §5.6-ba és ide)
+a kapu-futás ELŐTT. Részletek: gate-protokoll §5.6.
+
+### 11.15 ✅ D5 + D6 döntés (Tamás, 2026-08-18)
+
+**D5 — a 3. élesítési kritérium számlálási bázisa:** `≥ 25`, a **megfigyelt** napokra vetítve
+(arány-alapú, 40%). A küszöb nem változott; a döntés a *számlálási bázist* tisztázza, a §5
+kizárási elvvel összhangban (a STOP-triggerek már így számolnak). ⚠️ Az eredmény ismeretében
+rögzítve — így is dokumentálva; a kapunál dönteni nagyobb elfogultsági kockázat lett volna.
+
+**D6 — a paraméter-revíziók útja:** **KÉTSÁVOS**. A 09-22-vel záruló 63 napos kapu-ablak
+06-24-én kezdődik, és **40%-a (25/63 nap) a freeze-feloldás utánra esik** → prod-változtatás
+most éra-poolozná a mintát (G5). Ezért: **a production konfig fagyva marad 09-22-ig**, a
+revíziók a meglévő **SIM-L2 / Mode 2 re-score** infrán futnak. A SIM-eredmények **G1 szerint
+nem kapu-inputok**. SIM-napirend: `max_hold`-érzékenység → MENTAL_SL → TP2-elérés →
+végrehajtási stílus.
+
+Részletek: `docs/planning/2026-08-18-day63-period-summary-and-proposal.md`,
+gate-protokoll §D5/§D6.
 
 ### 11.14 ✅ LEZÁRVA (2026-08-18, Tamás) — az Unusual Whales adatforrás KIVEZETVE
 
