@@ -1,6 +1,6 @@
 Status: OPEN
-Updated: 2026-07-25
-Note: PRE-REGISZTRÁCIÓ — a kapu-végrehajtás rögzítése MIELŐTT az adat beérkezik. Két Tamás-döntést kér (D1 definíció, D2 dátum-bázis) + egy P1 hiányosságot jelez (nem monitorozott STOP-triggerek). CC nem módosít pre-reg kritériumot; ez a végrehajtás protokollja.
+Updated: 2026-08-18
+Note: PRE-REGISZTRÁCIÓ — a kapu-végrehajtás rögzítése MIELŐTT az adat beérkezik. D1–D4 lezárva. 2026-08-18: a §5 kizárási lista LEZÁRVA, a §D3/M realized-only korlát rögzítve, a §9 első LEÍRÓ futás megtörtént (NEM go/no-go; a kapu 2026-09-22). NYITOTT Tamás-döntés: §5.6 mechanizmus (a §5 kizárás nincs a pinelt eszközben) — ez a kapu-futás blokkolója. CC nem módosít pre-reg kritériumot; ez a végrehajtás protokollja.
 
 # Kapu-protokoll pre-regisztráció — Day 63 / Day 126
 
@@ -123,6 +123,55 @@ cserélni. A mark-to-market **diagnosztikaként** fut mellette; ha a kettő vala
 automatikus felülbírálás. Alternatíva, ha te másképp döntesz: az MTM lesz a mérvadó, de
 akkor ezt **most** kell rögzíteni, nem a kapunál.
 
+### D3/M — MÓDSZERTANI KORLÁT (rögzítve 2026-08-18, a kapu-futás előtt)
+
+> **Ez NEM a mérvadó mező cseréje.** A D3-döntés változatlan: a **realized-only** mező marad
+> irányadó, az MTM diagnosztika. Az alábbi a mező **ismert, számszerűsített torzítása** —
+> a pre-reg kritérium ettől érvényes marad, de az olvasata ezzel együtt értendő.
+
+**A torzítás mechanizmusa.** A `daily_metrics::excess_return` `portfolio_return_pct` mezője
+**realized-only**: aznapi realizált P&L / tőke. Egy **0 exites** napon ez **definíció szerint
+0,00%** — tehát `excess = −SPY`. Eső tapén ez **automatikusan „felülteljesítést" mér**, akkor is,
+ha a nyitott könyv aznap veszít; emelkedő tapén automatikusan lemaradást. A mező ilyen napokon
+**indexirányt mér, nem stratégiai teljesítményt**.
+
+**Számszerűsítés (swing-éra, 2026-05-18 → 08-17, `state/` ledger):**
+
+| Mérőszám | Érték |
+|---|---|
+| Napok `daily_metrics`-szel | **54** (a 63-ból; 9 outage-nap hiányzik) |
+| Ebből **0-realizált** nap (`portfolio_return_pct = 0`) | **19 → 35,2%** |
+| Napok **mindkét** olvasattal (az MTM 06-04-től él) | **42** |
+| Ebből **ellentétes előjelű** | **11 → 26,2%** (ebből 3 a 0-exites napok közül) |
+| \|realized − MTM\| rés | medián **0,27 pp**, átlag **0,34 pp**, max **1,20 pp** |
+| 10-napos átlag (2026-08-17) | realized **−0,36%** \| MTM **−0,38%** |
+
+**⚠️ Korrekció a 2026-08-17-i review-hoz.** Az ott rögzített *„a D3 szerinti ellentétes-előjelű
+eset MA ELŐSZÖR áll fenn"* **nem pontos**, két okból:
+
+1. **Ellentétes előjel korábban is volt** — 11 napon, **először 2026-06-08-án**. Ami 08-17-en
+   új: a **rés nagysága** (0,85 pp) — ez a **legnagyobb ellentétes-előjelű** rés a sorozatban.
+2. **A D3 P1-feltétele szigorúbb**: „ellentétes irányba mutat **egy küszöb körül**". Ez
+   **soha nem állt fenn** — gördülő 10-napos átlagon a két olvasat **egyetlen ablakban sem**
+   került a −1,0% küszöb ellentétes oldalára. **08-17-en sem.**
+
+Vagyis a jelenség **szisztematikus** (a napok negyede), nem egyedi esemény — és a **pre-reg
+küszöb-döntést eddig egyszer sem befolyásolta**. Ez erősebb indok a rögzítésére, mint az
+anekdota volt.
+
+**Következmény a kapura (kötelező olvasat):**
+- A **„pozitív excess vs SPY napok > 25/63"** élesítési kritérium a realized-only mezőn fut.
+  A 19 nulla-realizált nap kimenetele ott **mechanikusan a `−SPY` előjelére redukálódik** —
+  vagyis a számláló ezen a részhalmazon **piaci irányt számol, nem stratégiai teljesítményt**.
+  A kritérium **változatlanul érvényes** (pre-reg), de a kapu-riportban a **0-exites napok
+  száma és azok hozzájárulása külön kimutatandó**.
+- A `signal_attribution` elsődleges metrikáját ez **nem érinti**: az L1/L2 belépéstől számított
+  h-napos hozamon fut, nem a napi excess-mezőn.
+- A **STOP-triggereknél** a monitor mindkét olvasatot számolja és riportálja; a D3 P1-jelzés
+  akkor esedékes, ha a kettő **egy küszöb körül** válik szét (eddig nem történt meg).
+
+**Ezt a korlátot a kapu-futás riportjában szó szerint idézni kell.**
+
 ## 3. A pre-regisztrált kritériumok (szó szerint, `2026-05-14…§3.14`) — NEM módosítható
 
 **ÉLESÍTÉS — mind a három EGYIDEJŰLEG:**
@@ -168,27 +217,104 @@ review-pipeline mellé (a `daily_equity` + `daily_metrics::excess_return` soroza
 - **kizárólag jelez**, nem cselekszik — a leállítás Tamás-döntés (human-in-the-loop)
 - a kontamináció-kizárás (§5) itt is érvényes: az outage-napok nem számítanak bele
 
-## 5. Minta-integritás — a kizárási lista (rögzített, bővíthető)
+## 5. Minta-integritás — a kizárási lista ✅ **LEZÁRVA (2026-08-18)**
 
-A kapu-futás **kizárja**:
-- **Outage-napok**: 06-29→07-07 (Mini SSH-orphan), **07-15, 07-16** (áramszünet),
-  **07-22** (FileVault-zárolás), **08-07** (FileVault-zárolás, ~13h a feloldó-képernyőn)
-  — nincs pipeline-esemény.
-- **Outage-késleltetett exitek (n=4)**: ITT/XPO (07-15), PFGC/BIRK (07-20), USFD (07-23),
-  **DE (08-07 → 08-10, 1 trading nap késés)**. **Mind a négy a szándékolt időpontnál rosszabbul
-  zárt**: PFGC/BIRK ~−$295, USFD ~−$91, **DE −$111,50** (a pénteki záró 620,83 → hétfői MOC 609,68;
-  §11.10 + a 2026-08-10 review §2).
-  ⚠️ **Korrekció (2026-08-10):** a 08-08-i heti zárás azt rögzítette, hogy a DE-nél a késés „eddig
-  kedvez" — ez a szombati pillanatban igaz volt, de a **hétfői kimenetel megfordította**. A
-  mechanizmus **elvben kétirányú**, a **realizált kimenetel eddig 4/4 kedvezőtlen**. A kizárás oka
-  ettől függetlenül változatlan: a végrehajtás **nem a stratégia szándéka szerinti időpontban**
-  történt — nem a veszteség iránya.
-- Indoklás: `docs/planning/2026-07-01-day126-replan-proposal.md` §3 D2 (pause-and-resume,
-  gate criteria UNCHANGED) + 04-risks §11.10.
+> **Státusz: a lista a 2026-08-18-i véglegesítéssel LEZÁRT** (§8/B). A kapu-futásig (2026-09-22)
+> **csak új outage-esemény** bővítheti; minden más bővítés a kapu ELŐTT, írásban, indoklással
+> történhet — a futás után **soha**. A számok a `state/` ledgerből, 2026-08-17-i (Day 63) állapot.
 
-**Nem zárjuk ki** (tényszerűen rögzítve, de a minta része): a self-reentry esetek
-(PFGC 07-21, USFD 07-23) — ezek a stratégia normál működéséből fakadnak (max_hold ↔
-belépő-jel ellentmondás), nem külső üzemzavarból. Day 63-input megfigyelésként.
+### 5.1 Outage-napok — **9 trading nap, 5 esemény**
+
+Verifikálva: a `state/daily_metrics/` a swing-éra 63 trading napjából **54-et** tartalmaz;
+a hiányzó 9 pontosan az alábbi lista, és a `day_number` ugrások (28→34, 39→42, 44→46, 56→58)
+ezekkel **maradék nélkül egyeznek**. Nincs pipeline-esemény, nincs interpoláció.
+
+| # | Esemény | Trading napok | day_number | Gyökérok |
+|---|---|---|---|---|
+| 1 | Mini SSH-orphan | 06-29, 06-30, 07-01, 07-02, 07-06 | 29–33 | orphan prod-process (07-03 ünnep) |
+| 2 | Áramszünet | 07-15 | 40 | áramkimaradás |
+| 3 | Áramszünet | 07-16 | 41 | áramkimaradás |
+| 4 | FileVault-zárolás | 07-22 | 45 | feloldó-képernyő, ~26h |
+| 5 | FileVault-zárolás | 08-07 | 57 | feloldó-képernyő, ~13h |
+
+> ⚠️ A korábbi „5 outage-nap" megfogalmazás **5 eseményt** jelentett, nem 5 napot. A tényleges
+> szám **9 trading nap**. A kapu-minta ezért 63 helyett **54 megfigyelt napra** épül.
+
+### 5.2 Outage-késleltetett exitek — **6 pozíció, 4 esemény**
+
+A korábbi „n=4" **eseményt** számolt; pozíció-szinten **6** tétel érintett:
+
+| Pozíció (ticker, entry) | Exit | Esemény | Realized R | Sorsa a mintában |
+|---|---|---|---|---|
+| ITT (2026-07-07) | 07-15 | #2 | n/a | **már kiesik** — adathiány (kézi reconcile) |
+| XPO (2026-07-07) | 07-15 | #2 | n/a | **már kiesik** — adathiány (kézi reconcile) |
+| PFGC (2026-07-08) | 07-20 | #2/#3 | **−5,285%** | **§5 alapján kizárva** |
+| BIRK (2026-07-08) | 07-20 | #2/#3 | **−5,213%** | **§5 alapján kizárva** |
+| USFD (2026-07-14) | 07-23 | #4 | **−9,365%** | **§5 alapján kizárva** |
+| DE (2026-07-30) | 08-10 | #5 | **+1,813%** | **§5 alapján kizárva** |
+
+A kizárás oka **a végrehajtás időpontja**, nem a veszteség iránya (a DE **pozitív**, mégis kizárt).
+A realizált kimenetel eddig 4/4 kedvezőtlen, de a mechanizmus **elvben kétirányú** — a 2026-08-10-i
+korrekció (a 08-08-i heti zárás „a késés kedvez" állítását a hétfői kimenetel megfordította) ezt
+mutatja. Indoklás: `2026-07-01-day126-replan-proposal.md` §3 D2 + 04-risks §11.10.
+
+### 5.3 A lezárás számszerű hatása
+
+| Minta | n | L2 h=5 Spearman (elsődleges) | L0 Spearman |
+|---|---|---|---|
+| Eszköz-natív (a pin, szűrés nélkül) | **43** | −0,018 CI [−0,317, +0,284] | −0,252 CI [−0,513, +0,052] |
+| **§5-szűrt protokoll-minta** | **39** | −0,008 CI [−0,323, +0,308] | −0,185 CI [−0,473, +0,138] |
+
+A §5 kizárás az **elsődleges** metrikát 0,010-del mozdítja (érdemben nem), az **L0**-t 0,067-del —
+ez várt, mert a 4 kizárt tétel épp az **exit-kontaminált** ág. Az L1/L2 konstrukció szerint
+**exit-független** (belépéstől számított h-napos hozam), tehát a késett exitek **elvileg is csak
+az L0-t** érinthetik. Ez a §5-kizárás módszertani határa: a **kapu elsődleges metrikáját alig
+mozgatja**, a realizált olvasatot viszont igen.
+
+⚠️ **Küszöb-artefakt**: az eszköz saját `n < 40` kapuja miatt a §5-szűrt minta (n=39) a riportban
+automatikusan a **„PLUMBING VALIDATION ONLY — NOT EVIDENCE"** fejlécet kapja, a nem-szűrt (n=43)
+nem. A kettő közti különbség **a mintaválasztás, nem a jel** — 2026-09-22-ig a minta bővül.
+
+### 5.4 A Day 9 clean cut jelenleg **hatástalan** (verifikálva)
+
+`full = clean = clean_exit = 43` (és a §5-szűrt mintán 39) — mert **minden Day 9 előtti belépés
+már adathiány miatt kiesik** (a 8 májusi tétel: AMH×2, CDNS, AKAM, ST, EOG, JHG, ROIV).
+
+**Érzékenységi ellenőrzés** (a `day_number` mező ismert defektje miatt kötelező): a mező a korai
+szakaszon **megbicsaklik** — 05-28, 05-29 és 06-01 **mind `day_number = 9`**, és a 8-as, 11-es
+index kimarad. A határzónában (valós index 8–12) lévő betöltött tételek: WST (06-01, rögzített 9 /
+valós 10), MSM (06-02, 10/11), BEN és VNO (06-03, 12/12). **Mind a négy ≥ 9 mindkét indexelés
+szerint** → a clean cut tagsága **egyetlen tételnél sem fordul meg**. A cut robusztus; a defekt
+a kapu-mintát nem érinti.
+
+> Megjegyzés: a `day_number` **nem egyedi kulcs** a két éra között (a pre-pivot 1-napos éra
+> 04-13…05-15 fájljai 41–65-ös számokat viselnek, ütközve a swing-éra 42–63-mal). A betöltő
+> **dátum szerint** keres, ezért nincs éra-keveredés — de a mezőt kulcsként használni tilos.
+
+### 5.5 Amit **NEM** zárunk ki (változatlan)
+
+A self-reentry esetek (PFGC 07-21, USFD 07-23) — a stratégia normál működéséből fakadnak
+(max_hold ↔ belépő-jel ellentmondás), nem külső üzemzavarból. Day 63-input megfigyelésként.
+
+### 5.6 ⚠️ NYITOTT — a §5 kizárás **nincs implementálva a pinelt eszközben** (Tamás-döntés kell)
+
+A pinelt `c5e9ed0` **csak adat-elérhetőségi** kizárást ismer (`entry_score` visszanyerhetetlen,
+hiányzó leg-P&L, érvénytelen notional). A §5 minta-integritási kizárás **nincs benne** — miközben
+a §6/2 a mintát „entry-alapú clean cut **+ a §5 kizárások**"-ként definiálja. A pre-reg a kánon,
+tehát **az eszköz tér el a protokolltól**, nem fordítva.
+
+A 2026-08-18-i leíró futás ezt úgy kerülte meg, hogy a **pinelt függvényeket változatlanul**
+hívta, csak a **mintát** szűrte előttük (kód-módosítás nélkül). A kapu-futás előtt viszont
+**mechanizmus-döntés kell** — a két út:
+
+| Út | Mit jelent | Ára |
+|---|---|---|
+| **(a) Újra-pinelés** | a §5 szűrő bekerül az eszközbe, új pin + ok a 04-risks-be a futás **ELŐTT** (§6/1) | értékelő-motor-módosítás → a 4 kötelező kísérő (pre-reg forrás, érzékenységi ellenőrzés, regressziós teszt egy korábbi verdiktre, nincs újrafuttatás verdiktért) |
+| **(b) Dokumentált wrapper** | a pin érintetlen; a minta-szűrő külön, **a kapu-futás előtt** pinelt szkript | a wrapper maga is pinelendő, különben a „minta" nem auditálható |
+
+**CC javaslata: (b)** — a pin sérthetetlensége a G1 lényege, és a §6/2 a mintát amúgy is a
+protokoll (nem az eszköz) hatáskörébe teszi. A wrappert **2026-09-22 előtt** pinelni kell.
+**Határidő: a kapu-futás előtt. Gazda: Tamás (döntés) + CC (végrehajtás).**
 
 ## 6. A kapu-futás végrehajtási protokolja
 
@@ -222,10 +348,58 @@ belépő-jel ellentmondás), nem külső üzemzavarból. Day 63-input megfigyel�
 | D3 | Az excess mérvadó definíciója | Tamás | — | ✅ **realized-only marad**, MTM diagnosztika (2026-07-28) |
 | D4 | `mean` vagy `sum` olvasat a STOP-triggereknél | Tamás | — | ✅ **`mean` az irányadó** (a pre-reg „átlag" szó szerint); `sum` megfigyelés (2026-08-04) |
 | P1 | STOP-trigger monitor (§4) | CC | — | ✅ **KÉSZ** (`ad4b28b`, 2026-07-25) |
-| **A** | **Day 63 (~08-17) esemény**: freeze-feloldás + az ELSŐ leíró `signal_attribution` futás | CC | **~08-17** | 📋 nyitott |
-| **B** | A kizárási lista véglegesítése (a §5 lista zárása a kapu-futás előtt) | CC + Tamás | **2026-09-22 előtt** | 📋 nyitott |
+| **A** | **Day 63 esemény**: freeze-feloldás + az ELSŐ leíró `signal_attribution` futás | CC | 08-17 / 08-18 | ✅ **KÉSZ** (freeze 08-17, leíró futás **2026-08-18**, §9) |
+| **B** | A kizárási lista véglegesítése (a §5 lista zárása a kapu-futás előtt) | CC + Tamás | 2026-09-22 előtt | ✅ **LEZÁRVA** (2026-08-18, §5) — csak új outage bővítheti |
 | **C** | Kapu-futás: `signal_attribution` (pinned `c5e9ed0`), egyszeri, a §6 protokoll szerint | CC | **2026-09-22** | 📋 nyitott |
+| **D** | **§5-mechanizmus döntés** (újra-pinelés vs. pinelt wrapper, §5.6) | **Tamás** | **2026-09-22 ELŐTT** | 🔴 **NYITOTT — a C blokkolója** |
+| **E** | A D3/M korlát idézése a kapu-riportban (§D3/M) | CC | 2026-09-22 | 📋 nyitott |
 
 **Ez a dokumentum a pre-regisztráció.** A §3 kritériumok nem módosíthatók; a D1/D2
 döntés a *definíciót* tisztázza, nem a küszöböket. Minden későbbi változtatás
 dátummal és indoklással ide kerül.
+
+---
+
+## 9. Az ELSŐ, LEÍRÓ `signal_attribution` futás — 2026-08-18
+
+> ⚠️ **EZ NEM A KAPU-FUTÁS, ÉS NEM GO/NO-GO.** A kapu **2026-09-22** (D2). **G3: jel-érvényességi
+> nyelv tilos** a kapu-futásig — az alábbi **kizárólag leíró**. Az „irány" itt **nem** jelent
+> bizonyítékot sem mellette, sem ellene: a minta a saját eszköz-küszöb (n≥40) és a pre-reg
+> power-küszöb (|ρ|≈0,36–0,38 detektálható) alatt vagy annak határán van.
+
+**Futás.** Eszköz: `scripts/analysis/signal_attribution.py`, **pin `c5e9ed0` — verifikálva
+változatlan** (`git diff c5e9ed0 -- <fájl>` üres a futás pillanatában). Read-only; a trading
+state-be nem írt. Forward-hozamok: Polygon napi bar-ok.
+Output (rsync-terület, `docs/analysis/`, nem tracked):
+`signal-attribution-2026-08-18-{full,clean,clean_exit}.md` + `-protocol-s5.md`.
+
+**Minta.** Zárt, pozíció-szintű swing trade-ek Day 1–63-ból. Betöltve 43, adat-elérhetőségi
+kizárás 10 (8 májusi hiányzó leg-P&L + ITT/XPO kézi reconcile). A §5 kizárás további 4 tételt
+vesz ki → **n=39**. A `full`/`clean`/`clean_exit` **azonos** (§5.4).
+
+| Metrika | Eszköz-natív n=43 | §5-protokoll-minta n=39 |
+|---|---|---|
+| **L2 sector-relative Spearman, h=5** (elsődleges) | **−0,018** CI [−0,317, +0,284] | **−0,008** CI [−0,323, +0,308] |
+| L2 Spearman h=1 | +0,097 CI [−0,210, +0,386] | +0,016 CI [−0,301, +0,330] |
+| L2 Spearman h=3 | −0,016 CI [−0,314, +0,286] | −0,074 CI [−0,380, +0,248] |
+| L1 (exit-izolált) Spearman h=5 | −0,335 CI [−0,577, **−0,038**] | −0,292 CI [−0,556, +0,026] |
+| L0 realizált Spearman | −0,252 CI [−0,513, +0,052] | −0,185 CI [−0,473, +0,138] |
+| L0 realizált Pearson | −0,219 CI [−0,487, +0,087] | −0,181 CI [−0,470, +0,143] |
+
+**Tényszerű megállapítások (következtetés nélkül):**
+- Az **elsődleges metrika CI-je mindkét mintán tartalmazza a 0-t**; a pontbecslés mindkettőn
+  |ρ| < 0,02, azaz a detektálható effektus-méret **egy nagyságrenddel** alatta.
+- **Egyetlen** CI zárja ki a 0-t: az **L1 h=5 a nem-szűrt mintán** (−0,335, felső határ −0,038).
+  A §5-szűrt mintán **ugyanez a CI már tartalmazza a 0-t** (+0,026). Egy nominális 95%-os CI
+  6 horizont-metrikából — **többszörös-tesztelési korrekció nélkül**; és a két minta ellentétes
+  eredménye maga mutatja az instabilitást. **Ebből semmilyen jel-állítás nem vonható le** (G3).
+- A §5 kizárás az elsődleges metrikán **0,010**-et mozdít, az L0-n **0,067**-et (§5.3).
+- A **kizárás iránya nem „szépíti" a képet**: a 4 kizárt tétel realizált hozama −5,3% / −5,2% /
+  −9,4% / **+1,8%** — a kivételük az **L0-t emeli** (−0,252 → −0,185). Ezt a futás előtt
+  rögzített §5 diktálta, nem az eredmény.
+
+**Protokoll-megfelelés:** §6/1 pin ✓ | §6/2 minta+kizárások a riport elején ✓ | §6/3 a minta
+**a futás előtt** fixálva (§5 lezárás 08-18) ✓ | §6/4 output `docs/analysis/` ✓ | §6/5 kettős
+futás — **a kapu-futás továbbra is egyszeri lesz**; a mai leíró futás a §8/A tétel, nem a kapu ✓.
+
+**Nyitva marad a kapuig:** a §5.6 mechanizmus-döntés (D tétel) és a §D3/M korlát riport-idézése.

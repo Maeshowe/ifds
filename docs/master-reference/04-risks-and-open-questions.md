@@ -1034,6 +1034,45 @@ rekordok tartalmazzák az entry_score mezőt; 0.0 a pre-deploy exitekre — hely
 
 ---
 
+### 11.12 ✅ A freeze-ablak LEZÁRVA (2026-08-17, Day 63) — a §11 log lezárt
+
+A parameter freeze **2026-08-17-én (Day 63) feloldódott** (D1). A §11.1–11.11 log ezzel
+**lezárt**; új bejegyzés nem kerül bele. A **G1/G3–G7 guardrailek változatlanul élnek** a
+kapuig (**2026-09-22**) és azon túl is.
+
+**Day 63 utómunka, 2026-08-18-án elvégezve** (részletek:
+`docs/planning/2026-07-25-gate-protocol-preregistration.md`):
+- **§5 kizárási lista LEZÁRVA** — **9 outage trading nap** (5 esemény, nem „5 nap") +
+  **6 pozíció** outage-késleltetett exit (4 esemény). Nettó hatás a mintára: n=43 → **n=39**.
+- **§D3/M realized-only korlát rögzítve** — a `portfolio_return_pct` 0-exites napokon
+  definíció szerint 0,00%, tehát `excess = −SPY`. **19/54 nap (35,2%)** ilyen; a realized és
+  az MTM olvasat **11/42 napon (26,2%) ellentétes előjelű**. A D3-döntés (realized-only az
+  irányadó) **változatlan** — ez ismert korlát, nem mezőcsere.
+- **§9 első LEÍRÓ `signal_attribution` futás** (pin `c5e9ed0`, verifikálva változatlan).
+  **NEM go/no-go.** Elsődleges metrika (L2 Spearman h=5): **−0,018** (n=43) / **−0,008**
+  (n=39), a CI mindkettőn tartalmazza a 0-t.
+
+### 11.13 🔴 NYITOTT (a kapu-futás blokkolója) — a §5 kizárás nincs a pinelt eszközben
+
+A pinelt `c5e9ed0` **csak adat-elérhetőségi** kizárást ismer; a **§5 minta-integritási**
+kizárás (outage-napok, késett exitek) **nincs implementálva**, miközben a protokoll §6/2 a
+mintát „entry-alapú clean cut **+ a §5 kizárások**"-ként definiálja. **A pre-reg a kánon → az
+eszköz tér el.** A 2026-08-18-i leíró futás a **pinelt függvényeket változatlanul** hívta és
+csak a mintát szűrte előttük; a **kapu-futás előtt mechanizmus-döntés kell** (újra-pinelés vs.
+külön pinelt wrapper — CC javaslata a wrapper). **Gazda: Tamás. Határidő: 2026-09-22 előtt.**
+Részletek: gate-protokoll **§5.6**.
+
+### 11.14 📌 Adat-proveniencia a kapu-mintához — UW-kulcs hiány (Tamás-döntés)
+
+Az Unusual Whales API-kulcs **2026-06-24 óta hiányzik** a Mini `.env`-jéből
+(`API_HEALTH_CHECK: unusual_whales → skipped`). A pipeline **nem áll**: dokumentált
+**Polygon-fallback** aktív, a Phase 5 egészséges. **De a kapu-minta jelentős része ezen a
+fallback-úton keletkezett** — ez adat-proveniencia tény, amit a kapu-riportban rögzíteni kell.
+Emellett a **Day 90-re tervezett UW dark-pool Bayesian rekalibráció input nélkül maradna**.
+→ Döntés: pótoljuk a kulcsot, vagy tudatosan a Polygon-úton maradunk + a tervet módosítjuk.
+
+---
+
 ## 12. FRL-eredetű nyitott tételek (2026-07-21, Dev chat)
 
 ### 12.1 P3 — `execution_plan.py:179` Reason-felülírás (post-Day-63 fix-jelölt)
