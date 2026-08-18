@@ -373,8 +373,17 @@ hatáskörébe teszi. **Következmény:** ez **NEM értékelő-motor-módosítá
 **Verifikálva:** a wrapper a 2026-08-18-i ad-hoc futás számait **pontosan** reprodukálja —
 n=39, L2 Spearman h=5 **ρ=−0,008 CI [−0,323, +0,308]**.
 
-**A wrapper maga is pinelendő a kapu-futás előtt** — a pin (commit-hash) a futás előtt ide és a
-04-risks-be kerül, ugyanazzal a fegyelemmel, mint a `c5e9ed0`.
+**A wrapper pinje: `68fc00e`** (2026-08-18) — ugyanaz a fegyelem, mint a `c5e9ed0`-nál.
+
+⚠️ **Tervezési következmény, tudatosan vállalva:** a §5 lista **növekvő adat**, de a pinelt
+**kódban** él — tehát **minden új outage `gate_sample.py` módosítást és ÚJ PINT kíván**.
+Ez szándékos: így minden minta-változás **külön commit + indoklás**, vagyis folyamatos
+audit-nyom keletkezik, nem egyetlen, utolsó pillanatban felvett pin.
+
+**Szabály:** ha 2026-09-22 előtt új outage történik → (1) a §5.1 lista frissül,
+(2) `gate_sample.py` frissül, (3) **az új pin és az ok ide + a 04-risks-be kerül a futás
+ELŐTT**. A `verify_outage_days()` gondoskodik róla, hogy ez ne maradjon el némán: a wrapper
+**leáll**, ha a deklarált lista és a tényleges állapot eltér.
 
 ## 6. A kapu-futás végrehajtási protokolja
 
@@ -412,7 +421,7 @@ n=39, L2 Spearman h=5 **ρ=−0,008 CI [−0,323, +0,308]**.
 | **B** | A kizárási lista véglegesítése (a §5 lista zárása a kapu-futás előtt) | CC + Tamás | 2026-09-22 előtt | ✅ **LEZÁRVA** (2026-08-18, §5) — csak új outage bővítheti |
 | **C** | Kapu-futás: `signal_attribution` (pinned `c5e9ed0`), egyszeri, a §6 protokoll szerint | CC | **2026-09-22** | 📋 nyitott |
 | **D** | §5-mechanizmus döntés (újra-pinelés vs. pinelt wrapper, §5.6) | Tamás | — | ✅ **WRAPPER** (2026-08-18); implementálva: `gate_sample.py`, 13 teszt |
-| **D'** | A `gate_sample.py` **pinelése** (commit-hash ide + 04-risks-be) | CC | **2026-09-22 ELŐTT** | 📋 nyitott |
+| **D'** | A `gate_sample.py` pinelése | CC | — | ✅ **pin: `68fc00e`** (2026-08-18); új outage → új pin + ok, a futás ELŐTT |
 | **E** | A D3/M korlát + az UW-proveniencia mondat idézése a kapu-riportban | CC | 2026-09-22 | 📋 nyitott |
 | **D5** | A 3. kritérium számlálási bázisa | Tamás | — | ✅ **`≥ 25`, megfigyelt napokra (40%)** (2026-08-18) |
 | **D6** | A paraméter-revíziók útja a kapu-ablakban (D1↔D2 feszültség) | Tamás | — | ✅ **KÉTSÁVOS** — prod fagyva 09-22-ig + revíziók SIM-ben (2026-08-18) |

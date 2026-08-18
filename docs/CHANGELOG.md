@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-08-18 — Day 63 utómunka + `gate_sample.py` (a §5 minta-definíció pinelt wrappere)
+
+> A parameter freeze 08-17-én (Day 63) feloldódott. A production-kód **továbbra sem változik**
+> 2026-09-22-ig (D6: kétsávos folytatás) — az alábbi új modul **read-only analízis**, a
+> kereskedési kódútat nem érinti. Baseline 2209 → **2222** (+13), 0 fail.
+
+### feat(analysis) — `scripts/analysis/gate_sample.py` (`68fc00e`)
+- A gate-protokoll **§6/2** a kapu-mintát „entry-alapú clean cut **+ a §5 kizárások**"-ként
+  definiálja, de a pinelt `signal_attribution.py` (**`c5e9ed0`**) csak **adat-elérhetőségi**
+  kizárást ismer. A pre-reg a kánon → az eszköz tér el. **Döntés (Tamás, §5.6): WRAPPER**,
+  nem újra-pinelés — a pin sérthetetlensége a **G1** lényege.
+- A `signal_attribution.py` **egyetlen sora sem változott** (verifikálva: `git diff c5e9ed0` üres),
+  ezért ez **nem értékelő-motor-módosítás**; a 4 kötelező kísérő nem alkalmazandó.
+- Garanciák: futásidejű **`verify_pin()`** (a §6/1 gépileg kikényszerítve) | befagyasztott,
+  protokoll-forrású §5-lista | **pozíció-kulcsú** kizárás (ticker + entry_date — ticker-kulcsú
+  szűrő a 3 PFGC-tételből 3-at ejtene 1 helyett) | **`verify_outage_days()`** a data-frontierig |
+  a pinelt függvények **importálva**, nem másolva | read-only.
+- **TDD-fogás**: a `verify_outage_days` eredetileg a deklarált outage-ok maximumáig nézett →
+  pont a **következő** outage-ra lett volna vak. Regressziós teszt őrzi
+  (`test_a_new_outage_AFTER_the_last_declared_one_is_still_caught`).
+- Verifikálva: reprodukálja a 08-18-i ad-hoc futás számait — **n=39**, L2 Spearman h=5
+  **ρ=−0,008** CI [−0,323, +0,308]. +13 teszt (`tests/test_gate_sample.py`).
+
+### docs — Day 63 utómunka + 3 Tamás-döntés (`f033e1d`, `4507162`, `68fc00e`)
+- **§5 kizárási lista LEZÁRVA**: 9 outage trading nap (5 esemény) + 6 pozíció késett exit
+  (4 esemény) → minta n=43 → **n=39**. A Day 9 clean cut hatástalan, a `day_number`-defektre robusztus.
+- **§D3/M korlát rögzítve**: 0-exites napon `excess ≡ −SPY`; 19/54 nap (35,2%) ilyen, a realized
+  és MTM olvasat 11/42 napon (26,2%) ellentétes előjelű. A D3 (realized-only) változatlan.
+- **§9 első LEÍRÓ `signal_attribution` futás** (nem go/no-go; a kapu 2026-09-22).
+- **UW KIVEZETVE** (`docs/decisions/2026-08-18-uw-decommission.md`) — a Day 90 Bayesian
+  rekalibráció törölve; a UW-kódutak dormant ágakként a kapuig maradnak.
+- **D5**: `≥ 25` a megfigyelt napokra (40%). **D6**: kétsávos — prod fagyva 09-22-ig,
+  revíziók a SIM-L2/Mode-2 infrán (G1: a SIM nem kapu-input).
+
+---
+
 ## 2026-07-24 — test-env-hygiene: pt_events izoláció + e2e sys.modules ordering-leak (freeze-safe)
 
 > Két teszt-only, viselkedés-invariáns fix a Support-sessionből. A production kódút

@@ -1068,8 +1068,11 @@ hiányával **a data-frontierig**, hogy egy ÚJ outage ne csúszhasson át ném�
 **Verifikálva:** a wrapper a 08-18-i ad-hoc futás számait pontosan reprodukálja (n=39,
 L2 h=5 ρ=−0,008 CI [−0,323, +0,308]).
 
-📋 **Nyitott maradék:** a `gate_sample.py` **pinelése** (commit-hash a protokoll §5.6-ba és ide)
-a kapu-futás ELŐTT. Részletek: gate-protokoll §5.6.
+**A wrapper pinje: `68fc00e`** (2026-08-18). ⚠️ A §5 lista növekvő adat, de a pinelt kódban él →
+**minden új outage új pint kíván** (tudatos választás: így minden minta-változás külön commit +
+indoklás = folyamatos audit-nyom). Szabály: új outage → §5.1 + `gate_sample.py` frissül, és az
+**új pin + ok ide és a protokoll §5.6-ba kerül a futás ELŐTT**. A `verify_outage_days()` leállítja
+a wrappert, ha ez elmaradna. Részletek: gate-protokoll §5.6.
 
 ### 11.15 ✅ D5 + D6 döntés (Tamás, 2026-08-18)
 
