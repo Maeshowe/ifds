@@ -172,6 +172,15 @@ anekdota volt.
 
 **Ezt a korlátot a kapu-futás riportjában szó szerint idézni kell.**
 
+### D3/P — ADAT-PROVENIENCIA (rögzítve 2026-08-18, Tamás UW-kivezetési döntése nyomán)
+
+A kapu-minta **GEX/dark-pool jele Polygon-forrásból** származik, nem Unusual Whales-ből.
+A UW **kivezetve** (`docs/decisions/2026-08-18-uw-decommission.md`); a kulcs 2026-06-24 óta
+hiányzik, a flip (04-risks §11.7) **output-invariánsnak bizonyult**. Ez a **teljes swing-érára**
+igaz, tehát a minta ebből a szempontból **homogén** — **nem éra-keveredés, nem G5-sértés**.
+
+**Ezt a mondatot is szó szerint idézni kell a kapu-riportban.**
+
 ## 3. A pre-regisztrált kritériumok (szó szerint, `2026-05-14…§3.14`) — NEM módosítható
 
 **ÉLESÍTÉS — mind a három EGYIDEJŰLEG:**
@@ -352,7 +361,9 @@ protokoll (nem az eszköz) hatáskörébe teszi. A wrappert **2026-09-22 előtt*
 | **B** | A kizárási lista véglegesítése (a §5 lista zárása a kapu-futás előtt) | CC + Tamás | 2026-09-22 előtt | ✅ **LEZÁRVA** (2026-08-18, §5) — csak új outage bővítheti |
 | **C** | Kapu-futás: `signal_attribution` (pinned `c5e9ed0`), egyszeri, a §6 protokoll szerint | CC | **2026-09-22** | 📋 nyitott |
 | **D** | **§5-mechanizmus döntés** (újra-pinelés vs. pinelt wrapper, §5.6) | **Tamás** | **2026-09-22 ELŐTT** | 🔴 **NYITOTT — a C blokkolója** |
-| **E** | A D3/M korlát idézése a kapu-riportban (§D3/M) | CC | 2026-09-22 | 📋 nyitott |
+| **E** | A D3/M korlát + az UW-proveniencia mondat idézése a kapu-riportban | CC | 2026-09-22 | 📋 nyitott |
+| **D5** | A 3. kritérium számlálási bázisa (`>` vs `≥`; 63 vs megfigyelt nevező) — **egyetlen napon múlik** | **Tamás** | **2026-09-22 ELŐTT** | 🔴 **NYITOTT** |
+| **D6** | A paraméter-revíziók útja a kapu-ablakban (a D1↔D2 feszültség; CC javaslata: kétsávos, prod fagyva + SIM) | **Tamás** | **most** | 🔴 **NYITOTT** |
 
 **Ez a dokumentum a pre-regisztráció.** A §3 kritériumok nem módosíthatók; a D1/D2
 döntés a *definíciót* tisztázza, nem a küszöböket. Minden későbbi változtatás

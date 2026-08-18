@@ -1062,14 +1062,31 @@ csak a mintát szűrte előttük; a **kapu-futás előtt mechanizmus-döntés ke
 külön pinelt wrapper — CC javaslata a wrapper). **Gazda: Tamás. Határidő: 2026-09-22 előtt.**
 Részletek: gate-protokoll **§5.6**.
 
-### 11.14 📌 Adat-proveniencia a kapu-mintához — UW-kulcs hiány (Tamás-döntés)
+### 11.14 ✅ LEZÁRVA (2026-08-18, Tamás) — az Unusual Whales adatforrás KIVEZETVE
 
-Az Unusual Whales API-kulcs **2026-06-24 óta hiányzik** a Mini `.env`-jéből
-(`API_HEALTH_CHECK: unusual_whales → skipped`). A pipeline **nem áll**: dokumentált
-**Polygon-fallback** aktív, a Phase 5 egészséges. **De a kapu-minta jelentős része ezen a
-fallback-úton keletkezett** — ez adat-proveniencia tény, amit a kapu-riportban rögzíteni kell.
-Emellett a **Day 90-re tervezett UW dark-pool Bayesian rekalibráció input nélkül maradna**.
-→ Döntés: pótoljuk a kulcsot, vagy tudatosan a Polygon-úton maradunk + a tervet módosítjuk.
+**Döntés: a UW kivezetve, nincs használatban.** Döntési rekord:
+`docs/decisions/2026-08-18-uw-decommission.md`.
+
+A rendszer **2026-06-24 óta de facto UW nélkül fut** (a kulcs eltűnt a Mini `.env`-jéből,
+`API_HEALTH_CHECK: unusual_whales → skipped`), dokumentált **Polygon-fallbackon**, stabilan
+(Phase 5 08-17-én: 79 analyzed / 73 passed / 6 exclusion). A döntés ezt teszi véglegessé.
+
+**Következmények:**
+1. **A Day 90 UW dark-pool Bayesian rekalibráció TÖRÖLVE** (nem elhalasztva) — a shadow-minta
+   már a 2026-06-18-i de-scope-nál **n=69** volt, ami elégtelen; azóta nem nőtt.
+2. **Adat-proveniencia tény a kapu-riportba** (kötelezően idézendő): a kapu-minta GEX/dark-pool
+   jele **Polygon-forrásból** származik. Ez a **teljes swing-érára** igaz → a minta ebből a
+   szempontból **homogén**, nincs éra-keveredés (**nem G5-sértés**).
+3. **A UW-kódutak a helyükön maradnak 2026-09-22-ig** (`uw_gex_fetch_enabled`,
+   `unusual_whales_api_key`, `uw_shadow.py`, a 2 UW-s analysis-script) — dormant ágak, a
+   kereskedési viselkedést nem érintik. A takarítás **kapu utáni** tétel, saját taskkal; a
+   kapu-ablak 40%-a a freeze-feloldás utánra esik, ott a felesleges prod-churn kockázat haszon nélkül.
+4. **`.env` higiénia**: a kikommentelt `# IFDS_UW_API_KEY=…` sor kulcsot tartalmaz →
+   **rotálandó/visszavonandó a UW oldalán**, a sor törlendő mindkét gépen (Tamás; a `.env`
+   nincs verziókövetve).
+
+**Előzmény:** §11.6 (flag bevezetés), §11.7 (flip post-verify, output-invariáns),
+`docs/analysis/uw-feed-descope-2026-06-18.md`.
 
 ---
 
