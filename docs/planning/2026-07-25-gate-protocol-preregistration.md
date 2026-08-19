@@ -139,12 +139,22 @@ ha a nyitott könyv aznap veszít; emelkedő tapén automatikusan lemaradást. A
 
 | Mérőszám | Érték |
 |---|---|
-| Napok `daily_metrics`-szel | **54** (a 63-ból; 9 outage-nap hiányzik) |
-| Ebből **0-realizált** nap (`portfolio_return_pct = 0`) | **19 → 35,2%** |
-| Napok **mindkét** olvasattal (az MTM 06-04-től él) | **42** |
-| Ebből **ellentétes előjelű** | **11 → 26,2%** (ebből 3 a 0-exites napok közül) |
+| Napok `daily_metrics`-szel | **56** (2026-08-19-ig; 9 outage-nap hiányzik) |
+| Ebből **0-realizált** nap (`portfolio_return_pct = 0`) | **19 → 33,9%** |
+| Napok **mindkét** olvasattal (az MTM 06-04-től él) | **44** |
+| Ebből **ellentétes előjelű** | **12 → 27,3%** |
+| — ebből **0-exites** | **3** |
+| — ebből **volt exit** | **9** |
 | \|realized − MTM\| rés | medián **0,27 pp**, átlag **0,34 pp**, max **1,20 pp** |
-| 10-napos átlag (2026-08-17) | realized **−0,36%** \| MTM **−0,38%** |
+| 10-napos átlag (2026-08-19) | realized **−0,01%** \| MTM **−0,10%** |
+
+> **⚠️ A mechanizmus pontosítása (2026-08-19).** A szétválás **NEM** a 0-exites napokhoz kötött:
+> a 12 ellentétes-előjelű napból **csak 3** volt 0-exites, **9-en volt exit**. A 0-exit eset a
+> **szélsőérték** (ott `excess ≡ −SPY`), nem a mechanizmus. Az általános ok tágabb: **a
+> realized-olvasat nem látja a nyitott könyv mozgását**. Példa (2026-08-19): realized **−0,30%**
+> vs MTM **+0,02%** — 1 exit mellett, mert a nyitott könyv aznap **+$326-ot javult**, miközben a
+> realizált −$96,64 volt. A 2026-08-18-i daily review ezt tévesen a 0-exites napokhoz kötötte;
+> a review §6-ban korrigálva.
 
 **⚠️ Korrekció a 2026-08-17-i review-hoz.** Az ott rögzített *„a D3 szerinti ellentétes-előjelű
 eset MA ELŐSZÖR áll fenn"* **nem pontos**, két okból:
