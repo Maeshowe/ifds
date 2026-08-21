@@ -1091,6 +1091,33 @@ végrehajtási stílus.
 Részletek: `docs/planning/2026-08-18-day63-period-summary-and-proposal.md`,
 gate-protokoll §D5/§D6.
 
+### 11.16 🔴 ÚJ HIBAALAK (2026-08-21) — a gép fent van, az SSH zöld, a `cron` mégsem fut
+
+A 3. FileVault-osztályú outage (07-22, 08-07 után) **más hibaalakot** mutatott, és ez a
+dokumentált modell **pontosítását** kényszeríti ki.
+
+**Eddigi modell:** *„a Mini a feloldó-képernyőn ragad, `launchd`/`sshd`/`cron` nem indul."*
+**Ami 2026-08-21-én történt:** a gép **09:07:02-kor teljesen felbootolt** (`launchd` pid 1 fut),
+az **SSH egész nap működött** — de a **`cron` csak 17:35:43-kor, a konzol-login pillanatában
+indult el**. Eredmény: **8,5 óra teljes némaság**, 0 log, 0 trade, 0 order, miközben a gép
+kívülről egészségesnek látszott.
+
+> 🔴 **A rögzítendő tanulság: az SSH-elérhetőség NEM egészség-jelzés a cron-láncra.**
+> Egy SSH-alapú health-check aznap **végig zöldet** mutatott volna, miközben a rendszer egy
+> teljes kereskedési napot kihagyott (elmaradt: Phase 4-6, submit, és a **15:30-as
+> EQH MENTAL_SL + DLB TP1 exit**).
+
+**Másodlagos rés — az őrkutya a megfigyelt rendszeren belül van:** a
+`monitor_submit_heartbeat.py` (15:45) **maga is cron-job**, tehát **elvileg képtelen** a
+„cron nem fut" esetet detektálni. Külső (nem a Minin futó) heartbeat kell.
+
+**Javaslatok** (nem ma; a következő outage előtt): (1) külső heartbeat a MacBookról a mai
+`logs/` fájlok meglétére; (2) a job-ok `LaunchDaemon`-ba (rendszer-kontextus, login-független)
+a user-cron helyett; (3) auto-login a FileVault-csomagban; (4) a `check_gateway.py` **indítsa
+is** a Gateway-t, ne csak jelezzen.
+
+**Részletek + helyreállítási lépések:** `docs/handoff/2026-08-21-outage-recovery.md`.
+
 ### 11.14 ✅ LEZÁRVA (2026-08-18, Tamás) — az Unusual Whales adatforrás KIVEZETVE
 
 **Döntés: a UW kivezetve, nincs használatban.** Döntési rekord:
