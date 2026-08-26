@@ -135,6 +135,18 @@ akkor ezt **most** kell rögzíteni, nem a kapunál.
 ha a nyitott könyv aznap veszít; emelkedő tapén automatikusan lemaradást. A mező ilyen napokon
 **indexirányt mér, nem stratégiai teljesítményt**.
 
+> **⚠️ A torzítás KÉTIRÁNYÚ (rögzítve 2026-08-24).** Nem szisztematikus optimizmus: az előjelét
+> **az index iránya** dönti el, nem a stratégia teljesítménye. Két élő eset, mindkettő 0 exites:
+>
+> | Nap | Realized excess | MTM | A nyitott könyv aznap | Az artefakt |
+> |---|---|---|---|---|
+> | 2026-08-20 | **+0,84%** | +0,52% | **−$352,94** | **FELÜLmutat** — vesztő napot mutat felülteljesítésnek |
+> | 2026-08-24 | **+0,29%** | **+0,79%** | **+$468,49** | **ALÁmutat** — valóban jó napot mutat gyengébbnek |
+>
+> A kapu-riportban ezért **nem elég** a 0-exites napok számát közölni: a **hozzájárulásuk
+> előjele is esetenként változik**, tehát a korlát **nem korrigálható egyetlen irányú
+> kiigazítással**.
+
 **Számszerűsítés (swing-éra, 2026-05-18 → 08-17, `state/` ledger):**
 
 | Mérőszám | Érték |
