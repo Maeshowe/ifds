@@ -1091,6 +1091,34 @@ végrehajtási stílus.
 Részletek: `docs/planning/2026-08-18-day63-period-summary-and-proposal.md`,
 gate-protokoll §D5/§D6.
 
+### 11.17 ✅ DIAGNÓZIS LEZÁRVA (2026-08-25) — az `exit_type` defekt FILL-TIMESTAMP vezérelt
+
+A `daily_metrics::exit_type` régóta ismert megbízhatatlansága (a `signal_attribution` 2.
+invariánsa: *„fill-timestamp based and unreliable"*) **2026-08-25-én közvetlen bizonyítást
+nyert**, és ezzel a defekt **szűkíthető**.
+
+| Nap | Ticker | Kanonikus (`pending_exits`) | `daily_metrics::exit_type` | Fill |
+|---|---|---|---|---|
+| 08-21 | DLB | **TP1** | **MOC** ❌ | 15:51:04Z (outage miatt **késett, kézi** futtatás) |
+| 08-21 | EQH | **MENTAL_SL** | **MOC** ❌ | 15:51:04Z (ugyanaz) |
+| 08-25 | PSO | TP1 | **TP1** ✓ | 13:30:45Z (normál 15:30-as ablak) |
+| 08-25 | IMAX | TP1 | **TP1** ✓ | 13:30:25Z (normál ablak) |
+
+**Megállapítás:** amikor a fill a **várt időablakba** esik, a mező **helyes**; amikor nem
+(a 08-21-i, outage okozta 2h21m késés), **„MOC"-ra degradál**. Tehát **nem általános romlás,
+hanem ablak-eltérés-osztályozó** — normál üzemben a mező használható.
+
+**Visszamenőleges következmény:** a **2026-W34 heti riport hibás TP1-metrikája**
+(*„TP1 hits: 0/6 (0%)", „TP1 avg profit: $0.00", „R:R 1:0.00"*, miközben volt egy TP1
++$154,47-tel) **az outage következménye volt**, nem a metrika általános hibája. Normál héten
+a metrika helyes. A 08-21-i review §6 ezt még általános defektként írta le — **itt korrigálva**.
+
+✅ **A kaput nem érinti**: a `signal_attribution` 2. invariánsa szerint az `exit_type`
+**kizárólag** a `state/pending_exits/`-ből jön; a betöltő ezt a mezőt nem olvassa.
+
+📋 **Nyitott marad**: a fix (az `exit_type` a ledgerből, ne a fill-timestampből) **kapu utáni**
+tétel — a kapu-mintát nem érinti, a napi/heti riport-minőséget igen.
+
 ### 11.16 🔴 ÚJ HIBAALAK (2026-08-21) — a gép fent van, az SSH zöld, a `cron` mégsem fut
 
 A 3. FileVault-osztályú outage (07-22, 08-07 után) **más hibaalakot** mutatott, és ez a
