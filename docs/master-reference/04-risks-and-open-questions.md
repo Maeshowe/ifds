@@ -1119,6 +1119,31 @@ a metrika helyes. A 08-21-i review §6 ezt még általános defektként írta le
 📋 **Nyitott marad**: a fix (az `exit_type` a ledgerből, ne a fill-timestampből) **kapu utáni**
 tétel — a kapu-mintát nem érinti, a napi/heti riport-minőséget igen.
 
+### 11.18 🟡 MONITOROZÁSI RÉS (2026-09-03) — a napi szektor-cap flag NÉMA MARADHAT, míg a cap köt
+
+A napi review `sector_cap_proximity` flagje (1a pipeline) a **jelenlegi** szektor-kitettséget
+méri a figyelmeztetési küszöbhöz (25%, cap 30%). A **Phase 6 tényleges korlátja viszont
+ELŐRETEKINTŐ** — `phase6_sizing.py:1581`:
+
+```python
+if new_sector_total > sector_cap_usd:
+```
+
+vagyis a **hozzáadás utáni** szektor-összeget veti a caphez.
+
+**Következmény:** a flag hallgathat, miközben a cap ténylegesen kizár jelölteket.
+**2026-09-03 pontosan ez volt**: a legnagyobb szektor Communication Services **21,86%**
+(a 25%-os figyelmeztetés alatt → **0 flag**), miközben a Phase 6 log
+`Excluded — sector limit: 5` sort írt. A 2026-09-01-i „a cap köt" megfigyelés tehát **nem
+egyszeri állapot** volt — a korlát azóta is aktív, csak a napi riportban **láthatatlanul**.
+
+**Teendő (kapu UTÁN — D6: a prod konfiguráció fagyva 2026-09-22-ig):** a napi flag legyen
+szintén előretekintő, **vagy** a review olvassa be a Phase 6 `excluded_sector_limit` számlálót
+(a `Phase6Result` már közli). Addig: a review **a Phase 6 logból** olvassa a szektor-kizárást,
+ne a flagből.
+
+**Kapu-hatás: nincs** — ez riport-oldali láthatóság, a `signal_attribution` mintáját nem érinti.
+
 ### 11.16 🔴 ÚJ HIBAALAK (2026-08-21) — a gép fent van, az SSH zöld, a `cron` mégsem fut
 
 A 3. FileVault-osztályú outage (07-22, 08-07 után) **más hibaalakot** mutatott, és ez a
