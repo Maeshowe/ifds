@@ -1091,7 +1091,7 @@ végrehajtási stílus.
 Részletek: `docs/planning/2026-08-18-day63-period-summary-and-proposal.md`,
 gate-protokoll §D5/§D6.
 
-### 11.17 ✅ DIAGNÓZIS LEZÁRVA (2026-08-25) — az `exit_type` defekt FILL-TIMESTAMP vezérelt
+### 11.17 ⚠️ DIAGNÓZIS PONTOSÍTVA (2026-08-25, korrigálva 2026-09-09) — az `exit_type` az ABLAK alapértelmezett címkéjét adja
 
 A `daily_metrics::exit_type` régóta ismert megbízhatatlansága (a `signal_attribution` 2.
 invariánsa: *„fill-timestamp based and unreliable"*) **2026-08-25-én közvetlen bizonyítást
@@ -1118,6 +1118,28 @@ a metrika helyes. A 08-21-i review §6 ezt még általános defektként írta le
 
 📋 **Nyitott marad**: a fix (az `exit_type` a ledgerből, ne a fill-timestampből) **kapu utáni**
 tétel — a kapu-mintát nem érinti, a napi/heti riport-minőséget igen.
+
+> 🔴 **KORREKCIÓ (2026-09-09).** A fenti táblázat alapján 08-25-én azt írtam, hogy *„amikor a
+> fill a várt időablakba esik, a mező **helyes**"*. **Ez túl megengedő volt.**
+>
+> 2026-09-09: a **MANH** kanonikus exit-típusa (`pending_exits`) **MENTAL_SL**, a fill
+> **13:30:06Z — a NORMÁL 15:30-as ablakban** —, a `trades.details.exit_type` mégis **„TP1"**.
+> (A `daily_metrics::exits` blokk ugyanakkor helyesen `sl: 1`-et írt.)
+>
+> **A pontosított mechanizmus:** az osztályozó **az adott időablak ALAPÉRTELMEZETT exit-típusát**
+> adja címkeként — 15:30 → „TP1", 21:40 → „TIME_STOP_MOC", ablakon kívül → „MOC" —, ezért
+> **akkor téved, ha a tényleges exit-típus eltér az ablak alapértelmezésétől**:
+> * MENTAL_SL a 15:30-as ablakban → „TP1" (2026-09-09)
+> * TP1 / MENTAL_SL az ablakokon kívül → „MOC" (2026-08-21, outage)
+>
+> A 08-25-i bizonyíték (PSO/IMAX TP1 → „TP1") **véletlenül volt konzisztens**: azok valóban
+> TP1-ek voltak a 15:30-as ablakban.
+>
+> **Gyakorlati szabály:** a riportok a `daily_metrics::exits` blokkot és a `pending_exits`-et
+> használják; a `trades.details.exit_type`-ot **soha**. A heti TP1-metrika ezért **túlszámolhat**
+> (2026-W37: a MANH MENTAL_SL-je TP1-találatként −$362,11-gyel) — a heti zárásban korrigálandó.
+>
+> **Kapu-hatás: továbbra sincs** (invariáns #2: a betöltő a `pending_exits`-ből olvas).
 
 ### 11.18 🟡 MONITOROZÁSI RÉS (2026-09-03) — a napi szektor-cap flag NÉMA MARADHAT, míg a cap köt
 
