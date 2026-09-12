@@ -1166,6 +1166,40 @@ ne a flagből.
 
 **Kapu-hatás: nincs** — ez riport-oldali láthatóság, a `signal_attribution` mintáját nem érinti.
 
+### 11.19 🔴 P0 (2026-09-11) — PRE-REGISZTRÁLT LEÁLLÍTÁSI FELTÉTEL TELJESÜLT: `cum_30d` −3,38%
+
+**A paper trading periódus kezdete (2026-05-18) óta ELŐSZÖR teljesült egy pre-reg leállítási
+feltétel.** A `cum_30d` **−3,38%** (−$3 376,44) a pre-reg §3 **−3,0%**-os küszöbe ellenében.
+
+> **Pre-reg §3** (`2026-05-14…§3.14`, NEM módosítható): **LEÁLLÍTÁS — bármelyik elég:**
+> 10 napi excess < −1,0% **VAGY 30 napi kumulatív < −3,0%** VAGY 15 napi excess < −1,0%.
+
+⚠️ **Ez nem a D4 `mean`/`sum` vita tárgya** — a D4 a 10/15 napos **excess**-ablakokra vonatkozott,
+ahol az „átlag" szó volt kétértelmű. A **„30 napi kumulatív"** egyértelmű, és ez sérült.
+A pre-reg **irányadó excess-triggerek tiszták** (`excess_10d_mean` −0,05%, `excess_15d_mean` −0,18%).
+
+**A breach NEM átmeneti.** Nulla jövőbeli realizált feltevéssel a mutató a következő **8 ülésen
+is BREACH-ben marad**, és előbb **−3,62%-ig romlik** (a kigördülő napok többsége pozitív).
+A visszatéréshez ~**+$376** kumulatív javulás kell; az ablak négy legnagyobb vesztesége
+(08-21 −$794, 09-09 −$668, 09-10 −$521, 09-01 −$502) csak jóval később gördül ki.
+
+**§5.2-érzékenység:** ha a 08-21-i outage-késleltetett tételek (EQH −$371,36 + DLB TP1 +$154,47
+= −$216,89) kimaradnának, a `cum_30d` **−3,16%** lenne — **még mindig BREACH**. A nyitott §5.2
+Tamás-döntés tehát **a breach tényét nem változtatja meg**.
+
+**Kapcsolat a kapuval:** a kapu **2026-09-22**, 7 kereskedési nap. A fenti mechanika szerint a
+feltétel **a kapu napján is fennállna** — a leállítási és a kapu-kérdés ezzel **összekapcsolódott**.
+
+**Eljárás:** a leállítás **human-in-the-loop döntés** (pre-reg §4, a monitor tervezési elve:
+*„kizárólag jelez, nem cselekszik"*). **CC nem tesz javaslatot a leállításra vagy a folytatásra** —
+a §3 kritériumok pre-regisztráltak, a döntés Tamásé.
+
+✅ **A monitor a tervezett módon működött**: a feltétel **nem retroaktívan** derült ki. A
+2026-09-10-i review §1 **előre levezette** az aritmetikát (*„a küszöb akkor nem sérül, ha a mai
+realizált > +$30,13"*), és a tény (−$346,31) pontosan a jelzett tartományba esett.
+
+Részletek: `docs/review/2026-09-11-daily-review.md` (P0 szekció).
+
 ### 11.16 🔴 ÚJ HIBAALAK (2026-08-21) — a gép fent van, az SSH zöld, a `cron` mégsem fut
 
 A 3. FileVault-osztályú outage (07-22, 08-07 után) **más hibaalakot** mutatott, és ez a
