@@ -1,6 +1,6 @@
 Status: OPEN
-Updated: 2026-08-18
-Note: PRE-REGISZTRÁCIÓ — a kapu-végrehajtás rögzítése MIELŐTT az adat beérkezik. D1–D4 lezárva. 2026-08-18: a §5 kizárási lista LEZÁRVA, a §D3/M realized-only korlát rögzítve, a §9 első LEÍRÓ futás megtörtént (NEM go/no-go; a kapu 2026-09-22). 2026-08-18 (2. kör): D5 (`≥ 25` a megfigyelt napokra), D6 (kétsávos: prod fagyva 09-22-ig + revíziók SIM-ben) és §5.6 (pinelt WRAPPER, implementálva: `gate_sample.py`) MIND DÖNTVE. Nyitott: a wrapper pinelése a kapu előtt. CC nem módosít pre-reg kritériumot; ez a végrehajtás protokollja.
+Updated: 2026-09-12
+Note: PRE-REGISZTRÁCIÓ — a kapu-végrehajtás rögzítése MIELŐTT az adat beérkezik. D1–D4 lezárva. 2026-08-18: a §5 kizárási lista LEZÁRVA, a §D3/M realized-only korlát rögzítve, a §9 első LEÍRÓ futás megtörtént (NEM go/no-go; a kapu 2026-09-22). 2026-09-11: a `cum_30d` ELŐSZÖR sértette a −3,0%-os leállítási küszöböt (−3,38%); D7 (2026-09-12): elmegyünk a kapuig, ott döntés — a trigger NEM resetelődik. 2026-08-18 (2. kör): D5 (`≥ 25` a megfigyelt napokra), D6 (kétsávos: prod fagyva 09-22-ig + revíziók SIM-ben) és §5.6 (pinelt WRAPPER, implementálva: `gate_sample.py`) MIND DÖNTVE. Nyitott: a wrapper pinelése a kapu előtt. CC nem módosít pre-reg kritériumot; ez a végrehajtás protokollja.
 
 # Kapu-protokoll pre-regisztráció — Day 63 / Day 126
 
@@ -202,6 +202,46 @@ hiányzik, a flip (04-risks §11.7) **output-invariánsnak bizonyult**. Ez a **t
 igaz, tehát a minta ebből a szempontból **homogén** — **nem éra-keveredés, nem G5-sértés**.
 
 **Ezt a mondatot is szó szerint idézni kell a kapu-riportban.**
+
+### D7 ✅ DÖNTVE (Tamás, 2026-09-12) — a `cum_30d` breach után ELMEGYÜNK A KAPUIG (2026-09-22)
+
+**A helyzet.** 2026-09-11-én **először teljesült egy pre-regisztrált LEÁLLÍTÁSI feltétel**:
+a `cum_30d` **−3,38%** a §3 **−3,0%**-os küszöbe ellenében (04-risks §11.19, a 09-11-i review P0).
+
+**✅ DÖNTÉS: nem állítunk le azonnal — a paper trading a kapuig (2026-09-22) folytatódik,
+a folytatás/leállítás kérdésében ott születik döntés.**
+
+**Miért legitim ez a pre-reg keretén belül:**
+- A §3 **kritériumokat** rögzít, nem automatizmust. A leállítás **kifejezetten
+  human-in-the-loop** (§4 + a STOP-monitor tervezési elve: *„kizárólag jelez, nem cselekszik —
+  a leállítás Tamás-döntés"*).
+- A kapu dátuma (**2026-09-22**) **D2-ben, 2026-07-28-án, előre rögzült** — nem most választott,
+  az eredmény ismeretében kitalált időpont. A döntés tehát **egy már pre-regisztrált
+  döntési pontra halasztás**, nem határidő-nyújtás.
+- A halasztás **7 kereskedési nap**.
+
+⚠️ **Amit ez a döntés NEM jelent** (kifejezetten rögzítve):
+1. **A trigger NEM „resetelődik".** A `cum_30d` breach **tény**, 2026-09-11-i dátummal, és a
+   mechanika szerint **a kapu napján is fennállhat** (nulla jövőbeli realizált mellett a
+   következő 8 ülésen BREACH-ben marad, előbb −3,62%-ig romolva).
+2. **A §3 olvasata a kapun determinált marad**: ha a feltétel 09-22-én is áll,
+   a §3 szerint a **LEÁLLÍTÁS kritérium teljesül**. A *„DEFAULT: PAPER FOLYTATÁS"* kizárólag
+   arra az esetre szól, amikor **sem** élesítési, **sem** leállítási feltétel nem áll fenn —
+   **itt nem ez a helyzet**.
+3. **A küszöb nem mozdul.** A §3 kritériumok **nem módosíthatók** (pre-reg).
+
+📌 **A döntés dátuma és rögzítése: 2026-09-12 — az eredmény ismerete ELŐTT.** Ez teszi
+auditálhatóvá: nem utólagos racionalizálás, hanem előre bejelentett halasztás egy előre
+rögzített döntési pontra.
+
+**KÖTELEZŐ KÖVETKEZMÉNYEK a kapu-futásra:**
+- **A kapu-riportnak szó szerint tartalmaznia kell**, hogy **2026-09-11-től egy pre-regisztrált
+  leállítási feltétel ÉLT**, a `cum_30d` akkori és a kapu-napi értékével együtt.
+- A `signal_attribution` futás **továbbra is LEÍRÓ** és **G1/G3 alatt marad** — a leállítási
+  kérdéshez **nem használható** input (sem mellette, sem ellene).
+- A napi review **minden nap** riportálja a `cum_30d`-t és a breach-státuszt a kapuig.
+- A **D6 kétsávos szabály változatlan**: a production konfiguráció **fagyva marad** 09-22-ig.
+  A breach **nem indok** paraméter-változtatásra a kapu előtt.
 
 ## 3. A pre-regisztrált kritériumok (szó szerint, `2026-05-14…§3.14`) — NEM módosítható
 
@@ -445,6 +485,8 @@ ELŐTT**. A `verify_outage_days()` gondoskodik róla, hogy ez ne maradjon el né
 | **D** | §5-mechanizmus döntés (újra-pinelés vs. pinelt wrapper, §5.6) | Tamás | — | ✅ **WRAPPER** (2026-08-18); implementálva: `gate_sample.py`, 13 teszt |
 | **D'** | A `gate_sample.py` pinelése | CC | — | ✅ **pin: `68fc00e`** (2026-08-18); új outage → új pin + ok, a futás ELŐTT |
 | **E** | A D3/M korlát + az UW-proveniencia mondat idézése a kapu-riportban | CC | 2026-09-22 | 📋 nyitott |
+| **D7** | A `cum_30d` breach (2026-09-11) utáni eljárás | Tamás | — | ✅ **ELMEGYÜNK A KAPUIG (09-22)**, ott döntés (2026-09-12) |
+| **F** | A kapu-riport rögzítse: 2026-09-11-től pre-reg leállítási feltétel ÉLT | CC | **2026-09-22** | 📋 **nyitott, KÖTELEZŐ** |
 | **D5** | A 3. kritérium számlálási bázisa | Tamás | — | ✅ **`≥ 25`, megfigyelt napokra (40%)** (2026-08-18) |
 | **D6** | A paraméter-revíziók útja a kapu-ablakban (D1↔D2 feszültség) | Tamás | — | ✅ **KÉTSÁVOS** — prod fagyva 09-22-ig + revíziók SIM-ben (2026-08-18) |
 

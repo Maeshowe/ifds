@@ -1198,7 +1198,25 @@ a §3 kritériumok pre-regisztráltak, a döntés Tamásé.
 2026-09-10-i review §1 **előre levezette** az aritmetikát (*„a küszöb akkor nem sérül, ha a mai
 realizált > +$30,13"*), és a tény (−$346,31) pontosan a jelzett tartományba esett.
 
-Részletek: `docs/review/2026-09-11-daily-review.md` (P0 szekció).
+**✅ TAMÁS-DÖNTÉS (2026-09-12) — D7: ELMEGYÜNK A KAPUIG (2026-09-22), ott születik döntés.**
+Nem azonnali leállítás. Legitim a pre-reg keretén belül, mert (a) a §3 kritériumokat rögzít, nem
+automatizmust — a leállítás kifejezetten human-in-the-loop; (b) a kapu dátuma **D2-ben,
+2026-07-28-án előre rögzült**, tehát ez **halasztás egy már pre-regisztrált döntési pontra**,
+nem határidő-nyújtás; (c) a halasztás 7 kereskedési nap.
+
+⚠️ **A trigger NEM resetelődik.** A breach tény, 2026-09-11-i dátummal, és a kapu napján is
+fennállhat. Ha 09-22-én is áll, a §3 szerint a **LEÁLLÍTÁS kritérium teljesül** — a
+*„DEFAULT: PAPER FOLYTATÁS"* kizárólag arra az esetre szól, amikor sem élesítési, sem leállítási
+feltétel nem áll fenn. A küszöb **nem módosítható**.
+
+📌 **A döntés az eredmény ismerete ELŐTT, 2026-09-12-én rögzült** — ez teszi auditálhatóvá.
+
+**Kötelező:** a kapu-riport **szó szerint** rögzítse, hogy 2026-09-11-től pre-reg leállítási
+feltétel élt (gate-protokoll §8/F). A napi review a kapuig **minden nap** riportálja a
+`cum_30d`-t és a breach-státuszt. A **D6 kétsávos szabály változatlan**: a prod fagyva marad —
+a breach **nem indok** paraméter-változtatásra.
+
+Részletek: `docs/review/2026-09-11-daily-review.md` (P0), gate-protokoll **§D7**.
 
 ### 11.16 🔴 ÚJ HIBAALAK (2026-08-21) — a gép fent van, az SSH zöld, a `cron` mégsem fut
 
