@@ -1166,6 +1166,40 @@ ne a flagből.
 
 **Kapu-hatás: nincs** — ez riport-oldali láthatóság, a `signal_attribution` mintáját nem érinti.
 
+### 11.20 🔴 ÚJ FINDING (2026-09-14) — a TP1/stop szintek a TERVEZETT árhoz kötöttek, nem a fillhez
+
+**A §11.10 `entry_price=planned` defekt eddig kozmetikaiként volt kezelve** (*„a könyvelést NEM
+érinti — broker-realized"*). **A könyvelésre ez igaz marad. A kereskedési geometriára NEM.**
+
+**Mechanizmus (kódból verifikálva, `scripts/paper_trading/submit_orders.py:338–344`):** a
+`SwingPosition` `entry_price=t["limit_price"]`, `stop_level=t["stop_loss"]`,
+`tp1_level=t["take_profit_1"]` mezőket **egyenesen az execution planből** veszi (a Phase 6 a
+tervezett árból számolja: TP1 = +1,5 ATR, stop = −2 ATR), miközben a rendelés **MARKET**.
+**Fill utáni szint-újraszámolás nincs.**
+
+**Élő eset — MANH, 2026-09-14:** tervezett 201,82, fill **207,69** (+2,91%, éra-rekord);
+TP1 212,25, stop 187,92; a 09-14-i high **212,85** → **TP1-flag már az első napon**.
+
+**Mért torzulás a 09-14-i három belépőn** (tervezett R:R = 1,5/2 = **0,75**):
+
+| Ticker | Slippage | TP1-távolság (terv → fill) | Stop-távolság (terv → fill) | R:R (terv → valós) |
+|---|---|---|---|---|
+| MANH | +2,91% | +5,17% → +2,20% | −6,89% → −9,52% | **0,75 → 0,23 (−69%)** |
+| IMAX | +1,36% | +4,78% → +3,38% | −6,37% → −7,63% | 0,75 → 0,44 (−41%) |
+| CRBG | +0,87% | +3,20% → +2,32% | −4,27% → −5,09% | 0,75 → 0,46 (−39%) |
+
+**Minden adverz fill egyszerre összenyomja a TP1-távolságot és kitágítja a stop-távolságot.**
+A CC-éra fillje ~73–75%-ban adverz → a hatás **szisztematikus**.
+
+**Valószínű eredet (NEM verifikált):** az execution plan még `order_type: LIMIT`-et ír; a swing
+pivot MKT belépőre váltott, a szintek a limit-árhoz maradtak horgonyozva.
+
+**Kapu-hatás:** a `signal_attribution` minta-definícióját **nem érinti** (belépési S_j + bróker-realized).
+A **kereskedési viselkedést igen** → **D6 SIM-napirend tétel, KAPU UTÁN**. A prod fagyva 09-22-ig,
+és **D7 szerint a breach sem indok** a módosításra. ⚠️ **Kapcsolat a leállítási kérdéssel:** ez a
+torzulás a TP1-hozamot csökkenti és a stop-veszteséget növeli — **leíró tényként** releváns a 09-22-i
+döntéshez, de **nem kapu-input** (G1).
+
 ### 11.19 🔴 P0 (2026-09-11) — PRE-REGISZTRÁLT LEÁLLÍTÁSI FELTÉTEL TELJESÜLT: `cum_30d` −3,38%
 
 **A paper trading periódus kezdete (2026-05-18) óta ELŐSZÖR teljesült egy pre-reg leállítási
