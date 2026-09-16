@@ -1194,6 +1194,15 @@ A CC-éra fillje ~73–75%-ban adverz → a hatás **szisztematikus**.
 **Valószínű eredet (NEM verifikált):** az execution plan még `order_type: LIMIT`-et ír; a swing
 pivot MKT belépőre váltott, a szintek a limit-árhoz maradtak horgonyozva.
 
+> ✅ **ÉLES IGAZOLÁS (2026-09-15, 24 órán belül).** A MANH TP1 **−$13,89-cel, VESZTESÉGGEL** zárt:
+> tervezett ár 201,82 → `tp1_level` 212,25 (a **valós** 207,69-es fillhez mérve csak **+2,20%**);
+> a 09-14-i intraday high **212,85** kiváltotta a triggert; a végrehajtás **09-15 15:30-kor
+> 206,66-on**, azaz **a belépő ALATT** történt.
+> **Két hatás rakódott egymásra:** (1) a szint a tervezett árhoz kötött → a valós TP1-távolság
+> 58%-kal kisebb; (2) a trigger az **intraday high**-ra tüzel, de a **végrehajtás a KÖVETKEZŐ
+> ülésen** — egy teljes ülésnyi elsodródás. A becsléstől való eltérés **−$62**.
+> 📌 A teljes swing-érában **25 TP1-ből 3 negatív** (RBC −$32,38, SLGN −$63,01, MANH −$13,89).
+
 **Kapu-hatás:** a `signal_attribution` minta-definícióját **nem érinti** (belépési S_j + bróker-realized).
 A **kereskedési viselkedést igen** → **D6 SIM-napirend tétel, KAPU UTÁN**. A prod fagyva 09-22-ig,
 és **D7 szerint a breach sem indok** a módosításra. ⚠️ **Kapcsolat a leállítási kérdéssel:** ez a
