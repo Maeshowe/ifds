@@ -1191,6 +1191,25 @@ TP1 212,25, stop 187,92; a 09-14-i high **212,85** → **TP1-flag már az első 
 **Minden adverz fill egyszerre összenyomja a TP1-távolságot és kitágítja a stop-távolságot.**
 A CC-éra fillje ~73–75%-ban adverz → a hatás **szisztematikus**.
 
+**🔎 HATÓKÖR PONTOSÍTVA (2026-09-17)** — négy szint-mechanizmusból **három érintett**:
+
+| Mechanizmus | Horgony | Státusz |
+|---|---|---|
+| TP1-szint | tervezett ár | 🔴 érintett (élesben igazolva: MANH, 2026-09-15) |
+| Stop-szint | tervezett ár | 🔴 érintett |
+| **Breakeven SL** | **tervezett ár** | 🔴 **érintett — ÚJ** |
+| Trailing stop | **élő ár** | ✅ **helyes, NEM érintett** |
+
+**Breakeven** (`swing_manager.py:140–155`): `be_threshold = pos.entry_price + ATR × 0,3`, és az SL
+az `pos.entry_price`-ra emelkedik. Mivel az `entry_price` a **tervezett** ár, adverz fill esetén a
+„breakeven" stop a **valós belépő ALATT** van → egy „breakeven" stop-out **veszteséget** realizálna.
+Példa: MANH tervezett 201,82 vs valós fill 207,69 → a „breakeven" SL **−2,83%**-kal a valós belépő alatt.
+⚠️ A mechanizmus **neve** flat kimenetelt ígér, a **viselkedése** nem azt adja.
+
+**Trailing stop** (`swing_manager.py:158–163`): `trail_stop = price − ATR × trailing_stop_atr` —
+**az élő árhoz** kötött, tehát **helyes**. Ezt a 2026-09-17-i első TRAIL_SL exit (YPF, −$7,19)
+empirikusan is alátámasztja: nem torzított szintről zárt.
+
 **Valószínű eredet (NEM verifikált):** az execution plan még `order_type: LIMIT`-et ír; a swing
 pivot MKT belépőre váltott, a szintek a limit-árhoz maradtak horgonyozva.
 
