@@ -1228,6 +1228,38 @@ A **kereskedési viselkedést igen** → **D6 SIM-napirend tétel, KAPU UTÁN**.
 torzulás a TP1-hozamot csökkenti és a stop-veszteséget növeli — **leíró tényként** releváns a 09-22-i
 döntéshez, de **nem kapu-input** (G1).
 
+### 11.21 🔴 P0 (2026-09-22) — A KAPU NAPJA LEZÁRULT, A KAPU-FUTÁS NEM TÖRTÉNT MEG
+
+**Tényállás (verifikálva 2026-09-23):**
+- A kapu dátuma **2026-09-22** volt — D2-ben, 2026-07-28-án **fixen** rögzítve.
+- **A futás nem történt meg**: sem a MacBookon, sem a Minin nincs `signal-attribution-*` vagy
+  `gate-sample-*` riport 09-22-i dátummal.
+- A **§5.1 / §5.2 Tamás-döntés nem született meg**; a `gate_sample.py` pinje változatlanul
+  **`68fc00e`**.
+- A **`cum_30d` a kapu napján −5,22%** (küszöb −3,0%) — **BREACH, 8. kereskedési nap**.
+
+**A D7-döntés esedékessé vált és elmúlt** (*„elmegyünk a kapuig (2026-09-22), a
+folytatás/leállítás kérdésében ott születik döntés"*). A leállítási feltétel fennáll; a §3
+olvasata változatlan (a *„DEFAULT: PAPER FOLYTATÁS"* csak akkor, ha sem élesítési, sem
+leállítási feltétel nem áll fenn). **A kereskedés közben tovább fut.**
+
+**Két út, mindkettő írásbeli rögzítést kíván a futás ELŐTT:**
+1. **A futás lebonyolítása most, dokumentált dátum-eltéréssel.** A §6/3 feltétele továbbra is
+   teljesíthető (minta fixálása → futtatás), ha (a) a §5.1/§5.2 döntés és a pin rögzül a futás
+   előtt, és (b) a késés oka és mértéke a futás **előtt** a protokollba kerül. A plusz napok
+   adata a mintába bekerül — ez a késés ára, és rögzítendő.
+2. **A kapu-dátum újra-rögzítése** — ez a **második** halasztás lenne (a D7 után), és a D2 fix
+   dátumának lényegét gyengíti. Új dátum + indoklás **azonnal**, az adat további ismerete nélkül.
+
+📌 **CC nem választ** — Tamás-döntés. **Minden további nap a 2) út felé sodródás kockázatát
+növeli anélkül, hogy azt valaki kimondta volna.**
+
+⚠️ **D6-következmény:** a prod-fagyás formálisan 2026-09-22-vel lejárt, **de a feloldás a kapu
+utánra szólt** — a futás hiányában a production-konfiguráció változtatása **továbbra sem
+indokolt**, amíg a fenti döntés meg nem születik.
+
+Részletek: `docs/review/2026-09-22-daily-review.md` (P0 szekció).
+
 ### 11.19 🔴 P0 (2026-09-11) — PRE-REGISZTRÁLT LEÁLLÍTÁSI FELTÉTEL TELJESÜLT: `cum_30d` −3,38%
 
 **A paper trading periódus kezdete (2026-05-18) óta ELŐSZÖR teljesült egy pre-reg leállítási
