@@ -1,5 +1,5 @@
 Status: OPEN
-Updated: 2026-09-12
+Updated: 2026-10-03
 Note: PRE-REGISZTRÁCIÓ — a kapu-végrehajtás rögzítése MIELŐTT az adat beérkezik. D1–D4 lezárva. 2026-08-18: a §5 kizárási lista LEZÁRVA, a §D3/M realized-only korlát rögzítve, a §9 első LEÍRÓ futás megtörtént (NEM go/no-go; a kapu 2026-09-22). 2026-09-11: a `cum_30d` ELŐSZÖR sértette a −3,0%-os leállítási küszöböt (−3,38%); D7 (2026-09-12): elmegyünk a kapuig, ott döntés — a trigger NEM resetelődik. 2026-08-18 (2. kör): D5 (`≥ 25` a megfigyelt napokra), D6 (kétsávos: prod fagyva 09-22-ig + revíziók SIM-ben) és §5.6 (pinelt WRAPPER, implementálva: `gate_sample.py`) MIND DÖNTVE. Nyitott: a wrapper pinelése a kapu előtt. CC nem módosít pre-reg kritériumot; ez a végrehajtás protokollja.
 
 # Kapu-protokoll pre-regisztráció — Day 63 / Day 126
@@ -243,6 +243,97 @@ rögzített döntési pontra.
 - A **D6 kétsávos szabály változatlan**: a production konfiguráció **fagyva marad** 09-22-ig.
   A breach **nem indok** paraméter-változtatásra a kapu előtt.
 
+### D8 ✅ DÖNTVE (Tamás, 2026-10-03) — ADATGYŰJTÉSI MÓD + a kapu-futás lebonyolítása
+
+**A helyzet 2026-10-02-re:** a kumulatív **−$6 460,95** (88 kereskedési nap), és **egyszerre
+három pre-regisztrált guard sérül**:
+
+| Guard | Állás | Túllépés |
+|---|---|---|
+| Circuit breaker (`CIRCUIT_BREAKER_USD = -5_000`, **kumulatív**) | −$6 461 / −$5 000 | **1,29×** |
+| Day 21 checkpoint | −$6 461 / −$1 500 | **4,31×** |
+| Pre-reg leállítás (`cum_30d`) | −5,22% a kapu napján / −3,0% | **09-11 óta folyamatos** |
+
+A **circuit breaker 2026-10-02-án leállította a submitot** (a tervezett guard elvégezte a dolgát),
+a **könyv 2026-09-30-tól teljesen üres** (0 pozíció, 0 élő order — bróker-oldalon is verifikálva),
+a Mini **IBKR Gateway-e nem fut** (semmi nem hallgat 7497-en).
+
+**✅ DÖNTÉS: ADATGYŰJTÉSI MÓD.** Az IBKR-futtatás (rendelésadás és IBKR-hez kapcsolódó jobok)
+leáll; **minden más fázis változatlanul fut és folytatódik**. A `--override-circuit-breaker`
+**NEM** kerül használatra.
+
+**Indoklás (CC-elemzés, Tamás elfogadta):**
+1. **A breaker premisszája nem áll**: a küszöb az **all-time kumulatíven** ül, nem gördülő
+   ablakon (`submit_orders.py:169`), ezért **nem állhat helyre „magától"** — a visszatéréshez
+   **+$1 460,95 tényleges realizált nyereség** kell. A megfigyelt ütem **−$73,42/nap**.
+2. **Négy mért, dokumentált mechanikai defekt nyitva**: §11.20 (TP1/stop/**breakeven** a
+   tervezett árhoz kötve — +2,91%-os adverz fillnél R:R **0,75 → 0,23**), a visszalépési
+   mintázat (6 lezárt ciklus, 4 negatív), a `max_hold` ↔ belépő-jel ütközés, és az
+   exit-eloszlás (a pozíciók ~80%-a `max_hold`-on zárul). **Változatlan konfigurációval
+   további mintát futtatni nem kísérlet, hanem a minta szennyezése** azokkal a defektekkel,
+   amelyeken majd az edge-et mérni akarjuk.
+3. **A mean-reversion kérdés ingyen megválaszolható**: az adatgyűjtés fut (a 14:30-as Phase 4-6
+   adja a `phase4_snapshots`-ot), és a **SIM ugyanazon a piaci adaton** megmondja, mit tett
+   volna a stratégia — javított vagy javítatlan geometriával. Ez **szigorúan több** információ,
+   mint az élő paper-futás, nulla kockázattal.
+
+⚠️ **Ami NEM következik belőle**: ez **nem** a §3 szerinti LEÁLLÍTÁS-döntés. Az a kapu-futás
+utáni, külön rögzítendő döntés. Ez **operatív** lépés: a kereskedés felfüggesztése az
+adatgyűjtés megtartásával.
+
+### 🔴 D8/F — A `cum_30d` OLVASATA BEFAGYASZTVA (kötelező, 2026-10-03)
+
+**A kapu napján (2026-09-22) mért érték: `cum_30d` = −5,22%** (ablak 2026-08-11 → 09-22).
+**Ez az irányadó olvasat a leállítási kérdéshez. BEFAGYASZTVA.**
+
+⚠️ **Miért kötelező ezt rögzíteni:** az adatgyűjtési módban a realizált P&L-sorozat **befagy**,
+ezért a `cum_30d` **mechanikusan 0 felé csúszik**, ahogy a veszteséges napok kigördülnek a
+30 napos ablakból. **Október végére ~0%-ot mutathat anélkül, hogy egyetlen trade is javított
+volna bármit.**
+
+> 📌 **A trigger „magától meggyógyul" a tétlenségtől. EZ NEM FELÉPÜLÉS.**
+> Bármely, az adatgyűjtési időszak alatti `cum_30d`-javulás **a tétlenség artefaktja**, és
+> **nem olvasható** a leállítási feltétel enyhüléseként. A §3 szerinti döntéshez **kizárólag
+> a 2026-09-22-i −5,22% a mérvadó**.
+
+Referencia-sorozat (a befagyasztás alátámasztására):
+09-22 **−5,22%** | 09-25 −5,62% | 09-30 −5,82% | 10-02 −5,72%.
+
+### 🔎 §5.1 / §5.2 FELOLDÁS (CC, 2026-10-03) — a 2026-08-18-i lezárás ÁLL, a finomítások NEM alkalmazva
+
+A §6/3 megköveteli, hogy a minta a futás **előtt** fixáljon. A két nyitott finomítás:
+- **§5.1** — számítson-e outage-napnak a **részleges** kiesés (2026-08-21)? *(felvetve 09-11)*
+- **§5.2** — kizárandó-e az **EQH/DLB** napon belüli, 2h21m-es outage-késése? *(felvetve 08-21)*
+
+**✅ FELOLDÁS: egyiket sem alkalmazzuk; a §5 lista a 2026-08-18-i lezárásban marad.**
+
+**Indoklás — ezt a pre-reg fegyelem KÉNYSZERÍTI, nem preferencia:**
+1. A §5 lista **2026-08-18-án formálisan lezárult**, **a periódus kimenetelének ismerete előtt**.
+2. **Mindkét finomítás a lezárás UTÁN, az adat láttán merült fel.** Alkalmazásuk **most**, a
+   periódus ismeretében, pontosan az a **post-hoc minta-választás**, amit a pre-reg tilt
+   (§„Miért most": *„utólag, az eredmény ismeretében kritériumot vagy mintát választani
+   pontosan az, amit a pre-reg fegyelem tilt"*).
+3. ⚠️ **Irány-aszimmetria**: mindkét finomítás **veszteséges** tételek eltávolítását jelentené
+   (EQH −$371,36 ↔ DLB +$154,47; a 08-21-i nap csonka volt) — vagyis a minta **szépítése**
+   felé mutatna. Ez önmagában elég ok a visszafogottságra.
+4. A **§5.2 érzékenysége már ki van számolva** (09-11): a tételek kivételével a `cum_30d`
+   −3,38% → −3,16% — **egyetlen következtetést sem változtat meg**.
+
+📌 **A két kérdés „felvetve, de nem alkalmazva" státuszban rögzül**, az indoklással együtt.
+**Tamás felülbírálhatja** — de akkor az új minta-definíciót és az indoklást a **futás előtt**
+kell rögzíteni, és a pin újra.
+**A `gate_sample.py` pinje tehát VÁLTOZATLAN: `68fc00e`.**
+
+### ⏱️ A kapu-futás DÁTUM-ELTÉRÉSE (rögzítve a futás ELŐTT)
+- **Pre-reg kapu-dátum: 2026-09-22** (D2, fixálva 2026-07-28).
+- **Tényleges futás: 2026-10-03** — **8 kereskedési nappal később** (09-23, 24, 25, 28, 29, 30,
+  10-01, 10-02).
+- **Ok**: a §5.1/§5.2 döntés a kapu napjáig nem született meg (04-risks §11.21), és a döntés
+  csak 2026-10-03-án zárult le (fenti feloldás).
+- **A késés ára, tudatosan vállalva**: a **8 extra kereskedési nap zárt trade-jei bekerülnek a
+  mintába**. Ez a minta **bővítése**, nem szűkítése, tehát **nem** szelekciós torzítás irányába hat.
+- **A dátum-eltérés ezzel dokumentált, a futás előtt.**
+
 ## 3. A pre-regisztrált kritériumok (szó szerint, `2026-05-14…§3.14`) — NEM módosítható
 
 **ÉLESÍTÉS — mind a három EGYIDEJŰLEG:**
@@ -481,7 +572,9 @@ ELŐTT**. A `verify_outage_days()` gondoskodik róla, hogy ez ne maradjon el né
 | P1 | STOP-trigger monitor (§4) | CC | — | ✅ **KÉSZ** (`ad4b28b`, 2026-07-25) |
 | **A** | **Day 63 esemény**: freeze-feloldás + az ELSŐ leíró `signal_attribution` futás | CC | 08-17 / 08-18 | ✅ **KÉSZ** (freeze 08-17, leíró futás **2026-08-18**, §9) |
 | **B** | A kizárási lista véglegesítése (a §5 lista zárása a kapu-futás előtt) | CC + Tamás | 2026-09-22 előtt | ✅ **LEZÁRVA** (2026-08-18, §5) — csak új outage bővítheti |
-| **C** | Kapu-futás: `signal_attribution` (pinned `c5e9ed0`), egyszeri, a §6 protokoll szerint | CC | **2026-09-22** | 📋 nyitott |
+| **C** | Kapu-futás: `signal_attribution` (pinned `c5e9ed0`) + `gate_sample.py` (`68fc00e`), egyszeri | CC | 2026-09-22 → **2026-10-03** | ⏳ **MA fut** (8 kereskedési nap késés, §D8 rögzítve) |
+| **D8** | Adatgyűjtési mód + a `cum_30d` befagyasztása (−5,22% @ 09-22) | Tamás | — | ✅ **DÖNTVE** (2026-10-03) |
+| **G** | §5.1/§5.2: a 08-18-i lezárás áll, finomítások nem alkalmazva | CC | — | ✅ **FELOLDVA** (2026-10-03), pin `68fc00e` változatlan |
 | **D** | §5-mechanizmus döntés (újra-pinelés vs. pinelt wrapper, §5.6) | Tamás | — | ✅ **WRAPPER** (2026-08-18); implementálva: `gate_sample.py`, 13 teszt |
 | **D'** | A `gate_sample.py` pinelése | CC | — | ✅ **pin: `68fc00e`** (2026-08-18); új outage → új pin + ok, a futás ELŐTT |
 | **E** | A D3/M korlát + az UW-proveniencia mondat idézése a kapu-riportban | CC | 2026-09-22 | 📋 nyitott |

@@ -1260,6 +1260,52 @@ indokolt**, amíg a fenti döntés meg nem születik.
 
 Részletek: `docs/review/2026-09-22-daily-review.md` (P0 szekció).
 
+> ✅ **LEZÁRVA (2026-10-03).** Tamás az **(1) utat** választotta: a futás lebonyolítása
+> **dokumentált dátum-eltéréssel**. A §5.1/§5.2 feloldás (a 2026-08-18-i lezárás áll, a
+> finomítások **nem** alkalmazva — a post-hoc minta-választás tilalma miatt), a dátum-eltérés
+> (**8 kereskedési nap**, 09-23 → 10-02) és a pin (**`68fc00e`**, változatlan) **mind a futás
+> ELŐTT rögzült** a gate-protokoll §D8 / §5.1-§5.2-feloldás / dátum-eltérés szekcióiban.
+> A késés ára tudatosan vállalva: a 8 extra nap zárt trade-jei **bekerülnek** a mintába —
+> ez bővítés, nem szűkítés, tehát nem szelekciós torzítás irányába hat.
+
+### 11.22 ✅ OPERATÍV DÖNTÉS (2026-10-03) — ADATGYŰJTÉSI MÓD, az IBKR-futtatás leállítva
+
+**Tamás döntése**: az IBKR-futtatás (rendelésadás + IBKR-hez kapcsolódó jobok) leáll; **minden
+más fázis változatlanul fut**. A `--override-circuit-breaker` **nem** kerül használatra.
+Gate-protokoll **§D8** (teljes indoklással).
+
+**A döntés pillanatának állapota (verifikálva):**
+- Kumulatív **−$6 460,95** / 88 kereskedési nap; **három guard sérül egyszerre**:
+  circuit breaker 1,29× · Day 21 checkpoint 4,31× · pre-reg `cum_30d` (09-11 óta).
+- A **circuit breaker 10-02-án leállította a submitot** — a tervezett guard elvégezte a dolgát.
+- **A könyv 09-30-tól teljesen üres**: 0 pozíció, 0 élő order (bróker-oldalon is verifikálva)
+  → **nincs kezeletlen kitettség**.
+- A Mini **IBKR Gateway-e nem fut** (semmi nem hallgat 7497-en) — **ez mind az 5 „IBKR
+  CONNECTION FAILED" riasztás egyetlen gyökérokа**.
+- ⚠️ A `state/circuit_breaker.json` **elavult Day 1-es fájl** (`active: false`); a tüzelt
+  breaker **submit-időben számolt** ellenőrzés (`submit_orders.py:161–169`), **nem** ez a fájl.
+  Nehogy valaki ezt „resetelje".
+- ℹ️ Ellenőrizve: a MacBook `~/.ssh/config` `LocalForward 7497` a **saját** gépen bindol, a
+  Minin **nem** foglal portot → **nem** oka a hibának.
+
+**Miért nem override:** a breaker az **all-time kumulatíven** ül, nem gördülő ablakon
+(`submit_orders.py:169`) → **nem állhat helyre „magától"**; a visszatéréshez **+$1 460,95
+realizált nyereség** kell, a megfigyelt ütem **−$73,42/nap**. Emellett **négy mért mechanikai
+defekt nyitva** (§11.20, visszalépési mintázat, `max_hold` ütközés, exit-eloszlás) — változatlan
+konfigurációval további mintát futtatni a **mintát szennyezi**. A mean-reversion kérdés **SIM-ben,
+nulla kockázattal** megválaszolható (D6).
+
+⚠️ **Ez NEM a §3 szerinti LEÁLLÍTÁS-döntés** — az a kapu-futás utáni, külön rögzítendő döntés.
+
+**Megvalósítás:** `check_trading_enabled()` guard a `lib/trading_day_guard.py` mintájára
+(egy flag, tisztán kilép, nincs Telegram-riasztás) a rendelésadó és IBKR-hez kapcsolódó
+scriptekben. **A crontab érintetlen marad** a szándékolt viselkedés dokumentumaként —
+kikommentelés helyett, mert az dokumentálatlan prod-állapotot hozna.
+**Érintetlen (IBKR-mentes, kutatási adatfolyam):** 14:30 Phase 4-6 (`phase4_snapshots`),
+vasárnapi Phase 1-3 + freshness, 22:45 `events_to_sqlite`.
+**Marad, degradálva:** `daily_metrics.py` — a `fetch_today_executions_safe` (1002. sor) már
+elkapja a hibát és üres listát ad vissza, tehát IBKR nélkül is működik.
+
 ### 11.19 🔴 P0 (2026-09-11) — PRE-REGISZTRÁLT LEÁLLÍTÁSI FELTÉTEL TELJESÜLT: `cum_30d` −3,38%
 
 **A paper trading periódus kezdete (2026-05-18) óta ELŐSZÖR teljesült egy pre-reg leállítási
@@ -1311,6 +1357,14 @@ feltétel élt (gate-protokoll §8/F). A napi review a kapuig **minden nap** rip
 a breach **nem indok** paraméter-változtatásra.
 
 Részletek: `docs/review/2026-09-11-daily-review.md` (P0), gate-protokoll **§D7**.
+
+> 🔴 **BEFAGYASZTVA (2026-10-03, D8/F).** A leállítási kérdéshez **kizárólag a kapu napján
+> (2026-09-22) mért `cum_30d` = −5,22% a mérvadó.** Az adatgyűjtési módban a realizált
+> P&L-sorozat befagy, ezért a mutató **mechanikusan 0 felé csúszik**, ahogy a veszteséges napok
+> kigördülnek a 30 napos ablakból — október végére ~0%-ot mutathat **anélkül, hogy egyetlen
+> trade is javított volna bármit**. **A trigger „magától meggyógyul" a tétlenségtől — ez NEM
+> felépülés**, és nem olvasható a feltétel enyhüléseként.
+> Referencia: 09-22 **−5,22%** | 09-25 −5,62% | 09-30 −5,82% | 10-02 −5,72%.
 
 ### 11.16 🔴 ÚJ HIBAALAK (2026-08-21) — a gép fent van, az SSH zöld, a `cron` mégsem fut
 
