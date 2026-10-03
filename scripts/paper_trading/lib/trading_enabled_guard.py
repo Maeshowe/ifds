@@ -24,7 +24,8 @@ Switch semantics (``state/trading_enabled.json``):
   → **paused** (fail CLOSED): a truncated or half-written switch must never be
   read as "trading is fine".
 
-Set ``IFDS_SKIP_TRADING_ENABLED_GUARD=1`` to bypass (tests only).
+Set ``IFDS_SKIP_TRADING_ENABLED_GUARD=1`` to bypass, or
+``IFDS_TRADING_SWITCH_PATH`` to point at a different switch (tests only).
 """
 
 from __future__ import annotations
@@ -39,6 +40,8 @@ from pathlib import Path
 DEFAULT_STATE_PATH: Path = Path(__file__).resolve().parents[3] / "state" / "trading_enabled.json"
 
 _ENV_SKIP = "IFDS_SKIP_TRADING_ENABLED_GUARD"
+#: Override the switch location (tests, and callers without a ``state_path`` arg).
+_ENV_PATH = "IFDS_TRADING_SWITCH_PATH"
 
 
 def _log(logger, level: str, msg: str) -> None:
@@ -52,7 +55,12 @@ def read_switch(state_path: Path | None = None) -> tuple[bool, str]:
     Never raises: any problem reading or interpreting the file yields
     ``(False, <why>)`` so the caller fails closed.
     """
-    path = Path(state_path) if state_path is not None else DEFAULT_STATE_PATH
+    if state_path is not None:
+        path = Path(state_path)
+    elif os.environ.get(_ENV_PATH):
+        path = Path(os.environ[_ENV_PATH])
+    else:
+        path = DEFAULT_STATE_PATH
 
     if not path.exists():
         return True, "no switch file — trading enabled (default)"

@@ -137,6 +137,14 @@ def _send_alert(message: str) -> None:
 
 
 def main() -> None:
+    # gate-protocol §D8 — adatgyűjtési mód: no alert while trading is paused.
+    try:
+        from lib.trading_enabled_guard import check_trading_enabled
+
+        check_trading_enabled(logger)
+    except ModuleNotFoundError:
+        pass
+
     today = date.today()
     if not is_trading_day(today):
         logger.info(f"{today} is not a trading day — heartbeat check skipped")

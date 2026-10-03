@@ -22,6 +22,17 @@ _GUARD = (
 )
 
 
+def _load_module(name: str, relpath: str):
+    """Import a script by path (the PT scripts are not an installed package)."""
+    root = Path(__file__).resolve().parent.parent
+    sys.path.insert(0, str(root / "scripts" / "paper_trading"))
+    spec = importlib.util.spec_from_file_location(name, root / relpath)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def _load():
     spec = importlib.util.spec_from_file_location("trading_enabled_guard", _GUARD)
     mod = importlib.util.module_from_spec(spec)
@@ -146,3 +157,52 @@ def test_conftest_insulates_the_suite_from_the_production_switch():
         "conftest.py must set IFDS_SKIP_TRADING_ENABLED_GUARD=1 — otherwise the "
         "production pause switch silently short-circuits main()-calling tests."
     )
+
+
+# --- riasztás-elnyomás: a három zajforrás (D8 fázis 2) -----------------------
+
+
+def test_daily_metrics_skips_the_ibkr_fetch_without_connecting(monkeypatch, tmp_path):
+    """``fetch_today_executions_safe`` must return [] WITHOUT touching IBKR.
+
+    daily_metrics.py has to keep running in data-collection mode (it writes the
+    metrics file the research stream uses), so it does not get the ``main()``
+    guard — instead the IBKR fetch itself short-circuits. Guard-test per the
+    project's hermetic-test rule: the connection helper is monkeypatched to a
+    hard error, so the test fails loudly if the code still reaches for IBKR.
+    """
+    monkeypatch.delenv("IFDS_SKIP_TRADING_ENABLED_GUARD", raising=False)
+    switch = _write(tmp_path, {"enabled": False, "reason": "D8"})
+    monkeypatch.setenv("IFDS_TRADING_SWITCH_PATH", str(switch))
+
+    dm = _load_module("daily_metrics", "scripts/paper_trading/daily_metrics.py")
+
+    import lib.connection as conn  # type: ignore
+
+    # A raised exception would be swallowed by the function's own
+    # ``except Exception`` and the test would pass for the WRONG reason, so
+    # record the call in a flag instead.
+    called: list[str] = []
+
+    def _record(*a, **k):
+        called.append("connect")
+        raise RuntimeError("should never get here")
+
+    monkeypatch.setattr(conn, "connect", _record, raising=False)
+
+    assert dm.fetch_today_executions_safe("2026-10-02") == []
+    assert called == [], "connect() was called while trading is disabled"
+
+
+def test_switch_path_env_override(tmp_path, monkeypatch):
+    """``IFDS_TRADING_SWITCH_PATH`` lets callers point at a non-default switch.
+
+    Needed so the guard is testable from scripts that do not take a
+    ``state_path`` argument (daily_metrics' inner fetch).
+    """
+    monkeypatch.delenv("IFDS_SKIP_TRADING_ENABLED_GUARD", raising=False)
+    path = _write(tmp_path, {"enabled": False, "reason": "env-override"})
+    monkeypatch.setenv("IFDS_TRADING_SWITCH_PATH", str(path))
+    enabled, reason = teg.read_switch()
+    assert enabled is False
+    assert "env-override" in reason

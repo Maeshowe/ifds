@@ -31,6 +31,14 @@ HEALTH_CHECK_RETRY_DELAY = 2.0
 
 
 def main() -> None:
+    # gate-protocol §D8 — adatgyűjtési mód: no alert while trading is paused.
+    try:
+        from lib.trading_enabled_guard import check_trading_enabled
+
+        check_trading_enabled(logger)
+    except ModuleNotFoundError:
+        pass
+
     from lib.connection import connect, disconnect
 
     logger.info("IBKR Gateway health check starting...")

@@ -1007,6 +1007,20 @@ def fetch_today_executions_safe(target_date: str) -> list[dict]:
     broker-authoritative entry fills for slippage (#1) + the MOC exit fills for
     trades.details (#2). Fully guarded — never blocks the metrics build.
     """
+    # gate-protocol §D8 — adatgyűjtési mód: skip the IBKR round-trip entirely so the
+    # metrics build keeps running WITHOUT emitting a connection-failure alert. The
+    # script itself is deliberately NOT guarded: it writes the metrics file the
+    # research stream uses.
+    try:
+        from lib.trading_enabled_guard import read_switch
+
+        _enabled, _reason = read_switch()
+        if not _enabled:
+            logger.info(f"Trading disabled — skipping IBKR execution fetch. Reason: {_reason}")
+            return []
+    except ModuleNotFoundError:
+        pass
+
     own_ib = None
     try:
         from lib.connection import connect
