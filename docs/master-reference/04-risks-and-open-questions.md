@@ -1461,6 +1461,65 @@ A rendszer **2026-06-24 óta de facto UW nélkül fut** (a kulcs eltűnt a Mini 
 
 ---
 
+### 11.23 ✅ MEGMÉRVE (2026-10-03, SIM-2) — az exit-architektúra NEM menti meg a könyvet
+
+A SIM-1 (`ae5e668`) kizárta a §11.20 geometriát (≈$0). A maradó ~72% („irány/szelekció")
+két ágra bomlott: **exit-architektúra** vagy **jel**. Ez a mérés az elsőt zárta le.
+
+**Módszer:** a SIM-1 validált harnesse (termelési `evaluate_position_eod()`) a **fix valós
+belépőkön** (ugyanaz a ticker/dátum/fill/ATR/qty), **csak az exit-paraméterek változnak**.
+Szándékos elhatárolás: egy Mode-2 re-score azt is változtatná, hogy *mely* tickerek kerülnek
+be, és akkor a különbséget nem lehetne az exitnek betudni.
+
+**A rács a futás ELŐTT rögzítve** (task §3): `max_hold` {3,5,7,10,15} × TP1 {1,0;1,5;2,0}
+= **15 cella, 14 összehasonlítás, Šidák α_per = 0,00366**. Post-hoc bővítés tiltva.
+
+| | |
+|---|---|
+| Közös minta (mind a 15 cellában feloldható) | **n=75** |
+| Baseline (5 / 1,5) | −$5 206 |
+| **Legjobb cella** (3 / 2,0) | **−$4 187** (+$1 019, **p=0,35**, CI [−1 106, +3 099]) |
+| **Cellák Σ > 0-val** | **0/15** |
+| **Šidák-szignifikáns** | **0/14** |
+| Legjobb a 2. szakasz exploratív terével (25 cella) | **−$3 582** |
+
+**A TP1-tengely inert** (≤$700 szórás, előjelben sem következetes). A `max_hold=10` és `15`
+cellák **nem megvalósíthatók** (14 és 18 egyidejű pozíciót igényelnek az élő
+`max_concurrent=12` helyett) — eredményük felső korlát.
+
+**Kitettség-diagnosztika — a kép itt válik értelmessé:** r(Σ pozíció-nap, Σ P&L) = **−0,738**,
+OLS **−$1,95 / pozíció-nap**. Minél több időt töltünk a piacon, annál többet veszítünk,
+aggregáltan monoton. A 2. szakasz ezt megerősíti: a **szorosabb** stop jobb. **Minden
+javulás ugyanabból a forrásból jön: kevesebb piaci kitettség** — ez a belépők **negatív
+várható driftjének** szignatúrája, nem egy elhangolt exitnek. (A 15 cella ugyanazt a 75
+pozíciót használja → erősen korrelált, az r **leíró**, p-érték nélkül. És **erre a jelre
+feltételes**: nem mutatja, hogy hosszabb tartás egy *másik* jelnél rossz lenne.)
+
+**Az előre kimondott aszimmetria teljesült** (task §4.1): mivel **még a legjobb cella is
+veszít**, a következtetés **robusztus** — a multiplicitás csak a legjobbat inflálja, és az
+is negatív.
+
+**Validáció:** a baseline cella a saját 78-as halmazán **Σ = −$5 357,89**, **centre azonos**
+a SIM-1 publikált B-számával. A közös-minta szabály a **3 legfrissebb belépőt** dobta
+(MANH 09-14, EXLS 09-21, MD 09-22) — pont azt a szelekciós artefaktot megelőzve, hogy a
+hosszabb hold a friss pozíciók elhagyásával tűnjön jobbnak.
+`tests/test_sim1_regression.py` pineli a SIM-1 publikált számait (skip, ha az artefaktok
+nincsenek meg — hermetikus).
+
+> 📌 **A három mérés konvergál:** kapu ρ = **+0,073** (a mért költségen a breakeven IC
+> **0,15–0,18**) · SIM-1 geometria **≈$0** · SIM-2 exit-architektúra **≈$0**.
+> Dekompozíció: slippage −$1 958 (26%) · commission −$215 (3%) · geometria ≈$0 ·
+> exit-architektúra ≈$0 · **reziduális = a belépők maguk ≈ −$5 500 (72%)**.
+> **A mechanikai magyarázatok elfogytak.** Ez NEM bizonyítja, hogy a jel nulla vagy negatív
+> — a kapunak egy *kis* edge-re nem volt ereje (|ρ| ≈ 0,36–0,38 kellett volna n=79-en) —
+> de ami marad, az a **jel és a költségszint viszonya**, nem a mechanika.
+
+Riport: `docs/review/2026-10-03-sim2-exit-architecture-sweep.md` ·
+reprodukció: `python scripts/analysis/exit_sweep.py [--stage2]`
+
+---
+
+
 ## 12. FRL-eredetű nyitott tételek (2026-07-21, Dev chat)
 
 ### 12.1 P3 — `execution_plan.py:179` Reason-felülírás (post-Day-63 fix-jelölt)

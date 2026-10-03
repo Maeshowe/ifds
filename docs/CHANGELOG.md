@@ -4,6 +4,57 @@
 
 ---
 
+## 2026-10-03 — SIM-2: exit-architektúra sweep (0/15 cella pozitív)
+
+> **Post-gate, read-only.** Baseline 2251 → **2273** (+22: 18 sweep + 4 SIM-1 regressziós pin), 0 fail.
+
+### feat(analysis) — `scripts/analysis/exit_sweep.py`
+- A SIM-1 validált harnesse (termelési `evaluate_position_eod()`) a **fix valós belépőkön**;
+  csak az exit-paraméterek változnak. A `sim/` Mode-2 re-score szándékosan NEM eszköz itt:
+  az a szelekciót is változtatná, és akkor a különbséget nem lehetne az exitnek betudni.
+- **A rács a futás ELŐTT rögzítve** a taskban: `max_hold` {3,5,7,10,15} × TP1 {1,0;1,5;2,0}
+  = 15 cella, 14 összehasonlítás, **Šidák α_per = 0,00366**. `test_grid_matches_the_task_exactly`
+  őrzi a csendes post-hoc rács-bővítés ellen.
+- **Közös-minta szabály** (`common_keys`): egy pozíció csak akkor kerül be, ha MINDEN cellában
+  feloldható — különben a hosszabb hold a legfrissebb belépők elhagyásával tűnne jobbnak.
+  Működött: a 3 legfrissebb (MANH 09-14, EXLS 09-21, MD 09-22) kiesett → n=75.
+- **Slot-kontenció** cellánként riportálva (`max_concurrent`): a `max_hold` 10 és 15 cellák
+  14/18 egyidejű pozíciót igényelnek az élő `max_concurrent=12` helyett → **felső korlát,
+  nem elérhető hozam**.
+- Párosított t-teszt **és** bootstrap CI (20k, fix seed); a P&L nem-normális, ezért a
+  bootstrap a közölt intervallum, a t csak referencia.
+- `--stage2`: **exploratív** stop-multiplikátor próba a rácson kívül, **p-érték nélkül**,
+  kizárólag hipotézis-generáló címkével.
+
+### refactor(analysis) — a minta-összeállítás kiemelve
+- `counterfactual_data.build_sample()` — a SIM-1 és SIM-2 ugyanazt a validált
+  minta-összeállítást használja (duplikáció helyett).
+- **`tests/test_sim1_regression.py`** (ÚJ) — pineli a SIM-1 publikált számait
+  (n=78, Σ A −$5 349,83, Σ B −$5 357,89, Δ −$8,06, tényleges −$7 657,43), hogy a refaktor
+  ne tudja csendben hamissá tenni a publikált riportot. Skip, ha az artefaktok nincsenek
+  meg (fresh clone / CI) — hermetikus, nem indít élő API-hívást.
+
+### Eredmény
+- **0/15 cella Σ > 0. 0/14 Šidák-szignifikáns.** Baseline (5/1,5) −$5 206; legjobb cella
+  (3/2,0) **−$4 187** (+$1 019, **p=0,35**, CI [−1 106, +3 099]) — nem szignifikáns
+  korrekció nélkül sem. Legrosszabb (15/2,0) −$6 278.
+- A **TP1-tengely inert** (≤$700 szórás). A `max_hold` hatása gyenge és egyirányú:
+  **kevesebb kitettség = kevesebb veszteség.**
+- **Kitettség-diagnosztika:** r(Σ pozíció-nap, Σ P&L) = **−0,738**, OLS **−$1,95/pozíció-nap**
+  → a belépők **negatív várható driftjének** szignatúrája, nem elhangolt exit. (Leíró:
+  a cellák ugyanazt a 75 pozíciót használják. És erre a jelre feltételes.)
+- 2. szakasz (exploratív, 10 további cella): **mind veszteség**; a legjobb a 25 bejárt
+  konfigurációból **−$3 582**.
+- **Baseline-konzisztencia: centre egyezik** a SIM-1 B-számával (−$5 357,89 a 78-as halmazon).
+
+### docs
+- `docs/review/2026-10-03-sim2-exit-architecture-sweep.md` — teljes riport, korlátokkal.
+- `04-risks` **§11.23** (ÚJ) — a három mérés konvergenciája: kapu ρ=+0,073 (breakeven IC
+  0,15–0,18) · SIM-1 geometria ≈$0 · SIM-2 exit-architektúra ≈$0 → **a mechanikai
+  magyarázatok elfogytak**; a reziduális ~72% a belépők maguk.
+
+---
+
 ## 2026-10-03 — SIM-1: a §11.20 exit-geometria ellenpróbája (a hipotézis megbukott)
 
 > **Post-gate, read-only mérés.** A kapu-futás 2026-10-03-án lezárult; a kereskedés

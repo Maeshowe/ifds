@@ -165,3 +165,144 @@ def load_bars(tickers: set[str], days: list[date], bars_dir: Path = BARS_DIR) ->
                 continue
         out[day] = session
     return out
+
+
+# ---------------------------------------------------------------------------
+# Sample assembly — shared by SIM-1 (A/B) and SIM-2 (exit sweep)
+# ---------------------------------------------------------------------------
+
+SWING_ERA_START = date(2026, 5, 18)
+ERA_LAST_SESSION = date(2026, 10, 2)
+FILL_IN_BAR_TOLERANCE = 0.005  # 0.5% — guards ticker/corporate-action mismatches
+
+
+@dataclass(frozen=True)
+class SamplePosition:
+    """One real closed position, ready to be re-simulated under any config."""
+
+    ticker: str
+    entry_date: str
+    planned_entry: float
+    fill: float
+    atr: float
+    qty: int
+    sector: str
+    entry_score: float
+    bars: tuple[Bar, ...]
+    actual_types: tuple[str, ...]
+    actual_pnl: float
+
+    @property
+    def key(self) -> tuple[str, str]:
+        return (self.ticker, self.entry_date)
+
+    @property
+    def slippage_pct(self) -> float:
+        return (self.fill / self.planned_entry - 1) * 100 if self.planned_entry else 0.0
+
+
+@dataclass(frozen=True)
+class SampleExclusion:
+    ticker: str
+    entry_date: str
+    reason: str
+
+
+def build_sample(
+    window_sessions: int,
+    era_start: date = SWING_ERA_START,
+    era_end: date = ERA_LAST_SESSION,
+) -> tuple[list[SamplePosition], list[SampleExclusion]]:
+    """Assemble the swing-era closed positions that can be re-simulated.
+
+    ``window_sessions`` is how many forward sessions of bars each position needs
+    (the longest ``max_hold`` under test, plus one for a next-day fill). A
+    position is EXCLUDED — never silently patched — when any of the planned
+    levels, the real fill, or the bar window is missing, or when the fill falls
+    outside the entry session's range (a data-health check: a fill outside the
+    day's own high/low means one of the two sources is wrong).
+    """
+    from counterfactual_geometry import derive_atr
+    from ifds.utils.trading_calendar import trading_days_between
+
+    ledger = [
+        p
+        for p in load_ledger_positions()
+        if date.fromisoformat(p.entry_date) >= era_start
+    ]
+    plans = load_execution_plans()
+    fills = load_entry_fills()
+    realized = load_realized()
+    calendar = trading_days_between(era_start, era_end)
+    sessions = load_bars({p.ticker for p in ledger}, calendar)
+
+    positions: list[SamplePosition] = []
+    excluded: list[SampleExclusion] = []
+
+    for pos in ledger:
+        plan = plans.get(pos.entry_date, {}).get(pos.ticker)
+        if plan is None:
+            excluded.append(SampleExclusion(pos.ticker, pos.entry_date, "no execution-plan row"))
+            continue
+        atr = derive_atr(
+            float(plan["limit_price"]),
+            float(plan["stop_loss"]),
+            float(plan["take_profit_1"]),
+            float(plan["take_profit_2"]),
+        )
+        if atr is None:
+            excluded.append(
+                SampleExclusion(pos.ticker, pos.entry_date, "plan row not ATR-consistent")
+            )
+            continue
+        fill = fills.get(pos.entry_date, {}).get(pos.ticker)
+        if fill is None:
+            excluded.append(
+                SampleExclusion(
+                    pos.ticker, pos.entry_date, "no entry-fill record (slippage_per_ticker absent)"
+                )
+            )
+            continue
+
+        entry = date.fromisoformat(pos.entry_date)
+        window = sorted(d for d in sessions if d >= entry)[: window_sessions + 1]
+        bars = [sessions[d][pos.ticker] for d in window if pos.ticker in sessions.get(d, {})]
+        if len(bars) < 2 or bars[0].date != entry:
+            excluded.append(
+                SampleExclusion(pos.ticker, pos.entry_date, f"insufficient bars ({len(bars)})")
+            )
+            continue
+
+        entry_bar = bars[0]
+        if not (
+            entry_bar.low * (1 - FILL_IN_BAR_TOLERANCE)
+            <= fill
+            <= entry_bar.high * (1 + FILL_IN_BAR_TOLERANCE)
+        ):
+            excluded.append(
+                SampleExclusion(
+                    pos.ticker,
+                    pos.entry_date,
+                    f"fill {fill:.2f} outside entry bar "
+                    f"[{entry_bar.low:.2f},{entry_bar.high:.2f}]",
+                )
+            )
+            continue
+
+        positions.append(
+            SamplePosition(
+                ticker=pos.ticker,
+                entry_date=pos.entry_date,
+                planned_entry=float(plan["limit_price"]),
+                fill=fill,
+                atr=atr,
+                qty=pos.qty,
+                sector=pos.sector,
+                entry_score=pos.entry_score,
+                bars=tuple(bars),
+                actual_types=pos.exit_types,
+                actual_pnl=sum(realized.get((d, pos.ticker), 0.0) for d in set(pos.exit_dates)),
+            )
+        )
+
+    return positions, excluded

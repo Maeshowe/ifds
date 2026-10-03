@@ -21,25 +21,15 @@ import random
 import statistics
 import sys
 from dataclasses import dataclass, replace
-from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import counterfactual_data as cd
-from counterfactual_geometry import (
-    SwingPosition,
-    derive_atr,
-    net_pnl,
-    rebase_levels,
-    simulate,
-)
-from ifds.utils.trading_calendar import trading_days_between
+from counterfactual_geometry import SwingPosition, net_pnl, rebase_levels, simulate
 
-SWING_ERA_START = date(2026, 5, 18)
 BAR_WINDOW_SESSIONS = 9  # max_hold is 5 sessions + a next-day fill; 9 is slack
-FILL_IN_BAR_TOLERANCE = 0.005  # 0.5% — guards ticker/adjustment mismatches
 BOOTSTRAP_RESAMPLES = 20_000
 BOOTSTRAP_SEED = 20261003
 
@@ -63,114 +53,59 @@ class Outcome:
     sim_b_unresolved: bool
 
 
-def _position(ticker, entry_date, sector, score, anchor, atr, qty) -> SwingPosition:
-    stop, tp1, tp2 = rebase_levels(anchor, atr)
+def _position(sample: cd.SamplePosition, anchor: float) -> SwingPosition:
+    """Build a SwingPosition anchored at ``anchor`` with the production multiples."""
+    stop, tp1, tp2 = rebase_levels(anchor, sample.atr)
     return SwingPosition(
-        ticker=ticker,
-        entry_date=entry_date,
+        ticker=sample.ticker,
+        entry_date=sample.entry_date,
         entry_price=anchor,
-        atr=atr,
+        atr=sample.atr,
         stop_level=stop,
         tp1_level=tp1,
         tp2_level=tp2,
-        qty=qty,
-        qty_remaining=qty,
-        sector=sector,
-        entry_score=score,
+        qty=sample.qty,
+        qty_remaining=sample.qty,
+        sector=sample.sector,
+        entry_score=sample.entry_score,
     )
 
 
-def _window(entry: date, sessions: dict[date, dict]) -> list[date]:
-    days = sorted(d for d in sessions if d >= entry)
-    return days[: BAR_WINDOW_SESSIONS + 1]
-
-
 def main(fill_at_close: bool = False) -> int:
-    ledger = cd.load_ledger_positions()
-    plans = cd.load_execution_plans()
-    fills = cd.load_entry_fills()
-    realized = cd.load_realized()
-
-    era = [p for p in ledger if date.fromisoformat(p.entry_date) >= SWING_ERA_START]
-    tickers = {p.ticker for p in era}
-    calendar = trading_days_between(SWING_ERA_START, date(2026, 10, 2))
-    sessions = cd.load_bars(tickers, calendar)
-
+    sample, excluded = cd.build_sample(BAR_WINDOW_SESSIONS)
     outcomes: list[Outcome] = []
-    excluded: list[tuple[str, str, str]] = []
 
-    for pos in era:
-        tag = (pos.ticker, pos.entry_date)
-        plan = plans.get(pos.entry_date, {}).get(pos.ticker)
-        if plan is None:
-            excluded.append((*tag, "no execution-plan row"))
-            continue
-        atr = derive_atr(
-            float(plan["limit_price"]),
-            float(plan["stop_loss"]),
-            float(plan["take_profit_1"]),
-            float(plan["take_profit_2"]),
-        )
-        if atr is None:
-            excluded.append((*tag, "plan row not ATR-consistent"))
-            continue
-        fill = fills.get(pos.entry_date, {}).get(pos.ticker)
-        if fill is None:
-            excluded.append((*tag, "no entry-fill record (slippage_per_ticker absent)"))
-            continue
-
-        entry = date.fromisoformat(pos.entry_date)
-        window = _window(entry, sessions)
-        bars = [sessions[d][pos.ticker] for d in window if pos.ticker in sessions.get(d, {})]
-        if len(bars) < 2 or bars[0].date != entry:
-            excluded.append((*tag, f"insufficient bars ({len(bars)})"))
-            continue
-
-        entry_bar = bars[0]
-        lo = entry_bar.low * (1 - FILL_IN_BAR_TOLERANCE)
-        hi = entry_bar.high * (1 + FILL_IN_BAR_TOLERANCE)
-        if not lo <= fill <= hi:
-            excluded.append(
-                (*tag, f"fill {fill:.2f} outside entry bar [{entry_bar.low:.2f},{entry_bar.high:.2f}]")
-            )
-            continue
-
-        planned = float(plan["limit_price"])
+    for pos in sample:
+        bars = list(pos.bars)
         if fill_at_close:
             # Sensitivity: price every next-day exit at that session's CLOSE
             # instead of its OPEN — a maximally different execution assumption.
             bars = [replace(bar, open=bar.close) for bar in bars]
-        a = simulate(
-            _position(pos.ticker, pos.entry_date, pos.sector, pos.entry_score, planned, atr, pos.qty),
-            bars,
-        )
-        b = simulate(
-            _position(pos.ticker, pos.entry_date, pos.sector, pos.entry_score, fill, atr, pos.qty),
-            bars,
-        )
 
-        actual = sum(realized.get((d, pos.ticker), 0.0) for d in set(pos.exit_dates))
+        a = simulate(_position(pos, pos.planned_entry), bars)
+        b = simulate(_position(pos, pos.fill), bars)
+
         outcomes.append(
             Outcome(
                 ticker=pos.ticker,
                 entry_date=pos.entry_date,
-                planned_entry=planned,
-                fill=fill,
-                slippage_pct=(fill / planned - 1) * 100 if planned else 0.0,
+                planned_entry=pos.planned_entry,
+                fill=pos.fill,
+                slippage_pct=pos.slippage_pct,
                 qty=pos.qty,
-                atr=atr,
-                actual_types=pos.exit_types,
-                actual_pnl=actual,
+                atr=pos.atr,
+                actual_types=pos.actual_types,
+                actual_pnl=pos.actual_pnl,
                 sim_a_types=tuple(leg.exit_type for leg in a.legs),
-                sim_a_pnl=net_pnl(a.legs, fill),
+                sim_a_pnl=net_pnl(a.legs, pos.fill),
                 sim_a_unresolved=a.unresolved,
                 sim_b_types=tuple(leg.exit_type for leg in b.legs),
-                sim_b_pnl=net_pnl(b.legs, fill),
+                sim_b_pnl=net_pnl(b.legs, pos.fill),
                 sim_b_unresolved=b.unresolved,
             )
         )
 
-    _report(outcomes, excluded, len(era))
+    _report(outcomes, excluded, len(sample) + len(excluded))
     return 0
 
 
@@ -181,8 +116,8 @@ def _report(outcomes, excluded, era_total) -> None:
     print(f"swing-era closed positions: {era_total}")
     print(f"in sample:                  {len(outcomes)}")
     print(f"excluded:                   {len(excluded)}")
-    for ticker, entry, reason in excluded:
-        print(f"    - {ticker:<6} {entry}  {reason}")
+    for item in excluded:
+        print(f"    - {item.ticker:<6} {item.entry_date}  {item.reason}")
 
     gate = [o for o in outcomes if not o.sim_a_unresolved and o.actual_pnl != 0.0]
     print()
