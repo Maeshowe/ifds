@@ -362,8 +362,11 @@ def convert_to_market(ib, sym: str, s: dict) -> bool:
 def main() -> None:
     try:
         from lib.trading_day_guard import check_trading_day
+        from lib.trading_enabled_guard import check_trading_enabled
 
         check_trading_day(logger)
+        # gate-protocol §D8 — adatgyűjtési mód: exits cleanly while trading is paused.
+        check_trading_enabled(logger)
     except ModuleNotFoundError:
         pass
     parser = argparse.ArgumentParser(description="AVWAP Limit->MKT monitor")

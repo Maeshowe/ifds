@@ -543,14 +543,28 @@ def main() -> None:
     )
     args, _ = parser.parse_known_args()
 
+    # gate-protocol §D8 — adatgyűjtési mód. Checked BEFORE the mode dispatch,
+    # because ``--mode=eod_eval`` returns early and would otherwise skip it.
+    # NOTE (pre-existing, not changed here): ``check_trading_day()`` sits after
+    # the dispatch, so eod_eval has always bypassed the NYSE-closed guard too.
+    try:
+        from lib.trading_enabled_guard import check_trading_enabled
+
+        check_trading_enabled(logger)
+    except ModuleNotFoundError:
+        pass
+
     if args.mode == "eod_eval":
         run_eod_eval()
         return
 
     try:
         from lib.trading_day_guard import check_trading_day
+        from lib.trading_enabled_guard import check_trading_enabled
 
         check_trading_day(logger)
+        # gate-protocol §D8 — adatgyűjtési mód: exits cleanly while trading is paused.
+        check_trading_enabled(logger)
     except ModuleNotFoundError:
         pass
     from lib.connection import connect, disconnect

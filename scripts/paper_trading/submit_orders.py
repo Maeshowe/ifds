@@ -437,8 +437,11 @@ def submit_swing_market_only(
 def main():
     try:
         from lib.trading_day_guard import check_trading_day
+        from lib.trading_enabled_guard import check_trading_enabled
 
         check_trading_day(logger)
+        # gate-protocol §D8 — adatgyűjtési mód: exits cleanly while trading is paused.
+        check_trading_enabled(logger)
     except ModuleNotFoundError:
         pass
     parser = argparse.ArgumentParser(description="IBKR Paper Trading — Submit Orders")

@@ -16,6 +16,13 @@ import ifds.utils.calendar  # noqa: E402,F401  (→ exchange_calendars → numpy
 
 # Disable trading day guard in all tests (production guard exits on NYSE holidays)
 os.environ["IFDS_SKIP_TRADING_DAY_GUARD"] = "1"
+# Same for the trading-enabled guard (gate-protocol §D8). The production switch lives at
+# ``state/trading_enabled.json``; while trading is paused it is ``{"enabled": false}``, and
+# every ``main()`` that calls the guard would exit(0) before the test's assertions run.
+# This is the inverse of the usual test-env-hygiene failure: here the PROD state would make
+# the tests fail rather than falsely pass. Tests that exercise the guard itself inject an
+# explicit ``state_path`` or clear this var via monkeypatch.
+os.environ["IFDS_SKIP_TRADING_ENABLED_GUARD"] = "1"
 
 # Redirect the paper-trading event log away from production logs/ (test-env-hygiene P1,
 # 2026-07-23 review §6). scripts/paper_trading/*.py instantiate a module-level

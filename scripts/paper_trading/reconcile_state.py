@@ -151,8 +151,11 @@ def load_ibkr_tickers() -> set[str]:
 def main() -> int:
     try:
         from lib.trading_day_guard import check_trading_day
+        from lib.trading_enabled_guard import check_trading_enabled
 
         check_trading_day(logger)
+        # gate-protocol §D8 — adatgyűjtési mód: exits cleanly while trading is paused.
+        check_trading_enabled(logger)
     except ModuleNotFoundError:
         pass
 
