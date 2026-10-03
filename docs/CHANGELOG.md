@@ -4,6 +4,57 @@
 
 ---
 
+## 2026-10-03 — SIM-1: a §11.20 exit-geometria ellenpróbája (a hipotézis megbukott)
+
+> **Post-gate, read-only mérés.** A kapu-futás 2026-10-03-án lezárult; a kereskedés
+> adatgyűjtési módban áll (§D8). Ez a modul **nem** nyúl a kereskedési kódúthoz.
+> Baseline 2233 → **2251** (+18), 0 fail.
+
+### feat(analysis) — `scripts/analysis/counterfactual_geometry.py` + `counterfactual_data.py` + `counterfactual_run.py`
+- A **termelési** `ifds.state.swing_positions.evaluate_position_eod()` pure függvényét
+  futtatja a valós filleken és napi bar-okon, **két horgonnyal**:
+  **A** = tervezett ár (ahogy élesben futott, a §11.20 defekt), **B** = valós fill
+  (ahogy futnia kellett volna), ugyanazokkal az ATR-multiplikátorokkal.
+  A szimulátor **nem ír újra exit-szabályt** → nem tud eltérni a termeléstől;
+  `test_uses_the_production_evaluator` őrzi ezt a tulajdonságot.
+- `derive_atr()` — az ATR egzaktan visszafejthető a plan-sorból (a három szint mediánja,
+  ±$0,02 toleranciával validálva; **soha nem egzakt egyenlőség**, ld. ifds-rules).
+- **Hitelességi kapu a B-szám előtt** (a task előre rögzítette): az A konfiguráció
+  exit-szekvenciája **72/76 (95%)** egyezik a ledgerrel; a szint-rekonstrukció a termelés
+  tárolt geometriájával **9/9-ben centre** egyezik.
+- Végrehajtási modell **megmérve, nem feltételezve**: MOC-láb = aznapi close (**6,6 bp**
+  medián eltérés a valós exit-áraktól), next-day MKT láb = következő open (**61 bp** —
+  irreducibilis időzítési zaj, ami a párosított A↔B különbségből kiesik).
+
+### Eredmény
+- **Σ B − Σ A = −$8** (95% CI [−$707, +$649], 20k bootstrap, párosított). Érzékenység
+  (close-fill stressz-modell): +$1 146 (CI [+$185, +$2 340]). **P(> +$3 000) = 0,0%.**
+- Dekompozíció (n=78, tényleges realizált −$7 657,43): belépési slippage **−$1 958 (26%)**,
+  commission −$215 (3%), **§11.20 geometria ≈ $0**, **reziduális irány/szelekció ≈ −$5 484 (72%)**.
+- Mechanizmus: a korrekt geometria hamarabb vágja a vesztőt (MENTAL_SL 9 → 17) és később
+  veszi a profitot (TP1 19 → 17) — a két hatás kioltja egymást. 53/78 pozíciónál az exit
+  **változatlan**.
+- HARD_SL **0/78-ban tüzel** egyik konfigurációban sem — a −8%-os heti kapu pozíció-szintű
+  notionalon inert (eddig nem volt kimondva).
+
+### data — `research/cache/api/polygon/grouped_daily` backfill
+- 2026-07-27 → 2026-10-02, **49/49 nap, 0 hiba, 41s**. A lefedettség most folytonos
+  2026-02-11 → 2026-10-02. Ez a `docs/tasks/2026-08-24-ohlcv-store-backfill.md` 1. lépésének
+  adat-előfeltétele is.
+
+### docs
+- `docs/review/2026-10-03-sim1-counterfactual-geometry.md` — teljes riport, korlátokkal.
+- `04-risks` **§11.20** kiegészítve a mért számmal + új nyitott kérdés: 2026-05-18…05-20-on
+  **7 pozíciónál a tárolt `entry_price` NEM a plan limit-ára** → a defekt valószínűleg
+  később keletkezett, a §11.20 eredet-hipotézise nem teljes.
+
+> ⚠️ **A javítás továbbra is elvégzendő** (az R:R-geometria rossz, a „breakeven" stop neve
+> mást ígér, mint amit tesz) — de **nem P&L-helyreállítási tétel**. A SIM-1 a geometriát
+> **kizárta**; a reziduális 72% még lehet exit-architektúra (TIME_STOP az első lábak 50/78-a)
+> vagy jel — ezt a **SIM-2** (`max_hold` × TP1 sweep) teszteli.
+
+---
+
 ## 2026-08-18 — Day 63 utómunka + `gate_sample.py` (a §5 minta-definíció pinelt wrappere)
 
 > A parameter freeze 08-17-én (Day 63) feloldódott. A production-kód **továbbra sem változik**

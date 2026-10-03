@@ -1228,6 +1228,46 @@ A **kereskedési viselkedést igen** → **D6 SIM-napirend tétel, KAPU UTÁN**.
 torzulás a TP1-hozamot csökkenti és a stop-veszteséget növeli — **leíró tényként** releváns a 09-22-i
 döntéshez, de **nem kapu-input** (G1).
 
+> ✅ **MEGMÉRVE (2026-10-03, SIM-1) — a geometria NEM okozta a veszteséget.**
+> Ellenpróba a **termelési** `evaluate_position_eod()` pure függvényével, két horgonnyal
+> (A: tervezett ár = ahogy futott, B: valós fill = ahogy futnia kellett volna), ugyanazokkal
+> az ATR-multiplikátorokkal, a valós filleken és napi bar-okon. n=78 zárt pozíció.
+>
+> | | |
+> |---|---|
+> | Σ B − Σ A (a javítás hozadéka) | **−$8** · 95% CI [−$707, +$649] |
+> | érzékenység (close-fill stressz-modell) | +$1 146 · CI [+$185, +$2 340] |
+> | P(a javítás > +$3 000-t nyer) | **0,0%** |
+> | exit **változatlan** | 53/78 pozíciónál |
+> | minta tényleges realizáltja | **−$7 657,43** |
+>
+> **Mechanizmus:** a korrekt geometria a stopot **feljebb**, a TP1-et **feljebb** teszi →
+> MENTAL_SL 9 → 17, TP1 19 → 17. Hamarabb vágja a vesztőt, később veszi a profitot; a
+> megfigyelt árutakon a két hatás **kioltja egymást**.
+>
+> **Dekompozíció (ugyanazon a mintán):** belépési slippage −$1 958 (26%, 41 bp notionalra,
+> 71% adverz fill) · commission −$215 (3%) · **§11.20 geometria ≈ $0** · **reziduális
+> irány/szelekció ≈ −$5 484 (72%)**.
+>
+> **Hitelességi kapu (a B-szám ELŐTT, a task előre rögzítette):** az A konfiguráció
+> exit-típus szekvenciája **72/76 (95%)** egyezik a ledgerrel; a szint-rekonstrukció a
+> termelés **tárolt** geometriájával **9/9-ben centre** egyezik ott, ahol a horgony a
+> tervezett ár volt. A Σ-rés oka megmérve: a next-day 15:30 MKT láb ~**61 bp** irreducibilis
+> időzítési zajt hordoz (a MOC-láb modellje **6,6 bp**-re egzakt) — és ez a párosított
+> A↔B különbségből kiesik.
+>
+> ⚠️ **A javítás továbbra is elvégzendő** (az R:R-geometria valóban rossz, és a „breakeven"
+> stop neve valóban mást ígér, mint amit tesz) — de **nem P&L-helyreállítási tétel**, és
+> **nem indokol élesítést**.
+>
+> 📌 **Új nyitott kérdés:** 2026-05-18…05-20 (a swing-pivot első napjai) **7 pozíciónál a
+> tárolt `entry_price` NEM a plan limit-ára** (az ATR igen) → a defekt valószínűleg
+> **később keletkezett**. Nem érinti a mintát (0 átfedés), de a §11.20 eredet-hipotézise
+> („a szintek a limit-árhoz maradtak horgonyozva") így **nem teljes**.
+>
+> Riport: `docs/review/2026-10-03-sim1-counterfactual-geometry.md` ·
+> reprodukció: `python scripts/analysis/counterfactual_run.py [--fill-at-close]`
+
 ### 11.21 🔴 P0 (2026-09-22) — A KAPU NAPJA LEZÁRULT, A KAPU-FUTÁS NEM TÖRTÉNT MEG
 
 **Tényállás (verifikálva 2026-09-23):**
