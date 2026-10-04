@@ -354,3 +354,44 @@ class TestGoldenProductionFile:
         scored = df[df.scored]
         assert (scored.score > 0).sum() == 115  # gate report figure
         assert (scored.score < 0).sum() == 142
+
+
+class TestKnownGapsCoverage:
+    """Every documented outage day must be a KNOWN gap, not an "unexpected" one.
+
+    The batch report distinguishes documented coverage gaps from unexpected ones
+    so that a GENUINE new gap is visible. When the list goes stale the report
+    cries wolf on five known outages, and a real new gap hides among them —
+    the signal-to-noise of the warning is the thing being protected here.
+
+    Sources for each day are named beside the assertion; all five were flagged
+    as "nem dokumentált hiány" by the 2026-10-04 batch while in fact all five
+    are recorded outages.
+    """
+
+    @pytest.mark.parametrize(
+        "day,source",
+        [
+            (date(2026, 4, 6), "pipeline down, market open — OHLCV backfill task §1.2"),
+            (date(2026, 4, 7), "pipeline down, market open — OHLCV backfill task §1.2"),
+            (date(2026, 6, 29), "Mini SSH-orphan outage"),
+            (date(2026, 7, 2), "Mini SSH-orphan outage (inside the range)"),
+            (date(2026, 7, 6), "Mini SSH-orphan outage (range end)"),
+            (date(2026, 7, 15), "power outage"),
+            (date(2026, 7, 16), "power outage"),
+            (date(2026, 7, 22), "FileVault outage — 04-risks §11.16"),
+            (date(2026, 8, 7), "FileVault outage — docs/review/2026-W32-weekly-close.md"),
+            (date(2026, 8, 21), "cron did not start despite a booted machine — §11.16"),
+        ],
+    )
+    def test_documented_outage_days_are_known_gaps(self, day, source):
+        assert cfg.is_known_gap(day), f"{day} is a documented outage ({source})"
+
+    def test_an_ordinary_trading_day_is_not_a_known_gap(self):
+        """The list must not be so wide that it swallows real gaps."""
+        assert not cfg.is_known_gap(date(2026, 8, 10))
+        assert not cfg.is_known_gap(date(2026, 9, 15))
+
+    def test_every_gap_range_is_well_formed(self):
+        for start, end in cfg.KNOWN_GAPS:
+            assert start <= end, f"inverted gap range {start}..{end}"

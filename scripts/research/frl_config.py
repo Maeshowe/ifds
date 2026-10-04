@@ -84,9 +84,22 @@ COST_MODEL_MIN_N: Final[int] = 30  # below this the model carries a small-n warn
 
 # --- Known coverage gaps (spec §4.5) ----------------------------------------
 # Explicitly missing days — NEVER interpolated, always NaN in the IC series.
+# Each entry names its source, because the batch report separates DOCUMENTED gaps
+# from unexpected ones precisely so a GENUINE new gap stays visible. A stale list
+# makes the report cry wolf on known outages, and a real gap then hides among
+# them — the signal-to-noise of that warning is what this list protects.
+# Coverage is regression-tested in tests/test_frl_loader.py::TestKnownGapsCoverage.
 KNOWN_GAPS: Final[tuple[tuple[date, date], ...]] = (
+    # pipeline down while the market traded — OHLCV backfill task §1.2
+    (date(2026, 4, 6), date(2026, 4, 7)),
     (date(2026, 6, 29), date(2026, 7, 6)),  # Mini SSH-orphan outage
     (date(2026, 7, 15), date(2026, 7, 16)),  # power outage
+    (date(2026, 7, 22), date(2026, 7, 22)),  # FileVault outage — 04-risks §11.16
+    # FileVault outage — docs/review/2026-W32-weekly-close.md (Day 57)
+    (date(2026, 8, 7), date(2026, 8, 7)),
+    # booted machine, SSH green, but cron only started at console login — §11.16.
+    # SSH reachability is NOT a health signal for the cron chain.
+    (date(2026, 8, 21), date(2026, 8, 21)),
 )
 
 

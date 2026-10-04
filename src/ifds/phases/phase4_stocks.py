@@ -1109,10 +1109,23 @@ def _calculate_combined_score(
 ) -> float:
     """Calculate weighted combined score.
 
-    Formula: 0.40 * FlowScore + 0.30 * FundaScore + 0.30 * TechScore + SectorAdj
-    Flow/Funda: base 50 + adjustments.
-    Tech: rsi_score + sma50_bonus + rs_spy_score (0-100, no base).
-    Insider multiplier applied at the end.
+    Formula (weights from ``config.core``, NOT hardcoded here)::
+
+        combined = ( w_flow  * clip(50 + flow.rvol_score, 0, 100)
+                   + w_funda * (50 + fundamental.funda_score)
+                   + w_tech  * (rsi_score + sma50_bonus + rs_spy_score)
+                   + sector_adj
+                   ) * fundamental.insider_multiplier
+
+    Current weights are **0.60 / 0.10 / 0.30** (BC23: flow-first; the
+    fundamental weight was cut from 0.30 because it showed no P&L correlation).
+    This docstring previously claimed 0.40/0.30/0.30, which has been wrong since
+    BC23 and was quoted in analysis before being caught (2026-10-04).
+
+    Note that ``flow.rvol_score`` is itself a SEVEN-term sum — rvol, squat bar,
+    PCR, OTM, block trades, dark-pool pct and buy pressure — so the aggregate
+    hides sub-signals at two levels, not one. See
+    ``docs/planning/2026-10-04-component-decomposition-preregistration.md`` §2.
     """
     tech_score = technical.rsi_score + technical.sma50_bonus + technical.rs_spy_score
     flow_score = min(100, max(0, _BASE_SCORE + flow.rvol_score))  # cap [0, 100]
