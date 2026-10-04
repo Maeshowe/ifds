@@ -117,6 +117,45 @@ teszt (`test_sector_neutrality_removes_pure_sector_effect`).
 
 ---
 
+## Kutatási futás előtt a derivált cache FRISSESSÉGÉT verifikálni (rule, 2026-10-04)
+
+A [hermetikus teszt](#hermetikus-teszt--a-prod-state-nem-teheti-hamisan-zölddé-a-tesztet-rule-2026-07-21)
+szabály **harmadik előfordulása, új alakban**: ott a prod-state tette hamisan zölddé a
+tesztet, itt egy **elavult derivált cache adott hamis POZITÍV kutatási leletet**.
+
+**Szabály:** minden olyan futás előtt, ami egy **derivált, cache-elt panelből** számol
+(forward-return mátrix, feature-store, parquet-snapshot), **kötelező a lefedettség
+kiírása és ellenőrzése** — nem a fájl létezése, hanem a **tartalom utolsó érvényes
+dátuma**, metrikánként. Egy derivált cache csendben régi marad akkor is, ha a nyers
+adat már friss.
+
+**Kötelező kísérő:** a riport fejlécében szerepelnie kell a felhasznált panel
+**dátum-tartományának és a releváns mező utolsó nem-NaN dátumának**. Ha a futás „több
+adaton" alapul, az legyen **kiírva**, ne feltéve.
+
+**Példa-sértés (elkapva, 2026-10-04, HYP-005 újrateszt):** a `research/cache/returns.parquet`
+**2026-07-25-i** volt, a `fwd_ret_5` csak **2026-07-17-ig** tartalmazott adatot — miközben
+a `grouped_daily` bar-cache már 10-02-ig lefedett. Az újrateszt premisszája („a swing-minta
+23 → ~96 napra nőtt") **nem teljesült**: a futás 35 napot használt, ~a júliusi mintát.
+
+Az eredmény **megfordult** az újraépítés után:
+
+| | Stale (35 nap) | Újraépített (62 nap) |
+|---|---|---|
+| mean IC (h=5) | **+0,0384** | **+0,0130** |
+| Šidák családi p | **0,0440** | **0,6411** |
+| BH q=0,10 | **PASS** | **fail** |
+| verdikt | `PARK_UNECONOMIC` | **`KILL`** |
+
+A kis minta +0,0384-je a nagyobbon **+0,0130-ra regresszált** — pontosan amit egy nulltól
+várnánk. Az újraépítés **6 másodperc** és **nulla új API-hívás** volt (a bar-cache már
+lefedte) — vagyis a hiba **nem erőforrás-korlát volt, hanem elmaradt ellenőrzés**.
+
+**Referencia:** commit `e885ce3`, `docs/review/2026-10-04-hyp005-retest.md` §2.
+Hibaalak: ugyanaz, mint a sink-audit rés — nem az egyes előfordulást, a **rést** zárjuk.
+
+---
+
 ## Hermetikus teszt — a prod-state NEM teheti hamisan zölddé a tesztet (rule, 2026-07-21)
 
 A [test-env higiénia](#test-environment-higiénia--production-state-path-írás-tilos)
