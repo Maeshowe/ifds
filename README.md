@@ -2,7 +2,9 @@
 
 Multi-factor quantitative trading system for US equities (swing trading).
 Daily EOD signal generation through a 6-phase pipeline analyzing institutional flows,
-gamma exposure, and fundamental quality. Outputs 5-8 sized positions with bracket orders.
+gamma exposure, and fundamental quality. Outputs sized swing positions (rolling, up to 12
+concurrent), entered as MARKET orders with mental stops and a 5-trading-day MOC time stop —
+**no IBKR bracket/OCA** (`ibkr_bracket_enabled: False`, Day 63 decision #12).
 
 ## Pipeline
 
@@ -46,11 +48,13 @@ IFDS_ASYNC_ENABLED=true               # Async phases 1/4/5 (default: false)
 IFDS_CACHE_ENABLED=true               # File-based API cache (default: false)
 IFDS_CACHE_DIR=data/cache             # Cache directory
 
-# Tuning overrides (optional)
+# Tuning overrides (optional) — the DEFAULTS live in src/ifds/config/defaults.py,
+# which is authoritative. These examples are illustrative, not a spec.
 IFDS_ACCOUNT_EQUITY=100000            # Account equity ($)
-IFDS_RISK_PER_TRADE_PCT=1.0           # Risk per trade (%)
-IFDS_MAX_POSITIONS=8                  # Max simultaneous positions
-IFDS_CIRCUIT_BREAKER_LIMIT=5.0        # Drawdown circuit breaker (%)
+IFDS_RISK_PER_TRADE_PCT=0.7           # Legacy risk per trade (%); the swing path
+                                      # uses swing_risk_per_trade_pct = 0.35%
+IFDS_MAX_POSITIONS=12                 # Max simultaneous positions
+IFDS_CIRCUIT_BREAKER_LIMIT=3.0        # Drawdown circuit breaker (%)
 IFDS_OUTPUT_DIR=output                # CSV output directory
 IFDS_LOG_DIR=logs                     # Log directory
 ```

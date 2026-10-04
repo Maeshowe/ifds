@@ -1,6 +1,11 @@
 Status: OPEN
 Updated: 2026-08-26
-Note: Adat-infrastruktúra a kutatási sávban. NEM érint termelési kereskedési logikát, NEM ír `state/`-be, NEM módosít `trade_plan`/`execution_plan` utat. A 2026-09-22-i kapuig CSAK az 1-2. lépés (tár + indikátor + validáció) hajtható végre; a 3. lépés (FRL-mérés) a kapu után indul. G1: minden itt keletkező mennyiség FRL-eredetű → örökre leíró és INADMISSIBILIS a kapuba. — 2026-08-26 (CC, implementáció ELŐTTI verifikáció a §6.1 fixture-ön): §5.1 LEZÁRVA (mult=√2, az 1,3766 cáfolva) · §5.2 LEZÁRVA (source=hlc3, mérve) · §5.3 ÁTÍRVA (a valódi kockázat a korrekciós ÉVJÁRAT, nem az `adjusted` flag — mérve 0,65% ticker/hó) · §6.4 verifikált referencia-implementáció · V4 tárgytalan · 0. lépés (.gitignore) hozzáadva.
+Note: [2026-10-04 frissítés] A KAPU LEZÁRULT (2026-10-03), tehát a lenti "a 2026-09-22-i
+kapuig CSAK az 1-2. lépés" korlát TÁRGYTALAN — a 3. lépés (FRL-mérés) szabad. Az 1. lépés
+adat-előfeltétele teljesült: a grouped_daily bar-tár folytonos 2026-02-11 → 2026-10-02
+(2026-10-03-i backfill). A task STATUSA OPEN marad, de a prioritása a §3 stratégiai
+döntéstől függ: ha a jelcsalád lezárul (C forgatókönyv), ez tárgytalanná válhat.
+--- az eredeti Note: --- Adat-infrastruktúra a kutatási sávban. NEM érint termelési kereskedési logikát, NEM ír `state/`-be, NEM módosít `trade_plan`/`execution_plan` utat. A 2026-09-22-i kapuig CSAK az 1-2. lépés (tár + indikátor + validáció) hajtható végre; a 3. lépés (FRL-mérés) a kapu után indul. G1: minden itt keletkező mennyiség FRL-eredetű → örökre leíró és INADMISSIBILIS a kapuba. — 2026-08-26 (CC, implementáció ELŐTTI verifikáció a §6.1 fixture-ön): §5.1 LEZÁRVA (mult=√2, az 1,3766 cáfolva) · §5.2 LEZÁRVA (source=hlc3, mérve) · §5.3 ÁTÍRVA (a valódi kockázat a korrekciós ÉVJÁRAT, nem az `adjusted` flag — mérve 0,65% ticker/hó) · §6.4 verifikált referencia-implementáció · V4 tárgytalan · 0. lépés (.gitignore) hozzáadva.
 # OHLCV-tár backfill + Gaussian Channel indikátor (kutatási sáv)
 
 > ⚠️ **Keret.** Ez a task **adatot és mérőeszközt** épít, **nem stratégiát**. Nem hoz létre
