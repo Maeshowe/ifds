@@ -1,4 +1,4 @@
-Status: TESTED
+Status: KILLED
 Updated: 2026-10-04
 Data-lane: v1
 Attempt-family: A-0005..A-0008 (2026-07-24; h5/h7 PARK, h1/h3 KILL — Tamás megerősítve) | ÚJRATESZT 2026-10-04: a pre-regisztrált {h5,h7} családra, m=2
@@ -124,8 +124,9 @@ Futás: `--hyp HYP-005 --horizons 5,7 --date 2026-10-02`.
 ezzel **feloldva**: a T_eff a 6,0-os floor fölé került (12.4 és 8.9), és a jel **nem
 jelent meg** — ez a pre-reg **(a)** kritériuma.
 
-⚠️ **Verdikt `auto`, `human_confirmed: false` — Tamás megerősítésére vár.**
-Status `TESTED` marad, amíg a `TESTED → KILLED` tranzíció meg nem történik.
+✅ **MEGERŐSÍTVE (Tamás, 2026-10-04).** A-0009 és A-0010 `human_confirmed: true`,
+nincs felülírás (a gép és az ember egyetért, ezért az `auto_decision` üresen marad —
+ez a mező csak override-nál rögzül). Status `TESTED → KILLED`.
 
 🔴 **Stale-cache csapda, elkapva:** az első dry-run a 2026-07-25-i
 `returns.parquet`-ből olvasott (`fwd_ret_5` csak 07-17-ig) → 35 nap, mean IC

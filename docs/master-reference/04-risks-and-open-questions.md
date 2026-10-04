@@ -1663,6 +1663,70 @@ Riport: `docs/review/2026-10-04-hyp005-retest.md`
 ---
 
 
+### 11.27 ✅ LEZÁRVA (2026-10-04) — komponens-dekompozíció: a súlyozás 90%-a megerősített null
+
+A HYP-005 aggregát-null nem tudta szétválasztani a *„nincs jel"* és a
+*„kioltják egymást"* eseteket. A dekompozíció (pre-reg a retest eredménye **előtt**:
+`docs/planning/2026-10-04-component-decomposition-preregistration.md`) lezárja.
+
+| Hipotézis | Blokk | Súly | h-karok | Šidák p (m=4) | Verdikt |
+|---|---|---:|---|---:|---|
+| **HYP-006** | Flow | **0,60** | A-0011..A-0014 | **0,9455** | **KILL ×4** |
+| **HYP-008** | Tech | **0,30** | A-0015..A-0018 | **0,9699** | **KILL ×4** |
+
+Minden mért IC **\|IC\| < 0,009**, mindegyik a saját éra-bar-ja (0,024–0,032) alatt.
+**Mind a 8 kar a 6,0-os adekvácia-floor FÖLÖTT bukott** (T_eff 8,9–62,0); a h=1
+karokon **T_eff = 62,0** — a projekt eddigi legerősebb null-mérése.
+
+**A kioltás-hipotézis NEM támogatott:** a (ii) eset **nagy, ellentétes előjelű**
+komponens-IC-ket kíván; nincs mit kioltani.
+
+⚠️ **Amit NEM lehet kiszámolni:** a maradék Funda-blokk IC-je **nem következtethető**
+az aggregátból és a két mért blokkból — egy súlyozott összeg **Spearman** IC-je nem
+a komponens-IC-k súlyozott összege (a rangok nem adódnak). **Meg kell mérni.**
+
+**A h-görbék ALAKJA viszont megfelel a pre-regnek:** a Flow maximuma **h=1**-en
+(gyors bomlás, ahogy jósoltuk), a Tech-é **h=5**-en (momentum-akkumuláció). A
+mechanizmusok **nem fordítva** működnek — mérhető nagyságrendben nincsenek jelen.
+
+**A half-life lelet (a futás ELŐTT mérve, a hozamoktól független) áll:** még egy
+valós jel is kiaknázhatatlan lett volna — Flow t½ **0,4 nap** → breakeven IC
+**3,79** (matematikailag lehetetlen); Tech t½ **2,8 nap** → **0,4975**
+(gyakorlatilag lehetetlen). Független úton verifikálva (ρ = 0,151 / 0,781 / 0,999).
+
+> **Így a score súlyozásának 90%-a megerősített keresztmetszeti null, adekvát erővel**
+> (aggregát + Flow 0,60 + Tech 0,30). A teljes IFDS-jelcsalád kérdése **egyetlen
+> hipotézisre, egyetlen komponensen** szűkült: a **Funda blokk (0,10)** — ami
+> egyben az **egyetlen** életképes költségszerkezetű blokk (t½ **799,8 nap** →
+> breakeven IC **0,0017**, ~80× az aggregát alatt).
+
+### ⏸ HYP-007 (Funda) SZÁNDÉKOSAN VISSZATARTVA — `Status: DRAFT`
+
+A regisztrált h ∈ {1,3,5,7} rács a **799,8 napos** half-life-hoz mérve **0,1–0,9%**
+— **félre-specifikált**. Így futtatva **KILL-t rögzítenénk egy olyan teszten, ami nem
+volt alkalmas a hipotézis vizsgálatára**, és a `KILLED` státusz lezártnak tűnne.
+A `DRAFT` státusz a motorban **blokkolja az attempteket** — ez szándékos.
+
+📌 **NYITOTT DÖNTÉS (Tamás):** **h ∈ {20, 60}** hozzáadása **kizárólag a HYP-007-hez**.
+Nem post-hoc hangolás (a half-life a hozamoktól független és minden IC-mérés előtt
+mérve), **de** érinti a `cfg.IC_HORIZONS` spec-konstanst → governance-döntés.
+Ára: Šidák-család 12 → 14 attempt.
+
+### 📌 Motor-megfigyelés (NEM javítva — post-hoc lenne)
+
+4 KILL a pre-reg **(b) „előjel-ellentmondás — terminális"** úton született
+(A-0012/13/14, A-0015), pedig ott a mért \|IC\| **0,0011–0,0080**, a bar tizede–negyede.
+A (b) **kizárólag az előjelre** tüzel, a nagyságtól függetlenül → egy zaj-szintű
+negatív leolvasás *„a mechanizmus megdőlt"* címkét kap. **A verdiktet nem érinti**
+(mind a négy karon T_eff ≥ 6, tehát az **(a)** önmagában is KILL-t adott volna) —
+csak az **indoklás szövege** félrevezető. Ha a (b)-hez magnitúdó-feltétel kell, az
+**külön, előre rögzített** döntés.
+
+Riport: `docs/review/2026-10-04-component-decomposition.md`
+
+---
+
+
 ## 12. FRL-eredetű nyitott tételek (2026-07-21, Dev chat)
 
 ### 12.1 P3 — `execution_plan.py:179` Reason-felülírás (post-Day-63 fix-jelölt)

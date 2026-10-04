@@ -4,6 +4,81 @@
 
 ---
 
+## 2026-10-04 — komponens-dekompozíció: a súlyozás 90%-a megerősített null
+
+> Baseline 2335 → **2369** (+34), 0 fail.
+
+### feat(research) — `scripts/research/factors/score_blocks.py` (HYP-006/007/008)
+- A három súlyozott blokk (`Flow_Score` 0,60 / `Funda_Score` 0,10 / `Tech_Score` 0,30)
+  külön faktorként regisztrálva. **Pontosan három**, ahogy pre-regisztrálva —
+  `test_exactly_three_blocks_are_registered` őrzi a csendes post-hoc bővítés ellen.
+- **A modul lényege a `|Total_Score| > 1e-9` szűrő** (pre-reg §4.1): a nem pontozott
+  sorokban a Flow és a Funda a **default 50**-en áll (36 557 valós soron verifikálva,
+  ~100%), ami **43%-os konstans masszát** injektálna a napi rangsorba — a `dp_pct`
+  strukturális-nulla hiba tükörképe. **Tolerancia-alapú, soha `== 0`** (ifds-rules).
+- Swing-éra guard (G5) + fail-loud minden hiányzó oszlopra. A sanity-panel
+  **swing-érás ÉS nem-nulla score-ú**, különben a maszkok kiürítenék és a check
+  vákuumban passzolna — `TestSanityIsNotVacuous` pineli.
+- Teszt-izoláció: a tesztek a **modul-objektumokat** használják (`blocks.FLOW`), nem a
+  registry-t — más FRL-tesztmodulok `clear_registry()`-t hívnak autouse fixture-ben,
+  így a registry-lookup izoláltan zöld, a teljes suite-ban bukik (ez elő is fordult).
+
+### Eredmény — mind a 8 attempt KILL, adekvát erővel
+| Hipotézis | Blokk | Súly | Attemptek | Šidák p (m=4) |
+|---|---|---:|---|---:|
+| HYP-006 | Flow | **0,60** | A-0011..A-0014 | **0,9455** |
+| HYP-008 | Tech | **0,30** | A-0015..A-0018 | **0,9699** |
+
+Minden mért `|IC| < 0,009`, mindegyik a saját bar-ja alatt (0,024–0,032). T_eff
+8,9–62,0, mind a floor fölött; a h=1 karokon **T_eff = 62,0** — a projekt eddigi
+legerősebb null-mérése.
+
+**A kioltás-hipotézis NEM támogatott** — az nagy, ellentétes előjelű komponens-IC-ket
+kíván; nincs mit kioltani. ⚠️ A Funda-blokk IC-je **nem következtethető** az aggregátból
+és a két mért blokkból: egy súlyozott összeg Spearman IC-je nem a komponens-IC-k
+súlyozott összege (a rangok nem adódnak).
+
+**A h-görbék ALAKJA viszont pre-reg-konform:** Flow maximum h=1-en (gyors bomlás),
+Tech maximum h=5-en (momentum-akkumuláció). A mechanizmusok nem fordítva működnek —
+mérhető nagyságrendben nincsenek jelen.
+
+> **A score súlyozásának 90%-a megerősített keresztmetszeti null** (aggregát + Flow
+> 0,60 + Tech 0,30). A jelcsalád kérdése **egyetlen hipotézisre, egyetlen komponensen**
+> szűkült: a **Funda blokk (0,10)** — az egyetlen életképes költségszerkezetűvel
+> (t½ **799,8 nap** → breakeven IC **0,0017**, ~80× az aggregát alatt).
+
+### ⏸ HYP-007 (Funda) `Status: DRAFT` — SZÁNDÉKOSAN visszatartva
+A h ∈ {1,3,5,7} rács a 799,8 napos half-life-hoz mérve **0,1–0,9%** — félre-specifikált.
+Így futtatva **KILL-t rögzítenénk egy alkalmatlan teszten**, és a `KILLED` lezártnak
+tűnne. A `DRAFT` a motorban blokkolja az attempteket.
+📌 **Nyitott döntés (Tamás):** h ∈ {20, 60} **kizárólag a HYP-007-hez**. A half-life a
+hozamoktól független és minden IC-mérés előtt mérve → pre-reg, nem hangolás; **de**
+érinti a `cfg.IC_HORIZONS` spec-konstanst → governance. Ára: Šidák 12 → 14 attempt.
+
+### data — a half-life mint költség-input (a futás ELŐTT, hozamoktól független)
+| Blokk | ρ (napi rang-autokorr.) | t½ (nap) | költség bp/év | breakeven IC h=5 |
+|---|---:|---:|---:|---:|
+| Flow | 0,151 | **0,4** | 114 682 | **3,79** ⛔ |
+| Tech | 0,781 | **2,8** | 15 044 | **0,4975** ⛔ |
+| Funda | 0,999 | **799,8** | **53** | **0,0017** 🟢 |
+| *(aggregát)* | 0,933 | 9,9 | 4 241 | 0,1403 |
+
+**A Flow breakeven IC-je matematikailag lehetetlen** (|IC| ≤ 1), a Tech-é gyakorlatilag.
+Vagyis a súlyozás 90%-a **bármilyen elérhető IC mellett** gazdaságilag halott ezen a
+végrehajtási költségen — nem jel-hiány, hanem forgás. Független úton verifikálva.
+
+### 📌 Motor-megfigyelés (NEM javítva)
+4 KILL a pre-reg **(b) „előjel-ellentmondás"** úton született, pedig ott a |IC| a bar
+tizede–negyede: a (b) **kizárólag az előjelre** tüzel, a nagyságtól függetlenül. A
+verdiktet nem érinti (T_eff ≥ 6 → az (a) önmagában is KILL), csak az indoklás szövege
+félrevezető. Javítás **csak külön, előre rögzített** döntéssel.
+
+### docs
+- `docs/review/2026-10-04-component-decomposition.md` — teljes riport, korlátokkal.
+- `04-risks` **§11.27**; HYP-006/007/008 registry-fájlok (lint-tiszta).
+
+---
+
 ## 2026-10-04 — (e) gazdasági kapu + HYP-005 újrateszt: az S_j aggregát nullja lezárult
 
 > Baseline 2287 → **2323** (+36), 0 fail.

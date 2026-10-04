@@ -6,8 +6,7 @@
 
 - dev 2026-05-18..2026-08-28 | purge 2026-08-31..2026-09-04 | holdout 2026-09-08..2026-10-02
 - Panel: legacy 64 nap, swing 62 nap
-- Hiányzó nap: 12 (nem várt: 5) — soha nem interpolált
-  - ⚠️ nem dokumentált hiány: 2026-04-06, 2026-04-07, 2026-07-22, 2026-08-07, 2026-08-21
+- Hiányzó nap: 12 (nem várt: 0) — soha nem interpolált
 - Adat-anomáliák: tech_filter_with_nonzero_score=0, unscored_masked_by_reason=5784
 
 ## Költségmodell (empirikus)
@@ -17,29 +16,33 @@
 
 ## Sanity-kapu
 
-- PASS sj_live_aggregate: ic=+1.000 expected_sign=+1
+- PASS tech_block: ic=+1.000 expected_sign=+1
 
 ## IC — éra-bontásban (G5: pooled nézet nincs)
 
 | Faktor | h | Éra | napok | T_eff | mean IC | ICIR | NW t | p | éra-bar | verdikt |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `sj_live_aggregate` | 5 | legacy | 0 | 0.0 | n/a | n/a | n/a | n/a | ∞ | inconclusive |
-| `sj_live_aggregate` | 5 | swing | 62 | 12.4 | 0.0130 | 0.17 | 0.87 | 0.401 | 0.0298 | inconclusive |
-| `sj_live_aggregate` | 7 | legacy | 0 | 0.0 | n/a | n/a | n/a | n/a | ∞ | inconclusive |
-| `sj_live_aggregate` | 7 | swing | 62 | 8.9 | 0.0087 | 0.11 | 0.47 | 0.648 | 0.0368 | inconclusive |
+| `tech_block` | 1 | legacy | 0 | 0.0 | n/a | n/a | n/a | n/a | ∞ | inconclusive |
+| `tech_block` | 1 | swing | 62 | 62.0 | -0.0028 | -0.02 | -0.19 | 0.854 | 0.0303 | inconclusive |
+| `tech_block` | 3 | legacy | 0 | 0.0 | n/a | n/a | n/a | n/a | ∞ | inconclusive |
+| `tech_block` | 3 | swing | 62 | 20.7 | 0.0053 | 0.05 | 0.33 | 0.745 | 0.0322 | inconclusive |
+| `tech_block` | 5 | legacy | 0 | 0.0 | n/a | n/a | n/a | n/a | ∞ | inconclusive |
+| `tech_block` | 5 | swing | 62 | 12.4 | 0.0071 | 0.07 | 0.57 | 0.583 | 0.0251 | inconclusive |
+| `tech_block` | 7 | legacy | 0 | 0.0 | n/a | n/a | n/a | n/a | ∞ | inconclusive |
+| `tech_block` | 7 | swing | 62 | 8.9 | 0.0054 | 0.06 | 0.44 | 0.670 | 0.0244 | inconclusive |
 
 ## Multiplicitás-defláció (a teljes ledger-történeten)
 
 | Hipotézis | sáv | éra | variánsok | családi p (Šidák) | BH q=0.10 | Bonferroni |
 |---|---|---|---|---|---|---|
-| HYP-005 | v1 | legacy | 2 | n/a | fail | fail |
-| HYP-005 | v1 | swing | 2 | 0.6411 | fail | fail |
+| HYP-008 | v1 | legacy | 4 | n/a | fail | fail |
+| HYP-008 | v1 | swing | 4 | 0.9699 | fail | fail |
 
 ## Perzisztencia és forgási költség
 
 | Faktor | half-life (nap) | implikált éves költség (bp) |
 |---|---|---|
-| `sj_live_aggregate` | 9.9 | 4241 |
+| `tech_block` | 2.8 | 15044 |
 
 ## Bruttó vs költséggel terhelt IC (§5.3 cost-kapu)
 
@@ -49,26 +52,38 @@
 
 | Faktor | h | Éra | mean IC | σ_cs | bruttó bp/év | költség bp/év | **nettó bp/év** | breakeven IC (medián) | **breakeven IC (p75) ← kapu** | (e) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `sj_live_aggregate` | 5 | legacy | n/a | 0.0605 | n/a | 4241 | **n/a** ❌ | 0.1392 | **0.2267** | — |
-| `sj_live_aggregate` | 5 | swing | 0.0130 | 0.0600 | 393 | 4241 | **-3848** ❌ | 0.1404 | **0.2286** | ❌ |
-| `sj_live_aggregate` | 7 | legacy | n/a | 0.0745 | n/a | 4241 | **n/a** ❌ | 0.1582 | **0.2576** | — |
-| `sj_live_aggregate` | 7 | swing | 0.0087 | 0.0710 | 223 | 4241 | **-4019** ❌ | 0.1660 | **0.2704** | ❌ |
+| `tech_block` | 1 | legacy | n/a | 0.0273 | n/a | 15044 | **n/a** ❌ | 0.2190 | **0.3567** | — |
+| `tech_block` | 1 | swing | -0.0028 | 0.0262 | 185 | 15044 | **-14858** ❌ | 0.2277 | **0.3709** | ❌ |
+| `tech_block` | 3 | legacy | n/a | 0.0462 | n/a | 15044 | **n/a** ❌ | 0.3875 | **0.6311** | — |
+| `tech_block` | 3 | swing | 0.0053 | 0.0461 | 205 | 15044 | **-14839** ❌ | 0.3885 | **0.6328** | ❌ |
+| `tech_block` | 5 | legacy | n/a | 0.0605 | n/a | 15044 | **n/a** ❌ | 0.4936 | **0.8039** | — |
+| `tech_block` | 5 | swing | 0.0071 | 0.0600 | 214 | 15044 | **-14830** ❌ | 0.4979 | **0.8109** | ❌ |
+| `tech_block` | 7 | legacy | n/a | 0.0745 | n/a | 15044 | **n/a** ❌ | 0.5610 | **0.9137** | — |
+| `tech_block` | 7 | swing | 0.0054 | 0.0710 | 138 | 15044 | **-14906** ❌ | 0.5889 | **0.9592** | ❌ |
 
 ## Döntések
 
 > A batch verdiktje **auto** (mechanikusan triggerelt pre-reg kritérium), `human_confirmed: false`-szal születik. A döntés Tamásé (spec §10) — a megerősítés vagy felülírás explicit művelet.
 
-- **KILL** (auto) — `sj_live_aggregate` h=5 (HYP-005, v1, attempt A-0009): BH-FDR not passed at the ledger-deflated level; swing era inconclusive (|IC|=0.0130 < bar 0.0298); adequate T_eff clean fail (swing T_eff=12.4, legacy T_eff=0.0 vs floor 6) — genuine null (pre-reg a)
-- **KILL** (auto) — `sj_live_aggregate` h=7 (HYP-005, v1, attempt A-0010): BH-FDR not passed at the ledger-deflated level; swing era inconclusive (|IC|=0.0087 < bar 0.0368); adequate T_eff clean fail (swing T_eff=8.9, legacy T_eff=0.0 vs floor 6) — genuine null (pre-reg a)
+- **KILL** (auto) — `tech_block` h=1 (HYP-008, v1, attempt A-0015): BH-FDR not passed at the ledger-deflated level; swing era inconclusive (|IC|=0.0028 < bar 0.0303); swing sign does not match the hypothesis (-0.0028 vs +1); swing sign contradiction — terminal (pre-reg b)
+- **KILL** (auto) — `tech_block` h=3 (HYP-008, v1, attempt A-0016): BH-FDR not passed at the ledger-deflated level; swing era inconclusive (|IC|=0.0053 < bar 0.0322); adequate T_eff clean fail (swing T_eff=20.7, legacy T_eff=0.0 vs floor 6) — genuine null (pre-reg a)
+- **KILL** (auto) — `tech_block` h=5 (HYP-008, v1, attempt A-0017): BH-FDR not passed at the ledger-deflated level; swing era inconclusive (|IC|=0.0071 < bar 0.0251); adequate T_eff clean fail (swing T_eff=12.4, legacy T_eff=0.0 vs floor 6) — genuine null (pre-reg a)
+- **KILL** (auto) — `tech_block` h=7 (HYP-008, v1, attempt A-0018): BH-FDR not passed at the ledger-deflated level; swing era inconclusive (|IC|=0.0054 < bar 0.0244); adequate T_eff clean fail (swing T_eff=8.9, legacy T_eff=0.0 vs floor 6) — genuine null (pre-reg a)
 
 ### Megerősítésre váró döntések
 
 | Attempt | Hipotézis | Variáns | Auto-verdikt | Zárva |
 |---|---|---|---|---|
-| A-0009 | HYP-005 | `sj_live_aggregate_h5` | KILL | 2026-10-04T07:24:56+00:00 |
-| A-0010 | HYP-005 | `sj_live_aggregate_h7` | KILL | 2026-10-04T07:24:56+00:00 |
+| A-0011 | HYP-006 | `flow_block_h1` | KILL | 2026-10-04T08:00:38+00:00 |
+| A-0012 | HYP-006 | `flow_block_h3` | KILL | 2026-10-04T08:00:38+00:00 |
+| A-0013 | HYP-006 | `flow_block_h5` | KILL | 2026-10-04T08:00:38+00:00 |
+| A-0014 | HYP-006 | `flow_block_h7` | KILL | 2026-10-04T08:00:38+00:00 |
+| A-0015 | HYP-008 | `tech_block_h1` | KILL | 2026-10-04T08:00:41+00:00 |
+| A-0016 | HYP-008 | `tech_block_h3` | KILL | 2026-10-04T08:00:41+00:00 |
+| A-0017 | HYP-008 | `tech_block_h5` | KILL | 2026-10-04T08:00:41+00:00 |
+| A-0018 | HYP-008 | `tech_block_h7` | KILL | 2026-10-04T08:00:41+00:00 |
 
-**2 döntés vár emberi megerősítésre.** Megerősítés: `frl_ledger.confirm_decision(attempt_id, by=..., note=...)`; felülírás: ugyanaz `decision=` paraméterrel (az auto-verdikt `auto_decision`-ként megmarad).
+**8 döntés vár emberi megerősítésre.** Megerősítés: `frl_ledger.confirm_decision(attempt_id, by=..., note=...)`; felülírás: ugyanaz `decision=` paraméterrel (az auto-verdikt `auto_decision`-ként megmarad).
 
 ## Holdout
 
