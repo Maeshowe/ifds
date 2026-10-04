@@ -1,3 +1,9 @@
+Status: DONE
+Updated: 2026-10-04
+Note: 2026-10-04 repo-audit: a fajl mar **Status:** DONE-t hordozott FELKOVER
+formaban, amit a `^Status:` horgonyos lekerdezes nem latott. Fejlec normalizalva
+az archive/README.md szerinti 3 soros alakra, tartalom valtozatlan.
+
 # Task: Swing Execution + Exit — 15:30 entry, mental stop, daily EOD eval
 
 **Status:** DONE

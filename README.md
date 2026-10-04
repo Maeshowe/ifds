@@ -89,7 +89,8 @@ and sends Telegram alerts on success or failure.
 python -m pytest tests/ -q
 ```
 
-1054+ tests, 0 failures (2026-03-28). Tests are mandatory before every commit.
+Tests are mandatory before every commit. The current count lives in
+[`docs/STATUS.md`](docs/STATUS.md) — the single dynamic state file.
 
 ## Project Structure
 
@@ -135,8 +136,14 @@ output/                     Daily CSV outputs
 
 ## Status
 
+> ⚠️ **Live state: [`docs/STATUS.md`](docs/STATUS.md)** — the single dynamic state
+> file. Test count, trading status, P&L and open items live there and ONLY there.
+> This section carries static facts only; counters rot (this one sat 6 months
+> stale at "1054+ tests / Day 30/63" before the 2026-10-04 repo audit caught it).
+
 - **Version**: 2.0.0a1
-- **Python**: 3.11+
-- **Tests**: 1054+ passing
-- **Production**: Mac Mini daily cron (22:00 CET)
-- **Paper trading**: IBKR paper account (DUH118657), Day 30/63
+- **Python**: 3.12
+- **Production**: Mac Mini cron — Phase 1-3 Sunday 22:00, Phase 4-6 Mon-Fri 14:30
+  (Budapest). Full schedule: [`scripts/crontab.md`](scripts/crontab.md)
+- **Paper trading**: IBKR paper account (DUH118657). ⛔ **Trading is STOPPED**
+  since 2026-10-03 (data-collection mode) — see `docs/STATUS.md`

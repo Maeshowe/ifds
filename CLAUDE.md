@@ -18,7 +18,7 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 > megerősített keresztmetszeti null** (23 attempt, `research/attempt_ledger.jsonl`).
 > Nyitott stratégiai döntés: új jelcsalád vagy lezárás. Részletek: `docs/STATUS.md`.
 
-- **Production** — Mac Mini, split pipeline: Phase 1-3 (22:00) + Phase 4-6 (15:45 Budapest).
+- **Production** — Mac Mini, split pipeline: Phase 1-3 **vasárnap 22:00** (heti kontextus → `state/phase13_ctx.json.gz`) + Phase 4-6 **H-P 14:30** Budapest. Teljes ütemezés: `scripts/crontab.md` (az egyetlen forrás).
   Az IBKR-hez kapcsolódó jobok a `check_trading_enabled()` guardon tiszta `exit(0)`-val állnak.
 - **Architektúra** — swing pivot (2026-05-18 → 2026-09-30): 5-napos hold, mentális stop, MKT entry.
   A BC1–BC21 + BC20A (Swing Hybrid Exit) alapréteg kész; részletek: `CHANGELOG.md`.
@@ -250,7 +250,7 @@ scripts/paper_trading/          # IBKR paper trading (submit, close, eod, monito
 scripts/paper_trading/lib/      # Shared: log_setup, event_logger, trading_day_guard, telegram_helper
 scripts/tools/                  # events_to_sqlite.py
 scripts/deploy_daily.sh         # Phase 1-3 (22:00) or full pipeline
-scripts/deploy_intraday.sh      # Phase 4-6 + submit (15:45)
+scripts/deploy_intraday.sh      # Phase 4-6 (H-P 14:30); submit külön cron 15:31
 sim/configs/                    # YAML variant configs (1d vs swing, freshness A/B, etc.)
 docs/tasks/                     # CC task fájlok (CC-only óta CC írja+implementálja)
 docs/planning/                  # Design docs, roadmap, backlog
@@ -285,7 +285,7 @@ Stabil referencia (ritkán változik):
 - PT clientId-k: submit=10, close=11, eod=12, nuke=13, monitor=14, trail=15, avwap=16, gateway=17
 - MMS: `mms_enabled=True`, `factor_volatility_enabled=True`, `mms_min_periods=10`
 - TP1: `tp1_atr_multiple=0.75`
-- Pipeline split: Phase 1-3 (22:00 Budapest) + Phase 4-6 (15:45 Budapest)
+- Pipeline split: Phase 1-3 vasárnap 22:00 + Phase 4-6 H-P 14:30 (Budapest) — forrás: `scripts/crontab.md`
 - Swing: 5-day hold, MKT entry, VWAP guard, PositionTracker, breakeven + trail
 - Risk: Cross-Asset Regime, Correlation Guard, Portfolio VaR 3%
 - Deployment: `docs/tasks/2026-04-03-monday-deployment-checklist.md`

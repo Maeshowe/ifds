@@ -1,3 +1,10 @@
+Status: DONE
+Updated: 2026-10-04
+Note: 2026-10-04 repo-audit. A resz (CC technikai) mar DONE volt; a B resz
+(Tamas manualis config + push) a 2026-05-18-i Day-1 go-live-val lezarult — a swing
+pivot 88 kereskedesi napot futott 2026-10-03-ig, ami a deploy megtortente nelkul
+lehetetlen. A ~4 honapos WIP csak elmaradt lezaras volt. Tartalom valtozatlan.
+
 # Task: Swing Daily Metrics + Telegram Template + Deploy Kickoff
 
 **Status:** WIP
