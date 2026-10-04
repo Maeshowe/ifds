@@ -1,298 +1,186 @@
 # IFDS — Current Status
-<!-- Frissíti: CC (/wrap-up), Chat (session végén) -->
-<!-- Utolsó frissítés: 2026-10-03 (szombat) CC (review-session) — 🔴 **A KAPU LEZÁRULT + ADATGYŰJTÉSI MÓD ÉLES**. **(1) KAPU-FUTÁS megtörtént 2026-10-03-án** (pre-reg dátum 09-22, **8 kereskedési nap késés**, a futás ELŐTT dokumentálva): pinek verifikálva (`c5e9ed0` + `68fc00e`, 0 soros diff), minta **n=79** (83 → adat-kizárás 10 → §5-kizárás 4), egyetlen futás. **A §3 OLVASAT DETERMINÁLT**: **ÉLESÍTÉS NEM TELJESÜL** (kumulatív −$5 193,86 vs +$2 000 ❌ | Sharpe 60d −7,174 vs 0,5 ❌ | poz. excess nap 36/79 ✅) — **LEÁLLÍTÁS KRITÉRIUM TELJESÜL** (`cum_30d` −5,22% vs −3,0%). A *„DEFAULT: PAPER FOLYTATÁS" NEM alkalmazandó* (az csak akkor, ha sem élesítés, sem leállítás nem áll fenn). Érzékenység: ugyanaz az olvasat az adat-frontieren (10-02) is. **A TÉNYLEGES DÖNTÉS human-in-the-loop, Tamásé** — `docs/decisions/2026-10-03-gate-run-outcome.md`. Attribúció (⚠️ LEÍRÓ, G1 szerint NEM input a leállításhoz): elsődleges **L2 Spearman h=5 ρ=+0,073** CI [−0,150,+0,289]; **mind a hat CI tartalmazza a 0-t** (a 08-18-i futásnál egy kizárta). **(2) D8 ADATGYŰJTÉSI MÓD (Tamás, 10-03)**: az IBKR-futtatás leáll, **minden más fázis fut**. A `--override-circuit-breaker` NEM használva — a breaker az **all-time kumulatíven** ül (`submit_orders.py:169`), ezért **nem állhat helyre „magától"**; +$1 460,95 realizált nyereség kellene, a megfigyelt ütem −$73,42/nap. Három guard sérült egyszerre (breaker 1,29× · Day 21 chkpt 4,31× · `cum_30d` 09-11 óta). A könyv **09-30 óta ÜRES** (0 pozíció, 0 order, bróker-verifikált); a Mini Gateway-e nem fut — **ez mind az 5 „IBKR CONNECTION FAILED" egyetlen gyökérokа**. ⚠️ A `state/circuit_breaker.json` **elavult Day 1-es fájl** — a tüzelt breaker submit-időben számolt ellenőrzés, nem ez. **(3) `cum_30d` BEFAGYASZTVA (D8/F)**: a leállítási kérdéshez **kizárólag a kapu-napi −5,22%** a mérvadó — adatgyűjtési módban a mutató **a tétlenségtől mechanikusan 0 felé csúszik**, ami **NEM felépülés**. **(4) §5.1/§5.2 FELOLDVA**: a 08-18-i lezárás áll, a finomítások **nem** alkalmazva (a post-hoc minta-választás tilalma; mindkettő **veszteséges** tételek eltávolítását jelentené) → pin `68fc00e` változatlan. **IMPLEMENTÁCIÓ**: `check_trading_enabled()` guard (`lib/trading_enabled_guard.py`) + switch `state/trading_enabled.json` (`enabled:false`) — **a crontab ÉRINTETLEN** (kikommentelés helyett, mert az dokumentálatlan prod-állapot); fail-CLOSED hibás switch-re; 8 scriptben bekötve + a `daily_metrics` IBKR-fetch-je rövidre zárva (a metrics-build FUT). **Verifikálva a Minin**: mind a 8 IBKR-es script tisztán leáll, az adatgyűjtés (Phase 1-3, Phase 4-6/`phase4_snapshots`, review_data, events_to_sqlite) **0 guard-hívás = érintetlen**. **Tesztek: 2222 → 2234 passing** (+12), 0 failure. **Paper trading: 88 kereskedési nap, cumulative −$6 460,95 (−6,46%), 0 nyitott pozíció.** **KÖVETKEZŐ**: Tamás §3-döntése (leállítás / más feltételekkel folytatás / keret-revízió ÚJ pre-reggel — a §3 küszöbök utólagos módosítása kizárt); a D6 SIM-napirend (`max_hold`-érzékenység → MENTAL_SL → TP1-elérés → végrehajtási stílus) a **§11.20 geometria-javítással**; **FileVault** (3. előfordulás). Nyitott defektek: §11.17 (`exit_type` ablak-címke), §11.18 (szektor-cap monitorozási rés), §11.20 (TP1/stop/breakeven a tervezett árhoz; a trail helyes), a `pt_monitor --mode=eod_eval` **pre-existing** `check_trading_day`-kihagyása. -->
-<!-- Korábbi: 2026-09-12 (szombat) CC (review-session) — 🔴 **A PRE-REG LEÁLLÍTÁSI FELTÉTEL TELJESÜLT (2026-09-11), ÉS TAMÁS A KAPUIG VALÓ FOLYTATÁS MELLETT DÖNTÖTT (D7)**. **`cum_30d` −3,38%** (−$3 376,44) a §3 **−3,0%**-os küszöbe ellenében — a paper periódus kezdete óta **először** teljesült bármely leállítási feltétel. ⚠️ NEM a D4 mean/sum vita tárgya (az a 10/15d excess-ablakokra vonatkozott); a pre-reg irányadó excess-triggerek **tiszták** (10d_mean −0,05%, 15d_mean −0,18%). **A breach NEM átmeneti**: nulla jövőbeli realizált mellett a következő **8 ülésen** is BREACH, előbb **−3,62%-ig romolva**; a visszatéréshez ~+$376 kell. **§5.2-érzékenység**: a 08-21-i outage-késett tételek kivételével is −3,16% → **még mindig breach**. **✅ D7 (Tamás, 2026-09-12): ELMEGYÜNK A KAPUIG (2026-09-22), ott döntés** — legitim, mert a §3 kritériumokat rögzít (nem automatizmust; a leállítás human-in-the-loop), és a kapu dátuma **D2-ben, 07-28-án előre rögzült** → halasztás egy már pre-regisztrált döntési pontra, 7 kereskedési nap. ⚠️ **A trigger NEM resetelődik**; ha 09-22-én is áll, a §3 szerint a **LEÁLLÍTÁS kritérium teljesül** (a „DEFAULT: PAPER FOLYTATÁS" csak akkor, ha sem élesítés, sem leállítás nem áll fenn). A döntés **az eredmény ismerete ELŐTT** rögzült. **KÖTELEZŐ**: a kapu-riport szó szerint rögzítse, hogy 09-11-től leállítási feltétel élt (§8/F); a napi review a kapuig minden nap riportálja a `cum_30d`-t; a **D6 prod-fagyás változatlan** — a breach **nem indok** paraméter-változtatásra. **Paper trading Day 81 (09-11)**: cumulative **−$3 205,51 (−3,21%)**, NetLiq $96 835,62, **7 nyitott**, unrealized −$852,10. **W37**: net −$1 444,61 (a review-időszak legrosszabb hete), excess −0,68%, 1/4 nyerő nap; a veszteséget 3 stop-jellegű exit adta (INTA −$521,28 = −11,91% éra-rekord, NWS −$398,80, MANH −$362,11). **W37 TP1-korrekció**: a riport 3/6 (−$276,97) HIBÁS → kanonikus **1/6, +$52,49** (a §11.17 defekt: az `exit_type` az időablak alapértelmezett címkéjét adja — 09-09/09-10-ben előre jelezve). **Lezárt TP1-ciklusok: n=6, mind pozitív, Σ +$850,84.** **Nyitott Tamás-döntés**: §5.1 (részleges-outage kritérium) + §5.2 (EQH/DLB besorolás) — mindkettő **új pint** kíván a `gate_sample.py`-ban (jelenlegi `68fc00e`); **FileVault** (3. előfordulás). Gate-protokoll: **§D7**, 04-risks **§11.19**. **A kapuig 7 kereskedési nap.** -->
-<!-- Korábbi: 2026-08-18 (kedd) CC (review-session) — **DAY 63 LEZÁRULT (08-17) + a freeze FELOLDVA + a Day 63 utómunka KÉSZ**. **Paper trading Day 63/63 (08-17)**: cumulative **−$449,88 (−0,45%)**, NetLiq **$99 110,62**, **8 nyitott** (BANC/DLB/ZBRA/SN/EQH/STE/ADT/FBIN), unrealized **−$1 119,25** (mind negatív, swing-éra mélypont). **STOP-trigger**: `excess_10d_mean` **−0,36%** vs −1,0% → **nincs halt** (D4: a `mean` az irányadó; a `sum` BREACH-en áll, megfigyelés). **A parameter freeze 08-17-től FELOLDVA (D1)** — de a **G1/G3–G7 guardrailek VÁLTOZATLANUL élnek** a kapuig. **A kapu: 2026-09-22 (D2), fix dátum.** **Day 63 utómunka (08-18, gate-protokoll `docs/planning/2026-07-25-gate-protocol-preregistration.md`)**: (1) **§5 kizárási lista LEZÁRVA** — **9 outage trading nap** (5 esemény; a korábbi „5 nap" eseményt számolt) + **6 pozíció** outage-késett exit (4 esemény: ITT/XPO már adathiányon kiesik, PFGC/BIRK/USFD/DE a §5-ön) → minta **n=43 → n=39**; a Day 9 clean cut **hatástalan** (`full=clean=clean_exit`), a `day_number`-defektre **robusztus**. (2) **§D3/M realized-only korlát RÖGZÍTVE** — 0-exites napon `excess = −SPY`; **19/54 nap (35,2%)** ilyen, a realized és MTM olvasat **11/42 napon (26,2%) ellentétes előjelű** (először **06-08**, nem 08-17 — a review „ma először" állítása korrigálva; a szigorú D3 P1-feltétel, küszöb-körüli szétválás, **soha nem állt fenn**). D3 változatlan: **realized-only az irányadó**. (3) **§9 első LEÍRÓ `signal_attribution` futás** (pin **`c5e9ed0`**, verifikálva változatlan) — **NEM go/no-go**: elsődleges metrika L2 Spearman h=5 **−0,018** (n=43) / **−0,008** (n=39), CI mindkettőn tartalmazza a 0-t. **🔴 A kapu-futás BLOKKOLÓJA (Tamás-döntés): §5.6** — a §5 kizárás **nincs implementálva a pinelt eszközben** (a §6/2 viszont megköveteli) → mechanizmus-döntés kell 09-22 ELŐTT (újra-pinelés vs. külön pinelt wrapper; **CC javaslata: wrapper**). **További Tamás-döntések**: **UW API-kulcs** 06-24 óta hiányzik (Polygon-fallback aktív, pipeline nem áll, de a kapu-minta ezen az úton keletkezett + a Day 90 UW rekalibráció input nélkül maradna) | **FileVault** (2 outage: 07-22, 08-07). Kereszthivatkozás: 04-risks **§11.12–11.14**. Utolsó review: `docs/review/2026-08-17-daily-review.md`. **✅ UW KIVEZETVE (Tamás-döntés, 08-18)** — `docs/decisions/2026-08-18-uw-decommission.md`: a rendszer 06-24 óta de facto UW nélkül fut (Polygon-only GEX, output-invariáns flip); a **Day 90 UW Bayesian rekalibráció TÖRÖLVE** (input-hiány, n=69); a UW-kódutak dormant ágakként a helyükön maradnak a kapuig (takarítás = kapu utáni task); a `.env` kikommentelt UW-kulcsa **rotálandó**. **63 napos periódus összefoglaló + javaslat**: `docs/planning/2026-08-18-day63-period-summary-and-proposal.md`. **Pre-reg állás Day 63-on** (NEM verdikt, D1): kumulatív −$449,88 (küszöb +$2 000) ✗ | Sharpe 60d **+0,090** (küszöb 0,5) ✗ | pozitív excess nap **25/54 megfigyelt** (46,3%) ⚠️ **D5**. **Leállítás: egyik sem aktivált** (10d/15d mean −0,36%/−0,26%, 30d cum −1,01%) → **a default PAPER FOLYTATÁS áll fenn**. **Zárt pozíciók (n=39)**: win 46,2%, átlag R −0,107%, PF 0,936; **exit-bontás: TIME_STOP 31 (79,5%, Σ −10,25%) | TP2 4 (4/4 win, Σ +25,08%) | MENTAL_SL 4 (0/4, Σ −18,99%)** — a periódus fő strukturális ténye, hogy a pozíciók ~80%-a `max_hold`-on zárul. **✅ 3 DÖNTÉS MEGSZÜLETETT (Tamás, 08-18)**: **D5** = `≥ 25` a megfigyelt napokra (40%) | **D6** = KÉTSÁVOS (prod fagyva 09-22-ig + revíziók SIM-ben) | **§5.6** = pinelt WRAPPER → **implementálva: `scripts/analysis/gate_sample.py` + 13 teszt** (pin-verifikáció futásidőben, befagyasztott §5-lista, pozíció-kulcsú kizárás, `verify_outage_days` a data-frontierig; a 08-18-i ad-hoc futás számait pontosan reprodukálja: n=39, L2 h=5 −0,008). **Nyitott maradék**: a wrapper **pinelése** a kapu előtt. Eredeti felvetés: **D5** (a 3. kritérium `>` vs `≥` és a nevező — egyetlen napon múlik) + **D6** (a D1↔D2 feszültség: a 09-22-i kapu-ablak **40%-a (25/63 nap)** a freeze-feloldás utánra esik → prod-paraméter-változtatás most éra-poolozná a mintát; **CC javaslata: kétsávos — prod fagyva 09-22-ig + revíziók a SIM-L2/Mode-2 infrán**, SIM-napirend: max_hold-érzékenység → MENTAL_SL kalibráció → TP2-elérés → végrehajtási stílus). **FileVault**: Tamás felírta, parkolva. **Következő**: 08-18 napi review (DLB + STE TIME_STOP, várt ≈ −$238), majd a **kapu 2026-09-22**. -->
-<!-- Korábbi: 2026-07-24 (Day 46, csütörtök) CC-close (review-session) — **A napi review átkerült CC-hez (Fázis A élesben)** + **2 outage (07-15/16, 07-22) FileVault-gyökérokkal** + **pt_events P1 (test-env-hygiene 3. rés) task** + **FRL-keret v2 (6-pontos CC-kritika beépítve)**. **Paper trading Day 46 (07-23)**: cumulative **−$423.70 (−0.424%)** — a pivot óta ELŐSZÖR negatív; NetLiq $100,232.18; 5 nyitott (GTES/JAZZ/PFGC/EQH/USFD, state≡IBKR, USFD self-reentry). **4 CC-review** (07-17 Day42 + W29, 07-20 Day43, 07-21 Day44, 07-23 Day46) — v6 10-szekció, IBKR-verifikált. **ITT/XPO** manuális exit reconcile+könyvelés (07-17, §11.10, +$262.65 broker-realized). **Megfigyelés-sorozatok**: next-day fill slippage n=5 (|medián|~100 bp → az FRL cost-model 75 bp/oldal induló értéke konzervatív), self-reentry n=2 (PFGC/USFD max_hold-kényszer), outage-késett exit n=3 (ITT/XPO+PFGC/BIRK+USFD, mind rosszabbul zárt). **🔴 pt_events P1** (`docs/tasks/2026-07-23-pt-events-test-isolation.md`): a `PTEventLogger(log_dir="logs")` + modul-szintű `evt` → a tesztek a production `pt_events`-be írnak (176 AAA/BBB/CCC fixture-esemény 07-23-án); hiteles P&L-lánc érintetlen; freeze-safe fix delegálva a **bugfix-sessionnek** (`docs/handoff/2026-07-24-bugfix-session-starter.md`). **07-22 outage gyökérok = FileVault** (26h feloldó-képernyőn; boot-daemonok titkosított köteten nem indulnak) → Tamás-döntés (FileVault OFF + auto power-on + auto-login); UPS megrendelve. **FRL build** párhuzamos sessionben halad (HYP-005 + enrichment sink §11.11 deployed; a branch-en `scripts/research/` fa + `test_frl_*`); D_A Tamás-döntésre vár. **3 párhuzamos szál**: review (itt) / FRL build / bugfix. **Production-kód FAGYOTT Day 63-ig.** **Következő**: Day 63 kapu (≈W31). E session docs-only (CC-baseline változatlan; a branch teszt-száma a FRL-session miatt nőtt). Journal: `docs/journal/2026-07-24-session-close.md`. -->
-<!-- Korábbi: 2026-07-11 (Day 37, szombat) CC-close — **Mini-restart lezárva + trades-CSV P1 fix deployolva + review-automation** (origin `ee6b557`, **1985 passing**, 0 failure). **Trades-CSV P1 fix** (§11.9, `ee6b557`): a `trades_{date}.csv` mostantól a hiteles ledgerekből épül (`build_trade_report_from_ledger`: pending_exits + daily_metrics::details + swing_positions), nem a clientId-12 fill-rekonstrukcióból — javítva a 07-08 review §6.2 3 defektje (self-reentry mis-pair PFGC +$370.17 vs −$180.81, hiányos exit-lista 3/7, metaadat-szennyezés). Freeze-safe display/tracking-fix (§4.2/1); +4 teszt; 07-08 regenerálva (.bak); audit (`trades_csv_consistency_check.py`): 35 nap/32 OK/**3 divergens** (06-09/10/11, Dev-chat-regen). **1a cron-integrálva** (22:20, `9d7f5f8`) → review_data auto + sync; 07-07/08/09 backfillelve. **Mini-restart (07-07)**: friss Phase 1-3 kontextus (SSH-orphan runok feloldva), ITT/XPO manuális belépő (kedvező áron) + AXTA time-stop +$75.25; a Mini 07-07 crashelt (booted 20:23, nem sleep), azóta stabil (up 3 nap). **Paper trading Day 37 (07-10)**: cumulative **$228.69 (+0.23%)**, 5 nyitott (BIRK/ITT/PFGC/SLGN/XPO, state≡IBKR). **W28** (csonka, post-outage, 4 nap): Net −$311.36, excess vs SPY −0.79%. A gap-kontaminált pozíciók kitisztultak (Day 126 replan §3 D2: edge-mintából kizárva); ITT +$235/XPO +$103 a tiszta late-entryk. **Production-kód FAGYOTT Day 63-ig** (churn: S_j→UW-flag→flip→footer→trades-CSV §11.9→STOP). **Következő**: Day 63 kapu (≈W31), első valódi signal_attribution futás. Handoff/kickoff: `docs/handoff/2026-07-11-cc-*`. Nyitva (Dev-chat): 3 divergens CSV regen, CSV-deprecálás, scoring_validation swing-only szűrő (§6.6). -->
-<!-- Korábbi: 2026-06-24 (Day ~25, szerda) este, CC-close — **Flip POST-VERIFIKÁLT + signal_attribution WIRED + footer-fix; push + Mini-deploy** (push `f58b4a7..c5f1e0c`, Mini ff-only → `c5f1e0c`, **1981 passing**, 0 failure). **Flip post-verify PASS** (§11.7): a 06-24 14:30 live run logból — 0× greek-exposure (0×429), `source=uw`=0, Phase 5 normál (Analyzed 40 / Passed 37 / Excluded NEGATIVE 3), M_gex=1.000, 0 error. GEX **Polygon-only**, log-igazolt (a journal-konfliktus verifikációból feloldva). **signal_attribution data-loader WIRED** (`c5e9ed0`, spec §6.1, freeze-safe read-only): pozíció-szintű aggregálás (`realized_r = Σ(leg net pnl)/(entry_price×Σqty)`, broker-net), **entry-alapú clean cut** (≥Day 9), 3 invariáns pinned, 2 pre-reg döntés (Chat sign-off) + **2 bug kifogva** (multi-leg autokorreláció, VNO double-count). Adat-coverage: 28 láb → 20 pozíció → **12 included / 8 excluded** (pre-06-09 early exit-ek, per-trade P&L nem rekonstruálható; go-forward rés ZÁRVA). **Footer display-fix** (`c5f1e0c`, §11.8): a settings-footer risk-sora a legacy 0.7% helyett a valós swing 0.35%/$350-et írja (display-only, §4.2/1; súly+sector már helyes volt). **Production-kód FAGYOTT Day 63-ig** (churn-vonal: S_j → UW-flag → flip §11.7 → footer §11.8 → STOP). **0 nyitott IFDS-tétel.** Következő mérföldkő: **Day 63 kapu (≈W31)** — első valódi signal_attribution futás (n=12 → ~40-45). Handoff/kickoff: `docs/handoff/2026-06-24-cc-*`. ⚠️ Drawdown: cumulative 1716 → 555 (Day 21 −$1,500 checkpoint figyelendő). -->
-<!-- Korábbi: 2026-06-24 reggel (Chat) — **UW greek-exposure FLIP staged + UW 07-04 deadline felmérve** (push ..dbbeaa6, 1969 passing). Kétlépcsős config-réteg runbook (STEP 1 `7c3fd55` + Mini `prod_overrides.json`; STEP 2 06-24 08:54 `{"tuning":{"uw_gex_fetch_enabled":false}}`). Nyitott volt: flip post-verify a 14:30 run után (azóta DONE, lásd fent). UW 07-04: közös MID+IFDS sub meghal; IFDS bizonyítottan biztonságos; `IFDS_UW_API_KEY` azóta kikommentelve mindkét .env-ben. -->
-<!-- Korábbi: 2026-06-18 (Day ~22, csüt; 06-19 Juneteenth zárva) — **Infra/konnektivitás + daily-review CC-taskok + UW-feed racionalizálás** (push ..9a9af9e, **1969 passing**, 0 failure). **Parameter freeze érvényben Day 63-ig** — a production-kód mostantól FAGYOTT a UW-flip lezárultáig (churn-számláló: S_j-capture → UW-flag, itt megáll). **Tailscale-migráció**: az ISP CGNAT-ra váltott → DDNS halott; `ssh ifds-mini` + sync most Tailscale-en (`100.76.118.54`), Tailscale SSH OFF, key-expiry letiltva (lásd memory: mac-mini-connectivity). **Daily-review CC-taskok DONE**: UW 429 diag (nulla trading-hatás), eod „Trades:0" fix (`03c77d8`, §11.2), trading_days off-by-one backfill (`4f75455`+Mini --apply, §11.5). **Faktor-réteg KILL** (opportunity-cost, `f89db92`); „IC Phase A" fantom-szál ejtve. **Loose-ends sweep Phase 1** (`c5564ed`) — codebase tiszta (0 orphan, 1 TODO). **UW greek-exposure flip ELŐKÉSZÍTVE** (#3.1): `uw_gex_fetch_enabled` flag default-True-dormant (`6b7a4ca`, §11.6), output-invariáns proof (source=uw==0/92 nap + live on/off diff PASS, `cd0841a`), **kétlépcsős runbook Tamásnak** (`docs/handoff/2026-06-18-uw-gex-flip-runbook.md`) — STEP 1 üres-override hétfő 06-22, STEP 2 flip külön ablakban. **UW de-scope** (`docs/analysis/uw-feed-descope-2026-06-18.md`): darkpool-shadow n=69 (nem életképes Day 90 audit) → UW lemondható a flip post-verify után (Tamás). **Következő CC-tétel**: `signal_attribution` data-loader wiring (freeze-safe; spec §6.1 pinned). **0 nyitott task.** -->
-<!-- Korábbi: 2026-06-12 (Day ~18-19) — **Jel-izoláló attribúciós infra (adat ELŐTT) + S_j-capture deploy + verifikáció** (push ..1abe3f0, **1954 passing**, 0 failure). **Cumulative +$1,735.02** (broker-pontos; a Day 18 6/11 mega exit-nap átlépte az $1,000-et). **Parameter freeze érvényben Day 63-ig** (edge-audit §4.2/1) — csak bugfix + display/tracking-fix (04-risks §11-be logolva). **Edge-audit** (`docs/foundational/strategic-review/2026-06-10-edge-audit.md`, Chat v1.2, git-ben c884f31) a Day 63/126 referencia. **Jel-izoláló attribúciós spec + `scripts/analysis/signal_attribution.py`** (L0/L1/L2, elsődleges metrika L2 Spearman h=5 szektor-relatív; +13 teszt) — pre-reg lezárva. **S_j-capture DEPLOYOLVA+VERIFIKÁLVA** (Day 19 reggel, a mega-nap UTÁN): SwingPosition.entry_score + submit/close/ledger; #1 új belépők NSA=100.71/JAZZ=87.44, #2 ledger-mező jelen. Gate A/B kész. **Korábban e sessionben** (mind DONE): daily-metrics-execution-fix #1/#2 (Day 17 verif), task-index szűrőbug fix (B+A archiválás), recorder-robust (A.2 6/8 smoke). **1 nyitott task**: `2026-06-10-eod-telegram-persisted-details.md` (P2, freeze-safe). Handoff: `docs/handoff/2026-06-12-session-close-handoff.md`. -->
-<!-- Korábbi alább: -->
-<!-- Utolsó frissítés: 2026-06-06 (szombat) este — **Data-quality fix-package P1+P2 KÉSZ + ~$218 drift feloldva + 1c review-pipeline** (push 200e48b..cdfac9a, **1926 passing**, 0 failure). **Cumulative +245.25** (broker-pontos), unreal +212.30, NetLiq $100,678.44, 6 nyitott (AMH/BEN/FFIV/MSM/VNO/WST, state≡IBKR). **Fix-package** (`docs/tasks/2026-06-06-data-quality-fix-package.md` DONE): #1 VIX→Polygon I:VIX (6/5 15.78→**21.51 +39.7% risk-off**), #2 EOD timing (P&L a Part A-ból + cron 22:11), #3 NYSE day-count, #4 commission (backfill exit-leg), #5 weekly slippage (entry-based qty-súlyozott), #6 portfolio_return NetLiq day-over-day (6/5=-0.59%). **P3 #7/#8 → backlog**. **~$218 drift FELOLDVA** (`docs/analysis/cumulative-drift-investigation-2026-06-08.md`): tracked == broker realized pontosan; a drift = pre-pivot cash carry +$208.37 (account ~$100,208-ra resetelt) + accrued $12.89 → `BASELINE_OFFSET_USD=208.37` a cross-checkbe (Tamás A-opció). **1c review-pipeline KÉSZ** (`generate_review.py --ibkr-json` + `/daily-review` command). **Mac Mini deployolva** (VIX/commission/portfolio_return backfill + live crontab eod→22:11). 2-hetes Telegram-összefoglaló kiment (msg 1078). **Következő: Telegram üzenetek aktualizálása**. Hétfő 6/8 22:10: A.2 live smoke (AMH MOC TIME_STOP). -->
-<!-- Korábbi alább: -->
-<!-- Utolsó frissítés: 2026-06-06 (szombat) 09:30 — **6/4+6/5 restatement + review-pipeline 1b/1c + cross-check finding** (push ..23a3730, **1898 passing**). **Cumulative +245.25** (broker-authoritatív, 6/4 +225.34 + 6/5 +63.83, connector get_account_trades; reusable tool restate_day_realized.py). NetLiq $100,675.60, 6 nyitott (AMH/BEN/FFIV/MSM/VNO/WST, state≡IBKR). **(A.2) recorder ib.fills()** DEPLOYED (az A.1 sleep megbukott a 6/4 smoke-on) → hétfő 6/8 élő smoke. **Autonóm review-pipeline**: 1a + 1b/1c connector-független mag KÉSZ (generate_review.py: build_cross_check_flags + render_review_markdown). **1b cross-check ELSŐ ÉLES futás**: state≡IBKR ✅ + **🚩 P0 cumulative_drift −$218** (tracked+unrealized vs NetLiq) — kivizsgálandó. **ÚJ task** (Chat): docs/tasks/2026-06-06-data-quality-fix-package.md (8 fix, P1: VIX→Polygon I:VIX először — a FRED 1 napos késéssel a 6/5 VIX-et 15.78-nak mutatja a valós 21.50 helyett). Handoff: docs/handoff/2026-06-08-kickoff-message.md. -->
-<!-- Korábbi alább: -->
-<!-- Utolsó frissítés: 2026-06-04 (szerda) 07:26 — **Day 14 recorder fix + autonóm review 1a** (push ..b93dfac, **1887 passing**). **Day 14 (A+B+C)**: (A) robusztus broker-realized capture (reqExecutions→sleep(3)→re-request — a Day 13 reqExecutions realizedPNL=0 incidens fixe; live smoke ma 22:10), (B) build_daily_metrics exits a cumulative counterekből (nem az eod CSV-ből), (C) 6/3 re-run → exits tp1:2/moc:1, **cumulative -43.92**. **§5.4** no-exit-nap zero-entry, **3b** Telegram BEST DAY címke. **Autonóm review-pipeline 1a KÉSZ** (generate_review_data.py → state/review_data/{date}.json, determinisztikus aggregátor + anomália-flagek, éles 6/3 validálva — 4 valós flag). Lezárva: 2026-05-26-auto-update task (superseded). **Hátra: 1b/1c review-generátor** (IBKR cross-check + LLM-réteg). **MA 22:10 cron**: (A) live smoke + BEST DAY + no-exit-entry első éles próbája (JHG/AKAM TIME_STOP + MSM TP1 várt). Tanulság: reqExecutions realizedPNL aszinkron → settle kell (learnings-archive). -->
-<!-- Korábbi alább: -->
-<!-- Utolsó frissítés: 2026-06-03 (szerda) — **MÉRFÖLDKŐ: P0+P1+P2 mind deploy-olva egy sessionben** (push ..87086be, 1862→**1875 passing**). **Part A első éles same-day próba SIKERES** (6/2 CDNS TP2 +$450). **#3 data-quality hardening**: recorder Option B (broker-authoritative IBKR realized_pnl, nem state-attribúció) + daily_metrics metadata-sync (exits/commission/opened a ledgerből) + CDNS Day 12 restatement $450.10→$434.82, **cumulative -708.58 → -273.76**. **#4 Telegram EOD finomítás** (NYSE Day-N, top movers, day-change `state/daily_equity.json`, exit-merge, S_j címkék, Day 21 chkpt, TRADING PLAN shadow-cleanup) — első éles render ma 22:05. **#6 single-position cap** (`swing_max_single_position_pct=0.12` resize, Phase 6). **6/3 ESTE — multi-exit validáció + incidens megoldva**: a 22:10 cron 3 exitje (AKAM TP1 +$75.30, ST TP1 +$106.07, EOG TIME_STOP +$48.46, Σ +$229.84) strukturálisan rögzült, DE az Option B `reqExecutions.realizedPNL` aszinkron 0-t adott → mindhárom $0-nak rögzült. **Megoldva** (commit ce3f129): safety-fix (`realizedPNL==0`→unavailable→fallback+warn) + restatement (connector-authoritatív) → **cumulative -43.92**. Másodlagos metadata-glitch (6/3 exits blokk moc:2 vs tp1:2+moc:1, eod trades CSV preferencia — NEM P&L). **Holnap**: docs/tasks/2026-06-04-recorder-robust-realized-capture.md (robusztus broker-realized capture + exits-source fix). Új scriptek: restate_cdns_day12_pnl.py, restate_20260603_exits_pnl.py. Review: docs/review/2026-06-02-daily-review.md. -->
-<!-- Korábbi: 2026-06-01 (szombat) — **P0 §0.11 Part A DEPLOYED**. Pending-exit ledger forward-fix élesítve Mac Mini-n (push 66faf29..0a0332b, 1862 passing). A realized P&L tracking gap megoldva: `daily_metrics.record_pending_exits` az EGYETLEN cumulative_pnl writer swing exitekre (clientId=18, ledger `state/pending_exits/`, idempotens); `close_positions` minden swing exit-nél try/except-guarded ledger-be ír; `eod_report` cumulative WRITE kikapcsolva (display-only) + silent-0-pnl Telegram WARNING. **Day 9 AMH backfill**: IBKR-authoritative realized -$57.48 (SELL 249@31.99 MOC, valós entry 32.21 weighted), **cumulative -651.10 → -$708.58**, trading_days 9. Backup: cumulative_pnl.json.bak.pre_partA.20260601_140510. Smoke-felfedezés: reqExecutions csak az aktuális session fill-jeit adja → historikus backfill connector get_account_trades-ből (forward-fix Day 10+ same-day működik). Első éles same-day próba a 6/2 22:10 cronon (CDNS TP2 várt exit ~+$506). Új scriptek: scripts/admin/seed_amh_day9_ledger.py + backfill_amh_day9_pnl.py. **Tesztek: 1862 passing.** **Következő CC task**: Telegram EOD finomítás + TRADING PLAN cleanup phase-2 (docs/tasks/2026-06-01-telegram-eod-finomitas.md, OPEN, minden döntés zárt; handoff: docs/handoff/2026-06-02-telegram-task-kickoff-message.md). Execution-quality finding: WST nyitó MKT paper-fill +$2,68 vs valós tape (NEM szisztematikus, 14/15 ok; learnings-archive + review §1.2.1). -->
-<!-- Utolsó frissítés: 2026-05-28 (Day 8 záró után, Log Review chat + IBKR MCP connector). **4 nyitott pozíció** (AMH TIME_STOP flag Day 9, EOG -$239 unrealized stop-közelben, AKAM, JHG új 15% koncentrált). **⚠️ AKTÍV P0 (§0.11)**: realized P&L tracking gap — a Day 8-i 7 exit (-$695,77 realized) NINCS rögzítve a cumulative_pnl/daily_metrics-ben. **Valódi cumulative IBKR Net Liq alapon: -$779,64** (hivatalos daily_metrics tévesen +$39,33, eltérés $819). Day 8: EC TP2 +$232 (első teljes TP1→TP2 ciklus, EC total +$344), 6 TIME_STOP -$928 (LBRT -$419 + WMB -$379 Energy mélypont). `_reconcile_state_from_ibkr` 2/2 éles SILENT OK. Day 1-8 closed realized -$651,40 (bug-torzított: days_held calendar-bug + stale context + ATR floor hiány). Friss review-k: docs/review/2026-05-26 + 2026-05-27. 04-risks teljes Day 1-8 átvezetés (§9-10 új). Új task: docs/tasks/2026-05-28-automated-daily-review-pipeline.md. -->
-<!-- Utolsó frissítés: 2026-05-25 (Memorial Day, W21 záró) /wrap-up. **8 nyitott pozíció** (LBRT, MASI, EC remainder, PFGC, CNC, WMB, DXCM, AMH) post-reconcile (VLO Day 4 SL + ON Day 5 TP1 retroactively rögzítve). **W21 RECONCILED**: Net $+37.13, Cumulative $+39, Win 2/5 (Day 2 EC + Day 5 ON TP1), 1 SL (Day 4 VLO). Mai 3 commit + 1 wrap-up: 55e5ff2 retroactive_reconcile_w21.py (Rész 2), 5c8e79a pt_monitor::reconcile_state_from_ibkr + ibkr_reconciliation lib (Rész 1), f1b6acd Rész 3 backlog task. Architektúra megerősítve: mental-stop mód HELYES, Day 4-5 bracket-trigger-ek Tamás Day 3-i manuális TWS bracket-jeinek mellékhatása. 1756 → **1804 passing** (+48 új teszt), 0 regression. Mac Mini --apply lefutott (state 10→8, cumulative $107.27→$39.33). Handoff: docs/handoff/2026-05-25-w21-close-handoff.md, Journal: docs/journal/2026-05-25-session-close.md. Day 7 (kedd 5/26) 14:00 CEST deadline — bőven időnk. MASI várt TIME_STOP Day 7 22:00 EOD eval-on (days_held=5). -->
-<!-- Korábbi: 2026-05-20 21:10 CEST — Day 3 swing pivot LEZÁRVA (/wrap-up). 7 nyitott pozíció: LBRT/MASI/EC/PFGC + Day 3 új VLO 16@$258.55, ON 27@$109.48, CNC 95@$59.27 (state≡IBKR reconciled twice). Error 354 incident RESOLVED — IBKR API → Precautions → "Bypass Order Precautions for API Orders" enable (verifikálva 1-share VLO smoke @ t=1.0s Filled @ $254.08). 8 mai commit (aba9720 Task #G log_setup, 1eb9755 shadow_snapshot, bd54857 Task #H phase13_context, d930d14 Telegram §8.1.9, 3bf382b+e3677f2 TIF diagnostic patches, 345ad09+8572a3e docs §0.4). 1746 passing, 0 regression. Journal: docs/journal/2026-05-20-session-close.md. Holnap Day 4 cron már TISZTÁN fut új tickerekkel is. -->
-<!-- Korábbi: 2026-05-19 16:50 CEST — Day 2 stabil. Task #T (Telegram swing-aware, 5 réteg, 27 új teszt) + #D (state/IBKR reconcile, 7 teszt) + #E (Phase 1-3 freshness, 5 teszt) DEPLOYED. EC TP1 50% SELL filled 15:30. 4 nyitott pozíció: LBRT/MASI/EC-166/PFGC. 1740 passing. Holnap Task #G (pt_monitor replay diagnózis, P0, ~60 min). -->
-<!-- Korábbi: 2026-05-18 12:10 CEST — Fázis 3 deploy LIVE (1711 passing, Day 1 indul) -->
-<!-- Korábbi: 2026-05-18 CC Ülés C — Swing Execution + Exit DEPLOY (1705 passing) -->
-<!-- Korábbi: 2026-05-18 CC Ülés B — Swing Sizing Phase 6 DEPLOY (1672 passing) -->
-<!-- Korábbi: 2026-05-18 CC Ülés A — Swing Universe + Swing Phase 4 scoring DEPLOY (1656 passing) -->
-<!-- Korábbi: 2026-05-16 CC Ülés C — UW dark pool / GEX deactivation + shadow log DEPLOY (1624 passing) -->
+<!-- Frissíti: CC (/wrap-up). Ez az EGYETLEN dinamikus állapotfájl — a session-start hook betölti. -->
+<!-- Utolsó frissítés: 2026-10-04 (vasárnap), CC -->
 
-## ⭐ MÉRFÖLDKŐ: Day 63 LEZÁRULT (2026-05-14)
+> ⚠️ **2026-10-04: teljes újraírás.** A korábbi törzs 2026-05-16-i volt (swing-pivot
+> roadmap, Day 126 milestone, 1582 teszt, májusi blokkolók) — **4,5 hónapig elavultan
+> élt**, pontosan abba a hibába esve, amit a CLAUDE.md fejléce tilt. A régi tartalom
+> a git history-ban megvan; ami még releváns, az alább.
 
-**Hivatalos kimenet**: **PAPER FOLYTATÁS (default)** — DE radikálisan más architektúrán.
+---
 
-**Részletes döntési dokumentum**: [`docs/decisions/2026-05-14-day63-decision-outcome.md`](decisions/2026-05-14-day63-decision-outcome.md) (14 stratégiai döntés)
+## 🔴 EGY MONDATBAN
 
-**Kumulatív 63 napi**: -$1,623.78 paper aggregát / ~-$1,400-1,500 valós (bug-korrekciókkal)
+**A kereskedés leállt (adatgyűjtési mód), a kapu lefutott, és az IFDS score-család
+mind a négy horizonton, mind a három komponensén megerősített keresztmetszeti null.
+Nyitott stratégiai döntés: új jelcsalád vagy a projekt lezárása.**
 
-### Day 63 keret 3 kimenet kiértékelése
+---
 
-| Kimenet | Feltétel | Eredmény |
+## Hol tartunk (2026-10-04)
+
+| | |
+|---|---|
+| **Kereskedés** | ⛔ **LEÁLLT** — adatgyűjtési mód (`state/trading_enabled.json: enabled=false`, D8, 10-03) |
+| **A könyv** | **ÜRES 2026-09-30 óta** — 0 pozíció, 0 élő order (bróker-verifikált) |
+| **Pipeline** | ✅ **FUT** — Phase 1-6 minden nap, csak az IBKR-hez kapcsolódó jobok állnak |
+| **Kapu (2026-09-22-i pre-reg dátum)** | ✅ **LEFUTOTT 2026-10-03-án**, 8 kereskedési nap dokumentált késéssel |
+| **Tesztek** | **2377 passing**, 0 fail |
+| **Kumulatív P&L (befagyva)** | **−$6 460,95** / 88 kereskedési nap |
+
+---
+
+## A négy mérés, ami ide vezetett
+
+| # | Mérés | Eredmény |
 |---|---|---|
-| ÉLESÍTÉS | +$3,000 ÉS +1.5% kumulatív excess vs SPY | NEM teljesült (-$1,623, távolság -$4,623) |
-| LEÁLLÍTÁS | 10 napi excess < -1.5% VAGY VIX > 25 30+ napra | NEM aktivált (10 napi átlag -0.35%, buffer ~1.15%) |
-| **PAPER FOLYTATÁS** (default) | A két fenti egyike sem | ✅ **AKTIVÁLT** |
+| 1 | **Kapu-futás** (10-03) | ÉLESÍTÉS ❌ · **LEÁLLÍTÁS kritérium teljesül** (`cum_30d` −5,22% vs −3,0%). Attribúció (leíró): L2 ρ = **+0,073**, CI [−0,150, +0,289] |
+| 2 | **SIM-1** — §11.20 exit-geometria | a javítás **≈$0** (−$8, CI [−707, +649]) → a geometria **nem** okozta a veszteséget |
+| 3 | **SIM-2** — exit-architektúra sweep | **0/15 cella pozitív**, 0/14 szignifikáns; 25 bejárt konfigurációból a legjobb is −$3 582 |
+| 4 | **SIM-EXEC** — belépési végrehajtás | **mind a 4 LMT-variáns veri a MKT-t**, V1 **+$2 442** — de a könyv így is veszteséges (−$2 915) |
+
+**Veszteség-dekompozíció** (n=78 minta, realizált −$7 657,43):
+belépési slippage **−$1 958 (26%)** · commission −$215 (3%) · geometria **≈$0** ·
+exit-architektúra **≈$0** · **reziduális = a belépők maguk ≈ −$5 500 (72%)**.
 
 ---
 
-## Stratégiai fókusz: SWING PIVOT (W21-W30, 8-10 hét)
+## 🔴 A jelcsalád: mind KILL, adekvát erővel, megerősítve
 
-A jelenlegi rendszer **negatív expectancy-jű** (Kelly $f^* = -0.23$ konzervatív, $-0.46$ default), **kvázi-zéró edge-gel** (Pearson $\rho(S, R) = -0.000$), **19-21% éves súrlódás-teherrel**. **Intézményi befektető allokáció nélkül hagyná.**
+| Hipotézis | Mi | Súly | Attemptek | Šidák p | Verdikt |
+|---|---|---:|---|---:|---|
+| HYP-005 | aggregált S_j | — | A-0005..A-0010 | 0,6411 | **KILL ×4** ✅ |
+| HYP-006 | Flow blokk | **0,60** | A-0011..A-0014 | 0,9455 | **KILL ×4** ✅ |
+| HYP-008 | Tech blokk | **0,30** | A-0015..A-0018 | 0,9699 | **KILL ×4** ✅ |
+| HYP-007 | Funda blokk | 0,10 | A-0019..A-0023 | 0,9993 | **KILL ×5** ✅ |
 
-A 60 napi adat **strukturális tanulságokat** szolgáltatott — a **B opció (multi-day swing)** kvantitatívan a legjobb pivot:
-- Mathematical doc 5.2: a flow signal mutual information $h=5$ napi holding mellett **5× erősebb** ($I \approx 5\rho^2 \approx 0.10$)
-- Kelly criterion swing horizonton **újrakalkulálható**, várhatóan pozitív
-- A LOSS_EXIT bracket SL bug (4 instancia 13 napon belül) **strukturálisan eliminálódik** a mental stop architektúrával
+*(✅ = `human_confirmed: true`. Korábban: HYP-004 sector-reversal KILL ×4.)*
 
-### 14 stratégiai döntés (Day 63 outcome doc)
+**Minden mért \|IC\| < 0,009**, T_eff 6,2–62,0 (mind a 6,0-os floor fölött).
+**A kioltás-hipotézis nem támogatott** — nincs mit kioltani.
 
-| # | Téma | Választás |
-|---|---|---|
-| 1 | Day vs Swing | **SWING (3-5 nap hold)** |
-| 2 | UW API | **Shadow log Day 90-ig**, scoring-ban deaktiválás |
-| 3 | 15 backlog idea | **KEEP 6 / REWORK 4 / DROP 5** |
-| 4 | Strategic-review nem-implementált | **3 elvégzendő, 2 elvetendő** |
-| 5 | Reset roadmap | **3 fázisú, W21-W30** |
-| 6 | Entry/exit timing | **15:30 CEST entry, 3-5 nap hold, mental stop** |
-| 7 | Pozíció-méretezés | **Rolling 10-12 equal-weight, 0.35% risk/position** |
-| 8 | Time-stop | **5 trading nap full MOC exit** |
-| 9 | Universum | **S&P 500 + Russell 1000 (~1000 likvid)** |
-| 10 | Earnings exclusion | **10 nap előretekintés (hold × 2)** |
-| 11 | Sector concentration cap | **30% notional/szektor** |
-| 12 | Stop-loss típus | **Mental stop, daily eval, NINCS IBKR bracket** |
-| 13 | Scoring revízió | **PCR + OTM-inverse only** (Bonferroni-szignifikáns minimum) |
-| 14 | Új élesítési kritérium | **Day 126: +$2,000 + Sharpe>0.5 + 25+ napi pos excess** |
+### A költségoldal, ami a képet lezárja
 
-### Új Day 126 milestone
+A `breakeven_ic` lineáris a forgásban, a forgás `252/half_life` — tehát:
 
-**Naptári dátum (becsült)**: 2026-09-15 (W37). Akkor lesz az élő pénzes kereskedés döntésének **első valós alapja**.
+| Blokk | t½ (nap) | breakeven IC (h=5) |
+|---|---:|---:|
+| Flow (0,60) | **0,4** | **3,79** ⛔ *matematikailag lehetetlen* |
+| Tech (0,30) | **2,8** | **0,4975** ⛔ |
+| Funda (0,10) | **799,8** | **0,0017** 🟢 |
+| aggregát | 9,9 | 0,1403 |
 
----
+A mért végrehajtási költség **83,5 bp/oldal** → a HYP-005 h=5 IC-jéhez (+0,0130)
+**≤ 7,7 bp/oldal** kellene, nulla marzzsal. Még **ingyenes belépéssel** is a
+kilépési oldal egymaga a bruttó **5,4-szerese**.
 
-## 3 fázisú reset roadmap
+### Egyetlen fenntartás
 
-### Fázis 1 — Operational cleanup (W21-W22, máj 19 - máj 30)
-
-**Cél**: a régi architektúra "lezárása", az új scoping előkészítése.
-
-**Tamás (manuális)**:
-- Máj 19 (h): `nuke.py --positions` AAPL/AVDL.CVR teljes takarítás
-- Máj 19: IBKR TWS UI — minden függő bracket TP/SL order manuális cancel
-- Máj 20-22: IBKR paper account reset ($100k újra)
-
-**Chat**:
-- ✅ Day 63 outcome doc (KÉSZ — `docs/decisions/2026-05-14-day63-decision-outcome.md`)
-- ✅ Strategic-review $354 → $665 korrekció (KÉSZ, 2026-05-14)
-- 🔄 Master-reference frissítés (folyamatban)
-- 🔄 Backlog frissítés (folyamatban)
-- 🔄 Új handoff doc (folyamatban)
-- ⏳ Új architektúra design doc (`docs/design/swing-pivot-architecture.md`)
-
-**CC**:
-- ✅ IBKR Gateway monitoring DONE (commit `5b337da`, 2026-05-16) — §10 Fix C heartbeat + §11 Telegram silent-swallow fix Mac Mini-n verifikálva (1582 passed). §3 H1 igazolt (Telegram alert SOHA nem ért el a requests.post-ig 2026-05-11-én), H2 részleges (check 16:00 → 20 perc submit előtt). Fix A nem szükséges (load_dotenv), Fix B halasztva a swing pivot átállás utánra.
-- ✅ Earnings exclusion 7 → 10 nap DEPLOYED (commit `d3be2fe`, 2026-05-16)
-- ✅ **10-Q / 10-K SEC Filing Exclusion DEPLOYED** (Ülés B, 2026-05-16) — `src/ifds/data/sec_edgar.py` + Phase 2 `_exclude_sec_filings` 3-pass + 25 új teszt (1582 → 1607). Live schema verify done (AAPL CIK 0000320193 parallel-array schema), 1611-ticker live smoke **100% success, 0 hard error, 16 flagged**, wall clock 12.9 min (cold cache, daily TTL után inkrementális). 4 Tamás döntés (User-Agent env, ±10d tolerance, 2d cache fallback → fail-open) implementálva.
-- ✅ **UW dark pool / GEX deactivation + shadow log DEPLOYED** (Ülés C, 2026-05-16) — `src/ifds/data/uw_shadow.py` (build/write/load/summary helpers), Phase 4 `dp_pct` bonus gating + Phase 6 `M_GEX` gating (both default OFF), runner post-Phase 6 snapshot write to `state/uw_shadow/YYYY-MM-DD.json`, `daily_metrics.py` `uw_shadow_summary` field, 17 új teszt (1607 → 1624). Phase 5 GEX exclusion (NEGATIVE LONG) változatlan. Day 90 (~2026-08-26) Bayesi rekalibrációhoz folytatólagos shadow gyűjtés.
-
-#### Fázis 3 deploy folyamatban (2026-05-18, vasárnap kimaradt → hétfő-kedd 3 ülésben)
-- ✅ **Task #1 Swing Universe DEPLOYED** (Ülés A, 2026-05-18 hétfő reggel, commit `50dfb3c`) — `src/ifds/data/swing_universe.py` Wikipedia parser (stdlib only, header-driven Symbol detection, class-share normalizálás), Phase 2 FMP screener intersect swing union, 7d cache, FMP fallback. Live smoke: SP500=503 + R1000=1002 = union 1008 (497 overlap). 14 új teszt (1624 → 1638).
-- ✅ **Task #2 Swing Scoring Phase 4 DEPLOYED** (Ülés A, 2026-05-18 hétfő reggel, commit `13e3b3d`) — `src/ifds/scoring/swing_score.py` (compute_percentile_score, compute_raw_swing_score, SwingEwmaState, compute_swing_scores), Phase 4 `_apply_swing_scoring` post-processor (sync + async paths) recoveryzi a legacy clipping/min_score exclusion-okat és újraértékel a `S_j > 50` Bonferroni-küszöbre, EWMA(5) state persistence `state/swing_ewma_state.json`. Phase 6 M_VIX gating (`m_vix_enabled=False`). 18 új teszt (1638 → 1656). 2-day EWMA chain smoke verified.
-- ✅ **Task #3 Swing Sizing Phase 6 DEPLOYED** (Ülés B, 2026-05-18 hétfő délután) — `compute_swing_notional` képlet (0.35% risk, ATR_pct denominator, 2.0×ATR stop), `_calculate_swing_position` (csak M_target aktív), `_select_swing_entries` sector-balanced greedy fill (D10), `_run_phase6_swing` wrapper. Új TUNING: `swing_sizing_enabled=True`, `swing_max_concurrent=12`, `swing_sector_cap_pct=0.30`, `m_contradiction_enabled=False` default flip. RUNTIME: `max_positions: 5→12`, `max_gross_exposure: 80k→150k`, `max_single_ticker_exposure: 20k→15k`. 16 új teszt (1656 → **1672**). Smoke verified (10-ticker univerzum, 3 entry, sector cap + M_target overshoot penalty érvényesülve).
-- ✅ **Task #4 Swing Execution + Exit DEPLOYED** (Ülés C, 2026-05-18) — `src/ifds/state/swing_positions.py` új modul (SwingPosition dataclass + 6-condition `evaluate_position_eod` + state I/O + batch helpers), `submit_orders.py` `submit_swing_market_only` branch (market BUY only, no bracket), `pt_monitor.py` `--mode=eod_eval` (Polygon-driven daily 22:00 CEST eval), `close_positions.py` `--mode=eod_flags|time_stop` (next-day 15:30 + same-day 21:40 MOC), `runner.py` `open_positions` wire-up. Új TUNING: `swing_execution_enabled=True`, `swing_mental_stop_atr_multiple=2.0`, `swing_trail_atr_multiple=1.0`, `swing_hard_sl_weekly_cumulative_pct=-0.08`, `swing_time_stop_trading_days=5`, `swing_positions_state_file`, `ibkr_bracket_enabled=False`, `loss_exit_intraday_enabled=False`, `pt_monitor_5min_mode=False`. **TP1 multiplier 1.25 → 1.5**, **TP2 2.0 → 3.0** (swing-specifikus TP geometria). 33 új teszt (1672 → **1705**), 3-day swing lifecycle integration smoke verified.
-- ✅ **Task #5 A rész (CC technikai) DEPLOYED** (Ülés C, 2026-05-18) — `daily_metrics.py` `_build_swing_state` block (open_positions, sector_distribution, exits_today, next_day_planned, swing_score_distribution), `src/ifds/output/swing_telegram.py` `format_swing_compact_telegram` pure formatter (< 800 char mobile-friendly). 6 új teszt + 1 existing test bővítve (1705 → **1711**).
-- ⏳ Task #5 B rész (Tamás manual + push) — circuit_breaker reset, cumulative_pnl Day 1 reset, IBKR paper $100k reset, crontab update, .env ellenőrzés, **git push origin master** (~9 commit Fázis 1 + Fázis 3 close-ig)
-
-**Day 1 = kedd 5/19 15:30 CEST** (1 nap csúszás a vasárnapi pihenőnap miatt — Tamás döntés, intézményi szempontból irreleváns).
-
-### Fázis 2 — Analytic + Design (W23-W24, jún 2 - jún 13)
-
-**Cél**: a swing pivot kvantitatív megalapozása + technikai design.
-
-**Chat**:
-- Entry timing backtest (4 alternatív időablak a 60+ napi adaton, ~1-2 óra)
-- M_contradiction sign-flip elemzés (~1 óra)
-- Új scoring design doc (`docs/design/swing-scoring-spec.md`) — PCR + OTM-inverse
-- Új risk management spec (`docs/design/swing-risk-spec.md`) — mental stop, time-stop, hard SL
-- Új position sizing spec (`docs/design/swing-sizing-spec.md`) — rolling 10-12, 0.35% risk
-
-**CC**:
-- Design specifikációk alapján prototípusok (unit-test szinten) — NEM deploy (~3-5 óra)
-
-### Fázis 3 — Re-deploy + új paper trading (W25-W30, jún 16 - júl 25)
-
-**Cél**: új architektúra élesítése + 63 napi paper trading futás.
-
-**CC**:
-- Új scoring funkcionál deploy (~3-4 óra)
-- Universum builder módosítás (S&P 500 + Russell 1000 union, ~1-2 óra)
-- Új risk management deploy (~5-8 óra)
-- Új position sizing deploy (~3-4 óra)
-- Integration tests, smoke tests (~3-5 óra)
-
-**Tamás (manuális)**:
-- Kb. jún 23 (W26 hétfő): IBKR paper account reset + **új paper trading INDUL Day 1-en**
-
-**Új Day 63 milestone**: kb. **2026-09-15 (W37)** — élő kereskedés döntés első valós alapja.
+A **Funda** a saját időskáláján (t½ 800 nap) **még nincs megmérve**: h ∈ {20, 60}
+regisztrálva (AMENDMENT-1), de **erő-kapuzva** (T_eff 3,10 és 0,52 < floor 6,0).
+Esedékesség a jelenlegi adatütemen: **h=20 ≈ +12 hét, h=60 ≈ +60 hét**.
+A h-görbe viszont **nem emelkedik, sőt előjelet vált** — ez a „kibontakozó lassú jel"
+ellen szól.
 
 ---
 
-## Új W21+ aktív backlog (9 tétel, drasztikusan csökkentve)
+## 🔑 A nyitott stratégiai döntés
 
-A korábbi 15+1 idea-ból **6 dropolva** (a swing pivot strukturálisan eliminálja), **4 átalakítva**, **6 új aktív** (köztük 1 új P1 = dinamikus pozíciószám).
+A mechanikai magyarázatok elfogytak, és a jelcsalád 100%-a null. Három út:
 
-### P1 — Fázis 1 azonnali (W21-W22)
+| | |
+|---|---|
+| **A** — új jelcsalád | Az FRL-sáv kész és bejáratott (23 attempt, pre-reg fegyelem, BH-FDR, (e) gazdasági kapu). Új hipotézis = új pre-reg. **Az UW kivezetve**, tehát a forrás Polygon + FMP + FRED. |
+| **B** — végrehajtás-vezérelt újraindítás | A SIM-EXEC +$2 442-je valós, de **költség-csökkentő, nem alfa-forrás**. Jel nélkül csak lassítja a vérzést. **Önmagában nem stratégia.** |
+| **C** — a jelcsalád lezárása | Az infrastruktúra (pipeline, FRL, sim-harness, bar-tár, pre-reg fegyelem) **vagyon**, és egy másik jelcsaládot is kiszolgál. **A score leállítása nem a projekt leállítása.** |
 
-| # | Tétel | Effort | Owner |
-|---|---|---|---|
-| P1.1 | IBKR Gateway monitoring + Telegram alert | ~1 óra | CC |
-| P1.2 | 10-Q SEC Filing Exclusion (10 napi earnings + 10-Q) | ~2-3 óra | CC |
-
-### P2 — Fázis 2 analitikus (W23-W24)
-
-| # | Tétel | Effort | Owner |
-|---|---|---|---|
-| P2.1 | Entry timing optimalizáció backtest | ~1-2 óra | Chat |
-| P2.2 | M_contradiction sign-flip vizsgálat | ~1 óra | Chat |
-| P2.3 | TP1 cél revízió (új swing TP-struktúra: 1.5/3.0× ATR) | ~30 min config + ~1 óra CC | CC |
-| P2.4 | Dinamikus pozíciószám (rolling 10-12, 0.35% risk) | ~1 óra CC | CC |
-
-### P3 — Fázis 3 vagy később
-
-| # | Tétel | Effort | Owner |
-|---|---|---|---|
-| P3.1 | ADR earnings adatforrás fix | ~3-4 óra CC | CC |
-| P3.2 | Breakeven Lock profit-küszöb (swing-integrált) | ~30 min config | CC |
-| P3.3 | Phase 4 snapshot enrichment | ~30-45 min CC | CC |
-
-### DROPPED (a swing pivot által strukturálisan eliminált)
-
-- **LOSS_EXIT bracket SL cancellation** (4 instancia bug): mental stop architektúra → bracket NINCS, bug megszűnik
-- **`nuke.py --orders` scope expansion**: NINCS bracket order, `--positions` elég
-- **UW rate limit kezelés finomítás**: UW shadow log, scoring-ban deaktiválva
-- **LOSS_EXIT küszöb finomítás per-ticker ATR**: mental stop architektúra
-- **dp_pct fallback default**: UW scoring-ban deaktiválva
-- **Slippage-adjusted scoring validation**: új scoring eleve slippage-szembesített
-- **High-score liquidity check**: a "magas pontszám paradoxon" a scoring revízión át kezelendő
-- **monitor.py belső replay események jelölése**: alacsony prioritás, későbbi
-
-Részletes mátrix: [`docs/decisions/2026-05-14-day63-decision-outcome.md`](decisions/2026-05-14-day63-decision-outcome.md) — 4. fejezet.
+**A mért bizonyíték jelenleg C felé mutat.** Élesítés egyik úton sem következik
+automatikusan — bármely élő periódus **új élő pre-regisztrációt** kíván
+(a 2026-07-25-i protokoll **nem** újrahasznosítható).
 
 ---
 
-## Élesben futó feature-ök (a régi rendszer utolsó hete, W20 vége)
+## Operatív állapot
 
-> **Megjegyzés**: ezek a feature-ök a Fázis 3 deploy után **átalakulnak vagy megszűnnek**. A Fázis 1-2 (W21-W24) alatt **változatlanul futnak**, mert nincs új deploy.
+### Ami fut
+- **Pipeline** Phase 1-6 (cron, Mac Mini) — a scan matrix, a Phase 4 snapshot és a
+  `daily_metrics` **naponta keletkezik** → az FRL mintája ~5 nap/héttel nő.
+- **FileVault MEGOLDVA** (Tamás kikapcsolta, 10-04) — a 4 FileVault-osztályú outage
+  (07-15/16, 07-22, 08-07, 08-21) gyökéroka lezárva. A §11.16 tanulság
+  (*„az SSH-elérhetőség NEM egészség-jelzés a cron-láncra"*) **változatlanul áll**.
 
-- Pipeline Split: Phase 1-3 (22:00 CEST) + Phase 4-6 (16:15 CEST)
-- MKT entry + VWAP guard (csak REJECT >2%)
-- Swing Management: 5 napos hold, TP1 50% partial, TRAIL, breakeven SL, D+5 MOC
-- Dynamic positions: max 5, score threshold 70 (Phase 4) / 85 qualified
-- UW Client v2 + Snapshot v2 (kötelező header, dollár-alapú DP)
-- Cross-Asset Regime + Korrelációs Guard + Portfolio VaR 3%
-- EWMA simítás, M_target penalty, BMI momentum guard (tiered: 3-4 nap → 4, 5-6 → 3, 7+ → 2)
-- TP1 1.25×ATR, dp_pct sign-flip (-10/-15 penalty)
-- Sequential dp enrichment (200ms delay, élesben 95.2% success)
+### Ami áll
+- **Minden IBKR-hez kapcsolódó job** — `check_trading_enabled()` guard, tiszta
+  `sys.exit(0)`. 8 PT-script guardolva; a `daily_metrics.py` **szándékosan nem**
+  (ő írja a kutatási adatfolyamot), ott a fetch rövidre zár.
+- A kereskedési review-stack (napi/heti) — nincs mit reviewolni.
 
-### Shadow mode (Fázis 1-ben deaktiválandók)
-
-| Feature | Shadow óta | Új státusz |
-|---|---|---|
-| Crowdedness composite | 2026-03-23 | Fázis 3-ban **újra-értékelendő** swing kontextusban |
-| Skip Day Shadow Guard | 2026-04-02 | Fázis 3-ban **átalakítva** vagy dropolt |
-| MID Bundle Shadow | 2026-04-27 | **Megőrzendő** — portfolio context layer az új architektúrán |
-| **UW dark pool + GEX shadow** | **2026-05-19 (új)** | Day 90 érdemleges power-rel audit (n=180) |
-
----
-
-## Paper Trading
-
-**Swing pivot Day 8/63 fut** | IBKR DUH118657 (paper, $100k baseline 2026-05-18 reset)
-
-> **⚠️ P0 P&L TRACKING GAP aktív (§0.11)** — a `cumulative_pnl.json`/`daily_metrics` NEM rögzíti az exit realized P&L-t (close_positions.py Rész 3 nincs deploy-olva). **A valódi P&L forrás jelenleg az IBKR MCP connector** (get_account_summary Net Liq + get_account_trades). Hivatalos számok lent zárójelben tévesek.
-
-| Mutató | Hivatalos (daily_metrics) | **Valódi (IBKR)** |
-|--------|---------------------------|-------------------|
-| Cumulative (Day 8 záró) | +$39,33 ⚠️ | **-$779,64** (Net Liq) / -$651,40 realized |
-| Net Liquidation | n/a | **$99 220,36** |
-| Open positions | 4 | 4 (AMH, EOG, AKAM, JHG) |
-| Day 8 realized | $0 ⚠️ | **-$695,77** (7 exit) |
-
-### Swing pivot Day 1-8 (W21-W22)
-
-| Nap | Dátum | Esemény | Realized (IBKR) |
-|-----|-------|---------|------------------|
-| D1 | 5/18 (h) | 3 entry (LBRT/MASI/EC) | $0 |
-| D2 | 5/19 (k) | EC TP1 | +$112,31 |
-| D3 | 5/20 (sz) | 3 entry (VLO/ON/CNC), Error 354 RESOLVED | -$6,37 (VLO cleanup) |
-| D4 | 5/21 (cs) | VLO SL (Tamás TWS bracket), WMB/DXCM entry | -$220,69 |
-| D5 | 5/22 (p) | ON TP1, AMH entry | +$159,12 |
-| D6 | 5/25 (h) | Memorial Day NO-OP | — |
-| D7 | 5/26 (k) | EOG+AKAM entry (stale context bug), reconcile 1. SILENT OK | $0 |
-| D8 | 5/27 (sz) | EC TP2 + 6 TIME_STOP, JHG entry, reconcile 2. SILENT OK | **-$695,77** |
-| **Closed total** | | | **-$651,40** |
-
-**Day 9+ figyelő**: EOG stop-közelben ($135 vs stop $133,42), JHG ATR-floor bug első teszt (0,17% ATR), AMH TIME_STOP Day 9. **Day 21 checkpoint** ($-1 500 küszöb) — jelenleg -$779,64, buffer ~$720.
+### Nyitott operatív tételek
+`docs/tasks/2026-10-04-operational-backlog.md` — §2 (3 elhalasztott, production
+kereskedési kódút, **egyik sem sürgős**) és §3 (2 Tamás-akció: UW `.env` kulcs
+rotáció, UW dormant kód ~10 modul).
 
 ---
 
 ## Tesztek
 
-**1582 passing**, 0 failure (utolsó update: 2026-05-16 Ülés A — earnings 7→10 +3, IBKR Gateway monitoring +15)
-
-> **Fázis 3 deploy után**: a tesztkészlet **átalakul** — sok régi teszt elavul (bracket-mechanika, multiplier chain), új tesztek (mental stop, time-stop, rolling 10-12 sizing).
+**2377 passing**, 0 fail (2026-10-04). Baseline csak nőhet.
 
 ---
 
-## Utolsó commitok
+## Nyitott taskok
 
-- `5b337da` — feat(monitoring): IBKR Gateway pre-flight + heartbeat alerting baseline (Ülés A, W21 szombat)
-- `d3be2fe` — config(universe): earnings_exclusion_days 7 → 10 (Ülés A, W21 szombat)
-- `800b781` — docs(handoff): Fazis 1 W21 multi-session execution plan for Mon 5/18 market open
-- `41896a6` — docs(wrap-up): 2026-05-16 session close — rate-limit rule + W20-W21 bulk docs sync
-- `81a316b` — docs: W20-W21 wrap — Day 63 decision + weekly metrics + handoffs + new tasks (W21 szombat)
-- `33a665f` — docs(rules): add rate-limit live-smoke rule (W21 szombat)
-- `5dea269` — docs(wrap-up): 2026-05-13 session close — sequential dp enrichment hotfix
-- `1f0ffb9` — fix(phase4): sequential dp enrichment with 200ms delay
-- `8a44178` — docs(wrap-up): 2026-05-12 session close
-- `b6db393` — fix(phase6): tiered BMI momentum guard
-- `90cf5b4` — fix(phase4): two-pass dp scoring
-- `9a169b9` — feat(scoring): dp_pct sign-flip + threshold recalibration
+```bash
+grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md
+```
 
----
-
-## Blokkolók
-
-**⚠️ AKTÍV P0 (2026-05-28)**: **realized P&L tracking gap** (`04-risks` §0.11) — a `close_positions.py` exit-jei nem írnak a `cumulative_pnl.json`/`daily_metrics`-be. A Day 8-i -$695,77 realized hiányzik. **Azonnali deploy szükséges**: `docs/tasks/2026-05-26-daily-metrics-auto-update-from-reconcile.md` Rész 3. Amíg nem áll, a P&L tracking csak az IBKR MCP connector-on keresztül megbízható.
-
-**⚠️ P1 (magas)**: **days_held calendar-bug** (`04-risks` §9.2) — a TIME_STOP calendar-day alapon triggerel (nem trading-day), Day 8-on $479 túl-korai vesztés. A swing pivot tézis (trading-day hold) tisztességes teszteléséhez fix szükséges a Day 21 checkpoint előtt.
-
-**A teljes aktív prioritás-lista**: `docs/master-reference/04-risks-and-open-questions.md` §10 (prioritás-összefoglaló tábla).
+| Task | Státusz |
+|---|---|
+| `2026-07-17-automated-daily-review-mini.md` | OPEN — a review-stack áll, nem sürgős |
+| `2026-08-24-ohlcv-store-backfill.md` | OPEN — az 1. lépés adat-előfeltétele teljesült (folytonos bar-tár 02-11 → 10-02) |
+| `2026-10-04-operational-backlog.md` | OPEN — lásd fent |
 
 ---
 
 ## Kapcsolódó docs
 
-- **Day 63 outcome** (a fő dokumentum): [`docs/decisions/2026-05-14-day63-decision-outcome.md`](decisions/2026-05-14-day63-decision-outcome.md)
-- **Strategic-review**: [`docs/strategic-review/2026-05-08-strategic-review-summary.md`](strategic-review/2026-05-08-strategic-review-summary.md) (5 oldal), [`...full.md`](strategic-review/2026-05-08-strategic-review-full.md) (25 oldal), [`...mathematical.md`](strategic-review/2026-05-08-strategic-review-mathematical.md) (~30 oldal)
-- **Master-reference**: [`docs/master-reference/INDEX.md`](master-reference/INDEX.md) (frissítendő Fázis 1-ben)
-- **Backlog**: [`docs/planning/backlog-ideas.md`](planning/backlog-ideas.md) (frissítendő Fázis 1-ben)
-- **API_STACK**: [`docs/API_STACK.md`](API_STACK.md) (frissítendő Fázis 1-ben, 2026-03-01-i elavult)
-- **Régi handoff**: [`docs/handoff/2026-05-08-chat-handoff-strategic-review.md`](handoff/2026-05-08-chat-handoff-strategic-review.md)
-- **Új handoff** (folyamatban): [`docs/handoff/2026-05-14-chat-handoff-day63-outcome.md`](handoff/)
+| Mi | Hol |
+|---|---|
+| **Kapu-kimenet** (a fő döntési dokumentum) | `docs/decisions/2026-10-03-gate-run-outcome.md` |
+| **Gate-protokoll / pre-reg** (a kánon) | `docs/planning/2026-07-25-gate-protocol-preregistration.md` |
+| **(e) gazdasági kapu pre-reg** | `docs/planning/2026-10-04-economic-gate-preregistration.md` |
+| **Komponens-dekompozíció pre-reg + AMENDMENT-1** | `docs/planning/2026-10-04-component-decomposition-preregistration.md` |
+| **Kockázatok / nyitott kérdések** | `docs/master-reference/04-risks-and-open-questions.md` (§11.20–§11.27) |
+| **Riportok** | `docs/review/2026-10-03-sim1-*`, `2026-10-03-sim2-*`, `2026-10-04-sim-exec-*`, `2026-10-04-hyp005-retest.md`, `2026-10-04-component-decomposition.md` |
+| **FRL spec** | `docs/design/2026-07-21-factor-research-loop-spec.md` |
+| **Hipotézis-registry** | `docs/design/frl/hypotheses/` · ledger: `research/attempt_ledger.jsonl` |
+| **Házszabályok** | `.claude/rules/ifds-rules.md` |
+| **UW kivezetés** | `docs/decisions/2026-08-18-uw-decommission.md` |
 
 ---
 
-## 🔑 Egy mondatban — a következő 8-10 hét
+## Utolsó commitok
 
-A 60 napi paper trading **negatív expectancy-jű intraday rendszert** rögzített; a **swing pivot** (3-5 napi hold, PCR + OTM-inverse scoring, mental stop, rolling 10-12 sizing) **a kvantitatívan helyes irány**, ami **8-10 hét reset után** (W21-W30) egy **új 63 napi paper trading futást** indít — az **élő pénzes kereskedés első valós döntési pontja kb. 2026-09-15 (W37)**.
+```
+9adb88e feat(research): AMENDMENT-1 + HYP-007 — a súlyozás 100%-a megerősített null
+50eddb5 feat(research): komponens-dekompozíció — a súlyozás 90%-a megerősített null
+2dabfee docs(rules): kutatási futás előtt a derivált cache FRISSESSÉGÉT verifikálni
+a42ee0e chore: operatív backlog — a 3 zéró-kockázatú tétel elvégezve
+e885ce3 feat(research): HYP-005 újrateszt — az S_j aggregát keresztmetszeti nullja lezárult
+3c5f255 docs(research): komponens-dekompozíció pre-reg (HYP-006/007/008)
+17ba2ba feat(research): (e) gazdasági szignifikancia-kapu az FRL PROMOTE-kritériumokhoz
+2cf4893 feat(analysis): SIM-EXEC — a belépési végrehajtás ellenpróbája + (e) kapu pre-reg
+0429c73 feat(analysis): SIM-2 — exit-architektúra sweep a fix belépőkön
+ae5e668 feat(analysis): SIM-1 — a §11.20 exit-geometria ellenpróbája a valós filleken
+```
+
+---
+
+## Blokkolók
+
+**Nincs aktív P0.** A korábbi P0-k (realized P&L tracking gap, days_held calendar-bug,
+cumulative drift, a kapu-futás elmaradása) **mind lezárva** — lásd `04-risks` §11.
+
+A `state/circuit_breaker.json` **elavult Day 1-es fájl** (`active: false`) —
+⚠️ a 10-02-án tüzelt breaker **submit-időben számolt** ellenőrzés
+(`submit_orders.py:161-169`), **nem ez a fájl**. Nehogy valaki „resetelje".
