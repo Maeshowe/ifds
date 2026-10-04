@@ -20,7 +20,7 @@ def mod():
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "paper_trading"))
     spec = importlib.util.spec_from_file_location(
         "reconcile_state",
-        "scripts/paper_trading/reconcile_state.py",
+        str(Path(__file__).resolve().parents[1] / "scripts/paper_trading/reconcile_state.py"),
     )
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)

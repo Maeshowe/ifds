@@ -87,8 +87,18 @@ futtatnám, **KILL-t rögzítenék egy olyan teszten, ami nem volt alkalmas a
 hipotézis vizsgálatára** — és a `KILLED` státusz a jövőben lezártnak tűnne.
 Ez **rosszabb, mint nem mérni.**
 
-**A javaslat (ELFOGADVA):** **h ∈ {10, 20, 60}** hozzáadása **kizárólag a
-HYP-007-hez**.
+**A javaslat (ELFOGADVA, Tamás 2026-10-04):** **h ∈ {20, 60}** hozzáadása
+**kizárólag a HYP-007-hez**.
+
+🔴 **Implementációs kiterjesztés — NEM a jóváhagyott javaslat része:** a
+regisztrált halmazba **h=10 is bekerült**, mert a T_eff-floor (6,0) mellett a 62
+dev-napon ez a leghosszabb ma mérhető horizont — a javaslat két horizontja
+(20, 60) erő-kapuzva **nem futott**. CC adta hozzá és ugyanabban a fordulóban
+futtatta is; **Tamásnak nem volt alkalma külön jóváhagyni.** A h=10 KILL-t
+(A-0023) Tamás a 2026-10-04-i batch-confirmmal megerősítette. A verdikt h=10
+nélkül **azonos** (Šidák m=4 → 0,99705, m=5 → 0,99931; mindkettő BH-fail), és a
+kiterjesztés iránya **konzervatív** (nagyobb m = magasabb küszöb). Részletek:
+pre-reg AMENDMENT-1 §A-1.2 provenienciai helyesbítés.
 
 **Miért nem post-hoc hangolás:** a half-life a faktor **saját
 autokorrelációja** — a hozamoktól **matematikailag független**, és **minden

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from ifds.output.swing_telegram import format_swing_compact_telegram
 
 
@@ -207,12 +209,12 @@ def test_daily_metrics_sector_distribution_sums_to_total(tmp_path, monkeypatch):
     # Monkey-patch Config to point at the temp state file
     import sys as _sys
 
-    _sys.path.insert(0, "scripts/paper_trading")
+    _sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/paper_trading"))
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
         "daily_metrics",
-        "scripts/paper_trading/daily_metrics.py",
+        str(Path(__file__).resolve().parents[1] / "scripts/paper_trading/daily_metrics.py"),
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -251,12 +253,12 @@ def test_daily_metrics_swing_state_snapshot_dict_shape(tmp_path, monkeypatch):
     """
     import sys as _sys
 
-    _sys.path.insert(0, "scripts/paper_trading")
+    _sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/paper_trading"))
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
         "daily_metrics",
-        "scripts/paper_trading/daily_metrics.py",
+        str(Path(__file__).resolve().parents[1] / "scripts/paper_trading/daily_metrics.py"),
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -292,12 +294,12 @@ def test_daily_metrics_swing_state_empty_state(tmp_path, monkeypatch):
     """No swing state file → swing_state has zero fields, no crash."""
     import sys as _sys
 
-    _sys.path.insert(0, "scripts/paper_trading")
+    _sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/paper_trading"))
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(
         "daily_metrics",
-        "scripts/paper_trading/daily_metrics.py",
+        str(Path(__file__).resolve().parents[1] / "scripts/paper_trading/daily_metrics.py"),
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

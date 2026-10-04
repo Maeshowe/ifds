@@ -395,3 +395,67 @@ class TestKnownGapsCoverage:
     def test_every_gap_range_is_well_formed(self):
         for start, end in cfg.KNOWN_GAPS:
             assert start <= end, f"inverted gap range {start}..{end}"
+
+
+class TestPanelCoverage:
+    """Enforce in CODE the derived-cache freshness rule committed 2026-10-03.
+
+    The rule (.claude/rules/ifds-rules.md) says a run over a derived cached panel
+    must PRINT AND CHECK coverage — "nem a fájl létezése, hanem a tartalom utolsó
+    érvényes dátuma, metrikánként". It was documented after a stale
+    returns.parquet reversed a HYP-005 verdict, but ``load_cached_returns`` still
+    only checks that the file exists. A rule without a guard is the gap, not the
+    instance.
+    """
+
+    @staticmethod
+    def _frame():
+        return pd.DataFrame(
+            {
+                "date": [date(2026, 9, 1), date(2026, 9, 2), date(2026, 9, 3)],
+                "ticker": ["A", "A", "A"],
+                "fwd_ret_5": [0.01, 0.02, None],
+                "fwd_ret_60": [0.03, None, None],
+            }
+        )
+
+    def test_reports_the_panel_date_range(self):
+        cov = frl_returns.panel_coverage(self._frame(), horizons=(5, 60))
+        assert cov["first_day"] == date(2026, 9, 1)
+        assert cov["last_day"] == date(2026, 9, 3)
+
+    def test_reports_the_last_valid_date_PER_HORIZON(self):
+        """The whole point: a panel can be fresh for h=5 and stale for h=60."""
+        cov = frl_returns.panel_coverage(self._frame(), horizons=(5, 60))
+        assert cov["last_valid"][5] == date(2026, 9, 2)
+        assert cov["last_valid"][60] == date(2026, 9, 1)
+
+    def test_counts_usable_days_per_horizon(self):
+        cov = frl_returns.panel_coverage(self._frame(), horizons=(5, 60))
+        assert cov["n_days"][5] == 2
+        assert cov["n_days"][60] == 1
+
+    def test_an_absent_horizon_column_is_reported_as_missing_not_crashed(self):
+        cov = frl_returns.panel_coverage(self._frame(), horizons=(5, 7))
+        assert cov["last_valid"][7] is None
+        assert cov["n_days"][7] == 0
+
+    def test_an_all_nan_horizon_has_no_last_valid_date(self):
+        frame = self._frame().assign(fwd_ret_5=[None, None, None])
+        cov = frl_returns.panel_coverage(frame, horizons=(5,))
+        assert cov["last_valid"][5] is None
+
+    def test_an_empty_frame_does_not_crash(self):
+        cov = frl_returns.panel_coverage(
+            pd.DataFrame({"date": [], "fwd_ret_5": []}), horizons=(5,)
+        )
+        assert cov["first_day"] is None and cov["last_day"] is None
+
+    def test_describe_renders_a_one_line_summary_per_horizon(self):
+        """The rule requires the coverage to appear in the REPORT, not just exist."""
+        lines = frl_returns.describe_coverage(
+            frl_returns.panel_coverage(self._frame(), horizons=(5, 60))
+        )
+        joined = "\n".join(lines)
+        assert "2026-09-02" in joined and "2026-09-01" in joined
+        assert "fwd_ret_5" in joined and "fwd_ret_60" in joined

@@ -331,6 +331,23 @@ A §3 rács (h ∈ {1,3,5,7}) a Flow (t½ 0,4 nap) és a Tech (t½ 2,8 nap) blok
 
 **A HYP-007 engedélyezett horizont-halmaza: h ∈ {1, 3, 5, 7} ∪ {10, 20, 60}.**
 
+> 🔴 **PROVENIENCIA-HELYESBÍTÉS (2026-10-04, repo-audit tárta fel).**
+> **Tamás a `{20, 60}`-at hagyta jóvá** — pontosan azt, amit a HYP-007 DRAFT
+> javasolt. A **h=10 implementátori kiterjesztés, NEM a jóváhagyott javaslat
+> része.** CC adta hozzá a §A-1.3 mérhetőségi mérés után (a {20,60} erő-kapuzva
+> nem futhatott, a h=10 a leghosszabb ma mérhető horizont), és **ugyanabban a
+> fordulóban le is futtatta** — Tamásnak nem volt alkalma külön jóváhagyni.
+>
+> **Ez eljárási eltérés, és CC hibája.** Kimondva, nem elnyelve.
+>
+> **Amit NEM érint:** a verdikt. A családi minimum-p a h=3 karon van (0,767),
+> tehát Šidák `m=5` → **0,99931**, `m=4` (h=10 nélkül) → **0,99705** — **mindkettő
+> BH-fail, a KILL azonos**. Az eltérés iránya ráadásul **konzervatív**: az m 4→5
+> növelése **emeli** a promóciós küszöböt, nem csökkenti.
+>
+> **A ledger append-only**: A-0023 marad, Tamás a 2026-10-04-i batch-confirmmal
+> megerősítette. Újrafuttatás vagy sor-törlés **nem** történik (ifds-rules).
+
 **Kizárólag a HYP-007-hez.** A HYP-006 és HYP-008 halmaza **változatlan**
 ({1,3,5,7}) — ők le is futottak azon. A motor ezt **gépileg kikényszeríti**
 (`cfg.LONG_HORIZONS_BY_HYPOTHESIS`), hogy egy későbbi futás ne tudjon csendben

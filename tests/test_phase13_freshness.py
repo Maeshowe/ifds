@@ -20,7 +20,7 @@ def classify():
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
     spec = importlib.util.spec_from_file_location(
         "check_phase13_freshness",
-        "scripts/check_phase13_freshness.py",
+        str(Path(__file__).resolve().parents[1] / "scripts/check_phase13_freshness.py"),
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

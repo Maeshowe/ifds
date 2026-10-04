@@ -270,3 +270,37 @@ class TestVIXFallbackChain:
 
         assert vix == 20.0
         assert source == "default"
+
+
+class TestNoLiveMidCalls:
+    """The suite must never make a live MID call or write a production bundle.
+
+    Measured on 2026-10-04: ``TestPhase0Integration::test_all_ok`` and
+    ``::test_uw_down_continues`` each fetched a real 28 kB MID bundle and wrote
+    ``state/mid_bundles/{today}.json.gz``, because the ``config`` fixture
+    monkeypatched the IFDS_* keys but never cleared ``MID_API_KEY`` — which
+    ``.env`` exports and ``deploy_daily.sh`` sources before its pytest pre-flight.
+    """
+
+    def test_mid_api_key_is_absent_from_the_test_environment(self):
+        import os
+
+        assert os.environ.get("MID_API_KEY") in (None, ""), (
+            "MID_API_KEY is set during tests — run_phase0 will make a LIVE call "
+            "and overwrite state/mid_bundles/{today}.json.gz"
+        )
+
+    def test_conftest_uses_the_empty_sentinel_not_a_pop(self):
+        """``pop`` is not enough: ``load_dotenv()`` re-reads ``.env``.
+
+        Measured — after a pop the production bundle was STILL rewritten.
+        ``load_dotenv`` defaults to ``override=False``, so a present-but-empty
+        variable survives it while an absent one does not.
+
+        Pinned on the conftest SOURCE, not the runtime env, so the guard cannot
+        be satisfied by whatever happened to clear the variable.
+        """
+        from pathlib import Path
+
+        source = (Path(__file__).parent / "conftest.py").read_text()
+        assert 'os.environ["MID_API_KEY"] = ""' in source

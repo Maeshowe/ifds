@@ -176,3 +176,60 @@ def load_cached_returns(cache_path: Path = RETURNS_CACHE) -> pd.DataFrame | None
     if not cache_path.exists():
         return None
     return pd.read_parquet(cache_path)
+
+
+# ---------------------------------------------------------------------------
+# Derived-cache freshness (ifds-rules, 2026-10-03)
+#
+# The rule exists because a returns.parquet dated 2026-07-25 (fwd_ret_5 only to
+# 07-17) silently ran the HYP-005 retest on the OLD sample and produced a false
+# POSITIVE: mean IC +0.0384 / Sidak p 0.0440 / BH PASS, which the rebuilt panel
+# turned into +0.0130 / 0.6411 / BH fail. The rule was written the same day —
+# but a rule without a guard is the gap, not the instance. This is the guard.
+#
+# Deliberately NOT bolted onto load_cached_returns: its frame-or-None contract
+# is monkeypatched in tests and relied on by the batch. Coverage is a separate,
+# pure function the caller reports.
+# ---------------------------------------------------------------------------
+
+
+def panel_coverage(frame, horizons: Sequence[int] = cfg.IC_HORIZONS) -> dict:
+    """Date range of a forward-return panel and the last VALID day per horizon.
+
+    "Valid" means a non-NaN ``fwd_ret_<h>``. A panel is routinely fresh for a
+    short horizon and stale for a long one — h=60 needs 60 more sessions than
+    h=1 — so a single "last day" figure hides exactly the staleness that matters.
+    A horizon whose column is absent or all-NaN reports ``None``, never a crash.
+    """
+    dates = pd.to_datetime(frame["date"], errors="coerce") if len(frame) else None
+    first = dates.min().date() if dates is not None and dates.notna().any() else None
+    last = dates.max().date() if dates is not None and dates.notna().any() else None
+
+    last_valid: dict[int, object] = {}
+    n_days: dict[int, int] = {}
+    for h in horizons:
+        column = f"fwd_ret_{h}"
+        if column not in frame.columns or not len(frame):
+            last_valid[h], n_days[h] = None, 0
+            continue
+        valid = frame.loc[frame[column].notna(), "date"]
+        if not len(valid):
+            last_valid[h], n_days[h] = None, 0
+            continue
+        last_valid[h] = pd.to_datetime(valid).max().date()
+        n_days[h] = int(pd.to_datetime(valid).dt.date.nunique())
+    return {"first_day": first, "last_day": last, "last_valid": last_valid, "n_days": n_days}
+
+
+def describe_coverage(coverage: dict) -> list[str]:
+    """Render ``panel_coverage`` as report lines (the rule requires it PRINTED)."""
+    lines = [
+        f"- Panel: {coverage['first_day']} .. {coverage['last_day']} "
+        f"(derivált cache — frissesség kiírva, ifds-rules 2026-10-03)"
+    ]
+    for h, last in coverage["last_valid"].items():
+        lines.append(
+            f"  - `fwd_ret_{h}`: utolsó érvényes nap **{last or 'nincs adat'}**, "
+            f"{coverage['n_days'][h]} nap"
+        )
+    return lines

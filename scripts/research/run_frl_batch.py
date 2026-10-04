@@ -185,6 +185,16 @@ def run_batch(
 
     if returns_frame is None:
         returns_frame = frl_returns.load_cached_returns()
+    # ifds-rules (2026-10-03): a derived cached panel is reported by COVERAGE,
+    # never by mere existence. A stale returns.parquet once reversed a HYP-005
+    # verdict from KILL to a would-be PROMOTE; this makes the panel's real reach
+    # visible in every report header.
+    coverage_lines = (
+        tuple(frl_returns.describe_coverage(
+            frl_returns.panel_coverage(returns_frame, run_horizons)))
+        if returns_frame is not None
+        else ("- ⚠️ Nincs cache-elt return-panel — a forward hozamok élő hívásból jönnek.",)
+    )
     if returns_frame is None and runnable and not dry_run:
         client = _polygon_client()
         try:
@@ -357,6 +367,7 @@ def run_batch(
         results=results,
         deflation_rows=deflation_rows,
         holdout_congestion=frl_holdout.holdout_congestion(history, windows.holdout_start),
+        coverage_lines=coverage_lines,
         parked_retests=sorted(set(parked_retests)),
         unconfirmed=ledger.unconfirmed_decisions(ledger_path) if not dry_run else (),
         anomalies=anomalies,

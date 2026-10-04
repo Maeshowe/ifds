@@ -20,7 +20,7 @@ def classify():
     sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "paper_trading"))
     spec = importlib.util.spec_from_file_location(
         "monitor_positions",
-        "scripts/paper_trading/monitor_positions.py",
+        str(Path(__file__).resolve().parents[1] / "scripts/paper_trading/monitor_positions.py"),
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

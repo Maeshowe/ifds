@@ -72,6 +72,9 @@ class BatchContext:
     unconfirmed: Sequence[dict] = field(default_factory=tuple)
     anomalies: dict = field(default_factory=dict)
     notes: Sequence[str] = field(default_factory=tuple)
+    #: Lines from ``frl_returns.describe_coverage`` — the derived-cache freshness
+    #: the ifds-rules (2026-10-03) require PRINTED in the report header.
+    coverage_lines: Sequence[str] = field(default_factory=tuple)
 
 
 def _era_table(results: Sequence[FactorResult]) -> list[str]:
@@ -124,6 +127,7 @@ def build_report(ctx: BatchContext) -> str:
         "",
         f"- {ctx.windows_line}",
         "- Panel: " + ", ".join(f"{era} {n} nap" for era, n in sorted(ctx.panel_days.items())),
+        *ctx.coverage_lines,
         f"- Hiányzó nap: {len(ctx.missing_days)} "
         f"(nem várt: {len(ctx.unexpected_missing)}) — soha nem interpolált",
     ]
