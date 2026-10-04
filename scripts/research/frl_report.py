@@ -13,6 +13,7 @@ from datetime import date
 from typing import Sequence
 
 import frl_config as cfg
+import frl_holdout
 
 # G1/G3: the report may never be read as a gate input or a signal claim.
 HEADER_LINE = "Leíró elemzés — Day 63 gate-input NEM (G1/G3)."
@@ -48,6 +49,9 @@ class FactorResult:
     implied_cost_bps: float = float("nan")
     attempt_id: str = ""
     costed: dict[str, dict] = field(default_factory=dict)  # era -> CostedView dict
+    #: era -> EconomicView for the (e) gate (breakeven IC at median and p75 cost).
+    #: Pre-reg: docs/planning/2026-10-04-economic-gate-preregistration.md
+    economic_views: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -174,9 +178,21 @@ def build_report(ctx: BatchContext) -> str:
         "portfólió horizontonként ≈ `IC × σ_cs` hozamot termel (Grinold-közelítés). "
         "A per-oldal költség és a forgás **empirikus**.",
         "",
-        "| Faktor | h | Éra | mean IC | σ_cs | bruttó bp/év | költség bp/év | **nettó bp/év** | breakeven IC |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "> **(e) gazdasági kapu** (pre-reg 2026-10-04): PROMOTE-hoz "
+        "`|mean IC| ≥ breakeven(p75)`. A medián és a p75 küszöb **közötti** sáv "
+        "`INCONCLUSIVE_ON_COST` — soha nem kerekítjük PROMOTE-ra. A bukás "
+        "`PARK_UNECONOMIC`, **nem KILL**: a gyógymód a végrehajtás, nem a faktor eldobása.",
+        "",
+        "| Faktor | h | Éra | mean IC | σ_cs | bruttó bp/év | költség bp/év | "
+        "**nettó bp/év** | breakeven IC (medián) | **breakeven IC (p75) ← kapu** | (e) |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
+    _ECON_MARK = {
+        frl_holdout.ECONOMIC_OK: "✅",
+        frl_holdout.ECONOMIC_INCONCLUSIVE: "⚠️ sáv",
+        frl_holdout.ECONOMIC_FAIL: "❌",
+        frl_holdout.ECONOMIC_UNAVAILABLE: "—",
+    }
     for result in sorted(ctx.results, key=lambda r: (r.factor, r.horizon)):
         for era in (cfg.ERA_LEGACY, cfg.ERA_SWING):
             view = result.costed.get(era)
@@ -184,12 +200,19 @@ def build_report(ctx: BatchContext) -> str:
                 continue
             net = view.get("net_annual_bps")
             mark = "" if (net is not None and net > 0) else " ❌"
+            econ = result.economic_views.get(era)
+            status = frl_holdout.economic_status(
+                view.get("mean_ic", float("nan")), econ
+            )
             lines.append(
                 f"| `{result.factor}` | {result.horizon} | {era} | "
                 f"{_fmt(view.get('mean_ic'))} | {_fmt(view.get('sigma_cs'), 4)} | "
                 f"{_fmt(view.get('gross_annual_bps'), 0)} | "
                 f"{_fmt(view.get('cost_annual_bps'), 0)} | "
-                f"**{_fmt(net, 0)}**{mark} | {_fmt(view.get('breakeven_ic'), 4)} |"
+                f"**{_fmt(net, 0)}**{mark} | "
+                f"{_fmt(econ.breakeven_median if econ else None, 4)} | "
+                f"**{_fmt(econ.breakeven_p75 if econ else None, 4)}** | "
+                f"{_ECON_MARK.get(status, '—')} |"
             )
 
     lines += [

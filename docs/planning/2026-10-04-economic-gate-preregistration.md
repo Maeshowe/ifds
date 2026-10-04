@@ -1,7 +1,7 @@
 # PRE-REGISZTRÁCIÓ — (e) gazdasági szignifikancia-kapu az FRL PROMOTE-kritériumokhoz
 
 **Dátum:** 2026-10-04
-**Státusz:** ⏳ **JAVASLAT — Tamás döntésére vár.** Implementáció csak jóváhagyás után.
+**Státusz:** ✅ **ELFOGADVA (Tamás, 2026-10-04) — D-E1…D-E4 mind. IMPLEMENTÁLVA.**
 **Érinti:** `scripts/research/frl_holdout.py::promote_verdict`, FRL-spec §5.3 / §5.4
 **Keret:** post-gate keret-revízió. A 2026-09-22-i kapu lezárult (`docs/decisions/2026-10-03-gate-run-outcome.md`).
 
@@ -239,15 +239,41 @@ HYP-005 h=1/h=3 (2 KILL) **változatlan**. A HYP-005 h=5/h=7 **PARK** marad, am�
 
 ---
 
-## 7. Mit kérek Tamástól
+## 7. Tamás döntése — 2026-10-04
 
-| Döntés | Opciók |
+| Döntés | Eredmény |
 |---|---|
-| **D-E1** | (e) kritérium **elfogadva** / elutasítva / módosítva |
-| **D-E2** | Küszöb: **p75** (javasolt) / medián / más, írásban indokolva |
-| **D-E3** | `PARK_UNECONOMIC` mint új verdikt-érték: **elfogadva** / nem |
-| **D-E4** | A HYP-005 újrateszt blokkolása a D-E1 döntésig: **megerősítve** / nem |
+| **D-E1** — (e) kritérium | ✅ **ELFOGADVA** |
+| **D-E2** — küszöb | ✅ **p75** (a javaslat szerint) |
+| **D-E3** — `PARK_UNECONOMIC` új verdikt-érték | ✅ **ELFOGADVA** |
+| **D-E4** — a HYP-005 újrateszt blokkolása a döntésig | ✅ **MEGERŐSÍTVE** (a blokk feloldva ezzel a döntéssel) |
 
-A jóváhagyásig **nem nyúlok** a `promote_verdict`-hez és **nem futtatom** az
-újratesztet. A 4. pont (belépési-végrehajtás ellenpróba) ettől **független** és
-párhuzamosan fut — az nem értékelő-motor, hanem leíró mérés.
+## 8. Implementáció — ami megvalósult
+
+| Elem | Hely |
+|---|---|
+| `EconomicView(breakeven_median, breakeven_p75)` | `scripts/research/frl_holdout.py` |
+| `economic_status()` — a §3.3 döntési tábla, **fail-closed** | `frl_holdout.py` |
+| `promote_verdict(..., economic_views=None)` — **csak a PROMOTE-ágat fogja el** | `frl_holdout.py` |
+| `PARK_UNECONOMIC` + `INCONCLUSIVE_ON_COST` a `DECISIONS`-ben | `frl_ledger.py` |
+| Mindkét breakeven + `(e)` kolonna a riportban (§3.3 előírás) | `frl_report.py` |
+| A batch mindkét költségszinten számol breakeven-t | `run_frl_batch.py` |
+| `retest_due(..., economic_view=...)` — a `PARK_UNECONOMIC` **költség-javulásra** tesztel újra | `frl_holdout.py` |
+
+**Fail-closed:** ha az `economic_views` hiányzik vagy rosszul formált (nem-véges
+küszöb, vagy fordított sáv), a verdikt `INCONCLUSIVE_ON_COST` — **PROMOTE soha
+nem születhet (e) értékelés nélkül**. Ez ugyanaz a hibaosztály-védelem, mint a
+patch-eletlen sink és az önmagát kimockoló teszt esetében: a **rést** zárjuk, nem
+az egyes előfordulást.
+
+**Regressziós pinek** (`tests/test_frl_holdout.py::TestConfirmedVerdictsAreUnchanged`):
+a **HYP-004 KILL**, a **HYP-005 h=1 KILL**, a **h=3 KILL** és a **h=5
+PARK_UNTIL_SWING_POWER** mind változatlan — **`economic_views=None` ÉS egy
+szándékosan nagyvonalú view mellett is** (paraméterezett teszt). Tehát a kapu
+sem elvenni, sem adni nem tud egy korábbi verdikthez.
+
+Két további invariáns tesztelve: a kapu **nem ment meg** statisztikai bukást
+(`test_the_gate_never_rescues_a_statistical_failure`) és **nem ment meg**
+előjel-ellentmondást (`test_the_gate_never_rescues_a_sign_contradiction`).
+
+Tesztek: 2287 → **2317** (+30), 0 fail.

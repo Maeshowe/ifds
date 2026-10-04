@@ -1576,7 +1576,7 @@ reprodukció: `python scripts/analysis/entry_execution.py [--sensitivity]`
 
 ---
 
-### 11.25 ⏳ NYITOTT DÖNTÉS (2026-10-04) — (e) gazdasági szignifikancia-kapu az FRL-ben
+### 11.25 ✅ LEZÁRVA (2026-10-04) — (e) gazdasági szignifikancia-kapu az FRL-ben
 
 **A rés, kódból verifikálva:** `frl_ic.costed_view()` **már** kiszámolja a
 `breakeven_ic` / `net_annual_bps` / `survives_cost` mezőket, és `frl_report.py:177`
@@ -1591,12 +1591,22 @@ közti sáv **INCONCLUSIVE_ON_COST** (nem PROMOTE); a bukás **`PARK_UNECONOMIC`
 (egy valódi jelet nem szabad megölni azért, mert a mi végrehajtásunk drága — a gyógymód a
 végrehajtás, ld. §11.24).
 
-⚠️ **A HYP-005 {h5, h7} újrateszt BLOKKOLT**, amíg ez el nem dől. Fordított sorrendben a
-kapu **post-hoc** lenne. A swing-minta 23 → ~96 napra nőtt, tehát az újrateszt
-**esedékes és most már feszített** — a sorrend ezért nem elméleti kérdés.
+> ✅ **ELFOGADVA ÉS IMPLEMENTÁLVA (Tamás, 2026-10-04): D-E1…D-E4 mind.**
+> `EconomicView` + `economic_status()` (fail-closed) + `promote_verdict(...,
+> economic_views=)`, ami **kizárólag a PROMOTE-ágat fogja el**; `PARK_UNECONOMIC`
+> és `INCONCLUSIVE_ON_COST` a ledger `DECISIONS`-ben; mindkét breakeven + `(e)`
+> kolonna a riportban; `retest_due` a `PARK_UNECONOMIC`-ot **költség-javulásra**
+> teszteli újra.
+>
+> **Regressziós pinek:** HYP-004 KILL · HYP-005 h=1 KILL · h=3 KILL · h=5
+> PARK_UNTIL_SWING_POWER — mind változatlan, `economic_views=None` **ÉS** egy
+> szándékosan nagyvonalú view mellett is. A kapu statisztikai bukást és
+> előjel-ellentmondást **nem ment meg** (két külön teszt).
+>
+> Ezzel a **HYP-005 {h5, h7} újrateszt blokkja feloldva.**
+> Tesztek 2287 → **2317** (+30), 0 fail.
 
-Pre-reg (Tamás döntésére vár, 4 döntési pont):
-`docs/planning/2026-10-04-economic-gate-preregistration.md`
+Pre-reg: `docs/planning/2026-10-04-economic-gate-preregistration.md`
 
 ---
 

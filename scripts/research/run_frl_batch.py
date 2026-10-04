@@ -191,16 +191,31 @@ def run_batch(
                 if era == cfg.ERA_SWING:
                     half_life = frl_ic.half_life(frame, "_factor")
 
-            cost_bps = frl_ic.implied_turnover_cost_bps(
-                half_life, cost_model.get("cost_bps_per_side", cfg.FALLBACK_COST_BPS_PER_SIDE)
+            per_side = cost_model.get("cost_bps_per_side", cfg.FALLBACK_COST_BPS_PER_SIDE)
+            cost_bps = frl_ic.implied_turnover_cost_bps(half_life, per_side)
+            # (e) gate inputs: the SAME breakeven formula charged at the two cost
+            # levels the empirical model carries. The p75 is the binding one
+            # (pre-reg §3.2) — its margin comes from the slippage distribution's
+            # own dispersion, not from a safety factor anyone picked.
+            cost_bps_median = frl_ic.implied_turnover_cost_bps(
+                half_life, cost_model.get("median_bps_per_side", per_side)
             )
+            cost_bps_p75 = frl_ic.implied_turnover_cost_bps(
+                half_life, cost_model.get("p75_bps_per_side", per_side)
+            )
+            economic_views: dict[str, frl_holdout.EconomicView] = {}
             for era, summary in era_summaries.items():
-                costed[era] = frl_ic.costed_view(
-                    summary.get("mean_ic", float("nan")),
-                    sigma_by_era.get(era, float("nan")),
-                    horizon,
-                    cost_bps,
-                ).to_dict()
+                mean_ic = summary.get("mean_ic", float("nan"))
+                sigma = sigma_by_era.get(era, float("nan"))
+                costed[era] = frl_ic.costed_view(mean_ic, sigma, horizon, cost_bps).to_dict()
+                economic_views[era] = frl_holdout.EconomicView(
+                    breakeven_median=frl_ic.costed_view(
+                        mean_ic, sigma, horizon, cost_bps_median
+                    ).breakeven_ic,
+                    breakeven_p75=frl_ic.costed_view(
+                        mean_ic, sigma, horizon, cost_bps_p75
+                    ).breakeven_ic,
+                )
             results.append(
                 frl_report.FactorResult(
                     factor=factor.name,
@@ -214,6 +229,7 @@ def run_batch(
                     implied_cost_bps=cost_bps,
                     attempt_id=attempt_id,
                     costed=costed,
+                    economic_views=economic_views,
                 )
             )
 
@@ -240,7 +256,12 @@ def run_batch(
             bh_by_family.get((result.hyp_id, result.data_lane, era), False)
             for era in result.era_summaries
         )
-        verdict = frl_holdout.promote_verdict(result.era_summaries, result.expected_sign, bh_pass)
+        verdict = frl_holdout.promote_verdict(
+            result.era_summaries,
+            result.expected_sign,
+            bh_pass,
+            economic_views=result.economic_views,
+        )
         result.decision = verdict.decision
         result.reasons = verdict.reasons
         if not dry_run:
@@ -262,12 +283,18 @@ def run_batch(
                 path=ledger_path,
             )
 
+    # Both park reasons are checked: PARK_UNTIL_SWING_POWER retests as the
+    # sample grows, PARK_UNECONOMIC as the cost model improves (pre-reg §4).
     parked_retests = [
         entry.get("hyp_id", "?")
         for entry in history
-        if entry.get("decision") == "PARK_UNTIL_SWING_POWER"
+        if entry.get("decision") in ("PARK_UNTIL_SWING_POWER", "PARK_UNECONOMIC")
         and any(
-            frl_holdout.retest_due(entry, r.era_summaries.get(cfg.ERA_SWING, {}))
+            frl_holdout.retest_due(
+                entry,
+                r.era_summaries.get(cfg.ERA_SWING, {}),
+                economic_view=r.economic_views.get(cfg.ERA_SWING),
+            )
             for r in results
             if r.hyp_id == entry.get("hyp_id")
         )

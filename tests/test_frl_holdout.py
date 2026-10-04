@@ -79,10 +79,20 @@ class TestOneTouch:
 
 class TestPromoteVerdict:
     def test_strong_swing_with_matching_sign_promotes(self):
+        """(a)-(d) satisfied AND (e) viable — PROMOTE now requires all five.
+
+        The economic view is supplied because, since the 2026-10-04 (e) gate,
+        statistical strength alone is deliberately no longer sufficient.
+        """
         verdict = holdout.promote_verdict(
             {cfg.ERA_SWING: _summary(0.06, 0.04), cfg.ERA_LEGACY: _summary(0.05, 0.02)},
             expected_sign=1,
             bh_pass=True,
+            economic_views={
+                cfg.ERA_SWING: holdout.EconomicView(
+                    breakeven_median=0.03, breakeven_p75=0.05
+                )
+            },
         )
         assert verdict.decision == "PROMOTE"
 
@@ -296,3 +306,206 @@ class TestSanityGate:
         fb.register(f)
         with pytest.raises(ValueError, match="duplicate"):
             fb.register(f)
+
+
+# ---------------------------------------------------------------------------
+# (e) Economic significance gate
+# Pre-registration: docs/planning/2026-10-04-economic-gate-preregistration.md
+# ---------------------------------------------------------------------------
+
+
+def _econ(median_breakeven: float, p75_breakeven: float) -> holdout.EconomicView:
+    return holdout.EconomicView(
+        breakeven_median=median_breakeven, breakeven_p75=p75_breakeven
+    )
+
+
+class TestEconomicStatus:
+    """The (e) decision table, pre-reg §3.3."""
+
+    def test_ic_at_or_above_the_p75_breakeven_passes(self):
+        assert holdout.economic_status(0.09, _econ(0.05, 0.08)) == holdout.ECONOMIC_OK
+        assert holdout.economic_status(0.08, _econ(0.05, 0.08)) == holdout.ECONOMIC_OK
+
+    def test_ic_between_the_median_and_p75_breakeven_is_inconclusive(self):
+        """The middle band is an explicit 'we do not know' — never rounded up."""
+        assert holdout.economic_status(0.06, _econ(0.05, 0.08)) == holdout.ECONOMIC_INCONCLUSIVE
+
+    def test_ic_below_the_median_breakeven_fails(self):
+        assert holdout.economic_status(0.03, _econ(0.05, 0.08)) == holdout.ECONOMIC_FAIL
+
+    def test_the_sign_of_the_ic_is_irrelevant_only_the_magnitude_counts(self):
+        """Sign agreement is criterion (c)/(d)'s job; (e) is about magnitude."""
+        assert holdout.economic_status(-0.09, _econ(0.05, 0.08)) == holdout.ECONOMIC_OK
+
+    def test_a_missing_view_is_unavailable_not_a_pass(self):
+        assert holdout.economic_status(0.09, None) == holdout.ECONOMIC_UNAVAILABLE
+
+    def test_a_non_finite_breakeven_is_unavailable(self):
+        assert (
+            holdout.economic_status(0.09, _econ(float("nan"), 0.08))
+            == holdout.ECONOMIC_UNAVAILABLE
+        )
+        assert (
+            holdout.economic_status(0.09, _econ(0.05, float("inf")))
+            == holdout.ECONOMIC_UNAVAILABLE
+        )
+
+    def test_an_inverted_band_is_unavailable(self):
+        """p75 cost >= median cost, so p75 breakeven must be >= the median one.
+
+        An inversion means the cost model is malformed — fail closed rather than
+        silently picking whichever bound is convenient.
+        """
+        assert (
+            holdout.economic_status(0.09, _econ(0.08, 0.05)) == holdout.ECONOMIC_UNAVAILABLE
+        )
+
+    def test_a_non_finite_ic_is_unavailable(self):
+        assert holdout.economic_status(float("nan"), _econ(0.05, 0.08)) == holdout.ECONOMIC_UNAVAILABLE
+
+
+class TestEconomicGateInPromoteVerdict:
+    """(e) intercepts ONLY the PROMOTE branch — it must loosen nothing."""
+
+    _STRONG = {cfg.ERA_SWING: _summary(0.06, 0.04), cfg.ERA_LEGACY: _summary(0.05, 0.02)}
+
+    def test_statistically_strong_and_economically_viable_promotes(self):
+        verdict = holdout.promote_verdict(
+            self._STRONG,
+            expected_sign=1,
+            bh_pass=True,
+            economic_views={cfg.ERA_SWING: _econ(0.03, 0.05)},
+        )
+        assert verdict.decision == "PROMOTE"
+
+    def test_statistically_strong_but_uneconomic_parks_rather_than_promoting(self):
+        """The shape the gate exists for: real signal, cannot pay for its trading."""
+        verdict = holdout.promote_verdict(
+            self._STRONG,
+            expected_sign=1,
+            bh_pass=True,
+            economic_views={cfg.ERA_SWING: _econ(0.12, 0.18)},
+        )
+        assert verdict.decision == "PARK_UNECONOMIC"
+        assert any("breakeven" in r for r in verdict.reasons)
+
+    def test_uneconomic_is_a_park_not_a_kill(self):
+        """A real signal must not die because OUR execution is expensive."""
+        verdict = holdout.promote_verdict(
+            self._STRONG,
+            expected_sign=1,
+            bh_pass=True,
+            economic_views={cfg.ERA_SWING: _econ(0.12, 0.18)},
+        )
+        assert verdict.decision != "KILL"
+
+    def test_the_middle_cost_band_is_reported_as_inconclusive_on_cost(self):
+        verdict = holdout.promote_verdict(
+            self._STRONG,
+            expected_sign=1,
+            bh_pass=True,
+            economic_views={cfg.ERA_SWING: _econ(0.05, 0.08)},
+        )
+        assert verdict.decision == "INCONCLUSIVE_ON_COST"
+
+    def test_omitting_the_economic_view_cannot_promote(self):
+        """FAIL CLOSED.
+
+        A future caller that forgets to pass the views must not silently bypass
+        (e) — that is the same 'gap' failure class as the unpatched sink and the
+        test that mocked itself out.
+        """
+        verdict = holdout.promote_verdict(self._STRONG, expected_sign=1, bh_pass=True)
+        assert verdict.decision == "INCONCLUSIVE_ON_COST"
+        assert any("unavailable" in r.lower() or "not evaluated" in r.lower()
+                   for r in verdict.reasons)
+
+    def test_the_gate_never_rescues_a_statistical_failure(self):
+        """A generous economic view must not turn a KILL into anything else."""
+        verdict = holdout.promote_verdict(
+            {cfg.ERA_SWING: _summary(0.0079, 0.0311, inconclusive=True, t_eff=23.0)},
+            expected_sign=1,
+            bh_pass=False,
+            economic_views={cfg.ERA_SWING: _econ(0.0001, 0.0002)},
+        )
+        assert verdict.decision == "KILL"
+
+    def test_the_gate_never_rescues_a_sign_contradiction(self):
+        verdict = holdout.promote_verdict(
+            {cfg.ERA_SWING: _summary(-0.09, 0.04, inconclusive=False, t_eff=20.0)},
+            expected_sign=1,
+            bh_pass=True,
+            economic_views={cfg.ERA_SWING: _econ(0.0001, 0.0002)},
+        )
+        assert verdict.decision == "KILL"
+
+
+class TestConfirmedVerdictsAreUnchanged:
+    """Regression pins required by the pre-reg §6.2/3 and ifds-rules.
+
+    These verdicts were machine-produced AND human-confirmed. The (e) gate must
+    not alter a single one of them, with or without an economic view supplied.
+    """
+
+    HYP004 = {
+        cfg.ERA_LEGACY: _summary(-0.0298, 0.0393, inconclusive=True, t_eff=11.8),
+        cfg.ERA_SWING: _summary(-0.0950, 0.0749, inconclusive=False, t_eff=3.8),
+    }
+    HYP005_H1 = {cfg.ERA_SWING: _summary(0.0079, 0.0311, inconclusive=True, t_eff=23.0)}
+    HYP005_H3 = {cfg.ERA_SWING: _summary(0.0150, 0.0520, inconclusive=True, t_eff=7.7)}
+    HYP005_H5 = {cfg.ERA_SWING: _summary(0.0435, 0.0367, inconclusive=False, t_eff=4.6)}
+
+    @pytest.mark.parametrize("views", [None, {cfg.ERA_SWING: _econ(0.0001, 0.0002)}])
+    def test_hyp004_stays_killed(self, views):
+        verdict = holdout.promote_verdict(
+            self.HYP004, expected_sign=-1, bh_pass=False, economic_views=views
+        )
+        assert verdict.decision == "KILL"
+
+    @pytest.mark.parametrize("views", [None, {cfg.ERA_SWING: _econ(0.0001, 0.0002)}])
+    def test_hyp005_h1_stays_killed(self, views):
+        verdict = holdout.promote_verdict(
+            self.HYP005_H1, expected_sign=1, bh_pass=False, economic_views=views
+        )
+        assert verdict.decision == "KILL"
+
+    @pytest.mark.parametrize("views", [None, {cfg.ERA_SWING: _econ(0.0001, 0.0002)}])
+    def test_hyp005_h3_stays_killed(self, views):
+        verdict = holdout.promote_verdict(
+            self.HYP005_H3, expected_sign=1, bh_pass=False, economic_views=views
+        )
+        assert verdict.decision == "KILL"
+
+    @pytest.mark.parametrize("views", [None, {cfg.ERA_SWING: _econ(0.0001, 0.0002)}])
+    def test_hyp005_h5_stays_parked_on_power(self, views):
+        """PARK_UNTIL_SWING_POWER, not PARK_UNECONOMIC: the power gate comes first."""
+        verdict = holdout.promote_verdict(
+            self.HYP005_H5, expected_sign=1, bh_pass=False, economic_views=views
+        )
+        assert verdict.decision == "PARK_UNTIL_SWING_POWER"
+
+
+class TestUneconomicRetest:
+    """PARK_UNECONOMIC retests when the COST model improves (pre-reg §4)."""
+
+    def test_an_uneconomic_park_retests_once_the_breakeven_falls_below_the_ic(self):
+        parked = {"decision": "PARK_UNECONOMIC"}
+        summary = _summary(0.09, 0.04, inconclusive=False, t_eff=20.0)
+        assert holdout.retest_due(parked, summary, economic_view=_econ(0.03, 0.05)) is True
+
+    def test_an_uneconomic_park_stays_parked_while_the_cost_is_still_too_high(self):
+        parked = {"decision": "PARK_UNECONOMIC"}
+        summary = _summary(0.09, 0.04, inconclusive=False, t_eff=20.0)
+        assert holdout.retest_due(parked, summary, economic_view=_econ(0.12, 0.18)) is False
+
+    def test_an_uneconomic_park_without_a_view_does_not_retest(self):
+        parked = {"decision": "PARK_UNECONOMIC"}
+        summary = _summary(0.09, 0.04, inconclusive=False, t_eff=20.0)
+        assert holdout.retest_due(parked, summary) is False
+
+    def test_a_power_park_is_unaffected_by_the_economic_view(self):
+        """The two park reasons have independent retest triggers."""
+        parked = {"decision": "PARK_UNTIL_SWING_POWER"}
+        summary = _summary(0.09, 0.04, inconclusive=False, t_eff=20.0)
+        assert holdout.retest_due(parked, summary, economic_view=_econ(0.12, 0.18)) is True

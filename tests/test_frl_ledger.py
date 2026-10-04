@@ -250,3 +250,23 @@ class TestConfirmIdempotency:
         entry = ledger.confirm_decision(attempt_id, by="Tamás", path=path)  # no decision
         assert entry["auto_decision"] == "KILL"
         assert entry["decision"] == "PARK"
+
+
+class TestEconomicGateDecisions:
+    """The (e) gate's two outcomes must be storable in the ledger.
+
+    Pre-reg: docs/planning/2026-10-04-economic-gate-preregistration.md
+    Both mean "not PROMOTE" and neither is terminal, so they must round-trip
+    like any other decision — otherwise the batch would crash on its own verdict.
+    """
+
+    def test_park_uneconomic_is_an_allowed_decision(self):
+        assert "PARK_UNECONOMIC" in ledger.DECISIONS
+
+    def test_inconclusive_on_cost_is_an_allowed_decision(self):
+        assert "INCONCLUSIVE_ON_COST" in ledger.DECISIONS
+
+    def test_the_previously_confirmed_decision_values_are_all_still_allowed(self):
+        """No pre-existing verdict value may be dropped (pre-reg §2)."""
+        for decision in ("PENDING", "KILL", "PARK", "PARK_UNTIL_SWING_POWER", "PROMOTE"):
+            assert decision in ledger.DECISIONS

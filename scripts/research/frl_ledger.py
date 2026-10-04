@@ -19,7 +19,19 @@ from typing import Iterable, Sequence
 import frl_config as cfg
 
 PENDING = "PENDING"
-DECISIONS = ("PENDING", "KILL", "PARK", "PARK_UNTIL_SWING_POWER", "PROMOTE")
+#: ``PARK_UNECONOMIC`` and ``INCONCLUSIVE_ON_COST`` come from the (e) economic
+#: gate (docs/planning/2026-10-04-economic-gate-preregistration.md). Both mean
+#: "not PROMOTE" and neither is terminal: UNECONOMIC retests when the cost model
+#: improves, INCONCLUSIVE when either bound moves.
+DECISIONS = (
+    "PENDING",
+    "KILL",
+    "PARK",
+    "PARK_UNTIL_SWING_POWER",
+    "PARK_UNECONOMIC",
+    "INCONCLUSIVE_ON_COST",
+    "PROMOTE",
+)
 
 
 def _now_iso() -> str:

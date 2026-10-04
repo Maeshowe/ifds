@@ -6,6 +6,7 @@ The holdout is the loop's scarcest resource: one touch per hypothesis, forever
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Iterable, Mapping
@@ -119,6 +120,71 @@ class PromoteVerdict:
         return f"{self.decision}: " + "; ".join(self.reasons)
 
 
+# ---------------------------------------------------------------------------
+# (e) Economic significance gate
+#
+# Pre-registration: docs/planning/2026-10-04-economic-gate-preregistration.md
+# (§3.1 the rule, §3.2 why p75, §3.3 the decision table, §4 PARK_UNECONOMIC).
+#
+# Why this exists: ``frl_ic.costed_view()`` already computes ``breakeven_ic`` and
+# ``survives_cost``, and ``frl_report`` prints them — but ``promote_verdict`` took
+# no cost input at all, so a factor could PROMOTE while losing money. Spec §5.3
+# says in its own title "költség-kapu, NEM kill-kapu". The 2026-10-03 gate run
+# measured the consequence: on the swing h=1 arm the statistical bar was 0.0311
+# while the economic breakeven was 0.15-0.18 — the economic bar is 2.3-4.8x the
+# harder one, so the statistical bar alone can wave through a money-loser.
+#
+# This gate intercepts ONLY the PROMOTE branch. Every KILL and PARK path below is
+# untouched, so no previously confirmed verdict can move (regression-pinned in
+# tests/test_frl_holdout.py::TestConfirmedVerdictsAreUnchanged).
+# ---------------------------------------------------------------------------
+
+ECONOMIC_OK = "ok"
+ECONOMIC_INCONCLUSIVE = "inconclusive"
+ECONOMIC_FAIL = "fail"
+ECONOMIC_UNAVAILABLE = "unavailable"
+
+
+@dataclass(frozen=True)
+class EconomicView:
+    """Breakeven IC for one era at the median and p75 per-side cost.
+
+    Both come from ``frl_ic.costed_view()`` run against the two cost levels in
+    ``research/cost_model.json``. The p75 is the binding threshold (pre-reg
+    §3.2): it is calibrated from the slippage distribution's own dispersion
+    (p75/median has run 1.41-1.63), not from a safety factor anyone chose, and
+    being the conservative end it cannot flip toward a stricter cost.
+    """
+
+    breakeven_median: float
+    breakeven_p75: float
+
+
+def economic_status(mean_ic: float, view: EconomicView | None) -> str:
+    """Classify a factor's |IC| against its cost thresholds (pre-reg §3.3).
+
+    Fails CLOSED: a missing view, a non-finite bound, or an inverted band
+    (p75 below median, which a well-formed cost model cannot produce) all
+    return ``ECONOMIC_UNAVAILABLE`` rather than silently passing.
+    """
+    if view is None:
+        return ECONOMIC_UNAVAILABLE
+    if not math.isfinite(mean_ic):
+        return ECONOMIC_UNAVAILABLE
+    median, p75 = view.breakeven_median, view.breakeven_p75
+    if not (math.isfinite(median) and math.isfinite(p75)):
+        return ECONOMIC_UNAVAILABLE
+    if p75 < median:
+        return ECONOMIC_UNAVAILABLE
+
+    magnitude = abs(mean_ic)
+    if magnitude >= p75:
+        return ECONOMIC_OK
+    if magnitude >= median:
+        return ECONOMIC_INCONCLUSIVE
+    return ECONOMIC_FAIL
+
+
 def _era_view(summary: Mapping | None) -> tuple[float, float, bool]:
     if not summary:
         return float("nan"), float("inf"), True
@@ -142,12 +208,16 @@ def promote_verdict(
     era_summaries: Mapping[str, Mapping],
     expected_sign: int,
     bh_pass: bool,
+    economic_views: Mapping[str, EconomicView] | None = None,
 ) -> PromoteVerdict:
     """Apply the PROMOTE preconditions.
 
-    All four must hold: BH-FDR passage, |mean IC| at or above the era-qualified
-    bar, sign agreement with the registered hypothesis, and — the swing-era
-    minimum condition — sign agreement in the swing era specifically.
+    All five must hold: BH-FDR passage, |mean IC| at or above the era-qualified
+    bar, sign agreement with the registered hypothesis, the swing-era minimum
+    condition (sign agreement in the swing era specifically), and — since the
+    2026-10-04 pre-registration — **(e) economic significance**: the factor must
+    clear its own trading cost. ``economic_views`` carries the per-era breakeven
+    pair; omitting it cannot PROMOTE (fail closed).
 
     Legacy strength alone never promotes: the legacy era is a different strategy
     (6-hour bracket, 800-1370 names, different horizon), so it is a weak prior for
@@ -183,10 +253,43 @@ def promote_verdict(
         )
 
     if not reasons:
+        # (a)-(d) are satisfied. The (e) economic gate decides from here, and
+        # intercepts ONLY this branch — the KILL/PARK logic below is untouched.
         reasons.append(
             f"swing |IC|={abs(swing_ic):.4f} >= bar {swing_bar:.4f}, sign matches, BH passed"
         )
-        return PromoteVerdict("PROMOTE", tuple(reasons))
+        view = (economic_views or {}).get(cfg.ERA_SWING)
+        status = economic_status(swing_ic, view)
+
+        if status == ECONOMIC_OK:
+            reasons.append(
+                f"(e) economic: |IC|={abs(swing_ic):.4f} >= breakeven(p75)="
+                f"{view.breakeven_p75:.4f}"
+            )
+            return PromoteVerdict("PROMOTE", tuple(reasons))
+
+        if status == ECONOMIC_FAIL:
+            reasons.append(
+                f"(e) economic FAIL: |IC|={abs(swing_ic):.4f} < breakeven(median)="
+                f"{view.breakeven_median:.4f} — real signal, but this execution "
+                "style cannot harvest it; the remedy is execution, not the factor"
+            )
+            return PromoteVerdict("PARK_UNECONOMIC", tuple(reasons))
+
+        if status == ECONOMIC_INCONCLUSIVE:
+            reasons.append(
+                f"(e) economic INCONCLUSIVE: breakeven(median)="
+                f"{view.breakeven_median:.4f} <= |IC|={abs(swing_ic):.4f} < "
+                f"breakeven(p75)={view.breakeven_p75:.4f} — explicitly undecided, "
+                "never rounded up to PROMOTE"
+            )
+            return PromoteVerdict("INCONCLUSIVE_ON_COST", tuple(reasons))
+
+        reasons.append(
+            "(e) economic unavailable — cost view missing or malformed, so (e) was "
+            "not evaluated; PROMOTE requires it (fail closed)"
+        )
+        return PromoteVerdict("INCONCLUSIVE_ON_COST", tuple(reasons))
 
     # Criterion (b): a swing sign contradiction is always terminal — the
     # cross-sectional form of the mechanism is refuted, not underpowered.
@@ -226,14 +329,28 @@ def promote_verdict(
     return PromoteVerdict("PARK_UNTIL_SWING_POWER", tuple(reasons))
 
 
-def retest_due(parked_entry: Mapping, swing_summary: Mapping) -> bool:
+def retest_due(
+    parked_entry: Mapping,
+    swing_summary: Mapping,
+    economic_view: EconomicView | None = None,
+) -> bool:
     """Whether a PARKed family is worth retesting now (spec §5.4 auto-retest).
 
-    The bar falls as the swing sample grows; a park becomes actionable once the
-    current swing |IC| would clear the current bar. Evaluated on every batch run,
-    so no park is forgotten.
+    The two park reasons have INDEPENDENT triggers:
+
+    * ``PARK_UNTIL_SWING_POWER`` — the statistical bar falls as the swing sample
+      grows; actionable once the current swing |IC| would clear the current bar.
+    * ``PARK_UNECONOMIC`` — the signal was real but could not pay for its
+      trading; actionable once the COST model improves enough that the breakeven
+      drops below the measured |IC| (pre-reg §4). Without a view it stays parked.
+
+    Evaluated on every batch run, so no park is forgotten.
     """
-    if parked_entry.get("decision") != "PARK_UNTIL_SWING_POWER":
+    decision = parked_entry.get("decision")
+    if decision == "PARK_UNECONOMIC":
+        mean_ic, _, _ = _era_view(swing_summary)
+        return economic_status(mean_ic, economic_view) == ECONOMIC_OK
+    if decision != "PARK_UNTIL_SWING_POWER":
         return False
     mean_ic, bar, _ = _era_view(swing_summary)
     if mean_ic != mean_ic:
