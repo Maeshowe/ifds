@@ -1520,6 +1520,87 @@ reprodukció: `python scripts/analysis/exit_sweep.py [--stage2]`
 ---
 
 
+### 11.24 ✅ MEGMÉRVE (2026-10-04, SIM-EXEC) — a LIMIT-belépő a veszteség ~45%-át megszünteti
+
+A SIM-1 dekompozíciójában a belépési slippage volt az **utolsó nyitott mechanikai**
+komponens (−$1 958, 41 bp, 71% adverz fill). Ez a mérés lezárja.
+
+**A kulcs-kontextus:** az execution plan **mind a 669 BUY-sorában `LIMIT`** szerepel.
+A V1 variáns tehát **nem új ötlet — ez az eredeti terv**, amit a swing pivot a
+submit-oldalon MKT-ra írt felül. Ezzel a **§11.20 eredet-hipotézise megerősítve**: a
+szintek azért maradtak a `limit_price`-hoz horgonyozva, mert a terv limit-alapú volt.
+
+| Variáns | fill-arány | Σ P&L (n=78) | vs V0 |
+|---|---:|---:|---:|
+| **V0** tényleges next-day MKT | 100% | **−$5 357,89** | — |
+| **V1** LMT @ tervezett ár, DAY | 92% | **−$2 915** | **+$2 442** |
+| V2 LMT @ tervezett, 2 session | 92% | −$2 915 | +$2 442 |
+| V3 LMT @ tervezett +0,25·ATR | 97% | −$3 236 | +$2 122 |
+| V4 LMT @ tervezett +0,50·ATR | 100% | −$3 352 | +$2 006 |
+
+**Mind a 4 variáns veri a MKT-t.** Mechanizmus: a limit **egyoldalú javítás** — levágja
+az adverz oldalt, a kedvezőt megtartja. Ár-javulás **+$2 971** ≈ a SIM-1-ben függetlenül
+mért teljes adverz slippage ($2 936).
+
+**Az adverz-szelekciós csapda megmérve, nem feltételezve:** a V1 6 belépőt szalaszt el,
+amelyek átlagos V0 P&L-je **+$16** (vs. a betöltöttek −$76) — a csapda **valós, de kicsi**:
++$98 elmaradt P&L a +$2 971 ár-javulás ellen (~30:1).
+
+**Robusztusság:** a kitöltési szabály szándékosan optimista (a napi bar nem bizonyítja a
+queue-teljesülést). Degradálva (a `low` 0,1–1,0%-kal a limit alá kell menjen) az előny
+**+$2 293 … +$3 558** — **minden tesztelt feltevést túlél**, az 1%-os marzsnál nő.
+
+**A V2 azonos a V1-gyel**: a 2. session egyetlen további fillt sem hozott → a limit vagy
+az első napon teljesül, vagy soha; a hosszabb érvényesség értéktelen.
+
+**Költség-modell hatás** (a (e) gazdasági kapu inputja): a |slippage| medián **83,9 → 4,4 bp**,
+p75 **125,4 → 58,2 bp**. A `breakeven_ic` lineáris a per-oldal költségben, tehát:
+`k_p75 = 0,464` → a h=5/h=7 breakeven IC **0,15–0,18 → 0,070–0,084**.
+⚠️ A **medián bázis itt nem megbízható** (a V1 slippage-eloszlásnak nullában pont-masszája
+van); a **p75 a helyes** — és pontosan ezt rögzítette előre a (e) kapu pre-regje.
+
+> ⚠️ **HELYREIGAZÍTÁS (2026-10-04) — nem-összemérhető estimandok.** A 2026-10-03-i
+> javaslatokban a kapu ρ = **+0,073**-át a breakeven IC 0,15–0,18-hoz mértem. **A kettő
+> nem ugyanaz:** a kapu ρ a **megkötött 79 trade-en** mért (range-restricted) korreláció,
+> a `breakeven_ic` képlet viszont a **FRL keresztmetszeti `mean_IC`-re** van levezetve
+> (Grinold). A rigorózus szám **rosszabb**: a HYP-005 **h=1** karon `mean_ic = +0,0079`,
+> ami a **javított** (p75-alapú) 0,070–0,084-es küszöbnek is **~1/10-e**. A h=5/h=7
+> `mean_IC` **még nem létezik** (PARK) — ezt a blokkolt újrateszt állítja elő.
+
+**Mit NEM jelent:** a +$2 442 **nem** teszi nyereségessé a könyvet (−$5 358 → −$2 915).
+A végrehajtás a veszteség ~45%-át magyarázza; **a maradék ~55% továbbra is a belépők.**
+Élesítés **nem** következik ebből — ahhoz új élő pre-reg kell.
+
+Riport: `docs/review/2026-10-04-sim-exec-entry-execution.md` ·
+reprodukció: `python scripts/analysis/entry_execution.py [--sensitivity]`
+
+---
+
+### 11.25 ⏳ NYITOTT DÖNTÉS (2026-10-04) — (e) gazdasági szignifikancia-kapu az FRL-ben
+
+**A rés, kódból verifikálva:** `frl_ic.costed_view()` **már** kiszámolja a
+`breakeven_ic` / `net_annual_bps` / `survives_cost` mezőket, és `frl_report.py:177`
+ki is írja őket — **de `frl_holdout.py:141` `promote_verdict(era_summaries,
+expected_sign, bh_pass)` egyáltalán NEM kap költség-inputot**. Az FRL-spec §5.3 címe
+szó szerint: *„költség-kapu, **NEM** kill-kapu"*.
+
+→ **Egy faktor PROMOTE-olhat statisztikailag, miközben gazdaságilag veszteséges.**
+
+**Javaslat:** (e) kritérium — `|mean_IC| ≥ breakeven_ic(p75 költség)`; a medián és p75
+közti sáv **INCONCLUSIVE_ON_COST** (nem PROMOTE); a bukás **`PARK_UNECONOMIC`**, NEM KILL
+(egy valódi jelet nem szabad megölni azért, mert a mi végrehajtásunk drága — a gyógymód a
+végrehajtás, ld. §11.24).
+
+⚠️ **A HYP-005 {h5, h7} újrateszt BLOKKOLT**, amíg ez el nem dől. Fordított sorrendben a
+kapu **post-hoc** lenne. A swing-minta 23 → ~96 napra nőtt, tehát az újrateszt
+**esedékes és most már feszített** — a sorrend ezért nem elméleti kérdés.
+
+Pre-reg (Tamás döntésére vár, 4 döntési pont):
+`docs/planning/2026-10-04-economic-gate-preregistration.md`
+
+---
+
+
 ## 12. FRL-eredetű nyitott tételek (2026-07-21, Dev chat)
 
 ### 12.1 P3 — `execution_plan.py:179` Reason-felülírás (post-Day-63 fix-jelölt)

@@ -4,6 +4,60 @@
 
 ---
 
+## 2026-10-04 — SIM-EXEC (a LIMIT-belépő +$2 442) + (e) gazdasági kapu pre-reg
+
+> **Post-gate, read-only.** Baseline 2273 → **2287** (+14), 0 fail.
+
+### feat(analysis) — `scripts/analysis/entry_execution.py`
+- LMT-variánsok a tényleges next-day MKT ellen, a SIM-1/SIM-2 validált harnessén.
+  **A kitöltési szabály és a variáns-halmaz a futás ELŐTT rögzítve** a taskban;
+  `test_variant_set_matches_the_task_exactly` őrzi a post-hoc bővítés ellen.
+- A kitöltési szabály **szándékosan optimista** (a napi bar nem bizonyítja a
+  queue-teljesülést) → a limit javára torzít, ezért `--sensitivity` degradálja
+  (a `low` 0,1–1,0%-kal a limit alá kell menjen).
+- A riport **szétszedi** a két ellentétes erőt: ár-javulás vs. elszalasztott P&L,
+  plusz explicit **adverz-szelekciós teszt** (a kimaradók átlagos V0 P&L-je vs. a
+  betöltöttekéé).
+
+### Eredmény
+- **Mind a 4 variáns veri a MKT-t.** V1 (LMT @ tervezett ár, DAY): fill-arány 92%,
+  Σ **−$2 915** vs V0 **−$5 357,89** → **+$2 442**. V2 azonos a V1-gyel (a 2. session
+  egyetlen fillt sem hozott → a limit vagy az első napon teljesül, vagy soha).
+- **Az execution plan MINDIG LIMIT-et írt** (669/669 BUY-sor) → a V1 **nem új ötlet,
+  hanem az eredeti terv**, amit a swing pivot a submit-oldalon MKT-ra írt felül.
+  Ezzel a **§11.20 eredet-hipotézise megerősítve**.
+- **Adverz szelekció megmérve:** 6 kimaradó belépő, átlag V0 P&L +$16 (vs. betöltöttek
+  −$76) → a csapda **valós, de kicsi**: +$98 elmaradt P&L a +$2 971 ár-javulás ellen.
+- **Robusztus:** minden degradálást túlél, +$2 293 … +$3 558; az 1%-os marzsnál nő.
+- **Cross-check ×3:** V0 = SIM-1 B-szám centre · ár-javulás +$2 971 ≈ a SIM-1-ben
+  függetlenül mért adverz slippage ($2 936) · a mért 83,9 bp medián ≈ `cost_model.json` 83,5.
+- **Költség-hatás:** |slippage| medián 83,9 → 4,4 bp, p75 125,4 → 58,2 bp. A
+  `breakeven_ic` lineáris a per-oldal költségben → `k_p75 = 0,464`, tehát a h=5/h=7
+  breakeven IC **0,15–0,18 → 0,070–0,084**. A medián bázis itt NEM megbízható (nullában
+  pont-massza); a p75 a helyes — amit a (e) kapu pre-regje **előre** rögzített.
+
+### docs — ⏳ (e) gazdasági szignifikancia-kapu PRE-REG (Tamás döntésére vár)
+- `docs/planning/2026-10-04-economic-gate-preregistration.md` — **időzítési tanúsítvánnyal**:
+  a HYP-005 {h5,h7} újrateszt ELŐTT írva, és az újrateszt **blokkolt**, amíg nem dől el
+  (fordított sorrendben a kapu post-hoc lenne).
+- A rés kódból verifikálva: `costed_view()` már számol `breakeven_ic`-t, `frl_report`
+  kiírja — de **`promote_verdict()` nem kap költség-inputot**. Spec §5.3: *„költség-kapu,
+  NEM kill-kapu"*. → egy faktor PROMOTE-olhat gazdaságilag veszteségesen.
+- Javaslat: (e) `|mean_IC| ≥ breakeven_ic(p75)`; medián–p75 sáv = **INCONCLUSIVE_ON_COST**;
+  bukás = **`PARK_UNECONOMIC`** (NEM KILL — a gyógymód a végrehajtás). Visszamenőleges
+  hatás nincs; a §2 táblázat 9 pre-regisztrált tétele VÁLTOZATLAN.
+- `04-risks` **§11.24** (SIM-EXEC) + **§11.25** (a nyitott (e) döntés).
+
+### ⚠️ HELYREIGAZÍTÁS — nem-összemérhető estimandok
+A 2026-10-03-i javaslatokban a kapu ρ = **+0,073**-át a breakeven IC 0,15–0,18-hoz
+mértem. **A kettő nem ugyanaz az estimand:** a kapu ρ a megkötött 79 trade-en mért
+(range-restricted) korreláció; a `breakeven_ic` a **FRL keresztmetszeti `mean_IC`-re**
+van levezetve (Grinold). A rigorózus szám **rosszabb**: HYP-005 h=1 `mean_ic = +0,0079`,
+ami a javított (p75) 0,070–0,084-es küszöbnek is ~1/10-e. A h=5/h=7 `mean_IC` még nem
+létezik (PARK) — azt a blokkolt újrateszt állítja elő.
+
+---
+
 ## 2026-10-03 — SIM-2: exit-architektúra sweep (0/15 cella pozitív)
 
 > **Post-gate, read-only.** Baseline 2251 → **2273** (+22: 18 sweep + 4 SIM-1 regressziós pin), 0 fail.
