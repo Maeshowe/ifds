@@ -77,7 +77,10 @@ def _era_panels(windows: frl_holdout.Windows) -> dict[str, loader.PanelResult]:
     return panels
 
 
-def resolve_horizons(selected: Sequence[int] | None) -> tuple[int, ...]:
+def resolve_horizons(
+    selected: Sequence[int] | None,
+    hyp_id: str | None = None,
+) -> tuple[int, ...]:
     """Which horizons this run tests, defaulting to every configured one.
 
     A pre-registered retest family may cover only PART of the horizon set —
@@ -87,18 +90,25 @@ def resolve_horizons(selected: Sequence[int] | None) -> tuple[int, ...]:
     (ifds-rules: "Nincs újrafuttatás verdikt-generálásért"). The pre-reg is the
     canon; this exists so the engine can express it.
 
-    Fails loud on an unconfigured horizon: a typo must never quietly produce an
+    ``hyp_id`` widens the permitted set to that hypothesis's pre-registered
+    amendments (AMENDMENT-1 gave HYP-007 h in {10,20,60} because its measured
+    half-life is 799.8 days). Scoping it per hypothesis means a later run cannot
+    quietly test an unregistered horizon on a different one.
+
+    Fails loud on an unregistered horizon: a typo must never quietly produce an
     empty run that looks like "no signal".
     """
+    allowed = cfg.allowed_horizons(hyp_id)
     if selected is None:
-        return tuple(cfg.IC_HORIZONS)
+        return tuple(cfg.IC_HORIZONS)  # the DEFAULT stays the base grid
     ordered = tuple(sorted({int(h) for h in selected}))
     if not ordered:
         raise ValueError("--horizons needs at least one horizon")
-    unknown = [h for h in ordered if h not in cfg.IC_HORIZONS]
+    unknown = [h for h in ordered if h not in allowed]
     if unknown:
         raise ValueError(
-            f"horizon(s) {unknown} not in the configured set {tuple(cfg.IC_HORIZONS)}"
+            f"horizon(s) {unknown} not in the configured set {allowed} "
+            f"for hypothesis {hyp_id or '(none given)'}"
         )
     return ordered
 
@@ -158,7 +168,7 @@ def run_batch(
             continue
         runnable.append(factor)
 
-    run_horizons = resolve_horizons(horizons)
+    run_horizons = resolve_horizons(horizons, hyp_id=hyp_filter)
     windows = frl_holdout.compute_windows(run_date, first_day=cfg.SWING_START)
     panels = _era_panels(windows)
     cost_model = frl_cost.build_cost_model(out_path=None if dry_run else cfg.COST_MODEL_PATH)

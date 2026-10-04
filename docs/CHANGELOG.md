@@ -4,6 +4,65 @@
 
 ---
 
+## 2026-10-04 — AMENDMENT-1 + HYP-007: a súlyozás 100%-a megerősített null
+
+> Baseline 2369 → **2377** (+8), 0 fail.
+
+### feat(research) — hipotézis-szintű horizont-bővítés (AMENDMENT-1)
+- `cfg.LONG_HORIZONS_BY_HYPOTHESIS = {"HYP-007": (10, 20, 60)}` +
+  `cfg.allowed_horizons(hyp_id)` + `resolve_horizons(..., hyp_id=)`.
+- **A `cfg.IC_HORIZONS` alapértelmezés VÁLTOZATLAN** (1,3,5,7). A bővítés
+  **hipotézis-szintű**, és a motor **gépileg kikényszeríti**: egy `--horizons 60`
+  futás `--hyp HYP-006`-tal (vagy `--hyp` nélkül) **hard error**. A gapet zárjuk,
+  nem az előfordulást.
+- Indoklás: a Funda-blokk mért half-life-ja **799,8 nap**, tehát h≤7 a faktor saját
+  időskálájának **0,9%-a**. A half-life a faktor saját autokorrelációja — a
+  hozamoktól **matematikailag független** és **minden IC-mérés előtt** mérve, tehát
+  a rács hozzáigazítása pre-regisztráció, nem hangolás. Időzítési tanúsítvány a
+  pre-regben; a HYP-007-re ekkor **egyetlen attempt sem nyílt**.
+
+### 🔴 Mérhetőségi kapu — a MEGLÉVŐ erő-szabály, új gépezet nélkül
+A futás **előtt** mérve (62 dev-nap, `T_eff = n/h`, floor 6,0):
+h=10 → **6,20** ✅ · h=20 → **3,10** ❌ (120 nap kell, ≈ +12 hét) ·
+h=60 → **0,52** ❌ (360 nap kell, ≈ +60 hét).
+→ **Fut: h ∈ {1,3,5,7,10}. Nem fut: h ∈ {20,60}** — regisztrálva, attempt nélkül,
+**nincs BH-infláció**, auto-retestre várnak.
+
+### ⚠️ Egy kaput megfontoltam és ELVETETTEM
+Horizont-adekvácia kapu (*„h < 0,1·t½ → PARK"*) — a meglévő verdikteket nem írta
+volna át, **mégis elvetve**: a valódi faktorkutatás rutinszerűen tesztel lassú
+faktorokat h ≪ t½-n (3 éves t½-ú value-faktor havi IC-je h/t½ ≈ 0,03-nál) és talál
+jelet. Egy ilyen kapu **legitim kutatást blokkolna** egy nem kalibrálható küszöbbel.
+Helyette a §4.2 attenuációs olvasat kiterjesztése, **új gépi konstans nélkül**.
+
+### Eredmény — HYP-007 A-0019..A-0023, mind KILL
+mean IC **+0,0015 / −0,0045 / −0,0021 / +0,0047 / +0,0034** (h=1..10),
+Šidák családi p (m=5) = **0,9993** — a három blokk **leglaposabb** eredménye.
+**A h-görbe NEM emelkedik, sőt előjelet vált** — egy lassú faktornál, aminek a jele
+attenuálva is jelen van, az IC-nek nőnie kellene. Ez az attenuációs olvasat
+tesztelhető következménye, és nem teljesül.
+
+### ✅ Mind a 13 nyitott verdikt MEGERŐSÍTVE (A-0011..A-0023)
+`human_confirmed: true`, by Tamás. Felülírás **nem** történt, ezért az
+`auto_decision` sehol nem rögzült (csak az A-0005..A-0008-on áll, a júliusi valódi
+KILL→PARK override-okból) — az audit-lánc ép. A 6 olyan sornál, ahol a motor a
+pre-reg **(b) „előjel-ellentmondás"** utat írta zaj-szintű |IC| mellett, a
+megerősítő jegyzet rögzíti, hogy a verdikt **(a)-ból is következik** (T_eff ≥ 6),
+tehát robusztus — csak az auto-indoklás félrevezető.
+
+> **A score súlyozásának 100%-a megerősített keresztmetszeti null**, adekvát erővel
+> és emberi megerősítéssel: aggregát (HYP-005) + Flow 0,60 + Tech 0,30 + Funda 0,10.
+>
+> **Egyetlen fenntartás:** a Funda a **saját időskáláján** (t½ 800 nap) még nincs
+> megmérve — h=20/60 erő-kapuzva vár. Az attenuációs olvasat szerint ez a
+> leggyengébb a három null közül; **de** a h-görbe ott sem emelkedik.
+
+### data — returns.parquet a bővített horizontokkal
+`fwd_ret_{1,3,5,7,10,20,60}`, 162 nap, 7s, nulla új API-hívás. Frissesség kiírva
+(ifds-rules 2026-10-04): utolsó nem-NaN nap h=10 → 09-18, h=20 → 09-03, h=60 → 07-09.
+
+---
+
 ## 2026-10-04 — komponens-dekompozíció: a súlyozás 90%-a megerősített null
 
 > Baseline 2335 → **2369** (+34), 0 fail.

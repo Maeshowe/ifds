@@ -1663,7 +1663,7 @@ Riport: `docs/review/2026-10-04-hyp005-retest.md`
 ---
 
 
-### 11.27 ✅ LEZÁRVA (2026-10-04) — komponens-dekompozíció: a súlyozás 90%-a megerősített null
+### 11.27 ✅ LEZÁRVA (2026-10-04) — komponens-dekompozíció: a súlyozás 100%-a megerősített null
 
 A HYP-005 aggregát-null nem tudta szétválasztani a *„nincs jel"* és a
 *„kioltják egymást"* eseteket. A dekompozíció (pre-reg a retest eredménye **előtt**:
@@ -1673,6 +1673,10 @@ A HYP-005 aggregát-null nem tudta szétválasztani a *„nincs jel"* és a
 |---|---|---:|---|---:|---|
 | **HYP-006** | Flow | **0,60** | A-0011..A-0014 | **0,9455** | **KILL ×4** |
 | **HYP-008** | Tech | **0,30** | A-0015..A-0018 | **0,9699** | **KILL ×4** |
+| **HYP-007** | Funda | **0,10** | A-0019..A-0023 | **0,9993** | **KILL ×5** |
+
+✅ **Mind a 13 verdikt MEGERŐSÍTVE** (Tamás, 2026-10-04), `human_confirmed: true`.
+Az `auto_decision` sehol nem rögzült — nem volt override, a gép és az ember egyetért.
 
 Minden mért IC **\|IC\| < 0,009**, mindegyik a saját éra-bar-ja (0,024–0,032) alatt.
 **Mind a 8 kar a 6,0-os adekvácia-floor FÖLÖTT bukott** (T_eff 8,9–62,0); a h=1
@@ -1694,23 +1698,50 @@ valós jel is kiaknázhatatlan lett volna — Flow t½ **0,4 nap** → breakeven
 **3,79** (matematikailag lehetetlen); Tech t½ **2,8 nap** → **0,4975**
 (gyakorlatilag lehetetlen). Független úton verifikálva (ρ = 0,151 / 0,781 / 0,999).
 
-> **Így a score súlyozásának 90%-a megerősített keresztmetszeti null, adekvát erővel**
-> (aggregát + Flow 0,60 + Tech 0,30). A teljes IFDS-jelcsalád kérdése **egyetlen
-> hipotézisre, egyetlen komponensen** szűkült: a **Funda blokk (0,10)** — ami
-> egyben az **egyetlen** életképes költségszerkezetű blokk (t½ **799,8 nap** →
-> breakeven IC **0,0017**, ~80× az aggregát alatt).
+> **Így a score súlyozásának 100%-a megerősített keresztmetszeti null, adekvát
+> erővel, emberi megerősítéssel** — az aggregát és mind a három súlyozott komponens.
 
-### ⏸ HYP-007 (Funda) SZÁNDÉKOSAN VISSZATARTVA — `Status: DRAFT`
+### HYP-007 (Funda) — AMENDMENT-1 és ami belőle futott
 
-A regisztrált h ∈ {1,3,5,7} rács a **799,8 napos** half-life-hoz mérve **0,1–0,9%**
-— **félre-specifikált**. Így futtatva **KILL-t rögzítenénk egy olyan teszten, ami nem
-volt alkalmas a hipotézis vizsgálatára**, és a `KILLED` státusz lezártnak tűnne.
-A `DRAFT` státusz a motorban **blokkolja az attempteket** — ez szándékos.
+**AMENDMENT-1 (Tamás, 2026-10-04, elfogadva):** h ∈ {1,3,5,7} ∪ **{10, 20, 60}**,
+**kizárólag a HYP-007-hez**. A motor gépileg kikényszeríti
+(`cfg.LONG_HORIZONS_BY_HYPOTHESIS` + `resolve_horizons(..., hyp_id=)`), így a
+HYP-006/008 halmaza és verdiktje **érintetlen**, és egy későbbi futás nem tud
+csendben nem-regisztrált horizontot futtatni másik hipotézisre.
+A `cfg.IC_HORIZONS` **alapértelmezés változatlan** (1,3,5,7).
 
-📌 **NYITOTT DÖNTÉS (Tamás):** **h ∈ {20, 60}** hozzáadása **kizárólag a HYP-007-hez**.
-Nem post-hoc hangolás (a half-life a hozamoktól független és minden IC-mérés előtt
-mérve), **de** érinti a `cfg.IC_HORIZONS` spec-konstanst → governance-döntés.
-Ára: Šidák-család 12 → 14 attempt.
+🔴 **Mérhetőségi kapu — a MEGLÉVŐ erő-szabály, a futás ELŐTT mérve** (62 dev-nap):
+
+| h | T_eff | futott? |
+|---:|---:|---|
+| 1 / 3 / 5 / 7 | 62,0 / 20,7 / 12,4 / 8,9 | ✅ |
+| **10** | **6,20** | ✅ a leghosszabb ma mérhető |
+| **20** | **3,10** | ❌ 120 dev-nap kell (≈ +12 hét) |
+| **60** | **0,52** | ❌ 360 dev-nap kell (≈ +60 hét) |
+
+→ A h=20/60 **regisztrált, de nem futtatott**: attempt nem nyílt, **nincs
+BH-infláció**; auto-retestre várnak.
+
+**Eredmény (A-0019..A-0023, mind KILL, megerősítve):** mean IC
++0,0015 / −0,0045 / −0,0021 / +0,0047 / +0,0034, Šidák p = **0,9993** — a három
+blokk **leglaposabb** eredménye. **A h-görbe NEM emelkedik, sőt előjelet vált** —
+egy lassú faktornál, aminek a jele attenuálva is jelen van, az IC-nek **nőnie**
+kellene; ez az attenuációs olvasat tesztelhető következménye, és **nem teljesül**.
+
+⚠️ **Fenntartás, kimondva:** a h ∈ {20,60} még nincs megmérve, tehát a Funda-null a
+**saját időskáláján** (t½ 800 nap) nem bizonyított. Az attenuációs olvasat szerint
+ez a **leggyengébb** a három null közül.
+
+### 📌 Egy kaput MEGFONTOLTAM ÉS ELVETETTEM (AMENDMENT-1 §A-1.4)
+
+Felmerült egy **horizont-adekvácia kapu** a `MIN_ADEQUATE_T_EFF` mintájára
+(*„h < 0,1 × half-life → horizont-alulfeszített, PARK"*). A meglévő verdikteket
+nem írta volna át (Flow h/t½ ≈ 17,5 · Tech ≈ 2,5 · aggregát ≈ 0,7 — mind átmegy).
+**Mégis elvetve:** a valódi faktorkutatás **rutinszerűen** tesztel lassú faktorokat
+h ≪ t½-n (egy ~3 éves half-life-ú value-faktor havi IC-je h/t½ ≈ 0,03 mellett
+mérődik) és **talál** 0,02–0,05 nagyságú jelet. Egy ilyen kapu **legitim kutatást
+blokkolna** egy nem kalibrálható küszöbbel. Helyette a §4.2 attenuációs olvasat
+kiterjesztése a horizont-tengelyre, **új gépi konstans nélkül**.
 
 ### 📌 Motor-megfigyelés (NEM javítva — post-hoc lenne)
 

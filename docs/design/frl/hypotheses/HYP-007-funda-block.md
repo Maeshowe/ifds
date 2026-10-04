@@ -1,15 +1,15 @@
-Status: DRAFT
+Status: TESTED
 Updated: 2026-10-04
 Data-lane: v1
-Attempt-family: — (SZÁNDÉKOSAN VISSZATARTVA, lásd §Visszatartás)
+Attempt-family: A-0019..A-0023 (AMENDMENT-1 elfogadva 2026-10-04; fut h ∈ {1,3,5,7,10}, erő-kapuzva h ∈ {20,60})
 
 # HYP-007 — Fundamentals blokk keresztmetszeti IC (az S_j 0,10 súlyú komponense)
 
-> ⛔ **`Status: DRAFT` — ez SZÁNDÉKOS, nem befejezetlenség.** A DRAFT a motorban
-> **blokkolja az attempteket** (`RUNNABLE_STATUSES = ("REGISTERED", "TESTED")`).
-> Az ok a §Visszatartás szekcióban: a regisztrált horizont-rács **félre-specifikált
-> ehhez a faktorhoz**, és egy félre-specifikált teszten rögzített KILL **elégetné**
-> a hipotézist. Governance-döntésre vár.
+> ✅ **AMENDMENT-1 ELFOGADVA (Tamás, 2026-10-04).** A horizont-halmaz
+> **h ∈ {1,3,5,7} ∪ {10,20,60}**, **kizárólag ehhez a hipotézishez** (a motor
+> gépileg kikényszeríti: `cfg.LONG_HORIZONS_BY_HYPOTHESIS`). A `DRAFT` feloldva.
+> Részletek: `docs/planning/2026-10-04-component-decomposition-preregistration.md`
+> AMENDMENT-1.
 
 ## Mechanizmus (MIÉRT létezne — kötelező, teszt ELŐTT írva)
 
@@ -87,24 +87,69 @@ futtatnám, **KILL-t rögzítenék egy olyan teszten, ami nem volt alkalmas a
 hipotézis vizsgálatára** — és a `KILLED` státusz a jövőben lezártnak tűnne.
 Ez **rosszabb, mint nem mérni.**
 
-**A javaslat:** **h ∈ {20, 60}** hozzáadása **kizárólag a HYP-007-hez**.
+**A javaslat (ELFOGADVA):** **h ∈ {10, 20, 60}** hozzáadása **kizárólag a
+HYP-007-hez**.
 
 **Miért nem post-hoc hangolás:** a half-life a faktor **saját
 autokorrelációja** — a hozamoktól **matematikailag független**, és **minden
 IC-mérés ELŐTT** mérve. A horizont-rács hozzáigazítása a faktor **mért
 időskálájához** pre-regisztráció, nem az eredmény felé hangolás.
 
-**Miért nem döntök róla magam:** a h ∈ {1,3,5,7} a **spec §5.1 szintű,
-pre-regisztrált konstans** (`cfg.IC_HORIZONS`). Módosítása **governance-döntés**
-(mint a `MIN_ADEQUATE_T_EFF` floor), és a Šidák-családot is növeli
-(12 → 14 attempt). **Tamás-döntés.**
+**Governance:** a h ∈ {1,3,5,7} a spec §5.1 szintű pre-regisztrált konstans.
+Az amendment **nem** módosítja a `cfg.IC_HORIZONS` alapértelmezést — egy
+**hipotézis-szintű** bővítést vezet be (`LONG_HORIZONS_BY_HYPOTHESIS`), így a
+HYP-006/HYP-008 halmaza és verdiktje **érintetlen**.
 
-Addig a HYP-006 és HYP-008 **a regisztrált rácson fut** — nekik h ∈ {1,3,5,7}
-**helyes** (half-life 0,4 és 2,8 nap).
+🔴 **MÉRHETŐSÉGI KAPU (a meglévő erő-szabály, a futás ELŐTT mérve):**
+`T_eff = n_nap / h`, floor 6,0. A 2026-10-02-i dev-ablakon (62 swing nap):
 
-## Eredmény (a batch tölti)
+| h | T_eff | futtatható? |
+|---:|---:|---|
+| 1 / 3 / 5 / 7 | 62,0 / 20,7 / 12,4 / 8,9 | ✅ |
+| **10** | **6,20** | ✅ a leghosszabb ma mérhető |
+| **20** | **3,10** | ❌ 120 dev-nap kell (58 hiányzik, ≈ +12 hét) |
+| **60** | **0,52** | ❌ 360 dev-nap kell (298 hiányzik, ≈ +60 hét) |
 
-—
+→ **Most fut: h ∈ {1,3,5,7,10}.** A h=20 és h=60 **regisztrált, de nem futtatott**
+— nem nyílik rájuk attempt, nincs BH-infláció; az auto-retest indítja, ahogy a
+minta nő.
+
+⚠️ **Attenuációs olvasat (a §4.2 kiterjesztése a horizont-tengelyre):** h ≪ t½
+mellett az IC **attenuálódik**, ezért egy **null a rövid horizontokon gyenge**
+bizonyíték, egy **pozitív erős**. Horizont-adekvácia **kaput megfontoltam és
+elvetettem** (AMENDMENT-1 §A-1.4): a valódi faktorkutatás rutinszerűen tesztel
+lassú faktorokat h ≪ t½-n és talál jelet — egy ilyen kapu legitim kutatást
+blokkolna.
+
+## Eredmény (2026-10-04, A-0019..A-0023)
+
+Dev swing **62 nap** (05-18..08-28), legacy üres, holdout-érintés **0**.
+Futás: `--hyp HYP-007 --horizons 1,3,5,7,10` (az erő-kapun átment horizontok).
+
+| h | T_eff | mean IC | éra-bar | p | h / t½ | verdikt |
+|---|---:|---:|---:|---:|---:|---|
+| 1 | 62,0 | +0,0015 | 0,0215 | 0,887 | 0,001 | KILL (A-0019) |
+| 3 | 20,7 | −0,0045 | 0,0301 | 0,767 | 0,004 | KILL (A-0020) |
+| 5 | 12,4 | −0,0021 | 0,0408 | 0,921 | 0,006 | KILL (A-0021) |
+| 7 | 8,9 | +0,0047 | 0,0457 | 0,842 | 0,009 | KILL (A-0022) |
+| **10** | **6,2** | **+0,0034** | 0,0545 | 0,905 | 0,013 | KILL (A-0023) |
+
+Šidák-családi p (m=5, swing): **0,9993** → BH q=0,10 **fail**. Ez a három blokk
+közül a **leglaposabb** eredmény.
+
+**A h-görbe NEM emelkedik.** Egy lassú faktornál, aminek a jele attenuálva is
+jelen van, az IC-nek **nőnie** kellene a horizonttal (ez a §A-1.4 attenuációs
+olvasat tesztelhető következménye). A mért sorozat
+(+0,0015 / −0,0045 / −0,0021 / +0,0047 / +0,0034) **előjelet is vált**, és
+nagyságrendben a bar tizede–huszada marad. **Nincs kibontakozó jel.**
+
+⚠️ **A h ∈ {20, 60} NEM futott** — erő-kapuzva (T_eff 3,10 és 0,52 a 6,0-os floor
+alatt), attempt nem nyílt rájuk, BH-inflációt nem okoztak. Auto-retestre várnak.
+Az attenuációs olvasat szerint tehát a null **gyenge** bizonyíték marad azon a
+tartományon, ahol a faktor időskálája ténylegesen él.
+
+✅ **MEGERŐSÍTVE (Tamás, 2026-10-04)** — mind az 5 attempt, `human_confirmed: true`.
+Riport: `docs/review/2026-10-04-component-decomposition.md`
 
 ## KILL/PARK indoklás (ha releváns)
 

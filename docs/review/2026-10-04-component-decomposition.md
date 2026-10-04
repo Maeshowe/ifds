@@ -1,9 +1,9 @@
-# Komponens-dekompozíció — a Flow és a Tech blokk is tiszta null
+# Komponens-dekompozíció — mind a három blokk tiszta null
 
-**Dátum:** 2026-10-04 · **Attemptek:** A-0011…A-0014 (HYP-006 Flow), A-0015…A-0018 (HYP-008 Tech)
+**Dátum:** 2026-10-04 · **Attemptek:** A-0011…A-0014 (Flow), A-0015…A-0018 (Tech), A-0019…A-0023 (Funda)
 **Pre-reg:** `docs/planning/2026-10-04-component-decomposition-preregistration.md` (a retest eredménye **előtt** rögzítve)
 **Reprodukció:** `python scripts/research/run_frl_batch.py --hyp HYP-006 --date 2026-10-02` (és `--hyp HYP-008`)
-**Verdikt `auto`, `human_confirmed: false`** — a döntés Tamásé (spec §10).
+✅ **Mind a 13 verdikt MEGERŐSÍTVE** (Tamás, 2026-10-04), `human_confirmed: true`.
 
 ---
 
@@ -33,6 +33,27 @@
 
 **Mind a 8 kar a 6,0-os adekvácia-floor FÖLÖTT bukott** (T_eff 8,9–62,0). A h=1
 karokon a T_eff **62,0** — ez a projekt eddigi **legerősebb** null-mérése.
+
+### HYP-007 — Fundamentals blokk (súly **0,10**) — AMENDMENT-1 után
+
+| h | T_eff | mean IC | éra-bar | p | h / t½ | verdikt |
+|---|---:|---:|---:|---:|---:|---|
+| 1 | 62,0 | +0,0015 | 0,0215 | 0,887 | 0,001 | KILL (A-0019) |
+| 3 | 20,7 | −0,0045 | 0,0301 | 0,767 | 0,004 | KILL (A-0020) |
+| 5 | 12,4 | −0,0021 | 0,0408 | 0,921 | 0,006 | KILL (A-0021) |
+| 7 | 8,9 | +0,0047 | 0,0457 | 0,842 | 0,009 | KILL (A-0022) |
+| **10** | **6,2** | **+0,0034** | 0,0545 | 0,905 | 0,013 | KILL (A-0023) |
+
+Šidák-családi p (m=5, swing): **0,9993** — a három blokk **leglaposabb** eredménye.
+
+**A h-görbe NEM emelkedik**, sőt előjelet vált. Egy lassú faktornál, aminek a jele
+attenuálva is jelen van, az IC-nek **nőnie** kellene a horizonttal — ez az
+attenuációs olvasat tesztelhető következménye, és **nem teljesül**.
+
+⚠️ **h ∈ {20, 60} nem futott** (T_eff 3,10 és 0,52 < floor 6,0) — regisztrálva,
+erő-kapuzva, attempt nélkül. A null tehát **gyenge** bizonyíték marad azon a
+tartományon, ahol a faktor 800 napos időskálája ténylegesen él. Esedékesség a
+jelenlegi adatütemen: h=20 ≈ **+12 hét**, h=60 ≈ **+60 hét**.
 
 ---
 
@@ -95,14 +116,17 @@ tehát nulla információt hordoz az IC-ről. Független úton verifikálva:
 | Aggregált S_j (HYP-005) | — | **KILLED** mind a 4 horizonton (megerősítve) |
 | **Flow blokk** (HYP-006) | **0,60** | **KILLED** mind a 4 horizonton (ma) |
 | **Tech blokk** (HYP-008) | **0,30** | **KILLED** mind a 4 horizonton (ma) |
-| Funda blokk (HYP-007) | 0,10 | ⏸ **DRAFT — visszatartva** |
+| **Funda blokk** (HYP-007) | **0,10** | **KILLED** h ∈ {1,3,5,7,10} (ma) |
 
-> **A score súlyozásának 90%-a immár megerősített keresztmetszeti null, adekvát
-> erővel.** A teljes IFDS-jelcsalád kérdése ezzel **egyetlen hipotézisre, egyetlen
-> komponensen, a helyes horizonton** szűkült — és az az egy az **egyetlen**, aminek
-> életképes költségszerkezete van.
+> **A score súlyozásának 100%-a megerősített keresztmetszeti null, adekvát erővel,
+> emberi megerősítéssel.** Az aggregát és mind a három súlyozott komponens KILL.
+>
+> **Egyetlen fenntartás:** a Funda-blokk a **saját időskáláján** (t½ 800 nap) még
+> nincs megmérve — a h=20/60 erő-kapuzva vár. Az attenuációs olvasat szerint ez a
+> null a leggyengébb a háromból. **De** a h-görbe ott sem emelkedik, ami a
+> „kibontakozó lassú jel" hipotézis ellen szól.
 
-### 5.1 Miért van a HYP-007 visszatartva
+### 5.1 Az AMENDMENT-1 és ami belőle futott
 
 A regisztrált h ∈ {1,3,5,7} rács a Funda-blokk **799,8 napos** half-life-jához
 mérve **0,1–0,9%** — félre-specifikált. Így futtatva **KILL-t rögzítenék egy

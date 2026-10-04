@@ -47,6 +47,21 @@ HOLDOUT_WEEKS: Final[int] = 4  # D_B
 HOLDOUT_PURGE_DAYS: Final[int] = 5  # h=5 forward-return overlap at the boundary
 FDR_Q: Final[float] = 0.10  # D_C
 IC_HORIZONS: Final[tuple[int, ...]] = (1, 3, 5, 7)
+
+# Long horizons registered for SPECIFIC hypotheses by pre-registered amendment.
+# Keyed by hyp_id so the engine cannot quietly run an unregistered horizon on a
+# DIFFERENT hypothesis — the gap is closed, not the instance.
+#
+# HYP-007 (Funda block): measured half-life 799.8 days (rank autocorrelation
+# rho = 0.999, independently verified), so h<=7 is 0.9% of the factor's own time
+# scale. The half-life is the factor's autocorrelation — mathematically
+# independent of returns — and was measured BEFORE any IC for this hypothesis,
+# so fitting the grid to the measured time scale is pre-registration, not tuning.
+# Source: docs/planning/2026-10-04-component-decomposition-preregistration.md
+#         AMENDMENT-1 §A-1.2. Accepted by Tamás 2026-10-04.
+LONG_HORIZONS_BY_HYPOTHESIS: Final[dict[str, tuple[int, ...]]] = {
+    "HYP-007": (10, 20, 60),
+}
 PRIMARY_HORIZON: Final[int] = 5
 MIN_SECTOR_N: Final[int] = 5  # sectors with fewer names are dropped that day
 ERA_BAR_FLOOR: Final[float] = 0.02  # era_bar = max(floor, 2 * SE(mean IC))
@@ -101,6 +116,16 @@ KNOWN_GAPS: Final[tuple[tuple[date, date], ...]] = (
     # SSH reachability is NOT a health signal for the cron chain.
     (date(2026, 8, 21), date(2026, 8, 21)),
 )
+
+
+def allowed_horizons(hyp_id: str | None = None) -> tuple[int, ...]:
+    """Horizons this hypothesis may be tested at (default grid + its amendments).
+
+    An unnamed hypothesis gets the default pre-registered grid only, so a run
+    that forgets ``--hyp`` cannot reach an amended horizon.
+    """
+    extra = LONG_HORIZONS_BY_HYPOTHESIS.get(hyp_id or "", ())
+    return tuple(sorted(set(IC_HORIZONS) | set(extra)))
 
 
 def era_of(day: date) -> str | None:

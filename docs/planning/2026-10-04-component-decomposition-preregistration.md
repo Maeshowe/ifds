@@ -296,3 +296,110 @@ kapu mintájába vagy a §3 küszöbeibe **visszamenőleg nem számít be**. A k
 S_j-t a **megkötött trade-eken** mérte (n=79, range-restricted); ez a mérés a
 **teljes keresztmetszeten** méri a blokkjait — **más estimand, más minta**
 (lásd a 2026-10-04-i helyreigazítást, §11.24).
+
+---
+
+# AMENDMENT-1 (2026-10-04) — hosszú horizontok a HYP-007-hez
+
+**Státusz:** ✅ **ELFOGADVA (Tamás, 2026-10-04).**
+
+## A-1.0 IDŐZÍTÉSI TANÚSÍTVÁNY
+
+> **Ez az amendment a HYP-007 BÁRMELY IC-mérése ELŐTT készült.** A HYP-007
+> `Status: DRAFT` volt és **egyetlen attempt sem nyílt rá**. A HYP-006 és a
+> HYP-008 ekkor már lefutott (A-0011..A-0018, mind KILL) — de azok **más
+> faktorok, más attempt-családok**, és az ő eredményük a HYP-007 horizontjáról
+> semmit nem mond.
+>
+> Az indoklás alapja a **mért half-life**, ami a faktor saját rang-autokorrelációja:
+> a hozamoktól **matematikailag független**, tehát nulla információt hordoz az
+> IC-ről. A horizont-rács hozzáigazítása a faktor **mért időskálájához**
+> pre-regisztráció, nem az eredmény felé hangolás.
+
+## A-1.1 A probléma
+
+| | |
+|---|---|
+| `Funda_Score` mért half-life | **799,8 nap** (ρ = 0,999, függetlenül verifikálva) |
+| Leghosszabb eredetileg regisztrált horizont | h=7 |
+| h=7 a half-life arányában | **0,9%** |
+
+A §3 rács (h ∈ {1,3,5,7}) a Flow (t½ 0,4 nap) és a Tech (t½ 2,8 nap) blokkhoz
+**illeszkedik**, a Fundához **nem**.
+
+## A-1.2 Amit az amendment regisztrál
+
+**A HYP-007 engedélyezett horizont-halmaza: h ∈ {1, 3, 5, 7} ∪ {10, 20, 60}.**
+
+**Kizárólag a HYP-007-hez.** A HYP-006 és HYP-008 halmaza **változatlan**
+({1,3,5,7}) — ők le is futottak azon. A motor ezt **gépileg kikényszeríti**
+(`cfg.LONG_HORIZONS_BY_HYPOTHESIS`), hogy egy későbbi futás ne tudjon csendben
+nem-regisztrált horizontot futtatni egy másik hipotézisre.
+
+**Multiplicitás:** a HYP-007 családja a ténylegesen lefuttatott variánsok
+Šidák-korrigált minimum-p-je, és a BH-FDR a teljes ledger-történeten fut — a
+defláció tehát automatikusan beszámítja. **Nem korrigálok kézzel.**
+
+## A-1.3 🔴 Mérhetőségi kapu — a MEGLÉVŐ erő-szabály, nem új gépezet
+
+`T_eff = n_nap / h`, a floor `MIN_ADEQUATE_T_EFF = 6,0` (spec §5.5, változatlan).
+A 2026-10-02-i dev-ablakon (62 swing nap) **a futás előtt** mérve:
+
+| h | használható dev-nap | T_eff | futtatható? |
+|---:|---:|---:|---|
+| 1 | 62 | 62,00 | ✅ |
+| 3 | 62 | 20,67 | ✅ |
+| 5 | 62 | 12,40 | ✅ |
+| 7 | 62 | 8,86 | ✅ |
+| **10** | 62 | **6,20** | ✅ **a leghosszabb ma mérhető** |
+| **20** | 62 | **3,10** | ❌ — 120 dev-nap kell (58 hiányzik) |
+| **60** | 31 | **0,52** | ❌ — 360 dev-nap kell (298 hiányzik) |
+
+**Szabály, előre rögzítve:** egy regisztrált horizont **akkor fut**, ha a T_eff-je
+eléri a 6,0-os floort. A h=20 és h=60 tehát **regisztrált, de nem futtatott** —
+nem nyílik rájuk attempt, nincs BH-infláció. Az újraindításuk a **meglévő
+auto-retest** mechanizmus dolga, ahogy a minta nő (~5 nap/hét adatgyűjtési módban).
+
+**Becsült esedékesség a jelenlegi adatütemen:** h=20 ≈ **+12 hét**, h=60 ≈ **+60 hét**.
+
+## A-1.4 ⚠️ Egy kaput MEGFONTOLTAM ÉS ELVETETTEM
+
+Felmerült egy **horizont-adekvácia kapu** a `MIN_ADEQUATE_T_EFF` mintájára:
+*„ha h < 0,1 × half-life, a bukás horizont-alulfeszített, nem null → PARK"*.
+Az AR(1)-logika csábító (h/t½ = 0,1-nél a jel ~7%-a fejeződött ki), és a
+meglévő verdikteket sem írta volna át (Flow h/t½ ≈ 17,5 · Tech ≈ 2,5 ·
+aggregát ≈ 0,7 — mind átmenne).
+
+**Mégis elvetem.** A valódi faktorkutatás **rutinszerűen** tesztel lassú
+faktorokat rövid horizonton: egy ~3 éves half-life-ú value-faktor havi (h≈21)
+IC-je h/t½ ≈ 0,03 mellett mérődik, és ott **találnak** 0,02–0,05 nagyságú jelet.
+Egy ilyen kapu tehát **legitim kutatást blokkolna** egy olyan küszöbbel, amit
+nem tudok a gyakorlattal összhangban kalibrálni.
+
+**Helyette — a már regisztrált olvasat kiterjesztése a horizont-tengelyre
+(§4.2 analógia):** a h ≪ t½ **attenuálja** az IC-t, ezért
+
+- egy **null** a HYP-007-en a rövid horizontokon **gyenge** bizonyíték,
+- egy **pozitív** lelet ugyanott **erős**.
+
+A riportnak ki kell írnia a **h / half-life arányt**, hogy az olvasó lássa,
+mekkora attenuációval néz szembe. **Új gépi küszöböt nem vezetek be** — ugyanaz
+az indok, mint a felbontás-korlátnál (§4.2): nem kalibrálható független forrásból,
+és a házszabály szerint egy nem-kalibrálható döntési konstans tiltott.
+
+## A-1.5 Amit az amendment NEM változtat
+
+| Tétel | Státusz |
+|---|---|
+| `cfg.IC_HORIZONS` **alapértelmezett** rács (1,3,5,7) | **VÁLTOZATLAN** |
+| HYP-006 / HYP-008 horizont-halmaza és verdiktjei | **VÁLTOZATLAN** |
+| `MIN_ADEQUATE_T_EFF = 6,0` | **VÁLTOZATLAN** |
+| BH-FDR q=0,10, Šidák családi minimum-p | **VÁLTOZATLAN** |
+| (e) gazdasági kapu | **VÁLTOZATLAN** |
+| Holdout-politika (4 hét + 5 nap purge, G6) | **VÁLTOZATLAN** |
+| A §3 komponens-halmaz (pontosan 3 faktor) | **VÁLTOZATLAN** |
+
+## A-1.6 Futtatási terv
+
+**Most fut:** HYP-007, h ∈ **{1, 3, 5, 7, 10}** — mind a T_eff-floor fölött.
+**Nem fut:** h = 20, 60 — regisztrálva, erő-kapuzva, auto-retestre vár.

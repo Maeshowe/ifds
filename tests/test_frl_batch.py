@@ -427,3 +427,45 @@ class TestHorizonRestriction:
         assert batch.parse_horizons("5,7") == (5, 7)
         assert batch.parse_horizons(" 5 , 7 ") == (5, 7)
         assert batch.parse_horizons(None) is None
+
+
+class TestPerHypothesisHorizons:
+    """AMENDMENT-1 (2026-10-04): long horizons registered for HYP-007 ONLY.
+
+    Funda's measured half-life is 799.8 days, so h<=7 is 0.9% of its own time
+    scale. The amendment registers h in {10,20,60} for that hypothesis alone.
+    The engine enforces the scoping so a later run cannot quietly test an
+    unregistered horizon on a DIFFERENT hypothesis — closing the gap, not the
+    instance.
+    """
+
+    def test_the_default_grid_is_unchanged_for_an_unnamed_hypothesis(self):
+        assert cfg.allowed_horizons(None) == cfg.IC_HORIZONS
+
+    def test_hyp006_and_hyp008_keep_the_default_grid(self):
+        """Their verdicts were produced on {1,3,5,7}; the amendment must not widen them."""
+        assert cfg.allowed_horizons("HYP-006") == cfg.IC_HORIZONS
+        assert cfg.allowed_horizons("HYP-008") == cfg.IC_HORIZONS
+
+    def test_hyp007_gains_exactly_the_registered_long_horizons(self):
+        assert cfg.allowed_horizons("HYP-007") == (1, 3, 5, 7, 10, 20, 60)
+
+    def test_a_long_horizon_is_accepted_for_hyp007(self):
+        assert batch.resolve_horizons((10, 20), hyp_id="HYP-007") == (10, 20)
+
+    def test_a_long_horizon_is_REJECTED_for_another_hypothesis(self):
+        """The whole point of the per-hypothesis scoping."""
+        with pytest.raises(ValueError, match="not in the configured|not registered"):
+            batch.resolve_horizons((60,), hyp_id="HYP-006")
+
+    def test_a_long_horizon_is_rejected_when_no_hypothesis_is_named(self):
+        with pytest.raises(ValueError, match="not in the configured|not registered"):
+            batch.resolve_horizons((60,), hyp_id=None)
+
+    def test_an_unregistered_horizon_is_rejected_even_for_hyp007(self):
+        with pytest.raises(ValueError, match="not in the configured|not registered"):
+            batch.resolve_horizons((45,), hyp_id="HYP-007")
+
+    def test_the_registered_long_set_matches_the_amendment_exactly(self):
+        """Guard against silent post-hoc horizon expansion."""
+        assert cfg.LONG_HORIZONS_BY_HYPOTHESIS == {"HYP-007": (10, 20, 60)}
