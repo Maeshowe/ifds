@@ -12,11 +12,20 @@ Specifikáció: IDEA.md | Pipeline logika: docs/PIPELINE_LOGIC.md | Paraméterek
 > Itt SOHA ne duplikáld — a korábbi inline státusz-blokk 3,5 hónapig elavultan élt (1291 teszt vs. valós 2182;
 > Day 33 vs. valós 47), és félreorientálta a friss sessionöket.
 
-- **Production** — Mac Mini, split pipeline: Phase 1-3 (22:00) + Phase 4-6 (15:45 Budapest)
-- **Architektúra** — swing pivot (2026-05-18 óta): 5-napos hold, mentális stop, MKT entry.
+> ⛔ **2026-10-04 — A KERESKEDÉS LEÁLLT.** Adatgyűjtési mód (D8): az IBKR-futtatás áll
+> (`state/trading_enabled.json: enabled=false`), **minden más fázis fut**. A könyv üres
+> 09-30 óta. **Az IFDS score-család mind a 4 horizonton és mind a 3 komponensén
+> megerősített keresztmetszeti null** (23 attempt, `research/attempt_ledger.jsonl`).
+> Nyitott stratégiai döntés: új jelcsalád vagy lezárás. Részletek: `docs/STATUS.md`.
+
+- **Production** — Mac Mini, split pipeline: Phase 1-3 (22:00) + Phase 4-6 (15:45 Budapest).
+  Az IBKR-hez kapcsolódó jobok a `check_trading_enabled()` guardon tiszta `exit(0)`-val állnak.
+- **Architektúra** — swing pivot (2026-05-18 → 2026-09-30): 5-napos hold, mentális stop, MKT entry.
   A BC1–BC21 + BC20A (Swing Hybrid Exit) alapréteg kész; részletek: `CHANGELOG.md`.
-- **Paper trading** — IBKR paper `DUH118657`, 63 napos periódus. Aktuális nap/P&L: `docs/STATUS.md`.
-- **Parameter freeze** — Day 63-ig érvényes (kivételek + log: `docs/master-reference/04-risks-and-open-questions.md` §11).
+- **Paper trading** — IBKR paper `DUH118657`. A 63 napos periódus **lezárult** (Day 63 = 2026-08-17);
+  a kapu-futás **2026-10-03-án** megtörtént. Kumulatív P&L befagyva: **−$6 460,95** / 88 nap.
+- **Parameter freeze** — **lejárt** (Day 63, 2026-08-17). A production-konfiguráció ettől
+  függetlenül **nem változik**, amíg a §3 stratégiai döntés meg nem születik.
 
 ## Alapszabályok
 - Ez PÉNZÜGYI rendszer — Human-in-the-loop minden döntésnél
@@ -73,7 +82,9 @@ Ha nincs task fájl: rövid imperatív mondat + kontextus a body-ban.
 > **2026-07-25 — IFDS = CC-only, egyelőre** (Tamás-döntés): a Dev/Chat-szál szüneteltetve; CC felel a teljes
 > review-stackért (napi + heti `weekly_metrics.py` + biweekly `scoring_validation.py` + interpretáció) és
 > minden IFDS operatív munkáért (task-írás, bugfix, FRL, journal, STATUS). Az epistemikus guardrailek
-> (freeze, G1 gate-szeparáció, G3 no-signal-validity-nyelv Day 63-ig, pre-reg) VÁLTOZATLANOK. Lásd memória:
+> (G1 gate-szeparáció, pre-reg) VÁLTOZATLANOK. ⚠️ A **G3** nyelvi tilalom
+> (no-signal-validity) a **2026-10-03-i kapu-futással FELOLDÓDOTT** — jel-érvényességről
+> azóta szabad beszélni. A **freeze** Day 63-mal lejárt. Lásd memória:
 > [[division-of-labor-chat-cc]]. Reverzibilis („egyelőre").
 
 A taskok a `docs/tasks/YYYY-MM-DD-*.md` fájlokban élnek (a CC-only alatt CC írja és implementálja).
@@ -258,6 +269,9 @@ Q3 (júl-szept):  BC24-26 — Black-Litterman, Auto Exec, Multi-Strategy
 Q4 (okt-dec):   BC27-30 — Dashboard, Alpha Decay, Retail Packaging
 ```
 
+> ⚠️ **A Q3/Q4 roadmap (BC24-30) TÁRGYTALAN 2026-10-04 óta.** Mind a jelcsaládra épült,
+> ami azóta megerősített null. Új roadmap csak a §3 stratégiai döntés után.
+
 **BC struktúra:** BC_xx → Phase_xx → Tasks_xx
 Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köthető.
 
@@ -266,8 +280,8 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 → **Backlog:** `docs/planning/backlog.md`
 
 Stabil referencia (ritkán változik):
-- Teszt baseline: 1291 passing (2026-04-03) — csak nőhet
-- PT account: IBKR DUH118657, $100K initial, 63 napos paper trading periódus
+- Teszt baseline: **2377 passing** (2026-10-04) — csak nőhet
+- PT account: IBKR DUH118657, $100K initial. A 63 napos periódus lezárult; **a kereskedés áll**
 - PT clientId-k: submit=10, close=11, eod=12, nuke=13, monitor=14, trail=15, avwap=16, gateway=17
 - MMS: `mms_enabled=True`, `factor_volatility_enabled=True`, `mms_min_periods=10`
 - TP1: `tp1_atr_multiple=0.75`
