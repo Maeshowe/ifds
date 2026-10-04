@@ -25,6 +25,7 @@ import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -76,6 +77,39 @@ def _era_panels(windows: frl_holdout.Windows) -> dict[str, loader.PanelResult]:
     return panels
 
 
+def resolve_horizons(selected: Sequence[int] | None) -> tuple[int, ...]:
+    """Which horizons this run tests, defaulting to every configured one.
+
+    A pre-registered retest family may cover only PART of the horizon set —
+    HYP-005's was fixed in writing on 2026-07-24 as {h5, h7}, m=2, because h=1
+    and h=3 are already KILLed and human-confirmed. Re-running those would
+    inflate the attempt count and re-generate verdicts over closed decisions
+    (ifds-rules: "Nincs újrafuttatás verdikt-generálásért"). The pre-reg is the
+    canon; this exists so the engine can express it.
+
+    Fails loud on an unconfigured horizon: a typo must never quietly produce an
+    empty run that looks like "no signal".
+    """
+    if selected is None:
+        return tuple(cfg.IC_HORIZONS)
+    ordered = tuple(sorted({int(h) for h in selected}))
+    if not ordered:
+        raise ValueError("--horizons needs at least one horizon")
+    unknown = [h for h in ordered if h not in cfg.IC_HORIZONS]
+    if unknown:
+        raise ValueError(
+            f"horizon(s) {unknown} not in the configured set {tuple(cfg.IC_HORIZONS)}"
+        )
+    return ordered
+
+
+def parse_horizons(raw: str | None) -> tuple[int, ...] | None:
+    """Parse the CLI's comma-separated horizon list ("5,7")."""
+    if raw is None:
+        return None
+    return tuple(int(part) for part in raw.split(",") if part.strip())
+
+
 def run_batch(
     run_date: date | None = None,
     hyp_filter: str | None = None,
@@ -85,6 +119,7 @@ def run_batch(
     runs_dir: Path | None = None,
     returns_frame=None,
     hypothesis_dir: Path | None = None,
+    horizons: Sequence[int] | None = None,
 ) -> str:
     """Execute one batch and return the rendered report.
 
@@ -123,6 +158,7 @@ def run_batch(
             continue
         runnable.append(factor)
 
+    run_horizons = resolve_horizons(horizons)
     windows = frl_holdout.compute_windows(run_date, first_day=cfg.SWING_START)
     panels = _era_panels(windows)
     cost_model = frl_cost.build_cost_model(out_path=None if dry_run else cfg.COST_MODEL_PATH)
@@ -154,7 +190,7 @@ def run_batch(
 
     code_ref = _git_ref()
     for factor in runnable:
-        for horizon in cfg.IC_HORIZONS:
+        for horizon in run_horizons:
             era_summaries: dict[str, dict] = {}
             costed: dict[str, dict] = {}
             sigma_by_era: dict[str, float] = {}
@@ -336,6 +372,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--hyp", default=None, help="restrict to one hypothesis id")
     parser.add_argument("--factor", default=None, help="restrict to one factor name")
     parser.add_argument(
+        "--horizons",
+        default=None,
+        help="comma-separated horizon subset (e.g. '5,7') — use it to honour a "
+        "pre-registered retest family and avoid attempt inflation on closed arms",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true", help="compute and print, write nothing (no ledger rows)"
     )
     args = parser.parse_args(argv)
@@ -345,6 +387,7 @@ def main(argv: list[str] | None = None) -> int:
         hyp_filter=args.hyp,
         factor_filter=args.factor,
         dry_run=args.dry_run,
+        horizons=parse_horizons(args.horizons),
     )
     print(report)
     return 0

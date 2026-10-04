@@ -1611,6 +1611,58 @@ Pre-reg: `docs/planning/2026-10-04-economic-gate-preregistration.md`
 ---
 
 
+### 11.26 ✅ LEZÁRVA (2026-10-04) — a HYP-005 újrateszt: az S_j aggregát keresztmetszeti nullja
+
+A 2026-07-24-i `PARK_UNTIL_SWING_POWER` **feloldva**. Futás:
+`--hyp HYP-005 --horizons 5,7 --date 2026-10-02` (a pre-regisztrált `{h5,h7}` család,
+m=2, rögzítve 2026-07-24-én az adat előtt).
+
+| h | napok | T_eff | mean IC | NW t | p | éra-bar | auto-verdikt |
+|---|---:|---:|---:|---:|---:|---:|---|
+| **5** | 62 | **12,4** | **+0,0130** | 0,87 | 0,401 | 0,0298 | **KILL** (A-0009) |
+| **7** | 62 | **8,9** | **+0,0087** | 0,47 | 0,648 | 0,0368 | **KILL** (A-0010) |
+
+Šidák-családi p (m=2): **0,6411** → BH q=0,10 **fail**. Mindkét kar a 6,0-os
+adekvácia-floor **fölött** bukott → pre-reg **(a): valódi null**, nem alulfeszítettség.
+
+> **Ezzel az aggregált S_j score mind a NÉGY horizonton KILL, adekvát erővel**
+> (h1 T_eff 23 · h3 7,7 · h5 12,4 · h7 8,9). Teljes, pre-regisztrált, lezárt null.
+> A család egyetlen nyitott kérdése a **komponens-dekompozíció** (HYP-006/007/008),
+> ami **ennek a futásnak az eredménye ELŐTT** került regisztrálásra.
+
+⚠️ **Verdikt `auto`, `human_confirmed: false` — Tamás megerősítésére vár** (spec §10).
+A `confirm_decision` **egyszer** hívható soronként.
+
+### 🔴 Stale-cache csapda — elkapva, és az eredmény megfordult
+
+Az első dry-run a **2026-07-25-i** `research/cache/returns.parquet`-ből olvasott, ahol a
+`fwd_ret_5` csak **2026-07-17-ig** tartalmazott adatot → a futás a swing dev-ablakból
+csak 35 napot használt, **nagyjából a júliusi mintát**. A „megnőtt erő" premisszája
+nem teljesült.
+
+| | Stale (35 nap) | **Újraépített (62 nap)** |
+|---|---|---|
+| mean IC (h=5) | **+0,0384** | **+0,0130** |
+| Šidák családi p | **0,0440** | **0,6411** |
+| BH q=0,10 | **PASS** | **fail** |
+| (a)–(d) | **MIND TELJESÜL** | bukik |
+| verdikt | `PARK_UNECONOMIC` | **`KILL`** |
+
+**A (e) kapu az első éles futásán tüzelt:** a stale mintán (a)–(d) mind teljesült, tehát
+a kapu **nélküli** motor **PROMOTE**-ot adott volna — bruttó 1 182 bp/év vs költség
+4 241 bp/év = **nettó −30,6%/év**. Az időzítés (kapu előbb, retest utána) nem formalitás volt.
+
+**Javítás:** a return-mátrix újraépítve a teljes bar-tartományra (162 nap, `fwd_ret_5`
+most 09-25-ig), **nulla új API-hívással** (a 2026-10-03-i `grouped_daily` backfill
+lefedte), 6 másodperc. **Hibaosztály:** a *„Hermetikus teszt — a prod-state NEM teheti
+hamisan zölddé a tesztet"* szabály **harmadik** előfordulása, új alakban: nem teszt lett
+hamisan zöld, hanem egy **kutatási futás adott hamis POZITÍV leletet** elavult cache-ből.
+
+Riport: `docs/review/2026-10-04-hyp005-retest.md`
+
+---
+
+
 ## 12. FRL-eredetű nyitott tételek (2026-07-21, Dev chat)
 
 ### 12.1 P3 — `execution_plan.py:179` Reason-felülírás (post-Day-63 fix-jelölt)
@@ -1638,6 +1690,19 @@ Az FRL cost-modell swing next-day-fill |slippage| mediánja vs legacy 19 bp — 
 | 2026-07-20 (8b8b216, első) | 28 | 95.5 | 137 |
 | 2026-07-24 (2. fordulat) | 31 | **97.0** | 137 |
 
-A minta a paper-hetekkel nő; a medián stabil ~96 bp körül. h=5 + teljes heti
-rotáció ≈ **~9.5%/év költség-korlát**. A HYP-005 batch-ben ezen a 97.0 bp-on a
-breakeven IC 0.15–0.18 (h=5/h=7).
+A minta a paper-hetekkel nő; a medián stabil ~96 bp körül (2026-09-22: **83,5 bp**,
+n=82). A HYP-005 batch-ben ezen a 97.0 bp-on a breakeven IC 0.15–0.18 (h=5/h=7).
+
+> 🔴 **JAVÍTÁS (2026-10-04) — 10×-es egységtévedés.** A korábbi szöveg
+> *„h=5 + teljes heti rotáció ≈ ~9.5%/év költség-korlát"*-ot írt. A helyes szám:
+> `50 round-trip/év × 2 oldal × 95,5 bp = 9 550 bp/év = **95,5%/év**` — a bp→%
+> konverzió 1000-rel történt 100 helyett. A **motor helyesen számol**
+> (`frl_ic.implied_turnover_cost_bps`: `(252/half_life) × 2 × cost_bps`): a mért
+> **9,9 napos** half-life és **83,5 bp/oldal** mellett **4 241 bp/év ≈ 42,5%/év**.
+>
+> **Következmény:** a valós költség-korlát egy **nagyságrenddel** súlyosabb, mint
+> amit ez a jegyzet (és 2026-10-03/04-én a CC javaslatai) idéztek. A megkívánt
+> per-oldal költség a HYP-005 h=5 mért IC-jéhez (+0,0130, bruttó 393 bp/év):
+> **≤ 7,7 bp/oldal**, nulla marzzsal — a mért 83,5 bp **11-szerese** a megengedettnek.
+> Még **ingyenes belépéssel** is a kilépési oldal egymaga 2 125 bp/év, a bruttó
+> **5,4-szerese**. Lásd `docs/review/2026-10-04-hyp005-retest.md` §4.

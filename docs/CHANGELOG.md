@@ -4,6 +4,75 @@
 
 ---
 
+## 2026-10-04 — (e) gazdasági kapu + HYP-005 újrateszt: az S_j aggregát nullja lezárult
+
+> Baseline 2287 → **2323** (+36), 0 fail.
+
+### feat(research) — (e) gazdasági szignifikancia-kapu (`17ba2ba`)
+Részletek a commitban. Lényeg: `promote_verdict()` eddig **egyáltalán nem kapott
+költség-inputot**, tehát egy faktor PROMOTE-olhatott gazdaságilag veszteségesen.
+Fail-closed; csak a PROMOTE-ágat fogja el; 4 regressziós pin őrzi a korábbi verdikteket.
+
+### feat(research) — `--horizons` a batch CLI-ben
+A pre-regisztrált HYP-005 újrateszt-család `{h5, h7}` (m=2, rögzítve 2026-07-24).
+A batch eddig mind a 4 horizontot futtatta → a már KILL-elt h1/h3 karokon
+**attempt-inflációt** okozott volna (`ifds-rules`: *„Nincs újrafuttatás
+verdikt-generálásért"*). A pre-reg a kánon; a motor nem tudta kifejezni → a motor
+a hibás. `resolve_horizons()` fail-loud egy nem konfigurált horizontra (egy elírás
+ne adjon üres futást, ami „nincs jel"-nek látszik).
+
+### 🔴 data — stale returns-cache javítva, ÉS AZ EREDMÉNY MEGFORDULT
+A `research/cache/returns.parquet` **2026-07-25-i** volt: `fwd_ret_5` csak
+**2026-07-17-ig**. Az első dry-run tehát a swing dev-ablakból 35 napot használt,
+~a júliusi mintát — a „megnőtt erő" premisszája **nem teljesült**.
+
+| | Stale (35 nap) | **Újraépített (62 nap)** |
+|---|---|---|
+| mean IC (h=5) | **+0,0384** | **+0,0130** |
+| Šidák családi p | **0,0440** | **0,6411** |
+| BH q=0,10 | **PASS** | **fail** |
+| (a)–(d) | **MIND TELJESÜL** | bukik |
+| verdikt | `PARK_UNECONOMIC` | **`KILL`** |
+
+Újraépítve a teljes bar-tartományra (162 nap, `fwd_ret_5` 09-25-ig), **nulla új
+API-hívással** (a 10-03-i `grouped_daily` backfill lefedte), 6s.
+**Hibaosztály:** a *„Hermetikus teszt"* szabály 3. előfordulása, új alakban — nem
+teszt lett hamisan zöld, hanem egy **kutatási futás adott hamis POZITÍV leletet**.
+
+### Eredmény — HYP-005 A-0009 / A-0010: KILL, KILL
+h=5: T_eff **12,4**, mean IC **+0,0130**, p=0,401 · h=7: T_eff **8,9**, +0,0087, p=0,648.
+Mindkettő a 6,0-os floor **fölött** bukott → pre-reg **(a): valódi null**.
+A 2026-07-24-i PARK **feloldva**.
+
+> **Az aggregált S_j score mind a 4 horizonton KILL, adekvát erővel** (h1 T_eff 23 ·
+> h3 7,7 · h5 12,4 · h7 8,9). Teljes, pre-regisztrált, lezárt null. Verdikt **auto**,
+> `human_confirmed: false` — Tamás megerősítésére vár (spec §10).
+
+**A (e) kapu az első éles futásán tüzelt:** a stale mintán (a)–(d) mind teljesült, tehát
+a kapu nélküli motor **PROMOTE**-ot adott volna egy bruttó 1 182 / költség 4 241 bp/év =
+**nettó −30,6%/év** stratégiára.
+
+### 🔴 docs — 10×-es egységtévedés javítva (§12.2 / FRL-spec §5.3)
+A *„h=5 + teljes heti rotáció ≈ ~9,5%/év költség-korlát"* **hibás**: a helyes szám
+`50 × 2 × 95,5 bp = 9 550 bp/év = **95,5%/év**` (bp→% konverzió 1000-rel, nem 100-zal).
+A **motor helyesen számolt**: a mért 9,9 napos half-life és 83,5 bp/oldal mellett
+**4 241 bp/év ≈ 42,5%/év**. A CC 2026-10-03/04-i javaslatai is a hibás számot idézték.
+
+**A döntő következmény:** a HYP-005 h=5 mért IC-jéhez (+0,0130, bruttó 393 bp/év) a
+megkívánt végrehajtási költség **≤ 7,7 bp/oldal**, nulla marzzsal — a mért 83,5 bp ennek
+**11-szerese**. Még **ingyenes belépéssel** is a kilépési oldal egymaga 2 125 bp/év, a
+bruttó **5,4-szerese**. Ez a faktor ezen a horizonton **még a kilépési oldalát sem
+termeli ki.**
+
+### docs
+- `docs/review/2026-10-04-hyp005-retest.md` — teljes riport, a stale-cache epizóddal.
+- `docs/planning/2026-10-04-component-decomposition-preregistration.md` (`3c5f255`) —
+  HYP-006/007/008, **a retest eredménye ELŐTT** regisztrálva.
+- `04-risks` **§11.26** (újrateszt) + §12.2 javítás.
+- HYP-005 registry: `PARKED → TESTED` + újrateszt-felhatalmazás + eredmény.
+
+---
+
 ## 2026-10-04 — SIM-EXEC (a LIMIT-belépő +$2 442) + (e) gazdasági kapu pre-reg
 
 > **Post-gate, read-only.** Baseline 2273 → **2287** (+14), 0 fail.

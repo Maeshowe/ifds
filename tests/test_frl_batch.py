@@ -393,3 +393,37 @@ class TestUnconfirmedDecisionsInReport:
         assert all(e["decision_source"] == "auto" for e in entries)
         assert all(e["human_confirmed"] is False for e in entries)
         assert f"{len(entries)} döntés vár emberi megerősítésre" in text
+
+
+class TestHorizonRestriction:
+    """A pre-registered retest family must be runnable WITHOUT attempt inflation.
+
+    HYP-005's retest family was fixed in writing on 2026-07-24 as {h5, h7}, m=2.
+    The h=1 and h=3 arms are already KILLed and human-confirmed, so re-running
+    them would inflate the attempt count and re-generate verdicts over closed
+    decisions — forbidden by ifds-rules ("Nincs újrafuttatás verdikt-generálásért").
+    The engine could not express that family, so the engine was the wrong one.
+    """
+
+    def test_default_runs_every_configured_horizon(self):
+        assert batch.resolve_horizons(None) == cfg.IC_HORIZONS
+
+    def test_an_explicit_subset_is_honoured_in_order(self):
+        assert batch.resolve_horizons((5, 7)) == (5, 7)
+
+    def test_a_horizon_outside_the_configured_set_is_rejected(self):
+        """Fail loud: a typo must not silently produce an empty run."""
+        with pytest.raises(ValueError, match="not in the configured"):
+            batch.resolve_horizons((5, 11))
+
+    def test_an_empty_selection_is_rejected(self):
+        with pytest.raises(ValueError, match="at least one"):
+            batch.resolve_horizons(())
+
+    def test_duplicates_collapse(self):
+        assert batch.resolve_horizons((5, 5, 7)) == (5, 7)
+
+    def test_the_cli_parses_a_comma_separated_list(self):
+        assert batch.parse_horizons("5,7") == (5, 7)
+        assert batch.parse_horizons(" 5 , 7 ") == (5, 7)
+        assert batch.parse_horizons(None) is None
