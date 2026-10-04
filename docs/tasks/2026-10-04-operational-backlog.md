@@ -78,3 +78,39 @@ Ha élesítés merül fel: a 2.1–2.3 **együtt**, TDD-vel, friss sessionben, �
 
 Ha a HYP-006/007/008 dekompozíció mind a hármat kinullázza (C forgatókönyv), a 2.1–2.3
 és a 3. pont **tárgytalan** — akkor nem javítunk egy leállított stratégia kódútját.
+
+
+---
+
+## 5. A 2026-10-04-i repo-audit maradéka (alacsony prioritás)
+
+A 58-ügynökös, 6-dimenziós audit **32 leletet erősített meg** (20-at az adverzariális
+verify elvetett). A HIGH és MEDIUM tételek ebben a sessionben elintézve
+(`3c6ccee`, `f4c963a`, `457fb1b`, `eb9ae85`, `68f39d9`). Ami maradt:
+
+| # | Lelet | Miért halasztva |
+|---|---|---|
+| **31** | A ledger-sorok csupasz `NaN` / `Infinity` literált szerializálnak (14/23 sor) — ez **nem érvényes RFC 8259 JSON**. A Python `json` alapból elfogadja, ezért a sáv saját eszköztára működik; egy szigorú parser (JS `JSON.parse`, Go `encoding/json`) elutasítja. | A `_write_ledger` **minden** `close_attempt`-kor újraírja a teljes fájlt, tehát a javítás az összes historikus sort is újra-szerializálja — a null-ra cserélés **információt veszítene** (a NaN "nincs adat", a 0.0 "mérve nulla"). Megfelelő fix: sentinel-objektum vagy `null` + külön `_nan_fields` lista, migrációval. Nem triviális, és a ledger az audit-lánc. |
+| **24** | `04-risks` §12.2 azt írja, a költség-medián „stabil ~96 bp körül" — a 2026-09-22-i modell **83,5 bp**. | Kozmetikai; a §12.2 javított blokkja már a 83,5-öt idézi. |
+| **25** | `docs/foundational/analysis/weekly/2026-W18-analysis.md` a BC23 előtti 0,40/0,30 súlyokat írja. | **Szándékosan nem javítom:** egy dátumozott historikus elemzés, ami a saját idejében pontos volt. Átírása ugyanaz a hiba lenne, mint a TRACKER dátumozott soraié. |
+| **28/b** | A `panel_coverage()` most **kiírja** a derivált cache frissességét, de **nincs hard guard**, ami elbuktatná a futást, ha a panel elavult a `run_date`-hez képest. | A kiírás a szabály betűje, és a stale-cache epizód így is azonnal látszott volna. A hard guard küszöbe (hány nap elmaradás tiltó?) **nem kalibrálható független forrásból** — ugyanaz az indok, amiért a felbontás- és a horizont-kapu sem készült el. |
+
+**A verify által ELVETETT 20 lelet** (pl. „header.tex korrupt duplikátum",
+„négy halott .gitignore szabály", „a nyitott-task lekérdezés elrejt 2 WIP taskot")
+szándékos állapotok vagy téves bizonyítékon álltak — nem kell velük tenni semmit.
+Teljes kimenet: a session workflow-naplója.
+
+### 5.1 Pre-existing lint (nem ebben a sessionben keletkezett)
+
+`ruff check scripts/ tests/ src/` → **23 hiba, mind olyan fájlban, amit ez a session
+nem érintett** (minden általa írt/módosított fájl tiszta, fájlonként verifikálva):
+
+| Fájl | Hibák |
+|---|---|
+| `scripts/admin/retroactive_reconcile_w21.py` | F401 unused import, F841 unused var |
+| `scripts/company_intel.py` | F841 unused var |
+| **`scripts/paper_trading/eod_report.py:710`** | F841 `total_trades` — ⚠️ **production kereskedési script**, ezért a §2 szabály szerint elhalasztva |
+| `src/ifds/**` | 11 további (nem auditált hatókör) |
+
+Nincs lint-gate a CI-ban; ha lesz, ezeket előbb fel kell takarítani, különben a
+gate első naptól piros.
