@@ -200,8 +200,19 @@ small_n_warning): medián **95.5 bp/oldal**, p75 137.0, max 377.0 — round-trip
 Legacy referencia: 19.0 bp medián (n=99) — az 5× szorzó a végrehajtási stílus-váltás
 (intraday LMT → next-day MKT open) ára, ezért `era=swing` a default szűrő, a legacy
 költség-minta NEM prior. Következmény: h=5 + teljes heti rotáció ≈ 50 round-trip/év
-→ **~9.5%/év végrehajtási költség-korlát** — a faktor-szelekciónak strukturálisan az
-alacsony-turnover jelöltek felé kell húznia. (G3-határ: költség-megfigyelés, nem
+→ **~95,5%/év végrehajtási költség-korlát** — a faktor-szelekciónak strukturálisan az
+alacsony-turnover jelöltek felé kell húznia.
+
+> 🔴 **JAVITAS (2026-10-04) — 10x-es egysegtevedes.** A fenti szam eredetileg
+> *„~9.5%/ev"* volt: a bp->% konverzio 1000-rel tortent 100 helyett.
+> `50 round-trip/ev x 2 oldal x 95,5 bp = 9 550 bp/ev = **95,5%/ev**`.
+> A **motor mindvegig helyesen szamolt** (`frl_ic.implied_turnover_cost_bps`:
+> `(252/half_life) x 2 x cost_bps`) — csak ez a jegyzet volt hibas.
+> A mert 9,9 napos half-life es 83,5 bp/oldal mellett **4 241 bp/ev ~ 42,5%/ev**.
+>
+> ⚠️ A `docs/CHANGELOG.md` 2026-10-04-i bejegyzese azt allitotta, hogy a javitas
+> ide is megtortent — **nem tortent meg**; csak a `04-risks` 12.2 volt javitva.
+> Ezt a repo-audit tarta fel, es a CHANGELOG allitasa is helyesbitve lett. (G3-határ: költség-megfigyelés, nem
 signal-állítás; Day 63-inputként jegyezve a végrehajtási stílus későbbi vitájához.)
 A 3 bp-osztályú feltevések ehhez a stílushoz tiltottak; a korábbi 75 bp-s induló
 érték ~27%-kal alábecsült — a HYP-004 costed-IC riport 95.5 bp-on fut.

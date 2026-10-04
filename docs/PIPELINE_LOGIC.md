@@ -873,8 +873,8 @@ tech_score  = rsi_ideal + sma50 + rs_spy           (0–100)
 flow_score  = min(100, max(0, 50 + flow_adj))      (0–100)
 funda_score = 50 + funda_adjustments                (10–95)
 
-combined = 0.40 × flow_score
-         + 0.30 × funda_score
+combined = 0.60 × flow_score     # BC23 (2026-04-13): 0.40 -> 0.60, flow-first
+         + 0.10 × funda_score    # BC23: 0.30 -> 0.10, nincs P&L-korrelacio
          + 0.30 × tech_score
          + sector_adjustment
 
@@ -882,7 +882,7 @@ combined *= insider_multiplier
 ```
 
 - `sector_adjustment` = `SectorScore.score_adjustment - SectorScore.breadth_score_adj` (breadth adj kiszűrve — BC14)
-- Konfig: `weight_flow=0.40`, `weight_fundamental=0.30`, `weight_technical=0.30`
+- Konfig: `weight_flow=0.60`, `weight_fundamental=0.10`, `weight_technical=0.30` (BC23, 2026-04-13)
 
 #### Tipikus Combined Score Példák
 
@@ -1695,7 +1695,7 @@ Phase 4: Stock Analysis (szinkron: ~12 min, async: ~2 min, semaphore: polygon=10
   │ Flow: RVOL + squat + dp_pct + buy_pressure + VWAP + PCR + OTM + block
   │        DTE filter (≤90), flow cap [0, 100]
   │ Fundamental: 6 metrika + insider + shark detector + inst ownership
-  │ Combined = 0.40×flow + 0.30×funda + 0.30×tech + sector_adj × insider_mult
+  │ Combined = 0.60×flow + 0.10×funda + 0.30×tech + sector_adj × insider_mult
   │ Szűrők: SMA200, min_score=70, clipping=95
   ↓ list[StockAnalysis] (passed, score 70–95)
 Phase 5: GEX + MMS
@@ -2003,8 +2003,8 @@ if config.runtime.get("phase4_snapshot_enabled", True) and ctx.stock_analyses:
 | `freshness_lookback_days` | 90 | Freshness alpha lookback |
 | `freshness_bonus` | 1.5 | Score szorzó friss jelekre |
 | `clipping_threshold` | 95 | Score > 95 = crowded |
-| `weight_flow` | 0.40 | Flow súly a combined-ban |
-| `weight_fundamental` | 0.30 | Funda súly |
+| `weight_flow` | 0.60 | Flow súly a combined-ban |
+| `weight_fundamental` | 0.10 | Funda súly |
 | `weight_technical` | 0.30 | Tech súly |
 | `breadth_sma_periods` | [20, 50, 200] | Breadth SMA periódusok (BC14) |
 | `breadth_lookback_calendar_days` | 330 | Lookback ha breadth enabled (BC14) |

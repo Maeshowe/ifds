@@ -186,7 +186,10 @@ A 2026-07-24-i PARK **feloldva**.
 a kapu nélküli motor **PROMOTE**-ot adott volna egy bruttó 1 182 / költség 4 241 bp/év =
 **nettó −30,6%/év** stratégiára.
 
-### 🔴 docs — 10×-es egységtévedés javítva (§12.2 / FRL-spec §5.3)
+### 🔴 docs — 10×-es egységtévedés javítva (§12.2)
+> ⚠️ **Helyesbítés (2026-10-04, repo-audit):** ez a bejegyzés eredetileg
+> „(§12.2 / FRL-spec §5.3)"-at írt, de **a FRL-spec §5.3 akkor NEM lett javítva** —
+> csak a `04-risks` §12.2. A spec javítása külön, későbbi commitban történt meg.
 A *„h=5 + teljes heti rotáció ≈ ~9,5%/év költség-korlát"* **hibás**: a helyes szám
 `50 × 2 × 95,5 bp = 9 550 bp/év = **95,5%/év**` (bp→% konverzió 1000-rel, nem 100-zal).
 A **motor helyesen számolt**: a mért 9,9 napos half-life és 83,5 bp/oldal mellett

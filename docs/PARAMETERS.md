@@ -31,8 +31,8 @@ Csak fejlesztői módosítás. A matematikai képletek fix paraméterei.
 | `freshness_lookback_days` | 90 | P6 | Napok mielőtt "friss" | `signal_history.freshness.lookback_days: 90` | ✅ Azonos |
 | `freshness_bonus` | 1.5 | P6 | Friss signal szorzó | `strategy.freshness.score_multiplier: 1.75` | ⚠️ **V13=1.75, V2=1.5** |
 | `clipping_threshold` | 95 | P4 | Score > 95 = crowded → SKIP | `strategy.clipping.max_score: 85` | ⚠️ **V13=85, V2=95** |
-| `weight_flow` | 0.40 | P4 | Flow Analysis súly | `scoring.weights.flow: 0.4` | ✅ Azonos |
-| `weight_fundamental` | 0.30 | P4 | Fundamental súly | `scoring.weights.fundamental: 0.3` | ✅ Azonos |
+| `weight_flow` | **0.60** | P4 | Flow Analysis súly (BC23: 0.40 → 0.60, flow-first) | `scoring.weights.flow: 0.4` | ⚠️ **ELTÉR** — a YAML elavult, a `defaults.py` a mérvadó |
+| `weight_fundamental` | **0.10** | P4 | Fundamental súly (BC23: 0.30 → 0.10, nincs P&L-korreláció) | `scoring.weights.fundamental: 0.3` | ⚠️ **ELTÉR** — a YAML elavult |
 | `weight_technical` | 0.30 | P4 | Technical súly | `scoring.weights.technical: 0.3` | ✅ Azonos |
 | `breadth_sma_periods` | [20, 50, 200] | P3 | SMA periódusok breadth számításhoz (BC14) | Nincs | V2 újdonság |
 | `breadth_lookback_calendar_days` | 330 | P1 | Lookback Phase 1-ben ha breadth enabled (~220 trading day) (BC14) | Nincs | V2 újdonság |
