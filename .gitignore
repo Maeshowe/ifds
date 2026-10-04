@@ -5,6 +5,7 @@
 .claude/settings.local.json
 .claude/worktrees/
 .claude/.DS_Store
+.claude/checkpoints.log
 
 # Secrets
 .env
@@ -17,6 +18,25 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# Tool caches + coverage artifacts.
+# A gap-closure, not an instance fix: the caches are currently invisible only
+# because each tool writes its own nested .gitignore — that is the tool's
+# choice, not ours, and a tool-version bump could start exposing them. The
+# 2026-07-23 explicit-path-list rule constrains the OPERATOR; this constrains
+# the FILE SET, so a future `git add -A` slip cannot sweep them in.
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# LaTeX render artefacts (journal 2026-05-16: deliberately not committed)
+header.tex
+*.aux
+*.toc
 .venv/
 venv/
 
