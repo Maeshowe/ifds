@@ -17,24 +17,49 @@ sőt enyhén **alábecsüli** a kilépést.
 
 | | n | `median\|.\|` | **előjeles átlag** | adverz |
 |---|---:|---:|---:|---:|
-| **Belépés** (swing) | 82 | **83,9** | **+38,8** | 70% |
+| **Belépés** (swing, MIND) | 82 | **83,5** | +38,9 | 70% |
+| **Belépés, tisztított (`qty>0`)** | **80** | 83,0 | **+46,6** *(notional: **+42,0**)* | 70% |
 | **Kilépés** shortfall | 108 | 123,4 | **+50,0** | 62% |
 | Kilépés — csak végrehajtás | 108 | 10,1 | +23,2 | 60% |
 
-> 🟢 **Független földelés:** a SIM-1 **dollár-könyvelése** a belépési oldalra
-> `$1 958 / $477 264 = **41,0 bp**`-t adott. Ez az **előjeles** becslővel egyezik
-> (34,9 bp notional-súlyozott), **nem** a `median|.|` 83,9-cel. A median-konvenció
-> nagyjából **megduplázza** a valós várható költséget.
+> 🔴 **ADATHIBA, a panel találta (az én ellenőrzésem rossz mezőt nézett).** A
+> `slippage_per_ticker[T].qty` a **ténylegesen betöltött** darab, és **2 sorban nulla**:
+> **MSM 2026-06-04 (−377 bp)** és **VLO 2026-05-20 (−167 bp)** — **pontosan a két
+> legnagyobb KEDVEZŐ print**, olyan trade-ekre, amik **meg sem történtek**. Én a plan
+> `quantity` mezejével ellenőriztem (az mindig > 0, mert *tervezett* darab), és ezért
+> nem láttam.
+>
+> ⚠️ **Az irány számít:** a szennyezés **lefelé** húzta a becslésemet (38,9 helyett 46,6),
+> azaz **abba az irányba, ami a kaput könnyebbé teszi**. A házszabály szerint pont ez a
+> konfiguráció kíván a legtöbb figyelmet.
+>
+> Tiszta belépési költség: **+42,0 bp** notional-súlyozva, nap-klaszterezett bootstrap
+> **95% CI [+17,3; +64,9]**, egyoldalas 95% felső korlát **+61,5 bp** (n=80, 50 nap).
+
+> 🔴 **VISSZAVONVA (2026-10-18, adverzariális panel).** Eredetileg azt írtam ide, hogy a
+> SIM-1 dollár-könyvelése (`$1 958 / $477 264 = 41,0 bp`) **független földelés** az
+> előjeles becslőre. **Ez TAUTOLÓGIA:** a per-trade bp-k notional-súlyozott átlaga
+> *algebrailag azonos* a teljes dollár-költség / teljes notional hányadossal. Ugyanaz a
+> szám kétféleképpen leírva — **nem tudott volna nem egyezni**. Ez volt a riport
+> legtöbbet hordozó érve, és nem érv.
+>
+> **Ami VALÓBAN bizonyítja a cserét, az nem empirikus, hanem Jensen:** `E|X| ≥ |E[X]|`,
+> szigorú egyenlőtlenséggel, valahányszor X előjelet vált. A belépési printek **30%-a
+> kedvező**, tehát a `median|.|` **definíció szerint felfelé torzít** — a spec
+> „torzítatlan" indoklása megfordítva igaz.
 
 ## 2. A fal
 
 | Konvenció | round trip | **breakeven IC** |
 |---|---:|---:|
-| **Feltételezett** `2c`, median\|.\| — a mai motor | 167,7 bp | **0,2795** |
-| Mért belépés+kilépés, median\|.\| | 207,3 bp | 0,3454 |
-| **Mért belépés+kilépés, ELŐJELES** ← a helyes | **88,9 bp** | **0,1481** |
+| **Feltételezett** `2c`, median\|.\| — a mai motor | 167,0 bp | **0,2783** |
+| Mért be+ki, median\|.\| | 206,9 bp | 0,3448 |
+| Mért be+ki, előjeles, **shortfall**-alapú kilépéssel | 92,0 bp | **0,1533** |
+| Mért be+ki, előjeles, **végrehajtás**-alapú kilépéssel | 65,2 bp | **0,1087** |
 
-**A fal feleződik: 0,280 → 0,148.**
+**A fal nagyjából feleződik — de hogy 0,153-ra vagy 0,109-re, az három nyitott
+modellezési kérdésen múlik (lásd §8). Ez 1,4×-es bizonytalanság, és ezért NEM
+implementáltam a cserét.**
 
 És ha a §11.28-ban dokumentált (szándékosan **nem** implementált) konstrukciós
 korrekciót is beszámítjuk (`κ = φ(z_c)/q ≈ 1,8` long-only top-q könyvre), a fal
@@ -117,3 +142,64 @@ felfedezése. A végrehajtási javítás tere:
 
 Együtt ~0,10 alá vihető fal reálisnak tűnik — de **a mért |IC| < 0,009 ettől még
 egy nagyságrenddel alatta van.**
+
+---
+
+# 8. ⛔ MIÉRT NEM IMPLEMENTÁLTAM A BECSLŐ-CSERÉT (2026-10-18, panel után)
+
+Tamás mindkét döntésre igent mondott. Elvégeztem a munkát, és **mindkettő „még nem"-re
+fordult** — nem meggondolás, hanem a mérés eredménye.
+
+## 8.1 A csere IRÁNYA biztos, a SZÁMA nem
+
+Három független lencse **egyhangúan** (3/3) azt mondja, a becslő változzon — és a
+Jensen-érv perdöntő. **De a konkrét szám három nyitott kérdésen múlik:**
+
+**(a) A kilépési késleltetés valószínűleg NEM költség, hanem kettős könyvelés.**
+A `TIME_STOP` döntése naptári (`days_held >= 5`), nem ár-alapú. A „késleltetés", amit
+mértem (D−1 close → D close), **a papír aznapi hozama** — ami a **tartási perióduson
+BELÜL** van, tehát a `gross = IC·σ_cs(h)·(252/h)` tag **már jóváírja**. Újra terhelni
+kettős könyvelés. Ha így van, a kilépési költség a **végrehajtás (+23,2 bp)**, nem a
+shortfall (+50,0) → a fal **0,153 helyett 0,109**.
+
+**(b) Horgony-eltérés a gross és a cost között.** A `gross` a `σ_cs`-t a **close-to-close**
+`fwd_ret_h`-n méri (tehát a modell belépője az **előző záró**), a költséget viszont a plan
+**12:30 UTC-s limit-árához** mérem. **Két különböző horgony** — a panel szerint ugyanaz a
+hibaosztály, mint a most javított h/HL.
+
+**(c) Pont-becslés vagy felső korlát menjen a kapuba?** A (e) kapu vesztesége
+**aszimmetrikus**: egy hamis PROMOTE tőkét tesz egy halott faktor mögé, egy hamis KILL
+csak lehetőséget. Aszimmetrikus veszteség mellett nem a torzítatlan pontbecslés az
+optimális input, hanem egy **konzervatív kvantilis** (+61,5 bp a +42,0 helyett). És a
+(e) kapu `p75` sávjának előjeles analógja **nem** az előjeles p75, hanem a **felső
+konfidencia-korlát** — más transzformáció a központi becslőre és a sávra.
+
+> **Ez 0,109 és 0,20 közti tartomány — 1,4–1,8×.** Egyet kiválasztani belőle most
+> ugyanaz lenne, mint amit a h/HL képlettel tettem: **számot szállítani, mielőtt értem.**
+
+## 8.2 És a kilépési késleltetés javítása sem indokolt
+
+| Típus | n | késleltetés | **95% CI** | p |
+|---|---:|---:|---|---:|
+| TIME_STOP | 68 | +37,1 bp | **[−12,7; +89,8]** | 0,167 |
+| TP1 | 25 | +29,7 bp | [−6,1; +64,8] | 0,121 |
+| ÖSSZES | 108 | +26,8 bp | **[−7,2; +61,5]** | 0,134 |
+
+**Egyik CI sem zárja ki a nullát.** A $803-as „nyeremény" pontbecslés, CI-je nagyjából
+[−$200; +$1 800]. **Egy production kereskedési kódút-változtatást nem szabad egy nem
+szignifikáns hatásra alapozni** — pláne, ha (a) szerint a hatás nagy része amúgy sem
+költség.
+
+**Ami megmarad belőle, az strukturális, nem statisztikai:** a `days_held >= 5` **nem
+igényel árat**, tehát nincs ok egy teljes session drift-kitettséget hordozni érte.
+Ez **variancia-csökkentés nulla költséggel és szabály-változás nélkül** — jó mérnöki
+érv akkor is, ha a várható érték nulla. **Backlog-tétel, nem most.**
+
+## 8.3 Amit MOST érdemes
+
+1. A **`qty=0` szűrő** a `frl_cost.build_cost_model`-be — ez **tiszta adat-higiénia**,
+   nem modellezési döntés: meg nem történt trade-ekre nem rögzítünk slippage-et.
+   (Ettől a `median|.|` 83,5 → 83,0, a kapu gyakorlatilag nem mozdul.)
+2. A három nyitott kérdés **(a)/(b)/(c) eldöntése** — ez a becslő-csere pre-reg
+   amendmentjének tartalma, és **a 3-as lépés előtt kell**.
+3. **Utána** a csere, egyben, egy amendmenttel és verdikt-invariancia-bizonyítással.
