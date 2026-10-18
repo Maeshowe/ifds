@@ -1758,6 +1758,68 @@ Riport: `docs/review/2026-10-04-component-decomposition.md`
 ---
 
 
+### 11.28 ✅ JAVÍTVA (2026-10-18) — `breakeven_ic` domain-hiba: a forgás nem haladhatja meg a rebalanszt
+
+**A hiba.** `frl_ic` a költséget a **bomlási** (`252/half_life`), az alfát a **rebalansz**
+(`252/h`) frekvencián számolta. Két különböző óra, semmi nem kötötte őket → a
+`breakeven_ic` **a h/HL hányadossal** skálázódott:
+
+| Blokk | HL | h/HL | régi breakeven | mit jelentett valójában |
+|---|---:|---:|---:|---|
+| Flow | 0,4 | **12,5** | **3,79** | **12,5 round trip egy 5 napos tartáson belül** |
+| Tech | 2,8 | 1,79 | 0,4881 | — |
+| aggregát | 9,9 | 0,51 | 0,1406 | — |
+| Funda | 799,8 | **0,006** | **0,0017** | a tábla legdegeneráltabb cellája |
+
+Reductio: HL=10 000 nap (statikus címke) → breakeven **0,00056** h=20-on.
+
+**A javítás — egyszerűsítés, nem új modell.** A kereskedett rendszer **fix tartást**
+használt **MOC time stoppal**: minden pozíciót **feltétel nélkül** zárt, és egy
+újra-kiválasztott nevet másnap MKT-vel **újra megvett**, mindkét oldalt újra fizetve.
+**A realizált forgás pontosan 1** — a half-life nem szerepel a valós költségben.
+
+```
+cost_as_traded = (252/h) · 2c          → HL-mentes, a kapu-input
+breakeven_ic   = 2c / (σ_cs(h) · 1e4)  → MINDEN faktorra ugyanaz egy horizonton
+```
+
+h=5, c=83,5 bp, σ_cs=0,06 → **0,278**. Empirikusan mért tartási idő:
+`Σ nyitott pozíció-nap / Σ belépő = 557/102 = **5,46 nap**` → breakeven 0,266.
+
+**Amit MEGFONTOLTAM ÉS ELVETETTEM.** Kézenfekvő javításnak tűnt a nem-mozdult hányaddal
+diszkontálni: `(252/h)·(1−2^(−h/HL))·2c`. **Három független deriváció cáfolta:** a
+`gross = |IC|·σ_cs(h)·(252/h)` **már feltételezi, hogy a teljes könyv újraépül h naponta**,
+tehát a költség diszkontálása a gross diszkontálása nélkül **ingyenebédet gyárt** — ugyanaz
+a frekvencia-hiba tükrözve. Ráadásul a funkcionális alak is rossz volt: score-súlyozott
+könyvnél a forgás `√((1−γ_h)/2)`, nem `(1−γ_h)` — a lassú tartományban **15–25×-es** hiba.
+
+**Pre-reg forrás** (a házszabály 1. kísérője): FRL-spec §5.3 — a half-life **riport-mező**,
+amit az empirikus súrlódással kell szembesíteni, **nem** a rebalansz-frekvencia; és a modul
+saját korábbi docstringje, ami a half-life-ot **„the horizon"**-nal azonosította, tehát csak
+h = HL mellett állt. **A motor mindkettőt sértette; a motor volt a hibás.**
+
+**Verdikt-invariancia (a 3. kísérő), a TÉNYLEGES `promote_verdict()`-tel futtatva mindkét
+költség-modellel: 0/23 verdikt mozdul.** A 17 score-családi kar mind **statisztikai** KILL —
+`|IC| < éra-bar`, tehát a (e) gazdasági kapuig **el sem jutottak**. Teszt rögzíti.
+
+**Ismert, dokumentált, NEM javított alábecslések a gross oldalon** (mindegyik **lefelé**
+mozdítaná a breakeven-t, tehát a mostani szám **konzervatív**): konstrukciós eltérés
+(dollár-semleges Grinold-alak vs. koncentrált long-only top-q könyv → `κ = φ(z_c)/q` ≈ 1,8×
+q=0,10-nél, azaz 0,278 helyett ~0,158); Spearman vs. Pearson IC (~5%); bruttó-kitettség
+nevező (~1,25×). Egyik sem pre-regisztrált kritériumhoz igazítás, tehát **új modellezési
+döntés** lenne — a `costed_view` docstringje kimondja őket.
+
+**Breadth-korlát kimondva:** a `net_annual_bps` **várható hozam**, nem kockázat-korrigált.
+Egy 99,6%-ban azonos könyv nem ad 252/h **független** fogadást.
+
+Riport-mező megmarad: `decay_implied_cost_bps` — **ellenpróba-diagnosztika**, külön
+oszlopban, és guard-teszt tiltja, hogy a `costed_view` hívás-argumentumai közé kerüljön.
+
+Task: `docs/tasks/2026-10-18-breakeven-turnover-domain-fix.md`
+
+---
+
+
 ## 12. FRL-eredetű nyitott tételek (2026-07-21, Dev chat)
 
 ### 12.1 P3 — `execution_plan.py:179` Reason-felülírás (post-Day-63 fix-jelölt)

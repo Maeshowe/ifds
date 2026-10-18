@@ -183,6 +183,18 @@ alakja (1→7) maga is riportált diagnosztika.
 
 ### 5.3 Half-life — költség-kapu, NEM kill-kapu
 
+> 🔴 **DOMAIN-FIX (2026-10-18).** A motor a költséget `(252/half_life)·2c`-vel
+> terhelte, az alfát viszont `(252/h)`-n írta jóvá — két **különböző óra**, így a
+> `breakeven_ic` a **h/HL hányadossal** skálázódott (Flow 3,79 = 12,5 round trip egy
+> 5 napos tartáson belül; Funda 0,0017 = h/HL 0,006). **A kereskedett rendszer fix
+> tartást használt MOC time stoppal: minden pozíciót feltétel nélkül zárt, tehát a
+> realizált forgás pontosan 1** — a half-life **nem** szerepel a valós költségben.
+> Helyes: `cost_as_traded = (252/h)·2c`, `breakeven = 2c/(σ_cs(h)·1e4)` — **minden
+> faktorra ugyanaz** egy adott horizonton. A half-life megmarad **riport-mezőként**
+> (`decay_implied_cost_bps`), de **ellenpróba-diagnosztikaként** címkézve: egy másik,
+> nem futtatott stratégiát áraz, és a (e) kapuba **nem** kerülhet.
+> Részletek: `docs/tasks/2026-10-18-breakeven-turnover-domain-fix.md`.
+
 A faktor keresztmetszeti rangsor-perzisztenciája AR(1)-ként: ρ = napi
 rank-autokorreláció átlaga, t½ = −ln2/ln ρ. A rövid half-life önmagában nem elutasítás:
 turnover-becsléssel (rank-változásból) és a legacy súrlódás-tanulsággal (19-21%/év

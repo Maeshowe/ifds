@@ -291,6 +291,34 @@ class CostedView:
 
     ``breakeven_ic`` is the honest headline: the |IC| this factor would need
     before it pays for its own trading at the observed slippage.
+
+    KNOWN UNDERSTATEMENTS OF GROSS (documented, deliberately NOT corrected —
+    each would be a new modelling decision, not an alignment to a pre-registered
+    criterion, and all three push breakeven DOWN, so the current figure is
+    conservative):
+
+    * CONSTRUCTION. ``gross`` is the Grinold form for a score-weighted,
+      dollar-neutral book over the whole universe, but the cost is charged
+      against a concentrated LONG-ONLY top-q book. A top-q book earns
+      ``kappa = phi(z_c)/q`` times as much per period — roughly 1.8x at q=0.10
+      and 2.3x at q=0.03 — so breakeven is overstated by about that factor
+      (0.278 would become ~0.158 at q=0.10). The honest pairing is either
+      dollar-neutral on both sides or top-q on both; mixing them is the same
+      category of error as the frequency mix this module just fixed.
+    * ESTIMATOR. The IC fed in is a Spearman rank IC; Grinold's is a Pearson
+      correlation. Pearson ~= 2*sin(pi*rho_s/6) ~= 1.047*rho_s in this range,
+      so gross is ~5% understated.
+    * DENOMINATOR. Cost is quoted as a fraction of the gross book while
+      ``IC*sigma_cs`` is the return of the weight vector ``z/N``, whose gross
+      exposure is E|z| < 1. Consistency would uplift gross by ~1.25x.
+
+    BREADTH. ``net_annual_bps`` is an EXPECTED-RETURN figure, not risk-adjusted.
+    Expectation is linear under dependence, so a persistent factor is not
+    double-counted by being credited 252/h times — but a book that is ~99.6%
+    identical across rebalances does not deliver 252/h INDEPENDENT bets, so its
+    information ratio is far below what the gross number suggests. Comparing
+    ``mean_ic +/- SE`` against ``breakeven_ic`` is the sound reading; comparing
+    two large annualised figures is not.
     """
 
     horizon: int
@@ -335,17 +363,60 @@ def costed_view(
     )
 
 
-def implied_turnover_cost_bps(
+def as_traded_cost_bps(
+    horizon: int,
+    cost_bps_per_side: float,
+    trading_days_per_year: int = 252,
+) -> float:
+    """Annual cost of the strategy AS TRADED: a fixed ``horizon``-day hold.
+
+    This is the gate input. The book is re-formed every ``horizon`` days — the
+    system used a fixed hold with a MOC time stop, so it turned over fully
+    regardless of how persistent the factor happened to be. Half-life therefore
+    does not enter, and every factor shares one cost at a given horizon.
+
+    DOMAIN ERROR THIS REPLACES (found 2026-10-18). The previous
+    ``implied_turnover_cost_bps`` charged ``(252/half_life) * 2c`` while
+    ``costed_view`` credited alpha at ``252/horizon``. Those are different
+    clocks, so ``breakeven_ic`` reduced to ``(h/HL) * 2c / (sigma_cs * 1e4)`` and
+    could be driven anywhere by widening the gap: Flow (HL 0.4d, h=5) was charged
+    12.5 round trips INSIDE each 5-day hold and got a breakeven of 3.79, which no
+    |IC| <= 1 can reach; Funda (h/HL = 0.006) got 0.0017. The 2200x spread between
+    them was arithmetic on the ratio, not economics.
+
+    WHY NOT "DISCOUNT THE UN-TRADED FRACTION". A tempting fix charges only
+    ``(252/h) * (1 - 2^(-h/HL)) * 2c`` — the part of the book that actually moved.
+    Three independent derivations refuted it: ``gross = |IC| * sigma_cs(h) *
+    (252/h)`` ALREADY presumes the full score-weighted book is re-formed every h
+    days, so discounting the cost without discounting the gross manufactures a
+    free lunch. It is the same frequency error mirrored. The honest fix is the
+    simplification below, not a second model.
+
+    Pre-reg source: FRL spec §5.3 — half-life is a REPORT field to be confronted
+    with the empirical friction ("Riport-mező:
+    ``implied_annual_turnover_cost_bps``"), never the rebalance frequency — and
+    this module's own previous docstring, which equated half-life with "the
+    horizon" and so only held at h = HL.
+    """
+    if not math.isfinite(horizon) or horizon <= 0:
+        return float("nan")
+    rebalances = trading_days_per_year / horizon
+    return rebalances * 2.0 * cost_bps_per_side
+
+
+def decay_implied_cost_bps(
     half_life_days: float,
     cost_bps_per_side: float,
     trading_days_per_year: int = 252,
 ) -> float:
-    """Annual cost drag implied by the factor's turnover and the empirical cost.
+    """COUNTERFACTUAL diagnostic: cost if the book were rebalanced at the decay scale.
 
-    One full round trip is assumed per half-life (the horizon over which the
-    cross-sectional ranking substantially re-orders).
+    Spec §5.3 asks for half-life to be reported against the empirical friction, so
+    the figure survives — but as a report field describing a DIFFERENT strategy
+    (one that rebalances every half-life), never as the economic-gate input. Feeding
+    this into ``costed_view`` is what produced the h/HL artefact; see
+    ``as_traded_cost_bps``.
     """
     if not math.isfinite(half_life_days) or half_life_days <= 0:
         return float("nan")
-    round_trips = trading_days_per_year / half_life_days
-    return round_trips * 2.0 * cost_bps_per_side
+    return (trading_days_per_year / half_life_days) * 2.0 * cost_bps_per_side

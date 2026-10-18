@@ -4,6 +4,67 @@
 
 ---
 
+## 2026-10-18 — `breakeven_ic` domain-fix: a forgás nem haladhatja meg a rebalanszt
+
+> Baseline 2386 → **2395** (+9), 0 fail.
+
+### 🔴 fix(research) — a költség a bomlási, az alfa a rebalansz frekvencián
+`frl_ic` két független helpere más órán járt: `cost = (252/HL)·2c`, `gross = |IC|·σ_cs·(252/h)`.
+Semmi nem kötötte őket, így **`breakeven_ic = (h/HL)·2c/(σ_cs·1e4)`** — a hányadossal
+tetszőlegesen hajtható. Flow: **3,79** (= 12,5 round trip egy **5 napos** tartáson belül,
+és |IC| ≤ 1 miatt elérhetetlen). Funda: **0,0017** (h/HL = 0,006, a tábla legdegeneráltabb
+cellája). Reductio: HL=10 000 nap → 0,00056.
+
+**Ez a szám volt a 2026-10-18-i „költségfal" stratégiai érvelés alapja — és artefakt volt.**
+
+### A javítás: egyszerűsítés, nem új modell
+A kereskedett rendszer **fix tartást** használt **MOC time stoppal** — minden pozíciót
+**feltétel nélkül** zárt, az újra-kiválasztott nevet másnap MKT-vel újra megvette, mindkét
+oldalt újra fizetve. **A realizált forgás pontosan 1.**
+
+```
+as_traded_cost_bps(h, c)   = (252/h)·2c         # HL-mentes, a kapu-input
+breakeven_ic               = 2c/(σ_cs(h)·1e4)   # MINDEN faktorra ugyanaz
+```
+h=5, c=83,5 → **0,278**. Empirikus tartási idő a daily_metrics-ből:
+`557 pozíció-nap / 102 belépő = 5,46 nap` → 0,266.
+Funda breakeven: **0,0017 → 0,2786** (164× korrekció).
+
+### Amit megfontoltam és ELVETETTEM
+A nem-mozdult hányaddal diszkontálni (`(252/h)·(1−2^(−h/HL))·2c`) kézenfekvőnek tűnt.
+**Három független deriváció cáfolta:** a `gross` **már feltételezi a teljes könyv
+újraépülését** h naponta, tehát csak a költség diszkontálása **ingyenebédet gyárt** —
+ugyanaz a hiba tükrözve. A funkcionális alak is rossz: score-súlyozott könyvnél a forgás
+`√((1−γ_h)/2)`, nem `(1−γ_h)` → **15–25×** hiba a lassú tartományban.
+
+### Pre-reg forrás és kötelező kísérők (ifds-rules)
+- **Forrás:** FRL-spec §5.3 (a half-life **riport-mező**, nem rebalansz-frekvencia) + a modul
+  saját docstringje, ami a half-life-ot **„the horizon"**-nal azonosította → csak h=HL-en állt.
+  **A motor mindkettőt sértette.**
+- **Verdikt-invariancia:** a **tényleges `promote_verdict()`** mindkét költség-modellel
+  lefuttatva a 23 ledger-soron → **0/23 mozdul**. A 17 score-családi kar mind
+  **statisztikai** KILL (`|IC| < bar`), a (e) kapuig el sem jutottak.
+- **Érzékenység:** h ∈ {1..60} × HL ∈ {0,4..800} rács kiírva; a régi értékek HL < h esetén
+  fizikailag lehetetlenek voltak.
+- **Nincs újrafuttatás:** a 23 ledger-sor érintetlen.
+
+### Dokumentált, NEM javított gross-oldali alábecslések
+Mind **lefelé** mozdítaná a breakeven-t, tehát a mostani szám **konzervatív** — és
+mindegyik **új modellezési döntés** lenne, nem pre-reg-igazítás:
+konstrukció (dollár-semleges Grinold vs. long-only top-q → `κ = φ(z_c)/q` ≈ 1,8× q=0,10-nél,
+azaz 0,278 → ~0,158) · Spearman vs. Pearson IC (~5%) · bruttó-kitettség nevező (~1,25×).
+Plusz a **breadth-korlát**: a `net_annual_bps` **várható hozam**, nem kockázat-korrigált.
+
+### Megtartva diagnosztikaként
+`decay_implied_cost_bps(half_life, c)` — spec §5.3 kéri a riportálást, de **ellenpróbaként**
+címkézve (egy nem futtatott stratégiát áraz), külön riport-oszlopban. **Guard-teszt**
+tiltja, hogy a `costed_view` hívás-argumentumai közé kerüljön.
+
+### data
+`research/cost_model.json` **commitolva** — eddig uncommitted volt, és ez a fix bemenete.
+
+---
+
 ## 2026-10-04 — AMENDMENT-1 + HYP-007: a súlyozás 100%-a megerősített null
 
 > Baseline 2369 → **2377** (+8), 0 fail.

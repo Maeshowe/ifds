@@ -248,16 +248,25 @@ def run_batch(
                     half_life = frl_ic.half_life(frame, "_factor")
 
             per_side = cost_model.get("cost_bps_per_side", cfg.FALLBACK_COST_BPS_PER_SIDE)
-            cost_bps = frl_ic.implied_turnover_cost_bps(half_life, per_side)
+            # AS TRADED: a fixed `horizon`-day hold with a MOC time stop re-forms the
+            # book every `horizon` days whatever the factor's persistence, so the cost
+            # is set by the rebalance schedule alone and half-life does NOT enter.
+            # Charging it at (252/half_life) while crediting alpha at (252/horizon) was
+            # the 2026-10-18 domain error: breakeven_ic reduced to (h/HL)*2c/(sigma*1e4)
+            # and gave Flow 3.79 (unreachable) and Funda 0.0017 (h/HL = 0.006).
+            cost_bps = frl_ic.as_traded_cost_bps(horizon, per_side)
+            # Kept as a labelled DIAGNOSTIC only (spec §5.3 "Riport-mező") — it prices a
+            # different, counterfactual strategy and must never reach the (e) gate.
+            decay_cost_bps = frl_ic.decay_implied_cost_bps(half_life, per_side)
             # (e) gate inputs: the SAME breakeven formula charged at the two cost
             # levels the empirical model carries. The p75 is the binding one
             # (pre-reg §3.2) — its margin comes from the slippage distribution's
             # own dispersion, not from a safety factor anyone picked.
-            cost_bps_median = frl_ic.implied_turnover_cost_bps(
-                half_life, cost_model.get("median_bps_per_side", per_side)
+            cost_bps_median = frl_ic.as_traded_cost_bps(
+                horizon, cost_model.get("median_bps_per_side", per_side)
             )
-            cost_bps_p75 = frl_ic.implied_turnover_cost_bps(
-                half_life, cost_model.get("p75_bps_per_side", per_side)
+            cost_bps_p75 = frl_ic.as_traded_cost_bps(
+                horizon, cost_model.get("p75_bps_per_side", per_side)
             )
             economic_views: dict[str, frl_holdout.EconomicView] = {}
             for era, summary in era_summaries.items():
@@ -283,6 +292,7 @@ def run_batch(
                     decision=ledger.PENDING,
                     half_life_days=half_life,
                     implied_cost_bps=cost_bps,
+                    decay_cost_bps=decay_cost_bps,
                     attempt_id=attempt_id,
                     costed=costed,
                     economic_views=economic_views,

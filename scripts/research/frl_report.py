@@ -46,7 +46,11 @@ class FactorResult:
     decision: str
     reasons: tuple[str, ...] = ()
     half_life_days: float = float("nan")
-    implied_cost_bps: float = float("nan")
+    implied_cost_bps: float = float("nan")  # AS TRADED: (252/h)*2c — the gate input
+    #: COUNTERFACTUAL diagnostic (spec §5.3 "Riport-mező"): what the book would cost if
+    #: rebalanced at the factor's decay scale instead of the fixed hold. Never a gate input
+    #: — feeding it to costed_view produced the 2026-10-18 h/HL artefact.
+    decay_cost_bps: float = float("nan")
     attempt_id: str = ""
     costed: dict[str, dict] = field(default_factory=dict)  # era -> CostedView dict
     #: era -> EconomicView for the (e) gate (breakeven IC at median and p75 cost).
@@ -165,13 +169,17 @@ def build_report(ctx: BatchContext) -> str:
         "",
         "## Perzisztencia és forgási költség",
         "",
-        "| Faktor | half-life (nap) | implikált éves költség (bp) |",
-        "|---|---|---|",
+        "> A **kereskedett** költség a rebalansz-ütemből jön: `(252/h)·2c` — a half-life "
+        "**nem** szerepel benne (2026-10-18 domain-fix). A decay-oszlop egy "
+        "**ellenpróba-diagnosztika**: mennyibe kerülne, ha a bomlás ütemén rebalanszolnánk.",
+        "",
+        "| Faktor | half-life (nap) | **as-traded bp/év (kapu-input)** | decay-implikált bp/év (diagnosztika) |",
+        "|---|---|---|---|",
     ]
     for result in sorted({r.factor: r for r in ctx.results}.values(), key=lambda r: r.factor):
         lines.append(
             f"| `{result.factor}` | {_fmt(result.half_life_days, 1)} | "
-            f"{_fmt(result.implied_cost_bps, 0)} |"
+            f"**{_fmt(result.implied_cost_bps, 0)}** | {_fmt(result.decay_cost_bps, 0)} |"
         )
 
     lines += [
