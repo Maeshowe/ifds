@@ -4,6 +4,59 @@
 
 ---
 
+## 2026-10-18 (2) — a valódi round-trip költség: a becslő duplázta a falat
+
+> Baseline 2395 → **2413** (+18), 0 fail.
+
+### feat(analysis) — `scripts/analysis/roundtrip_cost.py`
+A motor `2c`-t terhelt, azaz feltételezte, hogy a kilépés a belépéssel egyenértékű —
+**a kilépési oldalról egyetlen szám sem létezett.**
+
+**Estimand-fegyelem előre** (a 2026-10-04-i hiba elkerülésére): a belépési 83,5 bp
+*döntés→fill*, a SIM-1 exit-számai (6,6/61,2 bp) *csak végrehajtás* — **nem
+összemérhetőek**. Ezért **három külön nevesített metrika** mindkét oldalon
+(implementation shortfall / execution slippage / delay cost), a riport soha nem vonja
+össze őket. A döntési pontot a cronból és a `swing_positions.py` akció-szemantikájából
+vezettem le, és a fill-időbélyegek megerősítik (68 @ 19:59–20:00 UTC = záró,
+34 @ 13:30–13:32 = nyitás).
+
+### Eredmény
+| | n | median\|.\| | **előjeles** | adverz |
+|---|---:|---:|---:|---:|
+| Belépés (swing) | 82 | 83,9 | **+38,8** | 70% |
+| **Kilépés shortfall** | 108 | 123,4 | **+50,0** | 62% |
+| Kilépés — csak végrehajtás | 108 | 10,1 | +23,2 | 60% |
+
+**1.** A kilépés **nem ingyenes** — a `2c` feltevés nagyjából helyes volt, sőt enyhén
+alábecsülte.
+**2. 🔴 De a BECSLŐ rossz:** a `median(|slippage|)` a szimmetrikus drift félszélességét
+is költségnek számolja. A SIM-1 **dollár**-könyvelése (`$1 958/$477 264 = 41,0 bp`)
+az **előjeles** becslővel egyezik, nem a 83,9-cel.
+
+| Konvenció | round trip | breakeven |
+|---|---:|---:|
+| Feltételezett `2c`, median (mai motor) | 167,7 bp | **0,2795** |
+| Mért be+ki, median | 207,3 bp | 0,3454 |
+| **Mért be+ki, ELŐJELES** | **88,9 bp** | **0,1481** |
+
+**A fal feleződik.** A verdikt nem változik (|IC| < 0,009 → 16× hiány).
+
+**3.** A **kilépési késleltetés javítható tervezési döntés**: a TIME_STOP végrehajtása
+5,4 bp (medián), a költség a késleltetésben van (122,6 bp medián) — a döntés D−1 20:00
+UTC-kor, a végrehajtás D 19:40-kor, **egy teljes session** elsodródás.
+
+### Amit NEM tettem
+A `cost_model.json` becslőjének cseréje `frl_cost.build_cost_model`-ben **értékelő-motor-
+változás** — külön döntést kíván, ez a mérés annak a bemenete. A `median|.|` sorok
+megmaradnak az összehasonlíthatóságért.
+
+### Minta
+119 exit láb → 108 árazva, 11 kizárva (10× nincs fill-rekord a korai swing-napokról,
+1× adat-egészség: PFGC 07-28, fill a napi sávon kívül — ugyanaz az ellenőrzés, ami a
+SIM-1-ben két rossz fillt fogott). `04-risks` **§11.29**.
+
+---
+
 ## 2026-10-18 — `breakeven_ic` domain-fix: a forgás nem haladhatja meg a rebalanszt
 
 > Baseline 2386 → **2395** (+9), 0 fail.

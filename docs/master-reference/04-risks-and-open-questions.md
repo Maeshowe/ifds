@@ -1820,6 +1820,57 @@ Task: `docs/tasks/2026-10-18-breakeven-turnover-domain-fix.md`
 ---
 
 
+### 11.29 ✅ MEGMÉRVE (2026-10-18) — a valódi round-trip költség; a becslő duplázott
+
+**A kilépési oldalt soha nem mértük** — a motor `2c`-t terhelt, azaz feltételezte, hogy a
+kilépés a belépéssel egyenértékű. Most megmérve, **estimand-fegyelemmel**: a belépési
+83,5 bp *döntés→fill*, a SIM-1 exit-számai (6,6 / 61,2 bp) *csak végrehajtás* — nem
+összemérhetőek. Ezért **három külön nevesített metrika** mindkét oldalon.
+
+| | n | `median\|.\|` | **előjeles átlag** | adverz |
+|---|---:|---:|---:|---:|
+| Belépés (swing) | 82 | 83,9 | **+38,8** | 70% |
+| **Kilépés shortfall** | 108 | 123,4 | **+50,0** | 62% |
+| Kilépés — csak végrehajtás | 108 | 10,1 | +23,2 | 60% |
+
+**1. A kilépés nem ingyenes** (+50,0 bp) — a `2c` feltevés nagyjából helyes volt, sőt
+enyhén **alábecsülte** a kilépést.
+
+**2. 🔴 De a BECSLŐ rossz.** A `median(|slippage|)` a **szimmetrikus drift
+félszélességét** is költségnek számolja. Független földelés: a SIM-1 **dollár**-könyvelése
+a belépésre `$1 958 / $477 264 = **41,0 bp**` — ez az **előjeles** becslővel egyezik
+(34,9 notional-súlyozott), nem a 83,9-cel. **A median-konvenció ~duplázza a valós költséget.**
+
+| Konvenció | round trip | breakeven IC |
+|---|---:|---:|
+| Feltételezett `2c`, median\|.\| (a mai motor) | 167,7 bp | **0,2795** |
+| Mért be+ki, median\|.\| | 207,3 bp | 0,3454 |
+| **Mért be+ki, ELŐJELES** ← a helyes | **88,9 bp** | **0,1481** |
+
+**A fal feleződik: 0,280 → 0,148** (a §11.28 κ≈1,8 konstrukciós korrekcióval ~0,082).
+⚠️ **A verdikt nem változik:** a mért `|IC| < 0,009` így is **16×** hiány.
+
+**3. A kilépési késleltetés JAVÍTHATÓ tervezési döntés.** A TIME_STOP **végrehajtása
+gyakorlatilag ingyen** (5,4 bp medián) — a költség a **késleltetésben** van (122,6 bp
+medián / ~27 bp előjelesen), mert a döntés a D−1-i 20:00 UTC eod_evalon születik és a
+végrehajtás D 19:40-kor: **egy teljes session** elsodródás. A belépő referenciája ~1
+órával a fill előtti, a kilépőé egy teljes sessionnel. **Ugyanazon a napon döntve és
+végrehajtva ennek nagy része megszűnne.**
+
+**Nem módosítottam a `cost_model.json`-t**: a becslő cseréje a `frl_cost.build_cost_model`-ben
+**értékelő-motor-változás**, külön döntést kíván — ez a mérés annak a **bemenete**.
+
+Minta: 119 exit láb → **108 árazva, 11 kizárva** (10× nincs fill-rekord a korai
+swing-napokról + 1× adat-egészség: PFGC 07-28, fill a napi sávon kívül).
+Korlát: a döntési pont **levezetett** (cron + `swing_positions.py` akció-szemantika),
+nem logolt — a fill-időbélyegek megerősítik (68 @ 19:59–20:00 UTC = záró,
+34 @ 13:30–13:32 = nyitás), de egy `decision_price` ledger-mező jobb lenne.
+
+Riport: `docs/review/2026-10-18-roundtrip-cost.md`
+
+---
+
+
 ## 12. FRL-eredetű nyitott tételek (2026-07-21, Dev chat)
 
 ### 12.1 P3 — `execution_plan.py:179` Reason-felülírás (post-Day-63 fix-jelölt)
