@@ -194,7 +194,7 @@ def fetch_and_cache_spy_returns(
         print("WARN IFDS_POLYGON_API_KEY not set — SPY analysis will be skipped")
         return {}
 
-    from datetime import date as _date, timedelta
+    from datetime import date as _date, datetime as _datetime, timedelta, timezone
 
     if not dates:
         return {}
@@ -223,7 +223,9 @@ def fetch_and_cache_spy_returns(
         close = bar.get("c")
         if ts_ms is None or close is None:
             continue
-        bar_date = _date.fromtimestamp(ts_ms / 1000).isoformat()
+        # UTC, not local: Polygon's daily `t` is ET midnight, and a local-zone
+        # conversion shifts the date on hosts far enough from UTC.
+        bar_date = _datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).date().isoformat()
         if prev_close is not None and prev_close > 0:
             returns[bar_date] = (float(close) - prev_close) / prev_close * 100.0
         prev_close = float(close)

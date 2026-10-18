@@ -7,7 +7,7 @@ runs bracket order simulation, and aggregates results.
 import asyncio
 import csv
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from ifds.sim.broker_sim import compute_qty_split, simulate_bracket_order, simulate_swing_trade
@@ -174,7 +174,10 @@ async def _fetch_bars_for_trades(
             for bar in response:
                 # Polygon agg bars: {"t": timestamp_ms, "o", "h", "l", "c", "v", ...}
                 if "t" in bar:
-                    bar_date = date.fromtimestamp(bar["t"] / 1000).isoformat()
+                    # Polygon stamps the daily bar at ET midnight; converting through the
+                    # host's local zone shifts the date on any offset that crosses
+                    # it. UTC is the only host-independent reading.
+                    bar_date = datetime.fromtimestamp(bar["t"] / 1000, tz=timezone.utc).date().isoformat()
                     bars.append(
                         {
                             "date": bar_date,

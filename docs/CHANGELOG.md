@@ -4,6 +4,48 @@
 
 ---
 
+## 2026-10-19 — időzóna-rés: 6 piros teszt, és mögötte egy látens prod-bug
+
+> Baseline 2413 → **2415** (+2), 0 fail — **öt időzónában ellenőrizve**
+> (Budapest / UTC / Tokyo / Kiritimati UTC+14 / Midway UTC−11).
+
+### fix(tests) — a teszt ugyanazt az órát nézze, mint az implementáció
+00:51 CEST-kor 6 teszt bukott. Egyik sem regresszió: `test_event_logger` (×5) és
+`test_phase6::test_old_ticker_is_fresh` a **helyi** `date.today()`-jal horgonyzott
+**UTC-anchorú** prod-kódhoz (`PTEventLogger` fájlnév, `_apply_freshness_alpha` cutoff).
+CEST-ben 00:00–02:00 között a két dátum eltér → a suite napközben zöld, éjjel piros.
+
+### fix(sim, analysis) — a nyers `fromtimestamp` a bar-dátumnál
+A diagnózis közbeni `TZ=Pacific/Kiritimati` próba egy **valódi, látens bugot** hozott fel:
+
+| hívóhely | volt | most |
+|---|---|---|
+| `src/ifds/sim/validator.py:177` | `date.fromtimestamp(t/1000)` | `datetime.fromtimestamp(t/1000, tz=utc).date()` |
+| `scripts/analysis/scoring_validation.py:226` | `_date.fromtimestamp(ts/1000)` | `_datetime.fromtimestamp(ts/1000, tz=utc).date()` |
+
+Ugyanarra a Polygon `t` mezőre két másik hívóhely (`signal_attribution.py:548`,
+`daily_metrics.py:549`) már helyesen UTC-t használt. A Minin (UTC+2) a régi alak is
+helyes értéket ad — **a rés attól még nyitva volt**, és egy elcsúszó bar-dátum nem
+crash, hanem csendes off-by-one-day az egész hozamsorozatban.
+
+### test — a rés zárása, nem az előfordulásé
+`tests/test_timestamp_timezone.py` (+2): (1) viselkedési teszt UTC+14-re kényszerített
+hoston, (2) **AST-guard**, ami tiltja a tz nélküli `fromtimestamp`-et `src/ifds/` +
+`scripts/` alatt — két nevesített kivétellel (fájl-mtime frissesség-check, ahol a helyi
+óra a helyes). Mindkét guard **visszavezetéssel verifikálva**: a bug visszaírásakor buknak.
+
+### Új házszabály
+`.claude/rules/ifds-rules.md` — „Epoch→dátum konverzió mindig UTC-horgonyú". A
+[hermetikus teszt](#) szabály **negyedik előfordulása**: prod-state → elavult derivált
+cache → **gép időzónája**.
+
+### Önjelentés
+Az `a7430e4` commitot (docs-only) **úgy pusholtam, hogy a teszt-kimenetet nem olvastam el**
+— ez megsérti a „tesztek MINDIG futnak commit előtt" szabályt. A commit nem okozta a
+bukásokat (két markdown fájl), de a szabály akkor is sérült.
+
+---
+
 ## 2026-10-18 (2) — a valódi round-trip költség: a becslő duplázta a falat
 
 > Baseline 2395 → **2413** (+18), 0 fail.

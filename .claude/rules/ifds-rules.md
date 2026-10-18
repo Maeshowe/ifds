@@ -5,6 +5,47 @@ Forrás: `.conductor/memory/project.db` — learnings tábla.
 
 ---
 
+## Epoch→dátum KONVERZIÓ mindig UTC-horgonyú, és a teszt ugyanazt az órát nézze (rule, 2026-10-19)
+
+A [hermetikus teszt](#hermetikus-teszt--a-prod-state-nem-teheti-hamisan-zölddé-a-tesztet-rule-2026-07-21)
+szabály **negyedik előfordulása**: ott a prod-state, majd az elavult derivált cache tette
+hamisan zölddé a tesztet — itt a **gép időzónája**.
+
+**Szabály (két fele, mindkettő kötelező):**
+
+1. **Piaci adat epoch-időbélyegét SOHA ne konvertáld a gép helyi zónáján keresztül.**
+   `date.fromtimestamp(t/1000)` tiltott; `datetime.fromtimestamp(t/1000, tz=timezone.utc).date()`
+   a kanonikus alak. A Polygon napi bar `t` mezője **ET-éjfél**; a helyi konverzió egy
+   elég messzi hoston **egy nappal elcsúsztatja a teljes hozamsorozatot** — nem crash,
+   hanem csendes off-by-one-day. Kivétel: egy *fájl mtime*-ja emberi frissesség-ellenőrzéshez
+   (`check_phase13_freshness.py`, `pt_monitor.py`) — ott a helyi óra a helyes, és
+   **allowlistben** van nevesítve.
+
+2. **A teszt ugyanazt az órát használja, mint az implementáció.** Ha a prod
+   `datetime.now(timezone.utc).date()`-et néz, a teszt `date.today()`-ja egy
+   **időzóna-függő flake**: CEST-ben 00:00–02:00 között a két dátum eltér, és a suite
+   napközben zöld, éjjel piros.
+
+**Példa-sértés (elkapva, 2026-10-19 00:51 CEST):** 6 teszt bukott
+(`test_event_logger` ×5, `test_phase6::test_old_ticker_is_fresh`) — mindegyik
+`date.today()`-jal horgonyzott UTC-anchorú prod-kódhoz. A diagnózis közben a
+`TZ=Pacific/Kiritimati` próba **egy valódi, látens prod-bugot** is felszínre hozott:
+`sim/validator.py` és `analysis/scoring_validation.py` nyers `fromtimestamp`-et
+használt a bar-dátumhoz (ugyanazon mezőre két másik hívóhely már helyesen UTC-t).
+A Minin (UTC+2) ez ma helyes értéket ad — **a rés attól még nyitva volt.**
+
+**Kötelező kísérő:** a suite-nak **extrém zónákban is zöldnek kell lennie**
+(`TZ=Pacific/Kiritimati` UTC+14 és `TZ=Pacific/Midway` UTC−11 a két szélső próba), és
+a rést **guard-teszt** zárja, nem a javított előfordulás: `tests/test_timestamp_timezone.py`
+AST-szinten tiltja a tz nélküli `fromtimestamp`-et `src/ifds/` + `scripts/` alatt,
+nevesített allowlisttel. A guardot **verifikálni kell visszavezetéssel** (a bug
+visszaírásakor bukjon) — különben a „test mocked itself out" antipattern.
+
+**Referencia:** `tests/test_timestamp_timezone.py`, commit `<this commit>`.
+Hibaalak: ugyanaz, mint a sink-audit rés — nem az egyes előfordulást, a **rést** zárjuk.
+
+---
+
 ## Értékelő-motor fix csak pre-reg szöveghez igazításként — a pre-reg a kánon (rule, 2026-07-25)
 
 Egy statisztikai/verdikt-motort (FRL `promote_verdict`, defláció, holdout-gate,

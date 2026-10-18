@@ -2,7 +2,7 @@
 
 import json
 import sys
-from datetime import date
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -29,7 +29,7 @@ class TestPTEventLogger:
         el = PTEventLogger(log_dir=str(tmp_path))
         el.log("submit", "order_submitted", ticker="AAPL", qty=10)
 
-        today = date.today().strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         jsonl = tmp_path / f"pt_events_{today}.jsonl"
         assert jsonl.exists()
 
@@ -40,7 +40,7 @@ class TestPTEventLogger:
         el.log("submit", "order_submitted", ticker="AAPL", qty=10)
         el.log("monitor", "tp1_detected", ticker="MSFT")
 
-        today = date.today().strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         jsonl = tmp_path / f"pt_events_{today}.jsonl"
         lines = jsonl.read_text().strip().splitlines()
         assert len(lines) == 2
@@ -63,7 +63,7 @@ class TestPTEventLogger:
         el = PTEventLogger(log_dir=str(tmp_path))
         el.log("eod", "daily_pnl", pnl=-150.0)
 
-        today = date.today().strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         jsonl = tmp_path / f"pt_events_{today}.jsonl"
         entry = json.loads(jsonl.read_text().strip())
         # ISO format with UTC timezone info
@@ -77,7 +77,7 @@ class TestPTEventLogger:
         el.log("submit", "order_submitted", ticker="B")
         el.log("submit", "order_submitted", ticker="C")
 
-        today = date.today().strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         jsonl = tmp_path / f"pt_events_{today}.jsonl"
         lines = jsonl.read_text().strip().splitlines()
         assert len(lines) == 3
@@ -100,7 +100,7 @@ class TestPTEventLogger:
             count=2,
         )
 
-        today = date.today().strftime("%Y-%m-%d")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         jsonl = tmp_path / f"pt_events_{today}.jsonl"
         entry = json.loads(jsonl.read_text().strip())
         assert entry["leftover"] == ["AAPL:100", "MSFT:50"]

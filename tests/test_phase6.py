@@ -604,10 +604,10 @@ class TestFreshnessAlpha:
     def test_stale_ticker_no_bonus(self, config, logger, tmp_path):
         """Ticker seen recently should NOT get bonus."""
         import pandas as pd
-        from datetime import date
+        from datetime import datetime, timezone
 
         history_path = str(tmp_path / "history.parquet")
-        df = pd.DataFrame({"ticker": ["AAPL"], "date": [date.today()]})
+        df = pd.DataFrame({"ticker": ["AAPL"], "date": [datetime.now(timezone.utc).date()]})
         df.to_parquet(history_path, index=False)
 
         candidates = [(_make_stock("AAPL"), _make_gex("AAPL"))]
@@ -620,10 +620,10 @@ class TestFreshnessAlpha:
     def test_old_ticker_is_fresh(self, config, logger, tmp_path):
         """Ticker seen >90 days ago should be fresh."""
         import pandas as pd
-        from datetime import date, timedelta
+        from datetime import datetime, timedelta, timezone
 
         history_path = str(tmp_path / "history.parquet")
-        old_date = date.today() - timedelta(days=91)
+        old_date = datetime.now(timezone.utc).date() - timedelta(days=91)
         df = pd.DataFrame({"ticker": ["AAPL"], "date": [old_date]})
         df.to_parquet(history_path, index=False)
 
@@ -663,10 +663,10 @@ class TestFreshnessAlpha:
     def test_lookback_boundary_exact(self, config, logger, tmp_path):
         """Ticker seen exactly 90 days ago should be stale (within lookback)."""
         import pandas as pd
-        from datetime import date, timedelta
+        from datetime import datetime, timedelta, timezone
 
         history_path = str(tmp_path / "history.parquet")
-        boundary_date = date.today() - timedelta(days=90)
+        boundary_date = datetime.now(timezone.utc).date() - timedelta(days=90)
         df = pd.DataFrame({"ticker": ["AAPL"], "date": [boundary_date]})
         df.to_parquet(history_path, index=False)
 
@@ -679,10 +679,10 @@ class TestFreshnessAlpha:
     def test_mixed_fresh_and_stale(self, config, logger, tmp_path):
         """Mix of fresh and stale signals."""
         import pandas as pd
-        from datetime import date
+        from datetime import datetime, timezone
 
         history_path = str(tmp_path / "history.parquet")
-        df = pd.DataFrame({"ticker": ["AAPL"], "date": [date.today()]})
+        df = pd.DataFrame({"ticker": ["AAPL"], "date": [datetime.now(timezone.utc).date()]})
         df.to_parquet(history_path, index=False)
 
         candidates = [
