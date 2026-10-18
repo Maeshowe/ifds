@@ -195,7 +195,24 @@ igényel árat**, tehát nincs ok egy teljes session drift-kitettséget hordozni
 Ez **variancia-csökkentés nulla költséggel és szabály-változás nélkül** — jó mérnöki
 érv akkor is, ha a várható érték nulla. **Backlog-tétel, nem most.**
 
-## 8.3 Amit MOST érdemes
+## 8.3 ✅ ELDÖNTVE (2026-10-19) — mindhárom, méréssel
+
+| | Döntés | Alap |
+|---|---|---|
+| **(a)** | A késleltetés **kettős könyvelés** → a kilépési költség a **végrehajtási slippage** | a modell `close(t)→close(t+h)`-t kreditál, a TIME_STOP fillje `close(t+h)` — a „késleltetés" a perióduson belül van |
+| **(b)** | A költség a **valódi súrlódás** (fill vs. a kereskedés pillanatában elérhető ár) | dekompozíció: plan→OPEN **−1,5 bp (p=0,88)**, OPEN→fill **+48,3 bp (p<0,0001)** |
+| **(c)** | A meglévő **medián+p75** szerkezet marad; az analógok: **pontbecslés** és **egyoldalas 95% felső korlát** | a (e) kapu sávja már az aszimmetrikus veszteség kezelése |
+
+**A fal:** pontbecslés **0,1192**, kötő felső korlát **0,1600** (ma: 0,2783).
+
+🟢 **És egy szignifikáns, akcióképes lelet:** a belépési +48,3 bp **nem piaci adottság**,
+hanem **egy perc késlekedés** — a submit 09:31 ET-kor megy, a nyitó csengő **után**.
+Belső validáció a kilépési oldalról: **MOC (aukciós) +1,4 bp**, csengő utáni market
+**+47…+81 bp**. MOO belépővel a fal **0,0387** lenne — **7× javulás**.
+
+Amendment: `docs/planning/2026-10-19-cost-estimator-amendment.md` (Tamás döntésére vár).
+
+## 8.4 Amit MOST érdemes
 
 1. A **`qty=0` szűrő** a `frl_cost.build_cost_model`-be — ez **tiszta adat-higiénia**,
    nem modellezési döntés: meg nem történt trade-ekre nem rögzítünk slippage-et.
