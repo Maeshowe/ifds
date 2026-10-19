@@ -365,10 +365,20 @@ def costed_view(
 
 def as_traded_cost_bps(
     horizon: int,
-    cost_bps_per_side: float,
+    round_trip_cost_bps: float,
     trading_days_per_year: int = 252,
 ) -> float:
     """Annual cost of the strategy AS TRADED: a fixed ``horizon``-day hold.
+
+    .. versionchanged:: 2026-10-19
+       Takes the ROUND TRIP, not a per-side cost. The old signature multiplied
+       its argument by 2, which hard-coded the assumption that an exit costs what
+       an entry costs. Measured, it does not: entry +40.3 bp against the open,
+       exit +23.2 bp against what the order type promised. Passing a per-side
+       figure here now UNDERCHARGES by roughly half, so the parameter was renamed
+       rather than reused — a same-typed argument that silently changed meaning
+       is the one mistake a caller cannot see. Pre-reg:
+       ``docs/planning/2026-10-19-cost-estimator-amendment.md`` D-C1.
 
     This is the gate input. The book is re-formed every ``horizon`` days — the
     system used a fixed hold with a MOC time stop, so it turned over fully
@@ -401,12 +411,12 @@ def as_traded_cost_bps(
     if not math.isfinite(horizon) or horizon <= 0:
         return float("nan")
     rebalances = trading_days_per_year / horizon
-    return rebalances * 2.0 * cost_bps_per_side
+    return rebalances * round_trip_cost_bps
 
 
 def decay_implied_cost_bps(
     half_life_days: float,
-    cost_bps_per_side: float,
+    round_trip_cost_bps: float,
     trading_days_per_year: int = 252,
 ) -> float:
     """COUNTERFACTUAL diagnostic: cost if the book were rebalanced at the decay scale.
@@ -419,4 +429,4 @@ def decay_implied_cost_bps(
     """
     if not math.isfinite(half_life_days) or half_life_days <= 0:
         return float("nan")
-    return (trading_days_per_year / half_life_days) * 2.0 * cost_bps_per_side
+    return (trading_days_per_year / half_life_days) * round_trip_cost_bps

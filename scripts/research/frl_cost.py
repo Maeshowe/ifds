@@ -1,38 +1,56 @@
-"""FRL — empirical cost model from observed entry-fill slippage (spec §5.3, R1#3).
+"""FRL — the empirical round-trip cost model (spec §5.3, R1#3).
 
-Source correction (verified 2026-07-21): the task text pointed at
-``state/pending_exits/``, but those records carry no slippage field. The
-authoritative slippage series is ``state/daily_metrics/<date>.json`` →
-``execution.slippage_per_ticker[*].slippage_pct`` (signed %, entry-day MKT fill
-vs the planned limit), written by ``scripts/paper_trading/daily_metrics.py``.
+Estimator, since 2026-10-19: **true friction only, measured separately per side**
+(pre-reg ``docs/planning/2026-10-19-cost-estimator-amendment.md`` D-C1..D-C4, as
+corrected by its own ERRATA D-E1..D-E6, both approved by Tamás on 2026-10-19).
 
-Estimator: the **median (and p75) of |slippage|**, not the extreme signed prints.
-Signed prints contain overnight drift in both directions; the absolute-value
-distribution is the unbiased per-side cost estimate for next-day MKT-open entries.
-3 bp-class assumptions are forbidden for this execution style.
+    round_trip = c_entry + c_exit          NOT 2 * c_entry
+
+What changed and why. The old model charged ``2 * median(|entry slippage|)`` where
+the slippage was ``fill`` against the PLAN's limit price. That made two unmeasured
+assumptions: that an exit costs what an entry costs (nothing had ever priced the
+exit side), and that the half-width of symmetric decision-to-fill drift is a cost.
+It is not — drift cancels, and what survives is the one-directional drag at the
+fill. Measured, the decomposition is unambiguous: the overnight plan->open gap is
+-1.5 bp (p = 0.88) while open->fill is +48.3 bp (p < 0.0001), and the exit side
+independently agrees — an MOC auction costs +1.4 bp while a market order sent
+after the bell costs +47 to +81 bp.
+
+Two slots, both from the same estimator (pre-reg §4):
+    median slot -> the POINT estimate
+    p75 slot    -> the one-sided 95% UPPER CONFIDENCE BOUND on the mean
+The p75 slot is the binding one. Replacing a per-trade quantile with a bound on
+the central value is a change to the (e)-gate pre-registration, not only to §5.3;
+it is recorded in ``docs/planning/2026-10-04-economic-gate-preregistration.md`` §9.
+
+Every input path is injectable so a test never reads production state.
 """
 
 from __future__ import annotations
 
 import json
+import math
 from datetime import date
 from pathlib import Path
 from statistics import median
 
 import frl_config as cfg
+import frl_fills as fills
+
+#: Schema version — ``load_cost_model`` refuses to hand an old model to the new
+#: engine silently, because the two disagree about what ``cost_bps`` MEANS.
+SCHEMA_VERSION: int = 2
 
 
 def collect_slippage(
     metrics_dir: Path | None = None,
     era: str | None = cfg.ERA_SWING,
 ) -> list[tuple[date, str, float]]:
-    """Collect ``(day, ticker, slippage_pct)`` observations from daily metrics.
+    """Legacy reader: ``(day, ticker, slippage_pct)`` vs the PLAN's limit price.
 
-    Args:
-        metrics_dir: directory of daily metric JSONs.
-        era: restrict to one era, or None for all. Defaults to the swing era —
-            legacy fills used a different execution style (intraday LMT) and are
-            not a valid prior for next-day MKT-open cost.
+    Retained for ``build_legacy_abs_model`` only, which exists so the
+    implementation report can price the old and the new estimator side by side.
+    This series is a decision-to-fill shortfall, NOT a friction measurement.
     """
     base = Path(metrics_dir) if metrics_dir is not None else cfg.DAILY_METRICS_DIR
     observations: list[tuple[date, str, float]] = []
@@ -71,44 +89,140 @@ def _percentile(sorted_values: list[float], q: float) -> float:
     return sorted_values[idx]
 
 
+def build_legacy_abs_model(
+    metrics_dir: Path | None = None, era: str | None = cfg.ERA_SWING
+) -> dict:
+    """The PRE-2026-10-19 estimator, kept only for the side-by-side comparison."""
+    observations = collect_slippage(metrics_dir, era)
+    abs_bps = sorted(abs(value) * 100.0 for _, _, value in observations)
+    if not abs_bps:
+        return {"n": 0, "median_bps_per_side": None, "p75_bps_per_side": None}
+    return {
+        "n": len(abs_bps),
+        "median_bps_per_side": round(median(abs_bps), 1),
+        "p75_bps_per_side": round(_percentile(abs_bps, 0.75), 1),
+        "round_trip_point_bps": round(2.0 * median(abs_bps), 1),
+        "round_trip_bound_bps": round(2.0 * _percentile(abs_bps, 0.75), 1),
+        "estimator": "2 * median(|fill - plan limit|) — superseded 2026-10-19",
+    }
+
+
+def _side_summary(legs, weighted: bool) -> dict:
+    point = fills.point_estimate(legs, weighted=weighted)
+    bound = fills.bootstrap_ucb(legs, weighted=weighted)
+    return {
+        "point_bps": round(point, 2) if math.isfinite(point) else None,
+        "ucb95_bps": round(bound, 2) if math.isfinite(bound) else None,
+        "weighted": weighted,
+        "coverage": fills.coverage(legs),
+        "by_order_type": fills.by_order_type(legs),
+    }
+
+
 def build_cost_model(
     metrics_dir: Path | None = None,
     era: str | None = cfg.ERA_SWING,
     out_path: Path | None = None,
+    pending_exits_dir: Path | None = None,
+    bars_dir: Path | None = None,
+    backfill_path: Path | None = None,
 ) -> dict:
-    """Build the empirical per-side cost model.
+    """Measure both sides and emit the round-trip cost model.
 
-    Returns a dict with the median/p75 of |slippage| in basis points, the sample
-    size, the observation window, and a ``small_n_warning`` flag. Falls back to
-    ``FALLBACK_COST_BPS_PER_SIDE`` (75 bp) only when the sample is empty.
+    Weighting follows the pre-reg's letter, not a later preference: the ENTRY is
+    notional-weighted (§5 says so explicitly), the EXIT is not (§5 omits it, and
+    the approved table's 23.2 is the unweighted mean). The two terms are therefore
+    not strictly the same estimand; the deviation is conservative, it is stated in
+    the report, and the both-weighted figure is published as a named sensitivity
+    (ERRATA D-E4).
+
+    Falls back to ``FALLBACK_COST_BPS_PER_SIDE`` only when a side is empty, and
+    refuses a non-positive round trip — a SIGNED mean, unlike the old
+    median(|.|), has no structural floor, and a non-positive wall would open the
+    (e) gate for every factor.
     """
-    observations = collect_slippage(metrics_dir, era)
-    abs_bps = sorted(abs(value) * 100.0 for _, _, value in observations)
+    metrics = Path(metrics_dir) if metrics_dir is not None else cfg.DAILY_METRICS_DIR
+    exits_dir = Path(pending_exits_dir) if pending_exits_dir is not None else cfg.PENDING_EXITS_DIR
+    bars_base = Path(bars_dir) if bars_dir is not None else cfg.BARS_DIR
+    backfill_src = Path(backfill_path) if backfill_path is not None else cfg.ENTRY_BACKFILL_PATH
 
-    if abs_bps:
-        med = median(abs_bps)
-        p75 = _percentile(abs_bps, 0.75)
-        cost = med
+    recorded = fills.load_entry_fills(metrics, era)
+    exit_records = fills.load_exit_records(exits_dir, era)
+    quantities = fills.entry_quantities(exit_records)
+    backfill = fills.load_backfill_fills(backfill_src)
+    exit_fills = fills.load_exit_fills(metrics)
+
+    tickers = {t for _, t, _, _ in recorded} | {str(r["ticker"]) for r in exit_records}
+    days = (
+        {d for d, _, _, _ in recorded}
+        | {key[0] for key in quantities}
+        | {r["_exit_day"] for r in exit_records}
+    )
+    bars = fills.load_bars(tickers, sorted(days), bars_base)
+
+    entry_legs, entry_excluded = fills.build_entry_legs(
+        recorded, quantities, bars, backfill=backfill
+    )
+    exit_legs, exit_excluded = fills.build_exit_legs(exit_records, exit_fills, bars)
+
+    entry = _side_summary(entry_legs, weighted=True)
+    exit_side = _side_summary(exit_legs, weighted=False)
+
+    fallback = False
+    point = entry["point_bps"], exit_side["point_bps"]
+    bound = entry["ucb95_bps"], exit_side["ucb95_bps"]
+    if None in point or None in bound:
+        fallback = True
+        round_trip_point = round_trip_bound = 2.0 * cfg.FALLBACK_COST_BPS_PER_SIDE
     else:
-        med = p75 = float("nan")
-        cost = cfg.FALLBACK_COST_BPS_PER_SIDE
+        round_trip_point = point[0] + point[1]
+        round_trip_bound = bound[0] + bound[1]
 
-    days = [day for day, _, _ in observations]
+    # Degeneracy guard, tolerance-based (house rule: never `== 0`). A signed
+    # estimator can in principle go non-positive; the wall would then admit every
+    # factor. Empirically unreachable on this sample (0 of 20 000 day-clustered
+    # resamples; minimum +4.1 bp), but the gate must not depend on that.
+    if not fallback and round_trip_bound < cfg.MIN_ROUND_TRIP_BPS:
+        fallback = True
+        round_trip_point = round_trip_bound = 2.0 * cfg.FALLBACK_COST_BPS_PER_SIDE
+
     model = {
+        "schema_version": SCHEMA_VERSION,
         "era": era or "all",
-        "n": len(abs_bps),
-        "median_bps_per_side": round(med, 1) if abs_bps else None,
-        "p75_bps_per_side": round(p75, 1) if abs_bps else None,
-        "max_bps_per_side": round(max(abs_bps), 1) if abs_bps else None,
-        "cost_bps_per_side": round(cost, 1),
-        "estimator": "median(|entry slippage|) from daily_metrics.execution",
-        "source": "state/daily_metrics/*.json::execution.slippage_per_ticker",
-        "window": {
-            "start": min(days).isoformat() if days else None,
-            "end": max(days).isoformat() if days else None,
+        "estimator": (
+            "signed true friction per side: entry notional-weighted (fill - open)/open, "
+            "exit unweighted (order-type reference - fill)/reference; "
+            "round_trip = c_entry + c_exit"
+        ),
+        "pre_reg": (
+            "docs/planning/2026-10-19-cost-estimator-amendment.md D-C1..D-C4 "
+            "+ ERRATA D-E1..D-E6 (approved 2026-10-19)"
+        ),
+        "entry": entry,
+        "exit": exit_side,
+        "round_trip_point_bps": round(round_trip_point, 2),
+        "round_trip_bound_bps": round(round_trip_bound, 2),
+        "sensitivities": {
+            "exit_notional_weighted": _side_summary(exit_legs, weighted=True),
+            "entry_without_backfill": _side_summary(
+                fills.build_entry_legs(recorded, quantities, bars, backfill=None)[0],
+                weighted=True,
+            ),
         },
-        "small_n_warning": len(abs_bps) < cfg.COST_MODEL_MIN_N,
-        "fallback_used": not abs_bps,
+        "excluded": {
+            "entry": [list(row) for row in entry_excluded],
+            "exit": [list(row) for row in exit_excluded],
+        },
+        "small_n_warning": len(entry_legs) < cfg.COST_MODEL_MIN_N
+        or len(exit_legs) < cfg.COST_MODEL_MIN_N,
+        "fallback_used": fallback,
+        "bootstrap": {
+            "unit": "trading day (clustered)",
+            "replicates": cfg.COST_BOOTSTRAP_REPLICATES,
+            "seed": cfg.COST_BOOTSTRAP_SEED,
+            "confidence": cfg.COST_UCB_CONFIDENCE,
+        },
+        "fill_in_bar_tolerance": cfg.FILL_IN_BAR_TOLERANCE,
     }
 
     if out_path is not None:
@@ -118,18 +232,42 @@ def build_cost_model(
 
 
 def load_cost_model(path: Path = cfg.COST_MODEL_PATH) -> dict:
-    """Load the persisted cost model, or the 75 bp fallback if absent."""
+    """Load the persisted model, or the fallback if it is absent or pre-schema-2.
+
+    A v1 model on disk carries ``cost_bps_per_side``, which the current engine
+    would multiply by nothing and charge as a round trip — the dangerous case of
+    the same type meaning something different. It is refused, not adapted.
+    """
     if not path.exists():
-        return {
-            "era": cfg.ERA_SWING,
-            "n": 0,
-            "cost_bps_per_side": cfg.FALLBACK_COST_BPS_PER_SIDE,
-            "small_n_warning": True,
-            "fallback_used": True,
-        }
-    return json.loads(path.read_text())
+        return _fallback_model("cost model absent")
+    try:
+        model = json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return _fallback_model("cost model unreadable")
+    if model.get("schema_version") != SCHEMA_VERSION:
+        return _fallback_model(
+            f"cost model schema {model.get('schema_version')} != {SCHEMA_VERSION}"
+        )
+    return model
 
 
-def round_trip_cost_bps(model: dict) -> float:
-    """Round-trip (entry + exit) cost in basis points."""
-    return 2.0 * float(model.get("cost_bps_per_side", cfg.FALLBACK_COST_BPS_PER_SIDE))
+def _fallback_model(reason: str) -> dict:
+    round_trip = 2.0 * cfg.FALLBACK_COST_BPS_PER_SIDE
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "era": cfg.ERA_SWING,
+        "estimator": f"fallback ({reason})",
+        "round_trip_point_bps": round_trip,
+        "round_trip_bound_bps": round_trip,
+        "small_n_warning": True,
+        "fallback_used": True,
+    }
+
+
+def round_trip_cost_bps(model: dict, bound: bool = False) -> float:
+    """The round-trip cost in bp: the point estimate, or the binding upper bound."""
+    key = "round_trip_bound_bps" if bound else "round_trip_point_bps"
+    value = model.get(key)
+    if value is None or not math.isfinite(float(value)):
+        return 2.0 * cfg.FALLBACK_COST_BPS_PER_SIDE
+    return float(value)

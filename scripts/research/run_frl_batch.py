@@ -130,6 +130,7 @@ def run_batch(
     returns_frame=None,
     hypothesis_dir: Path | None = None,
     horizons: Sequence[int] | None = None,
+    cost_model: dict | None = None,
 ) -> str:
     """Execute one batch and return the rendered report.
 
@@ -137,6 +138,12 @@ def run_batch(
     When it is None the batch uses the parquet cache, and only reaches for the
     Polygon API if the cache is cold — never implicitly during tests, which
     always inject.
+
+    ``cost_model`` does the same for the empirical cost. Since the estimator went
+    two-sided it reads three production trees (daily metrics, pending exits, the
+    Polygon bar cache); a test that does not inject one would be measuring the
+    dev machine's state, which is the "prod-state must not make the test green"
+    rule in its purest form.
     """
     factors.load_all()
     available = loader.available_days()
@@ -171,7 +178,10 @@ def run_batch(
     run_horizons = resolve_horizons(horizons, hyp_id=hyp_filter)
     windows = frl_holdout.compute_windows(run_date, first_day=cfg.SWING_START)
     panels = _era_panels(windows)
-    cost_model = frl_cost.build_cost_model(out_path=None if dry_run else cfg.COST_MODEL_PATH)
+    if cost_model is None:
+        cost_model = frl_cost.build_cost_model(
+            out_path=None if dry_run else cfg.COST_MODEL_PATH
+        )
 
     results: list[frl_report.FactorResult] = []
     anomalies: dict[str, int] = {}
@@ -247,27 +257,31 @@ def run_batch(
                 if era == cfg.ERA_SWING:
                     half_life = frl_ic.half_life(frame, "_factor")
 
-            per_side = cost_model.get("cost_bps_per_side", cfg.FALLBACK_COST_BPS_PER_SIDE)
+            # Round trip, not 2x a per-side figure: the two sides were measured
+            # separately and they differ by ~1.7x (pre-reg D-C1, 2026-10-19).
+            round_trip = frl_cost.round_trip_cost_bps(cost_model, bound=False)
+            round_trip_bound = frl_cost.round_trip_cost_bps(cost_model, bound=True)
             # AS TRADED: a fixed `horizon`-day hold with a MOC time stop re-forms the
             # book every `horizon` days whatever the factor's persistence, so the cost
             # is set by the rebalance schedule alone and half-life does NOT enter.
             # Charging it at (252/half_life) while crediting alpha at (252/horizon) was
             # the 2026-10-18 domain error: breakeven_ic reduced to (h/HL)*2c/(sigma*1e4)
             # and gave Flow 3.79 (unreachable) and Funda 0.0017 (h/HL = 0.006).
-            cost_bps = frl_ic.as_traded_cost_bps(horizon, per_side)
+            cost_bps = frl_ic.as_traded_cost_bps(horizon, round_trip)
             # Kept as a labelled DIAGNOSTIC only (spec §5.3 "Riport-mező") — it prices a
             # different, counterfactual strategy and must never reach the (e) gate.
-            decay_cost_bps = frl_ic.decay_implied_cost_bps(half_life, per_side)
-            # (e) gate inputs: the SAME breakeven formula charged at the two cost
-            # levels the empirical model carries. The p75 is the binding one
-            # (pre-reg §3.2) — its margin comes from the slippage distribution's
-            # own dispersion, not from a safety factor anyone picked.
-            cost_bps_median = frl_ic.as_traded_cost_bps(
-                horizon, cost_model.get("median_bps_per_side", per_side)
-            )
-            cost_bps_p75 = frl_ic.as_traded_cost_bps(
-                horizon, cost_model.get("p75_bps_per_side", per_side)
-            )
+            decay_cost_bps = frl_ic.decay_implied_cost_bps(half_life, round_trip)
+            # (e) gate inputs: the SAME breakeven formula at the two cost levels
+            # the empirical model carries. The upper bound is the binding one. Its
+            # margin is the SAMPLING uncertainty of the round-trip mean (one-sided
+            # 95%, day-clustered bootstrap), not a per-trade quantile and not a
+            # safety factor anyone picked — the estimator is a portfolio-level
+            # first moment, so the uncertainty lives in the central value.
+            # Pre-reg: 2026-10-19 amendment §4 (D-C3) + ERRATA D-E5; the slot it
+            # replaces is governed by 2026-10-04-economic-gate-preregistration §3.1,
+            # amended in that document's §9.
+            cost_bps_median = frl_ic.as_traded_cost_bps(horizon, round_trip)
+            cost_bps_p75 = frl_ic.as_traded_cost_bps(horizon, round_trip_bound)
             economic_views: dict[str, frl_holdout.EconomicView] = {}
             for era, summary in era_summaries.items():
                 mean_ic = summary.get("mean_ic", float("nan"))

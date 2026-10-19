@@ -183,6 +183,37 @@ alakja (1→7) maga is riportált diagnosztika.
 
 ### 5.3 Half-life — költség-kapu, NEM kill-kapu
 
+> 🔴 **BECSLŐ-CSERE (2026-10-19).** A lenti `2c` konvenció **lejárt**. A motor azóta
+> a **valódi súrlódást** méri, **oldalanként külön**, és a kettőt **összeadja**:
+>
+> ```
+> belépés (BUY)   (fill − open) / open        notional-súlyozott, előjeles
+> kilépés (SELL)  (ref − fill) / ref          az ordertípus referenciájához, előjeles
+> round_trip      c_entry + c_exit            NEM 2·c_entry
+> breakeven_ic    round_trip / (σ_cs(h)·1e4)
+> ```
+>
+> Két mérés döntötte el: a belépési költség **teljes egésze** a nyitás UTÁNI elsodródás
+> (terv→nyitás −1,5 bp, p = 0,88; nyitás→fill +48,3 bp, p < 0,0001), és a kilépési oldal
+> ezt **függetlenül megerősíti** (MOC aukció +1,4 bp vs. csengő utáni market +47…+81 bp).
+> A `median(|.|)` becslő a **szimmetrikus** elsodródás fél-szélességét terhelte költségként,
+> ami kiátlagolódik.
+>
+> A (e) kapu két slotja ugyanebből: a medián-slot a **pontbecslés**, a p75-slot az
+> **egyoldalas 95% felső konfidencia-korlát a középértékre** (nap-klaszterezett bootstrap).
+> Ez a `2026-10-04-economic-gate-preregistration.md` §3.1 slotjának cseréje, amit annak a
+> dokumentumnak a **§9**-e rögzít.
+>
+> Mért érték (2026-10-19): belépés **+40,3 / +52,2 bp** (n=89), kilépés **+23,2 / +32,5 bp**
+> (n=108) → round trip **63,5 / 84,7 bp** → fal **0,1059 / 0,1412** (σ=0,06, h=5).
+> A régi motor 167,0 bp-t és 0,2783-at adott.
+>
+> Pre-reg: `docs/planning/2026-10-19-cost-estimator-amendment.md` D-C1…D-C4 + ERRATA
+> D-E1…D-E6. Riport: `docs/review/2026-10-19-cost-estimator-implementation.md`.
+> ⚠️ A lenti 2026-07-21-i és 2026-10-18-i bekezdések **történeti** feljegyzések: a
+> `2c` alak és a 95,5 bp/oldal szám azokra az időpontokra igaz, a mai motorra nem.
+
+
 > 🔴 **DOMAIN-FIX (2026-10-18).** A motor a költséget `(252/half_life)·2c`-vel
 > terhelte, az alfát viszont `(252/h)`-n írta jóvá — két **különböző óra**, így a
 > `breakeven_ic` a **h/HL hányadossal** skálázódott (Flow 3,79 = 12,5 round trip egy

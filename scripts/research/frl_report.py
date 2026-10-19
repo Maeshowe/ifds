@@ -149,10 +149,21 @@ def build_report(ctx: BatchContext) -> str:
         "",
         "## Költségmodell (empirikus)",
         "",
-        f"- {_fmt(cost.get('cost_bps_per_side'), 1)} bp/oldal{cost_note}{fallback_note} "
-        f"(medián), p75 {_fmt(cost.get('p75_bps_per_side'), 1)} bp, n={cost.get('n', 0)}, "
-        f"éra={cost.get('era', '—')}",
-        f"- Forrás: `{cost.get('source', '—')}`",
+        f"- **Round trip {_fmt(cost.get('round_trip_point_bps'), 1)} bp** (pont), "
+        f"**{_fmt(cost.get('round_trip_bound_bps'), 1)} bp** (egyoldalas 95% felső korlát — "
+        f"ez a kötő){cost_note}{fallback_note}, éra={cost.get('era', '—')}",
+        f"- Belépés {_fmt((cost.get('entry') or {}).get('point_bps'), 1)} / "
+        f"{_fmt((cost.get('entry') or {}).get('ucb95_bps'), 1)} bp "
+        f"(n={((cost.get('entry') or {}).get('coverage') or {}).get('n_legs', 0)}, "
+        f"{((cost.get('entry') or {}).get('coverage') or {}).get('first_day', '—')}"
+        f"…{((cost.get('entry') or {}).get('coverage') or {}).get('last_day', '—')}) · "
+        f"Kilépés {_fmt((cost.get('exit') or {}).get('point_bps'), 1)} / "
+        f"{_fmt((cost.get('exit') or {}).get('ucb95_bps'), 1)} bp "
+        f"(n={((cost.get('exit') or {}).get('coverage') or {}).get('n_legs', 0)}, "
+        f"{((cost.get('exit') or {}).get('coverage') or {}).get('first_day', '—')}"
+        f"…{((cost.get('exit') or {}).get('coverage') or {}).get('last_day', '—')})",
+        f"- Becslő: {cost.get('estimator', '—')}",
+        f"- Pre-reg: `{cost.get('pre_reg', '—')}`",
         "",
         "## Sanity-kapu",
         "",

@@ -147,13 +147,24 @@ ECONOMIC_UNAVAILABLE = "unavailable"
 
 @dataclass(frozen=True)
 class EconomicView:
-    """Breakeven IC for one era at the median and p75 per-side cost.
+    """Breakeven IC for one era at the point and upper-bound round-trip cost.
 
     Both come from ``frl_ic.costed_view()`` run against the two cost levels in
-    ``research/cost_model.json``. The p75 is the binding threshold (pre-reg
-    §3.2): it is calibrated from the slippage distribution's own dispersion
-    (p75/median has run 1.41-1.63), not from a safety factor anyone chose, and
-    being the conservative end it cannot flip toward a stricter cost.
+    ``research/cost_model.json``.
+
+    .. versionchanged:: 2026-10-19
+       The field names are kept for the ledger's sake, but the SLOTS changed.
+       ``breakeven_p75`` no longer holds a per-trade quantile of |slippage|; it
+       holds the breakeven at the one-sided 95% UPPER CONFIDENCE BOUND on the
+       round-trip mean. The estimator is a portfolio-level first moment, so the
+       uncertainty that matters is in the central value, not across trades. This
+       replaces the slot defined in
+       ``docs/planning/2026-10-04-economic-gate-preregistration.md`` §3.1/§3.2 —
+       whose "p75/median has run 1.41-1.63, so it cannot flip toward a stricter
+       cost" calibration no longer describes this engine — under the amendment
+       recorded in that document's §9 and approved by Tamás on 2026-10-19.
+       ``breakeven_p75`` is still the BINDING threshold and is still the
+       conservative end of the band.
     """
 
     breakeven_median: float

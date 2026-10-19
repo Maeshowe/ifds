@@ -4,6 +4,62 @@
 
 ---
 
+## 2026-10-19 (3) — a költség-becslő: csak valódi súrlódás, oldalanként mérve
+
+> Baseline 2418 → **2435** (+17), 0 fail. **A fal 0,2783 → 0,1059 / 0,1412.**
+
+### feat(research) — `frl_fills.py` (új) + `frl_cost.py` (átírva)
+A motor `2 × medián(|fill − terv limit|)`-et terhelt: feltételezte, hogy a kilépés a
+belépéssel egyenértékű (a kilépési oldalt soha senki nem mérte), és a **szimmetrikus**
+terv→fill elsodródás fél-szélességét költségként könyvelte. Mindkettő téves.
+
+```
+belépés (BUY)   (fill − open)/open    notional-súlyozott, előjeles
+kilépés (SELL)  (ref − fill)/ref      az ordertípus referenciájához, előjeles
+round_trip      c_entry + c_exit      NEM 2·c_entry
+```
+
+| | belépés | kilépés | round trip | **breakeven (σ=0,06, h=5)** |
+|---|---:|---:|---:|---:|
+| pont | +40,32 | +23,20 | **63,52 bp** | **0,1059** |
+| egyoldalas 95% UCB (kötő) | +52,20 | +32,53 | **84,73 bp** | **0,1412** |
+| *régi motor* | *83,5* | *—* | *167,0* | *0,2783* |
+
+Lefedettség (kötelező fejléc): belépés n=89 / 55 nap / 2026-05-22…09-22 (78 `daily_metrics`
++ **11 broker-backfill**, D-E1), kilépés n=108 / 59 nap / 2026-06-03…09-30.
+
+### A pre-reg táblájához képesti eltérés — kimondva
+A szállított 40,3/52,2 alacsonyabb a publikált 48,3/64,3-nál. A létra: `48,3 (publikált,
+súlyozatlan) → 46,9 (a §5 saját súlyozásával) → 45,3 (fill-in-bar szűrő) → 40,3 (a 11
+visszanyert láb)`. Az első két lépés **a tábla eltérése a saját szabályaitól**, nem a motoré
+a pre-regtől (ERRATA §E-2) — a motor a **szöveget** implementálja. **A fal minden lépésben
+lefelé mozdult**, és ez a riport első oldalán áll.
+
+### A verdikt-bizonyítás kicserélve, mert az eredeti ÜRES volt
+Robbanó sentinel `EconomicView`-val: **0/23 sor éri el a (e) kaput** (mind `bh_pass=False`-on
+akad el, nem az éra-baron — négy sor átlépi a bart). A 0/23 bármilyen költségszámra igaz.
+Helyette `tests/test_cost_estimator_invariance.py` (+14): történeti verdiktek **inline**
+rögzítve (nem az élő ledgerből olvasva), **pozitív kontroll** (ingyenes modell → PROMOTE,
+irreális → PARK_UNECONOMIC), és a sáv-lazulás kimondva. **Szabotázs-ellenőrzés:** a kaput
+költség-vakká téve 4 teszt bukik.
+
+### fix(tests) — hermetikusság
+A kétoldalas becslő három production-fát olvas. Minden útvonal injektálható lett,
+`run_batch` kapott `cost_model=` paramétert. Előtte: a suite 32 s és **felülírta a
+`research/cost_model.json`-t**; utána 9,5 s, a `research/` mtime-ja változatlan.
+A `load_cost_model` **visszautasít** egy v1 modellt (azonos típus, más jelentés), és
+`as_traded_cost_bps(horizon, cost_bps_per_side)` → `(horizon, round_trip_cost_bps)`.
+
+### Degeneráció-padló
+`MIN_ROUND_TRIP_BPS = 1.0` — egy előjeles átlagnak nincs strukturális alja, és egy
+nem-pozitív fal minden faktorra kinyitná a kaput. Tolerancia-alapú, nem `== 0`.
+
+### Nyitva
+A **MOO belépő** (D-C4) production-javítás: a falat **0,0387**-re vinné. A mért
+`|IC| < 0,009` a mai 0,1412-től is **~16×** van.
+
+---
+
 ## 2026-10-19 (2) — a BH-FDR a ledger teljes történetén futott volna, de 0 sort látott
 
 > Baseline 2415 → **2418** (+3), 0 fail. **Nem verdikt-változtató** (bizonyítva lent).

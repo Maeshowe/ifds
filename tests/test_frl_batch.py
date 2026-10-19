@@ -113,6 +113,21 @@ def _scan_files(scan_dir: Path, days: list[date]) -> None:
         (scan_dir / f"full_scan_matrix_{day.isoformat()}.csv").write_text(header + "".join(rows))
 
 
+#: Injected cost model — the two-sided estimator reads three production trees,
+#: so a batch test that let it resolve them would be measuring this machine.
+#: Shape mirrors frl_cost.build_cost_model's schema 2 output.
+_COST_MODEL = {
+    "schema_version": 2,
+    "era": "swing",
+    "round_trip_point_bps": 63.5,
+    "round_trip_bound_bps": 84.7,
+    "entry": {"point_bps": 40.3, "ucb95_bps": 52.2, "coverage": {"n_legs": 89}},
+    "exit": {"point_bps": 23.2, "ucb95_bps": 32.5, "coverage": {"n_legs": 108}},
+    "small_n_warning": False,
+    "fallback_used": False,
+}
+
+
 class TestSanityGateBlocksAttempts:
     def test_failing_sanity_writes_no_ledger_row(self, tmp_path, monkeypatch):
         """R1#6: a bugged factor must not spend an attempt — or a holdout touch."""
@@ -133,6 +148,7 @@ class TestSanityGateBlocksAttempts:
             runs_dir=tmp_path / "runs",
             returns_frame=_returns(days),
             hypothesis_dir=_registry(tmp_path),
+            cost_model=_COST_MODEL,
         )
 
         assert "SANITY_FAIL flipped" in text
@@ -151,6 +167,7 @@ class TestSanityGateBlocksAttempts:
             runs_dir=tmp_path / "runs",
             returns_frame=_returns([date(2026, 5, 18)]),
             hypothesis_dir=_registry(tmp_path),
+            cost_model=_COST_MODEL,
         )
         assert "PASS clean" in text
 
@@ -170,6 +187,7 @@ class TestSanityGateBlocksAttempts:
             runs_dir=runs_dir,
             returns_frame=_returns([date(2026, 5, 18)]),
             hypothesis_dir=_registry(tmp_path),
+            cost_model=_COST_MODEL,
         )
         assert not ledger_path.exists()
         assert not runs_dir.exists()
@@ -188,6 +206,7 @@ class TestSanityGateBlocksAttempts:
             runs_dir=tmp_path / "runs",
             returns_frame=_returns([date(2026, 5, 18)]),
             hypothesis_dir=_registry(tmp_path, status="DRAFT"),
+            cost_model=_COST_MODEL,
         )
         assert "BLOCKED clean" in text
         assert "PASS clean" in text, "sanity passed; only the registry gate blocked it"
@@ -208,6 +227,7 @@ class TestSanityGateBlocksAttempts:
             runs_dir=tmp_path / "runs",
             returns_frame=_returns([date(2026, 5, 18)]),
             hypothesis_dir=empty_registry,
+            cost_model=_COST_MODEL,
         )
         assert "BLOCKED clean" in text
         assert ledger.read_ledger(ledger_path) == []
@@ -232,6 +252,7 @@ class TestSanityGateBlocksAttempts:
             runs_dir=tmp_path / "runs",
             returns_frame=_returns([date(2026, 5, 18)]),
             hypothesis_dir=_registry(tmp_path),
+            cost_model=_COST_MODEL,
         )
 
 
@@ -241,13 +262,24 @@ class TestReportRendering:
             run_date=date(2026, 7, 24),
             windows_line="dev 2026-05-18..2026-06-15 | purge ... | holdout ...",
             cost_model={
-                "cost_bps_per_side": 95.5,
-                "p75_bps_per_side": 137.0,
-                "n": 28,
+                "schema_version": 2,
+                "round_trip_point_bps": 63.5,
+                "round_trip_bound_bps": 84.7,
+                "entry": {
+                    "point_bps": 40.3,
+                    "ucb95_bps": 52.2,
+                    "coverage": {"n_legs": 89, "first_day": "2026-05-22", "last_day": "2026-09-22"},
+                },
+                "exit": {
+                    "point_bps": 23.2,
+                    "ucb95_bps": 32.5,
+                    "coverage": {"n_legs": 108, "first_day": "2026-06-03", "last_day": "2026-09-30"},
+                },
                 "era": "swing",
                 "small_n_warning": True,
                 "fallback_used": False,
-                "source": "state/daily_metrics/*.json::execution.slippage_per_ticker",
+                "estimator": "signed true friction per side",
+                "pre_reg": "docs/planning/2026-10-19-cost-estimator-amendment.md",
             },
             panel_days={"swing": 25, "legacy": 66},
             missing_days=[date(2026, 6, 29)],
@@ -309,8 +341,14 @@ class TestReportRendering:
 
     def test_empirical_cost_is_shown_with_small_n_warning(self):
         text = report.build_report(self._ctx())
-        assert "95.5 bp/oldal ⚠️ kis-n" in text
-        assert "n=28" in text
+        assert "**Round trip 63.5 bp**" in text
+        assert "**84.7 bp**" in text, "the binding upper bound must be shown"
+        assert "⚠️ kis-n" in text
+        # Coverage header is mandatory since the 2026-10-04 derived-cache rule:
+        # the two sides span DIFFERENT windows and the report must say so.
+        assert "2026-05-22…2026-09-22" in text
+        assert "2026-06-03…2026-09-30" in text
+        assert "n=89" in text and "n=108" in text
 
     def test_unexpected_missing_days_are_escalated(self):
         text = report.build_report(self._ctx(unexpected_missing=[date(2026, 7, 2)]))
@@ -335,7 +373,7 @@ class TestUnconfirmedDecisionsInReport:
         return report.BatchContext(
             run_date=date(2026, 7, 24),
             windows_line="dev ... | purge ... | holdout ...",
-            cost_model={"cost_bps_per_side": 95.5, "n": 28, "era": "swing"},
+            cost_model={"round_trip_point_bps": 63.5, "round_trip_bound_bps": 84.7, "era": "swing"},
             panel_days={"swing": 19},
             missing_days=[],
             unexpected_missing=[],
@@ -387,6 +425,7 @@ class TestUnconfirmedDecisionsInReport:
             runs_dir=tmp_path / "runs",
             returns_frame=_returns([date(2026, 5, 18)]),
             hypothesis_dir=_registry(tmp_path),
+            cost_model=_COST_MODEL,
         )
         entries = ledger.read_ledger(ledger_path)
         assert entries, "the run must have written attempts"

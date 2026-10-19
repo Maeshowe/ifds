@@ -1,16 +1,239 @@
 {
+  "schema_version": 2,
   "era": "swing",
-  "n": 82,
-  "median_bps_per_side": 83.5,
-  "p75_bps_per_side": 136.0,
-  "max_bps_per_side": 377.0,
-  "cost_bps_per_side": 83.5,
-  "estimator": "median(|entry slippage|) from daily_metrics.execution",
-  "source": "state/daily_metrics/*.json::execution.slippage_per_ticker",
-  "window": {
-    "start": "2026-05-20",
-    "end": "2026-09-22"
+  "estimator": "signed true friction per side: entry notional-weighted (fill - open)/open, exit unweighted (order-type reference - fill)/reference; round_trip = c_entry + c_exit",
+  "pre_reg": "docs/planning/2026-10-19-cost-estimator-amendment.md D-C1..D-C4 + ERRATA D-E1..D-E6 (approved 2026-10-19)",
+  "entry": {
+    "point_bps": 40.32,
+    "ucb95_bps": 52.2,
+    "weighted": true,
+    "coverage": {
+      "n_legs": 89,
+      "n_days": 55,
+      "first_day": "2026-05-22",
+      "last_day": "2026-09-22",
+      "legs_by_source": {
+        "broker_backfill": 11,
+        "daily_metrics": 78
+      },
+      "notional": 549561.95
+    },
+    "by_order_type": {
+      "MKT_OPEN": {
+        "n": 89,
+        "point_bps": 41.66,
+        "notional_share": 1.0
+      }
+    }
+  },
+  "exit": {
+    "point_bps": 23.2,
+    "ucb95_bps": 32.53,
+    "weighted": false,
+    "coverage": {
+      "n_legs": 108,
+      "n_days": 59,
+      "first_day": "2026-06-03",
+      "last_day": "2026-09-30",
+      "legs_by_source": {
+        "daily_metrics": 108
+      },
+      "notional": 512245.73
+    },
+    "by_order_type": {
+      "MENTAL_SL": {
+        "n": 10,
+        "point_bps": 80.83,
+        "notional_share": 0.1017
+      },
+      "TIME_STOP": {
+        "n": 68,
+        "point_bps": 1.35,
+        "notional_share": 0.7096
+      },
+      "TP1": {
+        "n": 25,
+        "point_bps": 46.79,
+        "notional_share": 0.1488
+      },
+      "TP2": {
+        "n": 4,
+        "point_bps": 111.4,
+        "notional_share": 0.0346
+      },
+      "TRAIL_SL": {
+        "n": 1,
+        "point_bps": -9.26,
+        "notional_share": 0.0054
+      }
+    }
+  },
+  "round_trip_point_bps": 63.52,
+  "round_trip_bound_bps": 84.73,
+  "sensitivities": {
+    "exit_notional_weighted": {
+      "point_bps": 18.62,
+      "ucb95_bps": 27.29,
+      "weighted": true,
+      "coverage": {
+        "n_legs": 108,
+        "n_days": 59,
+        "first_day": "2026-06-03",
+        "last_day": "2026-09-30",
+        "legs_by_source": {
+          "daily_metrics": 108
+        },
+        "notional": 512245.73
+      },
+      "by_order_type": {
+        "MENTAL_SL": {
+          "n": 10,
+          "point_bps": 80.83,
+          "notional_share": 0.1017
+        },
+        "TIME_STOP": {
+          "n": 68,
+          "point_bps": 1.35,
+          "notional_share": 0.7096
+        },
+        "TP1": {
+          "n": 25,
+          "point_bps": 46.79,
+          "notional_share": 0.1488
+        },
+        "TP2": {
+          "n": 4,
+          "point_bps": 111.4,
+          "notional_share": 0.0346
+        },
+        "TRAIL_SL": {
+          "n": 1,
+          "point_bps": -9.26,
+          "notional_share": 0.0054
+        }
+      }
+    },
+    "entry_without_backfill": {
+      "point_bps": 45.32,
+      "ucb95_bps": 58.29,
+      "weighted": true,
+      "coverage": {
+        "n_legs": 78,
+        "n_days": 48,
+        "first_day": "2026-06-08",
+        "last_day": "2026-09-22",
+        "legs_by_source": {
+          "daily_metrics": 78
+        },
+        "notional": 475111.22
+      },
+      "by_order_type": {
+        "MKT_OPEN": {
+          "n": 78,
+          "point_bps": 46.96,
+          "notional_share": 1.0
+        }
+      }
+    }
+  },
+  "excluded": {
+    "entry": [
+      [
+        "VLO",
+        "2026-05-20",
+        "no share count in any source"
+      ],
+      [
+        "WST",
+        "2026-06-01",
+        "fill 324.33 outside bar [308.50, 321.65]"
+      ],
+      [
+        "MSM",
+        "2026-06-04",
+        "no share count in any source"
+      ],
+      [
+        "FFIV",
+        "2026-06-05",
+        "fill 408.69 outside bar [393.04, 406.26]"
+      ],
+      [
+        "IMAX",
+        "2026-08-18",
+        "fill 52.75 outside bar [50.54, 52.39]"
+      ],
+      [
+        "FBP",
+        "2026-09-08",
+        "fill 28.71 outside bar [28.02, 28.57]"
+      ]
+    ],
+    "exit": [
+      [
+        "AMH",
+        "2026-05-28",
+        "no exit fill record"
+      ],
+      [
+        "CDNS",
+        "2026-06-02",
+        "no exit fill record"
+      ],
+      [
+        "EOG",
+        "2026-06-03",
+        "no exit fill record"
+      ],
+      [
+        "JHG",
+        "2026-06-04",
+        "no exit fill record"
+      ],
+      [
+        "AKAM",
+        "2026-06-04",
+        "no exit fill record"
+      ],
+      [
+        "ROIV",
+        "2026-06-05",
+        "no exit fill record"
+      ],
+      [
+        "ST",
+        "2026-06-05",
+        "no exit fill record"
+      ],
+      [
+        "AMH",
+        "2026-06-08",
+        "no exit fill record"
+      ],
+      [
+        "ITT",
+        "2026-07-15",
+        "no exit fill record"
+      ],
+      [
+        "XPO",
+        "2026-07-15",
+        "no exit fill record"
+      ],
+      [
+        "PFGC",
+        "2026-07-28",
+        "fill 114.07 outside bar [114.68, 116.71]"
+      ]
+    ]
   },
   "small_n_warning": false,
-  "fallback_used": false
+  "fallback_used": false,
+  "bootstrap": {
+    "unit": "trading day (clustered)",
+    "replicates": 20000,
+    "seed": 20261019,
+    "confidence": 0.95
+  },
+  "fill_in_bar_tolerance": 0.005
 }

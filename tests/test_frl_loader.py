@@ -288,7 +288,21 @@ class TestForwardReturns:
 
 
 class TestCostModel:
-    def _metrics(self, dirpath: Path, day: str, slips: dict[str, float]) -> None:
+    """The two-sided signed estimator (pre-reg D-C1, 2026-10-19).
+
+    Every path is injected. The old tests passed only ``metrics_dir``, which
+    under the two-sided model would have let the real ``state/pending_exits/``
+    and the real Polygon bar cache supply an exit side — the third occurrence of
+    "prod-state must not make the test green". ``_sandbox`` closes that.
+    """
+
+    def _metrics(
+        self,
+        dirpath: Path,
+        day: str,
+        slips: dict[str, float],
+        exits: dict[str, float] | None = None,
+    ) -> None:
         dirpath.mkdir(parents=True, exist_ok=True)
         payload = {
             "date": day,
@@ -303,35 +317,134 @@ class TestCostModel:
                     for t, p in slips.items()
                 }
             },
+            "trades": {
+                "details": [
+                    {"ticker": t, "exit": price, "qty": 10} for t, price in (exits or {}).items()
+                ]
+            },
         }
         (dirpath / f"{day}.json").write_text(json.dumps(payload))
 
-    def test_uses_absolute_slippage_median_and_p75(self, tmp_path):
-        # Signed prints (+1.0 / -1.0) must not cancel out — |slippage| is the estimator.
-        self._metrics(tmp_path, "2026-06-01", {"AAA": 1.0, "BBB": -1.0, "CCC": 0.5, "DDD": 2.0})
-        model = frl_cost.build_cost_model(metrics_dir=tmp_path, era=cfg.ERA_SWING)
-        assert model["n"] == 4
-        assert model["median_bps_per_side"] == pytest.approx(100.0)  # |0.5,1,1,2| -> 1.0%
-        assert model["p75_bps_per_side"] >= model["median_bps_per_side"]
-        assert model["cost_bps_per_side"] == model["median_bps_per_side"]
+    def _bars(self, dirpath: Path, day: str, closes: dict[str, float]) -> None:
+        session = dirpath / day
+        session.mkdir(parents=True, exist_ok=True)
+        rows = [
+            {"T": t, "o": px, "h": px * 1.10, "l": px * 0.90, "c": px}
+            for t, px in closes.items()
+        ]
+        (session / "ALL.json").write_text(json.dumps(rows))
+
+    def _sandbox(self, tmp_path: Path) -> dict:
+        """Inject all four inputs at empty sandbox paths."""
+        return {
+            "pending_exits_dir": tmp_path / "pending_exits",
+            "bars_dir": tmp_path / "bars",
+            "backfill_path": tmp_path / "backfill.json",
+        }
+
+    def test_entry_friction_is_measured_against_the_open_not_the_plan(self, tmp_path):
+        """A BUY filling above the open costs money; the plan's limit is irrelevant."""
+        metrics = tmp_path / "m"
+        self._metrics(metrics, "2026-06-01", {"AAA": 1.0})  # planned 100 -> filled 101
+        self._bars(tmp_path / "bars", "2026-06-01", {"AAA": 100.0})  # open 100
+        model = frl_cost.build_cost_model(
+            metrics_dir=metrics, era=cfg.ERA_SWING, **self._sandbox(tmp_path)
+        )
+        # (101 - 100) / 100 = +100 bp of true friction, adverse-positive.
+        assert model["entry"]["point_bps"] == pytest.approx(100.0)
+        assert model["entry"]["coverage"]["n_legs"] == 1
+
+    def test_signed_prints_cancel_because_drift_is_not_a_cost(self, tmp_path):
+        """The old median(|.|) charged symmetric drift; the signed mean does not."""
+        metrics = tmp_path / "m"
+        self._metrics(metrics, "2026-06-01", {"AAA": 1.0, "BBB": -1.0})
+        self._bars(tmp_path / "bars", "2026-06-01", {"AAA": 100.0, "BBB": 100.0})
+        model = frl_cost.build_cost_model(
+            metrics_dir=metrics, era=cfg.ERA_SWING, **self._sandbox(tmp_path)
+        )
+        assert model["entry"]["point_bps"] == pytest.approx(0.0, abs=1e-6)
+
+    def test_an_empty_side_falls_back_and_never_reports_a_free_round_trip(self, tmp_path):
+        metrics = tmp_path / "m"
+        metrics.mkdir()
+        model = frl_cost.build_cost_model(
+            metrics_dir=metrics, era=cfg.ERA_SWING, **self._sandbox(tmp_path)
+        )
+        assert model["fallback_used"] is True
+        assert model["small_n_warning"] is True
+        assert model["round_trip_point_bps"] == pytest.approx(
+            2 * cfg.FALLBACK_COST_BPS_PER_SIDE
+        )
+
+    def test_a_non_positive_round_trip_is_refused(self, tmp_path):
+        """A SIGNED mean has no structural floor; a free wall would open the gate."""
+        metrics = tmp_path / "m"
+        # every fill BELOW the open -> favourable entry, negative round trip
+        self._metrics(metrics, "2026-06-01", {"AAA": -1.0})
+        self._metrics(metrics, "2026-06-02", {"BBB": -1.0})
+        self._bars(tmp_path / "bars", "2026-06-01", {"AAA": 100.0})
+        self._bars(tmp_path / "bars", "2026-06-02", {"BBB": 100.0})
+        model = frl_cost.build_cost_model(
+            metrics_dir=metrics, era=cfg.ERA_SWING, **self._sandbox(tmp_path)
+        )
+        assert model["entry"]["point_bps"] < 0
+        assert model["fallback_used"] is True, "a non-positive wall must not reach the gate"
+        assert model["round_trip_bound_bps"] >= cfg.MIN_ROUND_TRIP_BPS
 
     def test_small_sample_carries_a_warning(self, tmp_path):
-        self._metrics(tmp_path, "2026-06-01", {"AAA": 1.0})
-        model = frl_cost.build_cost_model(metrics_dir=tmp_path, era=cfg.ERA_SWING)
-        assert model["small_n_warning"] is True
-
-    def test_empty_sample_falls_back_to_75bp(self, tmp_path):
-        model = frl_cost.build_cost_model(metrics_dir=tmp_path, era=cfg.ERA_SWING)
-        assert model["n"] == 0
-        assert model["cost_bps_per_side"] == cfg.FALLBACK_COST_BPS_PER_SIDE
+        metrics = tmp_path / "m"
+        self._metrics(metrics, "2026-06-01", {"AAA": 1.0})
+        self._bars(tmp_path / "bars", "2026-06-01", {"AAA": 100.0})
+        model = frl_cost.build_cost_model(
+            metrics_dir=metrics, era=cfg.ERA_SWING, **self._sandbox(tmp_path)
+        )
         assert model["small_n_warning"] is True
 
     def test_era_filter_excludes_legacy_fills(self, tmp_path):
-        self._metrics(tmp_path, "2026-04-20", {"OLD": 0.1})  # legacy LMT-era fill
-        self._metrics(tmp_path, "2026-06-01", {"NEW": 1.0})
-        model = frl_cost.build_cost_model(metrics_dir=tmp_path, era=cfg.ERA_SWING)
-        assert model["n"] == 1
-        assert model["median_bps_per_side"] == pytest.approx(100.0)
+        metrics = tmp_path / "m"
+        self._metrics(metrics, "2026-04-20", {"OLD": 0.1})  # legacy LMT-era fill
+        self._metrics(metrics, "2026-06-01", {"NEW": 1.0})
+        self._bars(tmp_path / "bars", "2026-04-20", {"OLD": 100.0})
+        self._bars(tmp_path / "bars", "2026-06-01", {"NEW": 100.0})
+        model = frl_cost.build_cost_model(
+            metrics_dir=metrics, era=cfg.ERA_SWING, **self._sandbox(tmp_path)
+        )
+        assert model["entry"]["coverage"]["n_legs"] == 1
+        assert model["entry"]["point_bps"] == pytest.approx(100.0)
+
+    def test_injected_paths_are_honoured_and_production_dirs_are_not_touched(
+        self, tmp_path, monkeypatch
+    ):
+        """Guard test (house rule): the kwargs must actually reach the loaders.
+
+        Mirrors ``test_injected_returns_bypass_cache_and_api``. Under the
+        two-sided estimator ``build_cost_model`` reads three more inputs than it
+        used to; if a future refactor drops one, the real bar cache and the real
+        ``state/pending_exits/`` would quietly supply an exit side on the dev
+        machine and nowhere else — green here, different on CI.
+        """
+        seen: dict[str, Path] = {}
+        real_load_bars = frl_cost.fills.load_bars
+
+        def _spy(tickers, days, bars_dir):
+            seen["bars_dir"] = Path(bars_dir)
+            return real_load_bars(tickers, days, bars_dir)
+
+        monkeypatch.setattr(frl_cost.fills, "load_bars", _spy)
+        metrics = tmp_path / "m"
+        self._metrics(metrics, "2026-06-01", {"AAA": 1.0})
+        self._bars(tmp_path / "bars", "2026-06-01", {"AAA": 100.0})
+
+        sandbox = self._sandbox(tmp_path)
+        model = frl_cost.build_cost_model(metrics_dir=metrics, era=cfg.ERA_SWING, **sandbox)
+        assert seen["bars_dir"] == sandbox["bars_dir"], "bars_dir kwarg was ignored"
+        assert seen["bars_dir"] != cfg.BARS_DIR
+        assert model["entry"]["coverage"]["n_legs"] == 1
+
+        # ...and without the kwarg the production constant IS what would be read,
+        # which is exactly why every test must inject it.
+        frl_cost.build_cost_model(metrics_dir=metrics, era=cfg.ERA_SWING)
+        assert seen["bars_dir"] == cfg.BARS_DIR
 
 
 # ---------------------------------------------------------------------------

@@ -97,6 +97,40 @@ DAY63_NYSE_DATE_INFORMATIVE: Final[date] = date(2026, 8, 17)  # informational on
 FALLBACK_COST_BPS_PER_SIDE: Final[float] = 75.0
 COST_MODEL_MIN_N: Final[int] = 30  # below this the model carries a small-n warning
 
+# --- Two-sided signed cost estimator ----------------------------------------
+# Pre-reg: docs/planning/2026-10-19-cost-estimator-amendment.md (D-C1..D-C4,
+# approved 2026-10-19) as corrected by its own ERRATA (D-E1..D-E6, approved
+# 2026-10-19). The estimator charges TRUE FRICTION ONLY — the fill against the
+# price available at the moment of trading — and adds the two sides rather than
+# doubling the entry. Every engine constant below is registered HERE, because
+# the approved text left them unspecified (ERRATA §E-7) and an unregistered
+# bootstrap parameter is a free parameter on the binding threshold.
+PENDING_EXITS_DIR: Final[Path] = PROJECT_ROOT / "state" / "pending_exits"
+BARS_DIR: Final[Path] = CACHE_DIR / "api" / "polygon" / "grouped_daily"
+ENTRY_BACKFILL_PATH: Final[Path] = (
+    PROJECT_ROOT / "scripts" / "maintenance" / "slippage_backfill_map.json"
+)
+
+# A fill outside its own session's range is a ticker/corporate-action mismatch or
+# a mis-dated row, not an execution cost. Registered per ERRATA §E-5 (D-E3): it is
+# a post-hoc exclusion moving the estimate in the PERMISSIVE direction, so it
+# carries the full companion set and its sensitivity is published in the report.
+FILL_IN_BAR_TOLERANCE: Final[float] = 0.005
+
+# One-sided upper confidence bound on the MEAN (pre-reg §4: the uncertainty lives
+# in the central value, not in a per-trade quantile). Day-clustered because fills
+# cluster within a session; seeded because a persisted cost model must be
+# reproducible bit-for-bit.
+COST_UCB_CONFIDENCE: Final[float] = 0.95
+COST_BOOTSTRAP_REPLICATES: Final[int] = 20_000
+COST_BOOTSTRAP_SEED: Final[int] = 20_261_019
+
+# Degeneracy floor for the round trip. The old median(|slippage|) estimator was
+# non-negative by construction; a SIGNED mean is not, and a non-positive round
+# trip would make breakeven_ic <= 0 and open the (e) gate for every factor.
+# Tolerance-based per the house rule, never `== 0`.
+MIN_ROUND_TRIP_BPS: Final[float] = 1.0
+
 # --- Known coverage gaps (spec §4.5) ----------------------------------------
 # Explicitly missing days — NEVER interpolated, always NaN in the IC series.
 # Each entry names its source, because the batch report separates DOCUMENTED gaps

@@ -242,16 +242,18 @@ class TestPersistenceAndCost:
         describes a counterfactual strategy that rebalances at the decay scale,
         and feeding it to costed_view is what produced the h/HL artefact.
         """
-        fast = frl_ic.decay_implied_cost_bps(5.0, cost_bps_per_side=95.5)
-        slow = frl_ic.decay_implied_cost_bps(50.0, cost_bps_per_side=95.5)
+        fast = frl_ic.decay_implied_cost_bps(5.0, round_trip_cost_bps=95.5)
+        slow = frl_ic.decay_implied_cost_bps(50.0, round_trip_cost_bps=95.5)
         assert fast > slow
-        assert slow == pytest.approx(252 / 50 * 2 * 95.5)
+        assert slow == pytest.approx(252 / 50 * 95.5)
 
     def test_uses_the_empirical_cost_not_a_3bp_assumption(self):
         import frl_cost
 
         model = frl_cost.load_cost_model()
-        assert model["cost_bps_per_side"] >= 50.0, "3 bp-class cost inputs are forbidden"
+        assert (
+            frl_cost.round_trip_cost_bps(model) >= 20.0
+        ), "3 bp-class cost inputs are forbidden for next-day MKT-open execution"
 
 
 class TestCostedView:
@@ -318,36 +320,40 @@ class TestAsTradedCost:
     at h = HL. Task: docs/tasks/2026-10-18-breakeven-turnover-domain-fix.md
     """
 
-    C = 83.5  # bp per side, measured
+    # The measured ROUND TRIP, not a per-side figure doubled. Since 2026-10-19
+    # the two sides are measured separately (entry +40.3 against the open, exit
+    # +23.2 against what the order type promised) and added — pre-reg D-C1.
+    RT = 63.52
 
     def test_cost_is_set_by_the_rebalance_schedule_alone(self):
-        assert frl_ic.as_traded_cost_bps(5, self.C) == pytest.approx(252 / 5 * 2 * self.C)
+        assert frl_ic.as_traded_cost_bps(5, self.RT) == pytest.approx(252 / 5 * self.RT)
 
     def test_half_life_does_not_enter_the_as_traded_cost(self):
         """The signature property: a 0.4-day factor and an 800-day factor traded on
         the same fixed 5-day hold pay exactly the same, because the book is fully
         re-formed either way."""
-        assert frl_ic.as_traded_cost_bps(5, self.C) == frl_ic.as_traded_cost_bps(5, self.C)
+        assert frl_ic.as_traded_cost_bps(5, self.RT) == frl_ic.as_traded_cost_bps(5, self.RT)
         # and the function simply has no half-life parameter to pass
         import inspect
         assert "half_life" not in inspect.signature(frl_ic.as_traded_cost_bps).parameters
 
     def test_a_longer_hold_costs_proportionally_less(self):
-        assert frl_ic.as_traded_cost_bps(10, self.C) == pytest.approx(
-            frl_ic.as_traded_cost_bps(5, self.C) / 2
+        assert frl_ic.as_traded_cost_bps(10, self.RT) == pytest.approx(
+            frl_ic.as_traded_cost_bps(5, self.RT) / 2
         )
 
     @pytest.mark.parametrize("bad", [0, -5])
     def test_a_degenerate_horizon_yields_nan(self, bad):
-        assert math.isnan(frl_ic.as_traded_cost_bps(bad, self.C))
+        assert math.isnan(frl_ic.as_traded_cost_bps(bad, self.RT))
 
     def test_every_factor_shares_one_breakeven_at_a_given_horizon(self):
-        """0.278 at h=5, c=83.5, sigma=0.06 — for Flow, Tech, aggregate and Funda
-        alike. The old 2200x spread between them was the h/HL artefact."""
+        """0.106 at h=5, round trip 63.5 bp, sigma=0.06 — for Flow, Tech,
+        aggregate and Funda alike. The old 2200x spread between them was the h/HL
+        artefact; the drop from 0.278 is the two-sided estimator (pre-reg D-C1)."""
         sigma, h = 0.06, 5
-        be = frl_ic.costed_view(0.0, sigma, h, frl_ic.as_traded_cost_bps(h, self.C)).breakeven_ic
-        assert be == pytest.approx(2 * self.C / (sigma * 1e4), rel=1e-6)
-        assert be == pytest.approx(0.278, abs=0.002)
+        be = frl_ic.costed_view(0.0, sigma, h, frl_ic.as_traded_cost_bps(h, self.RT)).breakeven_ic
+        assert be == pytest.approx(self.RT / (sigma * 1e4), rel=1e-6)
+        assert be == pytest.approx(0.1059, abs=0.002)
 
     def test_breakeven_is_linear_in_cost_and_falls_as_one_over_root_h(self):
         """The two real levers, correctly scaled: cost is LINEAR (the strong one),
@@ -356,14 +362,14 @@ class TestAsTradedCost:
         def be(h, c):
             s = sigma5 * math.sqrt(h / 5)
             return frl_ic.costed_view(0.0, s, h, frl_ic.as_traded_cost_bps(h, c)).breakeven_ic
-        assert be(5, 2 * self.C) == pytest.approx(2 * be(5, self.C), rel=1e-6)
-        assert be(20, self.C) == pytest.approx(be(5, self.C) / 2, rel=1e-6)
+        assert be(5, 2 * self.RT) == pytest.approx(2 * be(5, self.RT), rel=1e-6)
+        assert be(20, self.RT) == pytest.approx(be(5, self.RT) / 2, rel=1e-6)
 
     def test_the_decay_figure_survives_as_a_labelled_diagnostic(self):
         """Spec §5.3 wants half-life reported ("Riport-mező"), so it stays — but as
         an explicitly counterfactual number, never as the gate input."""
-        d = frl_ic.decay_implied_cost_bps(9.9, self.C)
-        assert d == pytest.approx(252 / 9.9 * 2 * self.C, rel=1e-6)
+        d = frl_ic.decay_implied_cost_bps(9.9, self.RT)
+        assert d == pytest.approx(252 / 9.9 * self.RT, rel=1e-6)
         assert "counterfactual" in frl_ic.decay_implied_cost_bps.__doc__.lower()
 
     def test_the_decay_figure_cannot_reach_the_gate(self):
