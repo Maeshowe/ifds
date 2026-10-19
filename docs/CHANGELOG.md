@@ -4,6 +4,64 @@
 
 ---
 
+## 2026-10-19 (9) — az univerzum-forrás: 9 hét csendes degradálás, gyökérok és javítás
+
+> Baseline 2460 → **2462** (+2), 0 fail. A javítás **élőben verifikálva**, a fixture a
+> **valódi** payloadból.
+
+### Gyökérok — a tábla kikerült a szócikkből
+A Russell-1000 constituent-tábla **2026-08-12T20:04:06Z**-kor kikerült a
+`Russell_1000_Index` szócikkből: 81 878 B → **6 541 B** egyetlen szerkesztéssel
+(„move to [[List of Russell 1000 companies]], format"); a cél-szócikk (pageid 83952056)
+**tíz másodperccel később** jött létre, és aktívan szerkesztett. A régi URL **HTTP 200**-at
+ad — csak nincs benne constituent-tábla. A parser 0-t adott, az union-guard elutasította,
+és **9 egymást követő heti futás** (08-16 … 10-19) csendben a legacy screenerre esett.
+
+**A javítás egy sor**, saját kézzel verifikálva a **változatlan** parserrel:
+
+| | | |
+|---|---:|---|
+| S&P 500 (változatlan URL) | **503** | ablak [480, 525] ✅ |
+| R1000 (**új** URL) | **1021** | ablak [950, 1050] ✅ |
+| **union** | **1027** | ablak [950, 1100] ✅ |
+
+Egyetlen guard sem igényelt lazítást, és a legutóbbi ismert-jó univerzum (2026-08-04) 1018 volt.
+
+### 🔴 És a „fallback" soha nem létezett
+A `/stable/russell1000-constituent` **nem FMP-oldali megszűnés**: a path soha nem létezett.
+404-et ad, ugyanazzal a kulccsal, amivel az `sp500-constituent` (503), `nasdaq-constituent`
+(101) és `dowjones-constituent` (30) **200**-at. Az útvonal az sp500-testvérből lett
+extrapolálva és **próba nélkül** shipped (`50dfb3c`, 2026-05-18) — a commit „Live smoke"
+szakasza csak a Wikipedia-lábat igazolta. Vagyis **503 S&P-név sosem tudta volna** teljesíteni
+a 950–1100-as union-ablakot: a fallback az **első naptól kielégíthetetlen** volt, és a mai
+log-sor már májusban elkerülhetetlen volt. Ez a „Live API integráció — schema verifikáció
+commit ELŐTT" házszabály dokumentált hibaalakja.
+
+### data(universe) — valódi második forrás a helyére
+`/stable/etf/holdings?symbol=IWB` (iShares Russell 1000 ETF) — az ETF holdings **definíció
+szerint** index-tagság. Saját élő mérés: **1026 sor, 1021 distinct `asset`**, és a `symbol`
+mezőnek **1 distinct** értéke van (az ETF maga). Kereszt-kiadói kontroll **VONE**-nal
+(Vanguard, ugyanaz az index, más kiadó): **Jaccard 0,9941**, metszet 1019 — tehát valódi
+tagság, nem egy kiadó artefaktja. `UNION(sp500, IWB) = 1026` ✅.
+
+> ⚠️ **Séma-csapda, nevesítve a kódban:** holdings-sorban a `symbol` az **ETF**, a
+> constituens az **`asset`**. A `symbol` olvasása 504-re ejti az uniót → guard-elutasítás →
+> néma fail-open. Ezért a `_symbols()` mostantól **kötelezően megnevezett** mezőt vár.
+
+### test — a fixture a valódi payloadból (+2)
+A korábbi teszt **kitalált** `{"symbol": "X0000"}` sorokat adott **mindkét** lábnak, ezért
+zöld volt egy olyan payload-alakra, ami a productionban nem fordul elő — így maradt zöld egy
+2026-05-18 óta halott fallback. Az új fixture-ök a **2026-10-19-i élő** sémából készültek, és
+két új guard-teszt: (1) az ETF-láb az `asset`-et olvassa (a `symbol` visszaírásakor bukik),
+(2) a halott `/stable/russell1000-constituent` **nem hívható**. Visszavezetéssel verifikálva.
+
+### Amit ez NEM javít
+A **fail-open** viselkedés változatlan — ez a `50dfb3c` szándékos terve
+(„Fail-open to raw screener with WARNING log"), és a lecserélése **döntés**, nem bugfix.
+Nyitva: `docs/tasks/2026-10-19-universe-source-failure-mode.md` (következő körben).
+
+---
+
 ## 2026-10-19 (8) — a Mini felhozva, és egy dokumentálatlan outage, amit a frissítés tárt fel
 
 > Baseline 2460 passing (változatlan szám, 1 teszt átnevezve/kibővítve), 0 fail.

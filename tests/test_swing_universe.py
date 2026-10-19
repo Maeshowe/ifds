@@ -207,22 +207,95 @@ class TestCacheLifecycle:
 
 class TestFailureModes:
     def test_wikipedia_fail_fmp_succeeds(self, tmp_path):
+        """The FMP fallback, with fixtures shaped like the LIVE payloads.
+
+        The previous version of this test fed ``{"symbol": "X0000"}`` rows to both
+        legs. Production never returns that for the Russell leg: an ETF-holdings row
+        carries the ETF in ``symbol`` and the constituent in ``asset``. The test was
+        therefore green against a payload shape that could not occur, which is how a
+        fallback that had been structurally dead since 2026-05-18 kept a passing test.
+
+        Schemas captured live on 2026-10-19 with the production key:
+          /stable/sp500-constituent  -> 503 rows, keys include symbol, name, sector, cik
+          /stable/etf/holdings?symbol=IWB -> 1026 rows, 1021 distinct `asset`,
+            exactly 1 distinct `symbol` ("IWB" — the fund itself),
+            keys: asset, isin, marketValue, name, securityCusip, sharesNumber,
+                  symbol, updatedAt, weightPercentage
+        """
         source = SwingUniverseSource(cache_dir=tmp_path)
         fmp = MagicMock()
         fmp._api_key = "k"
         fmp._auth_headers = lambda: {}
-        # Two endpoint calls — SP then R1000 (overlapping namespace like the
-        # real indexes: S&P 500 is ~95% subset of Russell 1000)
-        fmp._get.side_effect = [
-            [{"symbol": f"X{i:04d}"} for i in range(500)],
-            [{"symbol": f"X{i:04d}"} for i in range(1000)],
+        # S&P 500 leg: constituent rows keyed by `symbol`.
+        sp500_rows = [
+            {"symbol": f"X{i:04d}", "name": f"Co {i}", "sector": "Technology"}
+            for i in range(503)
         ]
+        # Russell leg: ETF-holdings rows. `symbol` is the FUND on every row; the
+        # constituent is `asset`. The overlap mirrors reality (S&P 500 is almost a
+        # subset of the Russell 1000).
+        iwb_rows = [
+            {
+                "symbol": "IWB",
+                "asset": f"X{i:04d}",
+                "name": f"Co {i}",
+                "weightPercentage": 0.1,
+                "updatedAt": "2026-10-19 13:45:55",
+            }
+            for i in range(1021)
+        ]
+        fmp._get.side_effect = [sp500_rows, iwb_rows]
         with patch(
             "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
             side_effect=RuntimeError("wiki down"),
         ):
             symbols = source.get_universe(fmp_client=fmp)
         assert 950 <= len(symbols) <= 1100
+        assert "IWB" not in symbols, "the fund itself must never enter the universe"
+
+    def test_the_etf_leg_reads_asset_not_symbol(self, tmp_path):
+        """Guard the trap directly: reading `symbol` collapses the union to 504.
+
+        Measured live: `symbol` has exactly 1 distinct value across all 1026 IWB rows.
+        If a refactor reverts the field, the union falls to ~504, the 950-1100 guard
+        rejects it and the system falls open to the legacy screener — silently, which
+        is exactly how this went unnoticed for nine weeks.
+        """
+        from ifds.data import swing_universe as su
+
+        fmp = MagicMock()
+        fmp._api_key = "k"
+        fmp._auth_headers = lambda: {}
+        fmp._get.side_effect = [
+            [{"symbol": f"X{i:04d}"} for i in range(503)],
+            [{"symbol": su.R1000_ETF, "asset": f"X{i:04d}"} for i in range(1021)],
+        ]
+        union = su.fetch_from_fmp_fallback(fmp)
+        assert union is not None, "the live-shaped payload must satisfy the guard"
+        assert len(union) == 1021
+        assert su.R1000_ETF not in union
+
+    def test_the_etf_leg_requests_iwb_holdings_not_the_dead_endpoint(self, tmp_path):
+        """`/stable/russell1000-constituent` never existed — it must not be called.
+
+        Probed 2026-10-19 on the production key: 404 with a body byte-identical to a
+        fabricated route, while sp500/nasdaq/dowjones return 200 on the same key.
+        """
+        from ifds.data import swing_universe as su
+
+        fmp = MagicMock()
+        fmp._api_key = "k"
+        fmp._auth_headers = lambda: {}
+        fmp._get.side_effect = [
+            [{"symbol": f"X{i:04d}"} for i in range(503)],
+            [{"symbol": su.R1000_ETF, "asset": f"X{i:04d}"} for i in range(1021)],
+        ]
+        su.fetch_from_fmp_fallback(fmp)
+        paths = [c.args[0] if c.args else c.kwargs.get("path") for c in fmp._get.call_args_list]
+        assert "/stable/russell1000-constituent" not in paths
+        assert "/stable/etf/holdings" in paths
+        holdings_call = fmp._get.call_args_list[1]
+        assert holdings_call.kwargs["params"]["symbol"] == su.R1000_ETF
 
     def test_wikipedia_fail_no_fmp_raises(self, tmp_path):
         source = SwingUniverseSource(cache_dir=tmp_path)

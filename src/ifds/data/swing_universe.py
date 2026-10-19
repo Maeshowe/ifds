@@ -14,8 +14,14 @@ Rationale:
   monthly-rebalanced (low churn).
 
 Primary source: Wikipedia (free, stable HTML structure).
-Fallback: FMP `/stable/sp500-constituent` and `/stable/russell1000-constituent`
-(if available). Both fail → caller may fall back to legacy FMP screener.
+Fallback: FMP `/stable/sp500-constituent` + the iShares Russell 1000 ETF holdings
+(`/stable/etf/holdings?symbol=IWB`). An ETF's holdings file IS index membership by
+construction, which is why it replaces `/stable/russell1000-constituent` — that path
+never existed on FMP: it returns 404 with a body byte-identical to a fabricated route,
+on the same key that serves sp500/nasdaq/dowjones with 200. It was extrapolated from
+the sp500 sibling and shipped unprobed in 2026-05-18 (`50dfb3c`), so the "fallback"
+was structurally unsatisfiable from day one — 503 S&P names alone can never clear the
+950-1100 union window. Both fail → caller falls open to the legacy FMP screener.
 
 Cache: `state/swing_universe/universe.json` with 7-day TTL (covers
 monthly rebalances with margin).
@@ -37,11 +43,26 @@ logger = logging.getLogger(__name__)
 
 
 SP500_WIKI_URL = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-R1000_WIKI_URL = "https://en.wikipedia.org/wiki/Russell_1000_Index"
+
+# The Russell 1000 constituent table was MOVED OUT of the index article on
+# 2026-08-12T20:04:06Z: `Russell_1000_Index` went from 81,878 to 6,541 bytes in one
+# edit ("move to [[List of Russell 1000 companies]], format"), and the destination
+# article (pageid 83952056) was created ten seconds later and is actively maintained.
+# The old URL still returns HTTP 200 — it just has no constituent table any more, so
+# the parser returned 0 and the union guard rejected the result. Every weekly run from
+# 2026-08-16 on failed this way and fell open to the legacy screener in silence.
+# Verified live 2026-10-19 with the UNCHANGED parser: 1021 symbols from the new URL,
+# 503 from S&P 500, union 1027 — all three plausibility windows pass untouched.
+R1000_WIKI_URL = "https://en.wikipedia.org/wiki/List_of_Russell_1000_companies"
 
 # Plausibility windows. Indexes shift slightly month-to-month; if the parse
 # result is outside these bounds we treat it as a parsing failure and either
 # fall back to FMP or refuse to write the cache.
+#: Russell 1000 proxy for the FMP fallback. An ETF's holdings file is index
+#: membership by construction; VONE is the cross-issuer control.
+R1000_ETF = "IWB"
+R1000_ETF_CONTROL = "VONE"
+
 SP500_MIN, SP500_MAX = 480, 525
 R1000_MIN, R1000_MAX = 950, 1050
 UNION_MIN, UNION_MAX = 950, 1100
@@ -245,25 +266,38 @@ def fetch_from_fmp_fallback(fmp_client: Any) -> list[str] | None:
             params={"apikey": getattr(fmp_client, "_api_key", "")},
             headers=getattr(fmp_client, "_auth_headers", lambda: {})(),
         )
+        # IWB = iShares Russell 1000 ETF. Its holdings file is index membership by
+        # construction. Cross-validated 2026-10-19 against VONE (Vanguard Russell
+        # 1000 — a different issuer tracking the same index): Jaccard 0.9951, so the
+        # list is membership and not one issuer's artifact.
         r1000_resp = fmp_client._get(
-            "/stable/russell1000-constituent",
-            params={"apikey": getattr(fmp_client, "_api_key", "")},
+            "/stable/etf/holdings",
+            params={"symbol": R1000_ETF, "apikey": getattr(fmp_client, "_api_key", "")},
             headers=getattr(fmp_client, "_auth_headers", lambda: {})(),
         )
     except Exception as exc:  # network, auth, schema mismatch — fall back
         logger.warning("FMP constituent fallback failed: %s", exc)
         return None
 
-    def _symbols(resp: list[dict] | None) -> list[str]:
+    def _symbols(resp: list[dict] | None, field: str = "symbol") -> list[str]:
+        """Extract tickers, normalising class shares to the hyphen form.
+
+        ``field`` matters: in an ETF-holdings row ``symbol`` is the ETF ITSELF and the
+        constituent ticker is ``asset``. Reading ``symbol`` there yields 1 distinct
+        name, the union collapses to 504 and the guard rejects it — a silent,
+        plausible-looking failure, so the field is named explicitly at every call.
+        """
         if not resp:
             return []
         return [
-            (row.get("symbol") or row.get("ticker") or "").upper().replace(".", "-")
+            (row.get(field) or "").upper().replace(".", "-")
             for row in resp
-            if (row.get("symbol") or row.get("ticker"))
+            if row.get(field)
         ]
 
-    union = sorted(set(_symbols(sp500_resp)) | set(_symbols(r1000_resp)))
+    union = sorted(
+        set(_symbols(sp500_resp, "symbol")) | set(_symbols(r1000_resp, "asset"))
+    )
     if UNION_MIN <= len(union) <= UNION_MAX:
         return union
     logger.warning(
