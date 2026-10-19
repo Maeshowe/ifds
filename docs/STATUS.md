@@ -70,9 +70,18 @@ A `breakeven_ic` lineáris a forgásban, a forgás `252/half_life` — tehát:
 | Funda (0,10) | **799,8** | **0,0017** 🟢 |
 | aggregát | 9,9 | 0,1403 |
 
-A mért végrehajtási költség **83,5 bp/oldal** → a HYP-005 h=5 IC-jéhez (+0,0130)
-**≤ 7,7 bp/oldal** kellene, nulla marzzsal. Még **ingyenes belépéssel** is a
-kilépési oldal egymaga a bruttó **5,4-szerese**.
+> 🔄 **2026-10-19 — a fal újramérve** (commit `808e8fe`). A régi `2 × medián(|terv→fill|)`
+> becslő feltételezte, hogy a kilépés a belépéssel egyenértékű, és a szimmetrikus
+> elsodródás fél-szélességét költségként terhelte. A valódi súrlódás, oldalanként mérve:
+> belépés **+40,3 / +52,2 bp** (n=89), kilépés **+23,2 / +32,5 bp** (n=108) →
+> round trip **63,5 / 84,7 bp** → **fal 0,1059 / 0,1412** (a régi 0,2783 helyett).
+> **A verdikteken ez nem változtat**: a mért `|IC| < 0,009` az új, kötő faltól is
+> **~16×** van. MOO belépővel a fal **0,0387** lenne (D-C4, production-javítás, nyitva).
+> Riport: `docs/review/2026-10-19-cost-estimator-implementation.md`.
+
+A *korábbi* (2026-10-04-i) számítás **83,5 bp/oldal**-lal dolgozott → a HYP-005 h=5
+IC-jéhez (+0,0130) **≤ 7,7 bp/oldal** kellett volna. Az új becslővel a küszöb enyhébb,
+de a nagyságrendi következtetés változatlan.
 
 ### Egyetlen fenntartás
 

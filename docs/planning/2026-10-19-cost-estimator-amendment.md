@@ -1,8 +1,11 @@
 # PRE-REG AMENDMENT — a költség-becslő: csak valódi súrlódás, oldalanként mérve
 
 **Dátum:** 2026-10-19
-**Státusz:** ⏳ **JAVASLAT — Tamás döntésére vár.** Implementáció csak jóváhagyás után.
-**Módosítja:** FRL-spec **§5.3** (becslő) · `scripts/research/frl_cost.py::build_cost_model`
+**Státusz:** ✅ **JÓVÁHAGYVA és IMPLEMENTÁLVA** — D-C1…D-C4 (Tamás, 2026-10-19: »Mind a 4 igen«), majd az alábbi ERRATA D-E1…D-E6 (Tamás, 2026-10-19: »Mind a 6 igen«). Implementáció: commit `808e8fe`, riport: `docs/review/2026-10-19-cost-estimator-implementation.md`.
+> ⚠️ A §3/§5 **táblái a helyesbítés ELŐTTI** számokat közlik — a szállított értékek az ERRATA §E-8 döntései szerintiek (fal **0,1059 / 0,1412**). Lásd a riportot.
+**Módosítja:** FRL-spec **§5.3** (becslő) · `scripts/research/frl_cost.py` + új `frl_fills.py` · **és** a (e)-kapu pre-reg
+`docs/planning/2026-10-04-economic-gate-preregistration.md` **§3.1/§3.2** (a `breakeven(p75)` slot tartalma — ott a **§9** rögzíti;
+ezt az eredeti fejléc elhallgatta, lásd ERRATA §E-3)
 **Előzmény:** `docs/review/2026-10-18-roundtrip-cost.md` §8 — három nyitott kérdés, itt eldöntve
 
 ---
