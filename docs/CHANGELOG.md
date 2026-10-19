@@ -4,6 +4,51 @@
 
 ---
 
+## 2026-10-19 (4) — a fal horizont x vegrehajtas szerint: a vegrehajtas az elso lepes
+
+> Mérési riport, nulla kódváltozás. `docs/review/2026-10-19-execution-wall-by-horizon.md`
+
+A 3-as pont (új jelcsalád) tervezési premisszáit megmértem, mielőtt pre-reg születne.
+A `breakeven ∝ 1/√h`, tehát a horizont strukturális lever — de a **végrehajtás** nagyobb.
+
+Három forgatókönyv, mind mért szám (round trip, pont / kötő):
+
+| | | |
+|---|---|---:|
+| **A — ma** | 09:31 market belépő, vegyes kilépés | 63,5 / **84,7 bp** |
+| **B — MOO belépő** | nyitó aukció, kilépés változatlan | 24,6 / **36,5 bp** |
+| **C — minden aukciós** | nyitó + záró aukció | 2,7 / **7,9 bp** |
+
+Az aukció nem ingyen van: **+1,35 / +3,93 bp** (68 MOC-kilépésen mérve), míg a csengő
+utáni market ugyanazon a mintán **+60,4 / +80,1 bp** — **45× különbség**.
+
+Fal (kötő ág) a pontozott univerzum mért σ_cs-ével:
+
+| h | T_eff | erő | A | B | C |
+|---:|---:|:---:|---:|---:|---:|
+| 5 | 16,2 | OK | **0,1428** | 0,0615 | 0,0132 |
+| 7 | 11,3 | OK | 0,1216 | 0,0523 | 0,0113 |
+| 10 | 7,6 | OK | 0,1019 | **0,0439** | 0,0095 |
+| 20 | 3,3 | gated | 0,0736 | 0,0317 | 0,0068 |
+
+A publikált erős keresztmetszeti faktorok IC-je 0,02–0,05.
+
+**Következtetés:** a mai végrehajtással minden tesztelhető horizonton (h ≤ 10) a fal a
+documentált legjobb faktorok **2–16-szorosa** — a keresés aritmetikailag reménytelen.
+A **MOO belépő nem optimalizáció, hanem a keresés előfeltétele**, és stratégia-változás
+nélkül (a döntés már megvan az előző záróból; ma egy perccel a csengő UTÁN adjuk be).
+A C forgatókönyv 10,8×-os, de a stopot MOC-ra tenni **stratégia-változás** — elmaradt
+hasznot okoz, amit ez a tábla nem tartalmaz, ezért ellenpróba nélkül nem nettó nyereség.
+
+**Sorrend:** (1) MOO belépő, (2) MOC-kilépés ellenpróba, (3) jelcsalád pre-reg a B-fal
+ellen. Nem felcserélhető: a falat a keresés UTÁN javítani pontosan az a mozdulat, amit a
+házszabály tilt.
+
+Adat-egészség: a `returns.parquet` horizontonkénti utolsó nem-NaN dátuma mindegyik
+esetben pontosan `10-02 − h` — nincs elavulás. σ_cs(5) = 0,0593, egyezik a pre-reg 0,06-ával.
+
+---
+
 ## 2026-10-19 (3) — a költség-becslő: csak valódi súrlódás, oldalanként mérve
 
 > Baseline 2418 → **2435** (+17), 0 fail. **A fal 0,2783 → 0,1059 / 0,1412.**
