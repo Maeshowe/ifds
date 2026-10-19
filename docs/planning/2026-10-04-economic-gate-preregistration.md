@@ -277,3 +277,32 @@ Két további invariáns tesztelve: a kapu **nem ment meg** statisztikai bukást
 előjel-ellentmondást (`test_the_gate_never_rescues_a_sign_contradiction`).
 
 Tesztek: 2287 → **2317** (+30), 0 fail.
+
+---
+
+## 9. AMENDMENT-HIVATKOZÁS — 2026-10-19, a `breakeven(p75)` slot cseréje
+
+> Ezt a bejegyzést a **2026-10-19-i** audit tette ide: a költség-becslő amendmentje
+> (`docs/planning/2026-10-19-cost-estimator-amendment.md`, **D-C3**) **ennek a
+> dokumentumnak a §3.1/§3.2-jét módosítja**, de a fejléce csak az FRL-spec §5.3-at
+> nevezte meg. A hivatkozás hiánya miatt az audit-lánc **ebből az irányból nem
+> mutatott** a változásra. Pótolva.
+
+**Mi változik:** a `breakeven(p75)` slot tartalma a `p75(|slippage|)` per-trade
+kvantilisről a **középérték egyoldalas 95% felső konfidencia-korlátjára**.
+
+**Miért érinti a §6.1 (2) pontot:** az új becslőt fixen tartva a §3.1 slot-címke szó
+szerinti olvasata **118,5 bp → breakeven 0,1976**, a D-C3 UCB95-je **90,8 bp → 0,1514**
+— a PROMOTE-ot kapuzó **egyetlen** küszöb **19–23%-kal lazul**, az eredmények
+ismeretében. A §6.1 (2) ezt a mozdulatot nevezi meg sértésként.
+
+**A felhatalmazás:** Tamás **2026-10-19-i** írásbeli jóváhagyása (D-C1…D-C4, „Mind a 4
+igen"), az amendment §8 tábláján. A §6.1 (2) **nem** tiltja az ilyen cserét — azt tiltja,
+hogy *bejelentés nélkül* történjék. Ez a bejegyzés a bejelentés.
+
+**Még nyitott (az amendment §E-8-ban):** a slot pontos statisztikai konvenciója
+(egyoldalas 95%, nap-klaszterezett bootstrap) és a minta-ablak. Amíg az nyitva van,
+**a motor nem változik** — a §8-ban leírt implementáció (medián/p75 sáv) él tovább.
+
+> ⚠️ A §6.2 (1) „pre-reg forrás megnevezése" kísérő ezentúl **két** dokumentumot jelent:
+> ezt (a kapu szövegéért) és a 2026-10-19-i amendmentet (a slot tartalmáért).
