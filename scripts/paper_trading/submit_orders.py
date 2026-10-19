@@ -260,7 +260,6 @@ def submit_swing_market_only(
     # --- Live swing submit ---
     from lib.connection import connect, get_account, disconnect
     from lib.heartbeat import touch as heartbeat_touch
-    from ib_insync import MarketOrder
 
     heartbeat_touch("submit_attempt", label=today_str)
     # raise_on_exhaust=True so the outer orchestrator (lib.retry_orchestrator)
@@ -296,28 +295,20 @@ def submit_swing_market_only(
             logger.warning(f"  Skipping {sym}: contract not found in IBKR")
             continue
 
-        # Single market BUY (no bracket).
-        # Explicit tif='DAY' set short-circuits the IBKR paper-account preset
-        # lookup (Workstation Configuration → Order Presets → Stocks → Default
-        # TIF), which otherwise triggers "Error 10349, Order TIF was set to
-        # DAY based on order preset" + a hard Cancel on the swing market-only
-        # path. The legacy bracket builder (lib/orders.py) set tif='DAY'
-        # explicitly, but the swing rewrite (`e887749`/`5dfab55`) omitted it.
-        #
-        # Note: tif='GTC' was tried first (16:05 Day 3) and silently failed
-        # — GTC is only valid for limit orders; with MarketOrder the IBKR
-        # paper account marked the trade PreSubmitted then cancelled it
-        # after disconnect, creating a state/IBKR divergence. tif='DAY'
-        # is the correct/native MarketOrder TIF.
-        #
-        # outsideRth=True keeps the order alive across the RTH boundary
-        # if it doesn't fill immediately (defensive — at 15:31 CEST the
-        # NYSE has been open ~1 min, the order should fill within seconds).
-        order = MarketOrder(action="BUY", totalQuantity=t["total_qty"])
-        order.account = account
-        order.orderRef = f"IFDS_SWING_{sym}"
-        order.tif = "DAY"
-        order.outsideRth = True
+        # Entry routed into the OPENING AUCTION when that is still reachable
+        # (+1.35 bp measured) and falling back to today's plain market entry
+        # (+60.4 bp measured) when it is not. The decision, the TIF lesson and
+        # the DST hazard all live in ``lib.orders.create_swing_entry_order`` so
+        # there is one tested place that decides, not an inline branch here.
+        # Measurement: docs/review/2026-10-19-execution-wall-by-horizon.md
+        from lib.orders import create_swing_entry_order
+
+        order, route = create_swing_entry_order(
+            qty=t["total_qty"], account=account, ticker=sym, logger=logger
+        )
+        logger.info(f"  {sym}: entry routed as {route} (tif={order.tif})")
+        if evt:
+            evt.log("submit", "entry_route", ticker=sym, route=route, tif=order.tif)
         trade = ib.placeOrder(contract, order)
         ib.sleep(1.5)
 

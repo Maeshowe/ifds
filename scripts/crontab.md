@@ -25,6 +25,16 @@
 #   - 2026 ősz: EU okt 25 → US nov 1 (1 hét eltérés)
 #     Ugyanaz a probléma, okt 25 – nov 1 között
 #
+#   🔒 A BELÉPŐRE ez 2026-10-19 óta KÓDBAN kezelt, nem kézi szerkesztéssel:
+#      az `ifds.utils.calendar.is_before_moo_cutoff()` America/New_York-ban
+#      értékel, és a 09:28 ET cutoff után a belépő visszaesik a régi MKT/DAY
+#      alakra (hangos WARNING-gal). A DST-gap héten tehát a MOO ELMARAD, de
+#      nem keletkezik elutasított order. Ha a MOO-t abban a héten is akarjuk,
+#      a slotot 14:20-ra kell vinni — a guard teszteli mindkét esetet
+#      (tests/test_moo_entry_routing.py).
+#      ⚠️ A 21:40 MOC és a 22:00 eod_eval slotokra ez NEM vonatkozik: azok
+#      továbbra is kézi szerkesztést igényelnek a gap-héten.
+#
 # Minden script tartalmaz trading day guard-ot (NYSE holidays → exit 0)
 # =============================================================================
 
@@ -62,11 +72,35 @@
 # percben futott és felülírta a close által frissített state-et.
 30 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/close_positions.py --mode=eod_flags
 
-# Submit market BUY (Day 63 §3.6 — 15:31 CEST entry, 1 min after close)
-# 15:31 Budapest = 09:31 EDT (NYSE open + 1 min, biztonság az IBKR Error 10349 ellen)
+# Submit MOO BUY (2026-10-19 — nyitó aukciós belépő)
+# 15:20 Budapest = 09:20 EDT — a NYSE MOO cutoff (09:28 ET) ELŐTT 8 perccel.
+#
+# ⚠️ MIÉRT MOZDULT 15:31 → 15:20. A 15:31 = 09:31 ET, azaz EGY PERCCEL a csengő
+# UTÁN, és a mérés szerint a belépési költség TELJES egésze ez az egy perc:
+# nyitás→fill +48,3 bp [31,0; 64,3], p < 0,0001, míg terv→nyitás −1,5 bp (p=0,88).
+# Az aukciós megbízás ugyanezen a könyvön +1,35 bp. Forrás:
+# docs/review/2026-10-19-execution-wall-by-horizon.md
+#
+# ⚠️ A SORREND MEGFORDUL: a submit mostantól a close ELŐTT fut (15:20 vs 15:30).
+# Két következménye van, mindkettő konzervatív, de tudni kell róluk:
+#   1. Egy MA exitelő ticker 15:20-kor még pozícióként látszik (`get_existing_symbols`),
+#      tehát aznap NEM lép be újra. Swing-architektúrában (5 napos hold, előző esti
+#      flag) ez ritka és inkább kívánatos — de viselkedés-változás.
+#   2. A MOO BUY az aukcióban (09:30:00) tölt, az eod_flags SELL utána → a vétel
+#      megelőzi az eladást. Teli könyv + rotáció esetén buying-power-t igényel.
+# A Day 2 (2026-05-19) same-minute state-race NEM tér vissza: a két job 10 percre van.
+#
+# ⚠️ NINCS ÉLŐ SMOKE. A kereskedés áll (D8), ezért a `tif="OPG"` kombinációt IBKR
+# paper accounton MÉG NEM ELLENŐRIZTÜK. A paper account csendben elutasít dolgokat
+# (lásd ifds-rules.md 2026-04-08, Adaptive algo) → az ÚJRAINDÍTÁS ELSŐ NAPJÁN
+# kötelező ellenőrizni: `trade.orderStatus.status` és az IBKR Orders tab.
+# A kód `lib.orders.create_swing_entry_order` guardja a 09:28 ET cutoff után
+# automatikusan visszaesik a régi MKT/DAY belépőre, tehát egy DST-elcsúszás
+# nem hibát okoz, hanem a status quo-t.
+#
 # Swing-mode: market BUY only (no bracket), state/swing_positions.json írva
 # (külön IBKR clientId: submit=10, close=11).
-31 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/submit_orders.py
+20 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/submit_orders.py
 
 # IBKR submit heartbeat monitor — 15:45 CEST, 15 min after submit
 45 15 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && source .env && source .venv/bin/activate && python scripts/paper_trading/monitor_submit_heartbeat.py >> logs/heartbeat_monitor_$(date +\%Y\%m\%d).log 2>&1

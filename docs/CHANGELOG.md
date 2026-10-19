@@ -4,6 +4,54 @@
 
 ---
 
+## 2026-10-19 (6) — MOO belépő: a nyitó aukció a csengő utáni market helyett
+
+> Baseline 2435 → **2446** (+11), 0 fail. **Production trading-path változás**
+> (Tamás jóváhagyása 2026-10-19). ⚠️ **Élő smoke nélkül** — a kereskedés áll.
+
+### feat(paper_trading) — `lib.orders.create_swing_entry_order`
+A belépő a **nyitó aukcióba** megy, amikor az még elérhető: IBKR-ben `MKT` + `tif="OPG"`,
+`outsideRth=False` (részvényre nincs külön MOO típus).
+
+**Miért:** a belépési költség teljes egésze a nyitás **utáni** elsodródás volt — a 15:31-es
+slot egy perccel a csengő UTÁN adta be a market ordert. Mérve: terv→nyitás **−1,5 bp**
+(p = 0,88), nyitás→fill **+48,3 bp** (p < 0,0001). Aukciós megbízás ugyanezen a könyvön
+**+1,35 bp**, a csengő utáni market **+60,4 bp** — **45×**. A döntés az előző záróból
+származik, tehát az aukció ugyanazt a döntést hajtja végre korábban; nincs
+információ-veszteség, a tartási periódus változatlan.
+
+### A guard — ET-ben, nem a cron wall-clockon
+`ifds.utils.calendar.is_before_moo_cutoff()` **America/New_York**-ban értékel, a NYSE
+**09:28 ET** cutoff ellen, és **fail-closed** (nem-session → False). A cutoff után a belépő
+hangos WARNING-gal **visszaesik** a régi `MKT`/`DAY` alakra.
+
+Ez nem elméleti: a US és EU DST váltás **egy hét** eltéréssel van (2026: EU okt 25,
+US nov 1), és abban a héten ugyanaz a budapesti slot **egy órával későbbre** esik ET-ben.
+A crontab eddigi mitigációja kézi szerkesztés volt; a belépőre ez most kódban kezelt.
+Konkrétan mérve: 15:20 BP → 2026-10-19-en 09:20 ET (MOO ✅), 2026-10-28-án **10:20 ET**
+(MOO ❌, fallback). A gap-héten 14:20 BP a működő slot.
+
+### Cron: 15:31 → 15:20 — és a sorrend megfordul
+A submit mostantól a close **előtt** fut. Két konzervatív következmény, mindkettő
+dokumentálva a `crontab.md`-ben: (1) egy ma exitelő ticker aznap **nem** lép be újra
+(15:20-kor még pozícióként látszik), (2) a MOO BUY az aukcióban tölt, az eod_flags SELL
+utána → teli könyv + rotáció esetén buying-power kell. A Day 2 same-minute state-race
+**nem** tér vissza: a két job 10 percre van.
+
+### ⚠️ Nincs élő smoke
+A `tif="OPG"` kombinációt IBKR paper accounton **nem ellenőriztük** — a kereskedés áll (D8).
+A paper account csendben elutasít dolgokat (ifds-rules.md 2026-04-08, Adaptive algo), ezért
+az **újraindítás első napján kötelező** a `trade.orderStatus.status` + Orders tab ellenőrzés.
+A guard miatt a legrosszabb eset a status quo, nem hiba.
+
+### test — 11 teszt, hermetikus
+`tests/test_moo_entry_routing.py`: a cutoff-guard (ET-horgonyzás, DST-gap hét, hétvége,
+négy host-időzóna → egy válasz) és az order-építő (OPG/DAY, outsideRth, orderRef, a
+fallback **hangos**, GTC soha). Nincs IBKR-kapcsolat, nincs óra-függés — minden eset
+explicit időpontot ad be.
+
+---
+
 ## 2026-10-19 (5) — aukciós kilépés: ellenpróba a valódi könyvön
 
 > Mérési riport, nulla kódváltozás a production úton.

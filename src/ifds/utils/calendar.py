@@ -6,8 +6,9 @@ The witching day logic is self-contained (no external dependency).
 
 from __future__ import annotations
 
-from datetime import date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from functools import lru_cache
+from zoneinfo import ZoneInfo
 
 import exchange_calendars as xcals
 
@@ -120,6 +121,36 @@ def get_market_close_time_cet(d: date | None = None) -> time | None:
     # Simplified: always +6h (DST offsets cancel for US/EU same-season)
     cet_hour = et_close.hour + 6
     return time(cet_hour, 0)
+
+
+#: Exchange timezone. Every auction deadline is defined here and nowhere else.
+ET = ZoneInfo("America/New_York")
+
+#: NYSE stops accepting Market-on-Open orders (MKT + TIF=OPG) at 09:28 ET.
+#: Source: NYSE Rule 7.35 / IBKR order-type reference. Two minutes of margin
+#: before the 09:30 auction, and it does NOT move on early-close days — those
+#: shorten the session's end, not its start.
+MOO_CUTOFF_ET: time = time(9, 28)
+
+
+def is_before_moo_cutoff(now: datetime | None = None) -> bool:
+    """True when an OPG order placed *now* can still reach today's opening auction.
+
+    Anchored on ``America/New_York``, never on the host clock and never on a cron
+    slot. The US and EU daylight-saving switches are a week apart (2026: EU on
+    Oct 25, US on Nov 1), and inside that week a Budapest cron slot lands an hour
+    LATER in ET than the crontab's comment claims. The documented mitigation for
+    that window is a manual crontab edit; an OPG order submitted after 09:28 ET
+    is rejected or deferred to the next session, so this guard must not depend on
+    the edit having happened.
+
+    Returns False outside a trading session, so it fails CLOSED: the caller then
+    keeps today's plain market entry rather than placing an order that cannot fill.
+    """
+    moment = datetime.now(ET) if now is None else now.astimezone(ET)
+    if not is_nyse_trading_day(moment.date()):
+        return False
+    return moment.timetz().replace(tzinfo=None) < MOO_CUTOFF_ET
 
 
 def next_nyse_trading_day(d: date | None = None) -> date:

@@ -1322,16 +1322,34 @@ nyitott pozíciót tartja; a stop/TP1/TP2/trail szintek a `state/swing_positions
 ```
 14:30   Phase 4-6 cron (cron_intraday)
         → execution_plan.csv generálódik 14:55-re
+15:20   submit_orders.py — MOO (nyitó aukciós) BUY; state/swing_positions.json írva
 15:25   check_gateway.py pre-flight (IBKR Gateway alive?)
-15:30   submit_orders.py — market BUY only (no bracket); state/swing_positions.json írva
-        + másnap exit-flag-ek végrehajtása (close_positions.py --mode=eod_flags)
+15:30   másnapi exit-flag-ek végrehajtása (close_positions.py --mode=eod_flags)
 21:40   close_positions.py --mode=time_stop (same-day TIME_STOP MOC)
 22:00   pt_monitor.py --mode=eod_eval — daily 6-condition eval, state frissítés
 22:05   eod_report.py — Telegram daily summary
 ```
 
-**Submit (15:30):** `submit_swing_market_only` egy market BUY-t ad fel per ticker
-(`orderRef=IFDS_SWING_{sym}`). A silent-reject guard (`status not in PreSubmitted/Submitted/Filled/PendingSubmit`)
+**Submit (15:20) — MOO belépő (2026-10-19 óta):** `submit_swing_market_only` egy
+**nyitó aukciós** BUY-t ad fel per ticker (`orderRef=IFDS_SWING_{sym}`). IBKR-ben ez
+`MKT` + `tif="OPG"` (részvényre nincs külön MOO típus), `outsideRth=False`.
+
+**Miért:** a belépési költség **teljes egésze** a nyitás utáni elsodródás volt — a korábbi
+15:31-es slot egy perccel a csengő UTÁN adta be a market ordert. Mérve: terv→nyitás
+**−1,5 bp** (p = 0,88), nyitás→fill **+48,3 bp** (p < 0,0001); aukciós megbízás ugyanezen
+a könyvön **+1,35 bp**. A döntés az előző záróból származik, tehát az aukció **ugyanazt a
+döntést** hajtja végre korábban és jobban — nincs információ-veszteség, a tartási periódus
+változatlan. Forrás: `docs/review/2026-10-19-execution-wall-by-horizon.md`.
+
+**A guard (`lib.orders.create_swing_entry_order`):** a NYSE MOO cutoff **09:28 ET**, és az
+`ifds.utils.calendar.is_before_moo_cutoff()` **America/New_York**-ban értékel — nem a host
+órán és nem a cron sloton. A cutoff után (pl. a US/EU DST 1 hetes eltérés-ablakában, amikor
+ugyanaz a budapesti slot egy órával későbbre esik ET-ben) a belépő **hangos WARNING-gal
+visszaesik** a régi `MKT`/`DAY` alakra. Elutasított order tehát nem keletkezhet; a legrosszabb
+eset a status quo. Az `entry_route` esemény (`MOO` vagy `MKT_OPEN_FALLBACK`) a PT event logba
+kerül.
+
+A silent-reject guard (`status not in PreSubmitted/Submitted/Filled/PendingSubmit`)
 loggol, de tovább megy. A `SwingPosition` felépül a CSV `stop_loss` mezőből visszafejtett
 ATR-rel (`ATR = (entry - stop_loss) / swing_mental_stop_atr_multiple`).
 
