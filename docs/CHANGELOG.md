@@ -4,6 +4,46 @@
 
 ---
 
+## 2026-10-19 (2) — a BH-FDR a ledger teljes történetén futott volna, de 0 sort látott
+
+> Baseline 2415 → **2418** (+3), 0 fail. **Nem verdikt-változtató** (bizonyítva lent).
+
+### fix(research) — `frl_ledger.deflate()` kulcs-eltérés
+A `deflate()` a `metrics[era]["p"]` mezőt olvasta, a `close_attempt` viszont
+`aggregate().to_dict()`-et perzisztál, aminek a kulcsa **`p_value`**. Következmény:
+`deflate(read_ledger())` **0 családot adott vissza 23 ledger-sorból**. A
+`run_frl_batch` csak a futás közbeni `provisional` sorokon nevezi át a kulcsot `p`-re,
+így a `closed_history` **soha nem számított bele** — a BH `m`-je az aktuális futás
+családjait számolta, nem a teljes történetet.
+
+**Pre-reg forrás:** FRL-spec 234. sor — *„Elsődleges: Benjamini-Hochberg FDR, q = 0.10,
+a ledger **TELJES** történetén"*. A motor ezt nem implementálta; a fix a spechez igazítja,
+nem az eredmény felé. (Házszabály: „a pre-reg a kánon; a motor csak implementál".)
+
+### Verdikt-stabilitás (kötelező kísérő)
+| | fix előtt | fix után |
+|---|---:|---:|
+| `deflate()` által visszaadott családok | **0** | **10** |
+| legkisebb családi p | — | **0,2787** |
+| bármelyik `bh_pass` | nem | **nem** |
+| bármelyik `bonferroni_pass` | nem | **nem** |
+
+A legkisebb q, amelynél **bármelyik** család átmenne BH-n: **1,1103** — a production
+q = 0,10-hez képest **11,1×** tartalék. Mind a 23 tárolt verdikt változatlan; a ledger
+**nem lett újrafuttatva** (házszabály 4. kísérő).
+
+### test — a rés zárása
+Három teszt (+3). A régi `TestDeflate` fixture-ök kézzel írt `{"swing": {"p": ...}}`
+alakot használtak — **olyan sémát, amit a production soha nem ír**, ezért a kimaradás
+végig zölden átment rajtuk. Az új harmadik teszt a **valódi producerre** (`frl_ic.aggregate`)
+horgonyoz: ha a mező megint átnevezik, bukik. Visszavezetéssel verifikálva.
+
+### Felfedezés módja
+Egy 67-ágenses adverzariális panel (`invariance-proof` lencse) a költség-becslő
+cseréjének előkészítése közben. Nem a becslő része — **külön commit**.
+
+---
+
 ## 2026-10-19 — időzóna-rés: 6 piros teszt, és mögötte egy látens prod-bug
 
 > Baseline 2413 → **2415** (+2), 0 fail — **öt időzónában ellenőrizve**

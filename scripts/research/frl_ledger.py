@@ -299,7 +299,15 @@ def deflate(entries: Iterable[dict], q: float = cfg.FDR_Q) -> list[dict]:
         hyp = entry.get("hyp_id", "")
         lane = entry.get("data_lane", "")
         for era, metrics in (entry.get("metrics") or {}).items():
-            p = (metrics or {}).get("p")
+            # The persisted ledger stores the era p under "p_value"
+            # (``aggregate().to_dict()``); only run_frl_batch's in-flight
+            # `provisional` rows rename it to "p". Reading "p" alone silently
+            # dropped EVERY closed row, so BH's m counted the current run only —
+            # contradicting FRL-spec line 234, "Benjamini-Hochberg FDR, q = 0.10,
+            # a ledger TELJES történetén". The spec is canon; this reads both.
+            p = (metrics or {}).get("p_value")
+            if p is None:
+                p = (metrics or {}).get("p")
             if p is None:
                 continue
             by_family.setdefault((hyp, lane, era), []).append(float(p))

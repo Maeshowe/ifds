@@ -150,6 +150,43 @@ class TestDeflate:
         assert len(rows) == 1
         assert rows[0]["n_variants"] == 1
 
+    def test_deflate_reads_the_key_the_ledger_actually_persists(self, tmp_path):
+        """``close_attempt`` persists the era p under "p_value", not "p".
+
+        Reading only "p" silently dropped every CLOSED row, so BH's m counted
+        the current run instead of the ledger's whole history — contradicting
+        FRL-spec line 234 ("Benjamini-Hochberg FDR, q = 0.10, a ledger TELJES
+        történetén"). Measured on the real ledger before the fix:
+        ``deflate(read_ledger())`` returned 0 families from 23 rows.
+        """
+        path = tmp_path / "l.jsonl"
+        self._closed(path, "HYP-004", "h5", {"swing": {"p_value": 0.02}})
+        rows = ledger.deflate(ledger.read_ledger(path))
+        assert len(rows) == 1, "a persisted row must not be invisible to deflation"
+        assert rows[0]["p_family"] == pytest.approx(0.02)
+
+    def test_deflate_still_reads_the_in_flight_provisional_key(self, tmp_path):
+        """run_frl_batch builds `provisional` rows with the key renamed to "p"."""
+        path = tmp_path / "l.jsonl"
+        self._closed(path, "HYP-004", "h5", {"swing": {"p": 0.02}})
+        rows = ledger.deflate(ledger.read_ledger(path))
+        assert len(rows) == 1
+        assert rows[0]["p_family"] == pytest.approx(0.02)
+
+    def test_the_producer_still_emits_the_key_deflation_reads(self):
+        """Close the gap, not the instance: pin producer and consumer together.
+
+        The old fixtures hand-wrote {"swing": {"p": ...}}, a shape production
+        never emits, so they stayed green through the whole outage. This asserts
+        against the REAL producer — rename the field again and this fails.
+        """
+        pd = pytest.importorskip("pandas")
+        import frl_ic
+
+        summary = frl_ic.aggregate(pd.Series([0.01, 0.02, 0.03]), horizon=5, era="swing")
+        keys = summary.to_dict().keys()
+        assert "p_value" in keys, f"the producer renamed its p field: {sorted(keys)}"
+
     def test_bonferroni_is_stricter_than_bh(self, tmp_path):
         path = tmp_path / "l.jsonl"
         # m=6 families, q=0.10 -> Bonferroni alpha = 0.0167; p=0.02 clears BH
