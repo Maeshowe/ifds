@@ -4,6 +4,63 @@
 
 ---
 
+## 2026-10-19 (8) — a Mini felhozva, és egy dokumentálatlan outage, amit a frissítés tárt fel
+
+> Baseline 2460 passing (változatlan szám, 1 teszt átnevezve/kibővítve), 0 fail.
+> **Deploy művelet**, nem fejlesztés.
+
+### A Mini állapota a művelet előtt
+```
+Mini HEAD:     de3784f (2026-10-03, a D8 leállás)   ← 16 nap elmaradás
+origin/master: a7430e4
+lokális HEAD:  f09123d (9 pusholatlan commit)
+```
+IBKR: TWS a **7497**-en (a kód `PAPER_PORT`-ja — helyes), `check_gateway.py` OK,
+account `DUH118657`, **0 pozíció / 0 nyitott order**, NetLiq $94 703,34.
+
+### A művelet
+1. `git checkout -- research/cost_model.json` — a Mini gép-generált **v1** fájlja
+   blokkolta volna a pullt (az új motor **szándékosan visszautasítja** a v1-et).
+2. ff-merge `de3784f → a7430e4` (86 fájl). Nulla untracked ütközés, előre ellenőrizve.
+3. `crontab`: submit **15:31 → 15:20**, biztonsági mentéssel
+   (`state/crontab_backups/`). A crontab most **1:1-ben egyezik** a `crontab.md`-vel.
+
+### 🔴 fix(analysis) — 2026-10-02: dokumentálatlan outage, amit a pull hozott elő
+A frissítés után a Mini-n **egy teszt bukott**, nálam zölden:
+`verify_outage_days` → *„Trading nap adat nélkül, de a §5.1 nem sorolja: 2026-10-02"*.
+
+Nem gépi különbség, hanem a guard **frontier**-logikája: a rést csak akkor látja, ha az
+adat-határ **túlment** rajta. A MacBookon a frontier 10-01-nél áll, a Mini-n 10-16-nál.
+**A Mini-nek volt igaza** — és a 10-02 **egyik gépen sincs**.
+
+Gyökérok a `logs/pt_daily_metrics_2026-10-02.log`-ból:
+
+| nap | lefutás |
+|---|---|
+| 10-01 | `record_pending_exits` → **„Metrics written"** ✅ |
+| **10-02** | `record_pending_exits` → **a log megszakad**, se írás, se hiba |
+| 10-05– | `record_pending_exits` → „Trading disabled — skipping IBKR execution fetch" → írás ✅ |
+
+A writer az **IBKR execution-fetch** lépésben halt el csendben — pontosan abban, amit a
+D8 guard **egy nappal később** (10-03) átlépni kezdett. A hiba oka tárgytalan, a rés
+állandó. **Analitikailag ártalmatlan**: a könyv 09-30 óta üres, a nap 0 trade / $0,00.
+
+Felvéve `OUTAGE_EVENTS`-be (9 nap/5 esemény → **10 nap/6 esemény**), a pinnelt
+teszt-számmal együtt. **A Mini saját állapotán igazolva**: a deklaráció nélkül `FAIL`,
+vele `PASS`.
+
+> ⚠️ **Ez blokkolta volna a vasárnapi Phase 1-3 futást**: a `deploy_daily.sh` pytest
+> pre-flightja `exit 1`-gyel **megszakítja a pipeline-t**. A `deploy_intraday.sh`-nak
+> nincs pre-flightja, azt nem érintette.
+
+### Két mellékes megfigyelés
+- A tesztkészlet a Mini-n **felülírta** a `research/cost_model.json`-t (mtime változott,
+  tartalom azonos). A javítás a pusholatlan `808e8fe`-ben van.
+- A lokális `state/daily_metrics/` **10 fájllal elmaradt** a Mini-től (10-05…10-16, mind
+  nulla-trade nap). Az éra 10-02-vel zárul, tehát a költség-mérést nem érinti.
+
+---
+
 ## 2026-10-19 (7) — MOC-ablak guard: a 21:40-es job 7 napon a zárás UTÁN futna
 
 > Baseline 2446 → **2460** (+14), 0 fail. **Guard-only** változás: csak

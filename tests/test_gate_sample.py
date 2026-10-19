@@ -103,11 +103,20 @@ def test_entry_on_an_outage_day_is_dropped():
     assert dropped[0].reason == gs.REASON_ENTRY_ON_OUTAGE
 
 
-def test_declared_outage_days_are_nine_trading_days_in_five_events():
-    assert len(gs.OUTAGE_DAYS) == 9
-    assert len(gs.OUTAGE_EVENTS) == 5
-    assert sum(len(e.days) for e in gs.OUTAGE_EVENTS) == 9
+def test_declared_outage_days_are_ten_trading_days_in_six_events():
+    """Pinned so an undeclared gap cannot be absorbed by editing one list.
+
+    Became ten/six on 2026-10-19 when 2026-10-02 was added — the daily-metrics
+    writer died in its IBKR execution-fetch step one day before the D8 guard
+    began skipping that step. The guard that caught it only fires once the data
+    frontier moves PAST the gap, which is why it surfaced on the production
+    machine (frontier 10-16) and not on the dev machine (frontier 10-01).
+    """
+    assert len(gs.OUTAGE_DAYS) == 10
+    assert len(gs.OUTAGE_EVENTS) == 6
+    assert sum(len(e.days) for e in gs.OUTAGE_EVENTS) == 10
     assert {d for e in gs.OUTAGE_EVENTS for d in e.days} == set(gs.OUTAGE_DAYS)
+    assert "2026-10-02" in gs.OUTAGE_DAYS
 
 
 DAY63 = "2026-08-17"

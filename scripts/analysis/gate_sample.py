@@ -62,7 +62,7 @@ class SampleIntegrityError(RuntimeError):
 
 
 # ---------------------------------------------------------------------------
-# §5.1 — outage days (9 trading days, 5 events). Source: gate-protocol §5.1.
+# §5.1 — outage days (10 trading days, 6 events). Source: gate-protocol §5.1.
 # ---------------------------------------------------------------------------
 
 
@@ -85,6 +85,24 @@ OUTAGE_EVENTS: tuple[OutageEvent, ...] = (
     OutageEvent("Áramszünet II", ("2026-07-16",), "power outage"),
     OutageEvent("FileVault I", ("2026-07-22",), "unlock screen, ~26h"),
     OutageEvent("FileVault II", ("2026-08-07",), "unlock screen, ~13h"),
+    # Found 2026-10-19 by this module's own verify_outage_days(), after the Mini
+    # was brought up to date: the guard only sees a gap once the data frontier
+    # moves PAST it, and on the MacBook the frontier still stopped at 10-01.
+    #
+    # Diagnosed from logs/pt_daily_metrics_2026-10-02.log: the writer logged
+    # record_pending_exits and then stopped mid-run — no "Metrics written", no
+    # error. It died in the IBKR execution-fetch step, which is exactly the step
+    # the D8 trading-enabled guard began skipping on 2026-10-03, one day later
+    # (10-05 onward logs "Trading disabled — skipping IBKR execution fetch" and
+    # then writes normally). The cause is therefore moot, but the gap is permanent.
+    #
+    # Analytically harmless: the book was empty from 09-30, so the day carries
+    # 0 trades and $0.00 P&L. It is a bookkeeping hole, not lost signal data.
+    OutageEvent(
+        "Daily-metrics writer",
+        ("2026-10-02",),
+        "IBKR execution fetch died silently, one day before the D8 guard skipped it",
+    ),
 )
 
 OUTAGE_DAYS: frozenset[str] = frozenset(d for e in OUTAGE_EVENTS for d in e.days)
