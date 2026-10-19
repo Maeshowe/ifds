@@ -149,7 +149,7 @@ pedig same-day 21:40 CEST MOC SELL a `close_positions.py --mode=time_stop`-on.
 | `swing_mental_stop_atr_multiple` | 2.0 | monitor eod | `stop_level = entry - 2.0×ATR` |
 | `swing_trail_atr_multiple` | 1.0 | monitor eod | Trail aktivál TP1 után, `trail_sl = close - 1.0×ATR` |
 | `swing_hard_sl_weekly_cumulative_pct` | -0.08 | monitor eod | -8% weekly cum P&L → HARD_SL (precedes MENTAL_SL) |
-| `swing_time_stop_trading_days` | 5 | monitor eod | 5 **trading** days (NYSE sessions; weekends/holidays kizárva, §9.2 fix 2026-05-28) → TIME_STOP (MOC same-day) |
+| `swing_time_stop_trading_days` | 5 | monitor eod | 5 **trading** days (NYSE sessions; weekends/holidays kizárva, §9.2 fix 2026-05-28) → TIME_STOP (MOC same-day). ⚠️ **A VALÓS tartás 6 session, nem 5** — a 21:40-es MOC-job a `next_action` tokent fogyasztja, amit az **előző** nap 22:00-es eod_eval írt, és a cron-sorrend (21:40 fogyasztó a 22:00 termelő előtt) egy session késést ad. Mérve a teljes `state/pending_exits/`-en: 77 TIME_STOP lábból **63 a 6. napon**, az 5. napon **nulla** (eloszlás: 3:1, 6:63, 7:5, 8:2, 9:2, 10:1, 11:3). Felfedezve 2026-10-19-én; a javítása külön, külön jóváhagyott változás lenne (a tartási horizont módosítása), lásd `docs/tasks/2026-10-19-preclose-tp-auction-exit.md` B-1. |
 | `swing_positions_state_file` | `state/swing_positions.json` | submit/close/monitor | State source-of-truth |
 | `ibkr_bracket_enabled` | False | submit | A legacy 3-order bracket OCA kikapcsolva |
 | `loss_exit_intraday_enabled` | False | (legacy) | Régi -2% intraday LOSS_EXIT KIKAPCSOLVA (DTE/SQM duplikált bug osztály megszűnt) |

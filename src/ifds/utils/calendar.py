@@ -104,23 +104,69 @@ def get_market_close_time_et(d: date | None = None) -> time | None:
     return time(16, 0)
 
 
-def get_market_close_time_cet(d: date | None = None) -> time | None:
-    """Get NYSE closing time in CET/CEST.
+def session_close_et(d: date | None = None) -> datetime | None:
+    """The session's real close, as an aware ``America/New_York`` datetime.
 
-    Normal: 22:00 CET (winter) / 22:00 CEST (summer)
-    Early:  19:00 CET (winter) / 19:00 CEST (summer)
-
-    Returns None if NYSE is closed.
+    Read from the exchange calendar, never derived from an offset: this is the
+    anchor every auction deadline below is measured against.
     """
     if d is None:
         d = date.today()
-    et_close = get_market_close_time_et(d)
-    if et_close is None:
+    cal = _get_nyse_calendar()
+    import pandas as pd
+
+    ts = pd.Timestamp(d)
+    if not cal.is_session(ts):
         return None
-    # CET = ET + 6h (winter) or CEST = ET + 6h (summer, both shift)
-    # Simplified: always +6h (DST offsets cancel for US/EU same-season)
-    cet_hour = et_close.hour + 6
-    return time(cet_hour, 0)
+    return cal.session_close(ts).tz_convert(ET).to_pydatetime()
+
+
+def get_market_close_time_cet(d: date | None = None) -> time | None:
+    """NYSE closing time expressed in Europe/Budapest local time.
+
+    Converted through the actual zones, NOT by adding a fixed offset. The old
+    implementation hard-coded ``ET + 6h`` with the comment "DST offsets cancel
+    for US/EU same-season" — which is false for the two weeks a year when the
+    switches are a week apart (2026: EU Oct 25, US Nov 1; EU Mar 29, US Mar 8).
+    In those weeks the gap is 5h, so the old version reported the close an hour
+    LATE — and its one caller uses it to decide whether an MOC order is already
+    too late to submit.
+
+    Returns None if NYSE is closed.
+    """
+    close_et = session_close_et(d)
+    if close_et is None:
+        return None
+    return close_et.astimezone(ZoneInfo("Europe/Budapest")).timetz().replace(tzinfo=None)
+
+
+#: NYSE stops accepting Market-on-Close orders 10 minutes before the close
+#: (Rule 7.35A: 15:50 ET for a 16:00 close, 12:50 ET on a 13:00 early close).
+#: Expressed as a lead time, not a clock time, so early closes are handled by
+#: construction rather than by a second constant that can drift.
+MOC_SUBMISSION_LEAD = timedelta(minutes=10)
+
+
+def is_before_moc_cutoff(now: datetime | None = None) -> bool:
+    """True when an MOC order placed *now* can still reach today's closing auction.
+
+    Anchored on the exchange calendar and ``America/New_York``, never on the host
+    clock or a cron slot — the mirror of :func:`is_before_moo_cutoff`, and needed
+    for the same reason. Measured over 2026-10-19..12-31, the production 21:40
+    Budapest slot lands AFTER the close on **seven** trading sessions: Oct 26-30
+    (the week when the EU is already on winter time and the US is not, so the slot
+    is 16:40 ET) and Nov 27 / Dec 24 (early closes, where it is 160 minutes late).
+
+    Fails CLOSED outside a session, so a caller that cannot submit simply does
+    not submit — leaving the position flagged for the next session, which is a
+    worse fill but an honest one. The alternative is an order the exchange will
+    not execute plus a state file that says it was sold.
+    """
+    moment = datetime.now(ET) if now is None else now.astimezone(ET)
+    close_et = session_close_et(moment.date())
+    if close_et is None:
+        return False
+    return moment < close_et - MOC_SUBMISSION_LEAD
 
 
 #: Exchange timezone. Every auction deadline is defined here and nowhere else.

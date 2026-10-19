@@ -243,6 +243,43 @@ def run_swing_time_stop(state_file: str, today_str: str) -> None:
         logger.info("[SWING 21:40 close] No TIME_STOP flags — nothing to do.")
         return
 
+    # MOC-window guard. The 21:40 Budapest slot is NOT always before the closing
+    # auction's cutoff: over 2026-10-19..12-31 it lands after the close on seven
+    # sessions — Oct 26-30 (the week the EU is on winter time and the US is not,
+    # so 21:40 CET = 16:40 ET) and Nov 27 / Dec 24 (early closes, 160 minutes
+    # late). Without this guard the job submits an MOC the exchange will not
+    # execute AND removes the position from state, i.e. the state file says sold
+    # while the broker is still long. The early-close guard further down in
+    # ``main()`` never protected this path: the eod_flags/time_stop branch
+    # returns before reaching it.
+    #
+    # Guard-only: it can prevent a submission, never cause one. The position
+    # keeps its TIME_STOP flag and the next session's run takes it — a worse
+    # fill, but an honest one.
+    from ifds.utils.calendar import get_market_close_time_cet, is_before_moc_cutoff
+
+    if not is_before_moc_cutoff():
+        close_cet = get_market_close_time_cet()
+        logger.error(
+            f"[SWING 21:40 close] MOC cutoff already passed (NYSE closes {close_cet} "
+            f"Budapest time today) — refusing to submit {len(actionable)} MOC order(s) "
+            f"and leaving state untouched. Check the cron slot against the US/EU DST "
+            f"offset; see scripts/crontab.md."
+        )
+        if evt:
+            evt.log(
+                "close",
+                "moc_window_closed",
+                n_skipped=len(actionable),
+                tickers=[p.ticker for p in actionable],
+            )
+        send_telegram(
+            f"⛔ IFDS: a MOC-ablak zárva ({close_cet} budapesti záró) — "
+            f"{len(actionable)} TIME_STOP NEM adódott fel, az állapot érintetlen. "
+            f"Cron slot / DST ellenőrzés kell."
+        )
+        return
+
     ib = connect(client_id=11, context_label="close_positions.py (swing time_stop)")
     account = get_account(ib)
 

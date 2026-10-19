@@ -4,6 +4,55 @@
 
 ---
 
+## 2026-10-19 (7) — MOC-ablak guard: a 21:40-es job 7 napon a zárás UTÁN futna
+
+> Baseline 2446 → **2460** (+14), 0 fail. **Guard-only** változás: csak
+> megakadályozhat egy ordert, soha nem okozhat egyet.
+
+### Hogyan került elő
+A TP1/TP2 ugyanaznapi MOC design **átvizsgálása** közben (50 ágens, 4 lencse,
+**27 igazolt lelet, 12 blocker**). A design **ELUTASÍTVA** —
+`docs/tasks/2026-10-19-preclose-tp-auction-exit.md`. A review két olyan hibát is
+felszínre hozott, ami **ma élő**, és ezek javítása ment be.
+
+### fix(paper_trading) — nincs MOC-ablak guard a 21:40-es jobon
+Mérve 2026-10-19 … 12-31 között **7 kereskedési nap**, ahol a 21:40-es slot a MOC
+cutoff után van:
+
+| | NYSE close ET | 21:40 BP → ET | eltérés |
+|---|---|---|---:|
+| **okt 26–30** (EU téli, US nyári) | 16:00 | **16:40** | **+40 m** |
+| nov 27, dec 24 (early close) | 13:00 | 15:40 | **+160 m** |
+
+Guard nélkül a job végrehajthatatlan MOC-ot ad fel **és eltávolítja a pozíciót az
+állapotból** — az állapotfájl „eladva", a broker long. A `main()`-ben lévő
+early-close guard ezt az utat **soha nem védte**: az `eod_flags`/`time_stop` ág
+**előbb `return`-öl**. Új: `ifds.utils.calendar.is_before_moc_cutoff()` —
+exchange-kalendárból, `America/New_York`-ban, `MOC_SUBMISSION_LEAD = 10 min`
+(lead-time, nem óraidő → early close-on is helyes), fail-closed. A job most
+**megtagadja** a feladást, Telegramot küld, és **nem nyúl az állapothoz**.
+
+### fix(calendar) — `get_market_close_time_cet` hard-kódolt ET+6h
+A komment szerint „DST offsets cancel for US/EU same-season" — ez **hamis** arra a
+két hétre évente, amikor a váltások egy hét eltéréssel vannak. A DST-gap héten a
+régi verzió **22:00**-t adott a valódi **21:00** helyett, és az egyetlen hívója épp
+azt dönti el, hogy egy MOC már késő-e. Most valódi zóna-konverzió.
+
+### docs(PARAMETERS) — a valós tartás 6 session, nem 5
+A `swing_time_stop_trading_days = 5`, de a 21:40-es job az **előző** nap 22:00-es
+eod_eval tokenjét fogyasztja, és a cron-sorrend egy session késést ad. Mérve a
+teljes `state/pending_exits/`-en: **77 TIME_STOP lábból 63 a 6. napon, az 5. napon
+nulla**. Ez eddig **sehol nem volt dokumentálva**. Viselkedés-változás nincs — a
+javítása külön, külön jóváhagyott döntés lenne (tartási horizont).
+
+### test — 14 új teszt
+`tests/test_moo_entry_routing.py`: a MOC-guard (normál session, mind az 5 DST-gap
+nap, mindkét early close, hétvége fail-closed, a 10 perces lead pontos határa) és a
+CET-konverzió (22:00 / **21:00** a gap-héten / 19:00 early close / None nem-session).
+Visszavezetéssel verifikálva: a régi ET+6h visszaírásakor bukik.
+
+---
+
 ## 2026-10-19 (6) — MOO belépő: a nyitó aukció a csengő utáni market helyett
 
 > Baseline 2435 → **2446** (+11), 0 fail. **Production trading-path változás**

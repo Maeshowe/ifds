@@ -18,7 +18,7 @@ an explicit instant.
 from __future__ import annotations
 
 import sys
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -145,3 +145,81 @@ class TestTheEntryOrder:
         for moment in (_bp(NORMAL_DAY, 15, 20), _bp(NORMAL_DAY, 15, 31)):
             order, _ = self._order(moment)
             assert order.tif != "GTC"
+
+class TestTheMocCutoffGuard:
+    """The mirror guard, for the 21:40 closing-auction job.
+
+    Found by the pre-close-exit design review: the 21:40 Budapest slot lands AFTER
+    the close on seven sessions in the rest of 2026. Without the guard the job
+    submits an MOC the exchange will not execute AND removes the position from
+    state — the state file says sold while the broker is still long. The
+    early-close guard in ``close_positions.main()`` never covered this path: the
+    eod_flags/time_stop branch returns before reaching it.
+    """
+
+    def test_a_normal_session_at_2140_is_inside_the_window(self):
+        from ifds.utils.calendar import is_before_moc_cutoff
+
+        assert is_before_moc_cutoff(_bp((2026, 10, 19), 21, 40)) is True
+
+    @pytest.mark.parametrize(
+        "day",
+        [(2026, 10, 26), (2026, 10, 27), (2026, 10, 28), (2026, 10, 29), (2026, 10, 30)],
+    )
+    def test_the_dst_gap_week_is_refused_at_2140(self, day):
+        """21:40 CET = 16:40 ET that week — forty minutes after the close."""
+        from ifds.utils.calendar import is_before_moc_cutoff
+
+        assert is_before_moc_cutoff(_bp(day, 21, 40)) is False
+
+    @pytest.mark.parametrize("day", [(2026, 11, 27), (2026, 12, 24)])
+    def test_an_early_close_is_refused_at_2140_and_allowed_at_1840(self, day):
+        """The 18:40 early-close cron is inside the window; the 21:40 one is not."""
+        from ifds.utils.calendar import is_before_moc_cutoff
+
+        assert is_before_moc_cutoff(_bp(day, 21, 40)) is False
+        assert is_before_moc_cutoff(_bp(day, 18, 40)) is True
+
+    def test_it_fails_closed_outside_a_session(self):
+        from ifds.utils.calendar import is_before_moc_cutoff
+
+        assert is_before_moc_cutoff(_bp((2026, 10, 24), 21, 40)) is False  # Saturday
+
+    def test_the_cutoff_is_ten_minutes_before_the_real_close(self):
+        from ifds.utils.calendar import MOC_SUBMISSION_LEAD, session_close_et
+
+        close = session_close_et(date(2026, 10, 19))
+        assert close is not None
+        from ifds.utils.calendar import is_before_moc_cutoff
+
+        assert is_before_moc_cutoff(close - MOC_SUBMISSION_LEAD - timedelta(seconds=1)) is True
+        assert is_before_moc_cutoff(close - MOC_SUBMISSION_LEAD) is False
+
+
+class TestTheCetCloseConversion:
+    """``get_market_close_time_cet`` used to hard-code ET+6h.
+
+    Its one caller decides whether an MOC order is already too late, so an hour
+    of error in the DST gap week pointed the wrong way.
+    """
+
+    def test_a_normal_session_is_2200_budapest(self):
+        from ifds.utils.calendar import get_market_close_time_cet
+
+        assert get_market_close_time_cet(date(2026, 10, 19)) == time(22, 0)
+
+    def test_the_dst_gap_week_is_2100_not_2200(self):
+        """The old ET+6h version said 22:00 here. The real gap that week is 5h."""
+        from ifds.utils.calendar import get_market_close_time_cet
+
+        assert get_market_close_time_cet(date(2026, 10, 26)) == time(21, 0)
+
+    def test_an_early_close_is_1900(self):
+        from ifds.utils.calendar import get_market_close_time_cet
+
+        assert get_market_close_time_cet(date(2026, 11, 27)) == time(19, 0)
+
+    def test_a_non_session_is_none(self):
+        from ifds.utils.calendar import get_market_close_time_cet
+
+        assert get_market_close_time_cet(date(2026, 10, 24)) is None
