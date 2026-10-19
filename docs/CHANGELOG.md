@@ -4,6 +4,40 @@
 
 ---
 
+## 2026-10-19 (5) — aukciós kilépés: ellenpróba a valódi könyvön
+
+> Mérési riport, nulla kódváltozás a production úton.
+> `docs/review/2026-10-19-auction-exit-counterfactual.md` +
+> `scripts/analysis/auction_exit_counterfactual.py`
+
+A (4) riport „C forgatókönyve" (minden aukciós) **felső korlát** volt, nem terv. Megmérve.
+
+**A premissza a production evaluátorból** (`evaluate_position_eod`), nem feltételezve: a
+**TP1/TP2** triggere `today_high` → **intraday**, tehát az **ugyanaznapi** záróaukció
+elérhető (−1 overnight kitettség). A **MENTAL_SL/HARD_SL/TRAIL_SL** triggere `today_close`
+→ a legkorábbi aukció a **következő** nap zárója (+1 session). Egy „tegyünk mindent
+aukcióba" szám ezért értelmezhetetlen lenne.
+
+| | n | nettó | 95% CI | jobb |
+|---|---:|---:|---|---:|
+| **TP1/TP2 → ugyanaznapi záró** | 29 | **+783 $** | **[+244, +1 460]** | **23/29** |
+| SL-család → következő napi záró | 11 | +381 $ | [−395, +1 104] | 7/11 |
+
+**Háromfelé bontva: a nettó 78%-a (+902 $) súrlódás-megszűnés** — mechanikus és
+ismétlődő (csengő utáni market ~60 bp vs. aukció ~1,4 bp). A maradék 24% (+281 $)
+**óramozgás**, azaz hozam és nem súrlódás: a minta saját árútja, **nem él**.
+
+**Tape-kontroll:** `open→close` a kereskedett neveken az egész érán **+2,0 bp
+[−2,7; +6,6]** — nincs emelkedő-tape artefakt. A 40 használt aukciós napon +142,9 bp,
+de ez **szelekció a triggerre** és **más szakaszon** van, mint az ellenpróba (az csak
+az overnightot lépi át) — ellenőrizve, nem kerül a becslésbe.
+
+Nagyságrend: a 88 napos −6 460,95 $ veszteség **~18%-a**, és az eddig mért **legnagyobb
+egyedi mechanikai javítás** (SIM-1 exit-geometria: −8 $). Nem menti meg a stratégiát,
+de a végrehajtási oldal az egyetlen hely, ahol ismételhető, mechanikus pénzt találtunk.
+
+---
+
 ## 2026-10-19 (4) — a fal horizont x vegrehajtas szerint: a vegrehajtas az elso lepes
 
 > Mérési riport, nulla kódváltozás. `docs/review/2026-10-19-execution-wall-by-horizon.md`
