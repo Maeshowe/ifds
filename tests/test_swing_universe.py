@@ -521,12 +521,13 @@ class TestPhase2SwingIntegration:
         # The stale membership is honoured: AAPL is in it, NOTINIDX is not.
         assert {t.symbol for t in result} == {"AAPL"}
 
-    def test_the_shadow_floor_measures_without_changing_the_universe(self, config, logger, tmp_path):
-        """Shadow mode (C step 2): report the would-be universe, change nothing.
+    def test_the_floor_NARROWS_the_universe_now(self, config, logger, tmp_path):
+        """(C) is live since 2026-10-20: `membership ∩ liquidity floor`.
 
-        Flipping the universe definition and discovering the enrichment gap
-        afterwards is the wrong order for a financial pipeline, so the floor first
-        runs alongside the live path and only reports.
+        This test asserted the opposite while the floor ran in shadow mode. The
+        shadow run on production produced the number that justified the switch:
+        the live screener-intersected universe was 919 of 1027 members, the floor
+        passed 909, and only 11 floor-passing members had no screener row.
         """
         import json
         from datetime import datetime, timezone
@@ -558,8 +559,9 @@ class TestPhase2SwingIntegration:
             for i in range(20)
         ]
         result = _screen_long_universe(fmp, config, logger, grouped_daily_bars=bars)
-        # SHADOW: the live universe still contains THIN.
-        assert {t.symbol for t in result} == {"AAPL", "THIN"}, "shadow mode must not narrow"
+        # THIN clears membership and the screener, but its median volume is 1k
+        # against a 500k floor, so (C) drops it.
+        assert {t.symbol for t in result} == {"AAPL"}, "the floor must narrow the universe"
 
     def test_the_shadow_floor_is_skipped_without_bars_and_the_universe_survives(
         self, config, logger, tmp_path
@@ -584,7 +586,48 @@ class TestPhase2SwingIntegration:
         fmp = MagicMock()
         fmp.screener.return_value = [self._make_fmp_dict("AAPL")]
         result = _screen_long_universe(fmp, config, logger, grouped_daily_bars=None)
+        # Degraded path: screener ∩ membership, which is the pre-(C) behaviour.
+        # Still membership-constrained, so no population swap.
         assert {t.symbol for t in result} == {"AAPL"}
+
+    def test_a_member_without_a_screener_row_is_excluded_and_counted(self, config, logger, tmp_path):
+        """The enrichment gap: passes the floor, but has no sector/market cap.
+
+        Measured 11 names on the switch day, which is why they are excluded and
+        counted rather than fetched — a per-ticker fan-out for 11 names would be a
+        rate-limit-sensitive change (house rule, 2026-05-14) for no benefit.
+        """
+        import json
+        from datetime import datetime, timezone
+
+        cache_dir = tmp_path / "swing_universe"
+        cache_dir.mkdir()
+        members = ["AAPL", "NOROW"] + [f"PAD{i:03d}" for i in range(998)]
+        (cache_dir / "universe.json").write_text(
+            json.dumps(
+                {
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "count": len(members),
+                    "symbols": members,
+                }
+            )
+        )
+        config.tuning["swing_universe_cache_dir"] = str(cache_dir)
+        fmp = MagicMock()
+        # NOROW is liquid in the bars but the screener never returned it.
+        fmp.screener.return_value = [self._make_fmp_dict("AAPL")]
+        bars = [
+            {
+                "date": f"2026-09-{i + 1:02d}",
+                "bars": [
+                    {"T": "AAPL", "c": 200.0, "v": 50_000_000},
+                    {"T": "NOROW", "c": 80.0, "v": 9_000_000},
+                ],
+            }
+            for i in range(20)
+        ]
+        result = _screen_long_universe(fmp, config, logger, grouped_daily_bars=bars)
+        assert {t.symbol for t in result} == {"AAPL"}, "no enrichment -> excluded"
 
     def test_legacy_fmp_source_skips_swing_filter(self, config, logger):
         config.tuning["universe_source"] = "fmp_screener"

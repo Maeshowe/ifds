@@ -4,6 +4,56 @@
 
 ---
 
+## 2026-10-20 (8) — (C) ÉLES: az univerzum = index-tagság ∩ likviditási floor
+
+> Baseline 2489 → **2490** (+1, és egy megfordított), 0 fail. **D-U2 = (C) élesítve.**
+
+### Amit az árnyék-mérés eldöntött
+A D-V1 javítás **után** futtatott árnyék-mérés a production pipeline-ban:
+
+| | D-V1 előtt | **D-V1 után** |
+|---|---:|---:|
+| screener sorok | 1195 | **2125** |
+| live univerzum (screener ∩ tagság) | 520 | **919** |
+| floor átmegy | 909 | **909** |
+| **enrichment-rés** | **390** | **11** |
+
+A rés **11 névre** szűkült — tehát a (C) élesítése nem igényel sem új API-hívást, sem
+per-ticker enrichmentet.
+
+### Az új definíció
+```
+univerzum = (index-tagság ∩ likviditási floor) ∩ { van screener-sora }
+```
+A screener már **nem definiálja** az univerzumot, csak **enrichmentet** ad (szektor,
+kapitalizáció, ár, volumen) azokhoz a nevekhez, amiket a tagság és a floor már kiválasztott.
+
+A 11 enrichment nélküli név **kizárva és megszámolva**, nem lekérdezve: 11 névre
+per-ticker fan-outot indítani rate-limit-érzékeny változás lenne (2026-05-14-i házszabály)
+nulla haszonért.
+
+### Degradált út — hangosan
+Ha a floor nem számolható (nincs bar, azaz `breadth_enabled` kikapcsolva), a fázis
+visszaesik a **screener ∩ tagság** alakra **ERROR-szintű** logbejegyzéssel. Ez a (C)
+előtti viselkedés: még mindig tagság-korlátos, tehát **populáció-csere nincs**, de a
+screener összetétele visszaszivárog. A `universe_definition` mező ezt
+`screener_intersect_membership_degraded`-ként rögzíti.
+
+### Amit a (C) megszüntet
+1. a screener **összetételének** hatását (a metszet 226–1479 közt ugrált hetente),
+2. a screener `volume` mezőjének **napszak-függését** (ugyanaz a hívás 1207 sor a
+   szesszió közepén, 2125 a valódi átlagra).
+
+A floor mindkettőtől **konstrukció szerint** független: lezárt napi bar-ok, 20 session
+mediánja.
+
+### test
+A shadow-teszt **megfordítva** (`test_the_floor_NARROWS_the_universe_now`), új teszt az
+enrichment-résre, és a degradált út is védve. **Szabotázs-ellenőrzés:** a floor
+kikapcsolásával bukik.
+
+---
+
 ## 2026-10-20 (7) — D-V1: `volumeMoreThan` → `avgVolumeMoreThan` mindhárom hívóhelyen
 
 > Baseline 2487 → **2489** (+2), 0 fail. **Bugfix**, nem design-változás (D-V1 jóváhagyva).

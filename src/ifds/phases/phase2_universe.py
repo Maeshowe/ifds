@@ -212,25 +212,58 @@ def _screen_long_universe(
                 "population (D-U1/F-1d)."
             )
 
+    # --- (C): membership ∩ liquidity floor, with the screener as ENRICHMENT ------
+    # Approved 2026-10-20 (D-U2 = (C)). The screener no longer DEFINES the universe;
+    # it supplies sector / market cap / price / volume for names the membership and
+    # the floor already selected. Measured on the switch day: the live screener-
+    # intersected universe was 919 of 1027 members, the floor passed 909, and only
+    # 11 floor-passing members had no screener row at all.
+    floor_result = None
+    if swing_membership is not None:
+        floor_result = _liquidity_floor(swing_membership, config, logger, grouped_daily_bars)
+
     tickers = []
     filtered_inactive = 0
     filtered_membership = 0
-    for item in raw:
-        # Filter: must have options (if configured)
-        if config.tuning["universe_require_options"]:
-            if not item.get("isActivelyTrading", True):
+    filtered_floor = 0
+    filtered_no_enrichment = 0
+
+    if floor_result is not None:
+        by_symbol = {
+            (item.get("symbol") or "").upper().replace(".", "-"): item for item in raw
+        }
+        filtered_floor = len(swing_membership) - len(floor_result.passed)
+        for symbol in sorted(floor_result.passed):
+            item = by_symbol.get(symbol)
+            if item is None:
+                # Passed the floor but the screener has no row for it, so there is no
+                # sector/market cap. Excluded and COUNTED rather than fetched: the
+                # count is 11, and a per-ticker fan-out for 11 names would be a
+                # rate-limit-sensitive change for no benefit.
+                filtered_no_enrichment += 1
+                continue
+            if config.tuning["universe_require_options"] and not item.get(
+                "isActivelyTrading", True
+            ):
                 filtered_inactive += 1
                 continue
-
-        # Filter: swing universe membership (S&P 500 + Russell 1000)
-        if swing_membership is not None:
-            symbol = (item.get("symbol") or "").upper().replace(".", "-")
-            if symbol not in swing_membership:
-                filtered_membership += 1
-                continue
-
-        ticker = _fmp_to_ticker(item)
-        tickers.append(ticker)
+            tickers.append(_fmp_to_ticker(item))
+    else:
+        # Degraded path: no liquidity floor (no bars, i.e. `breadth_enabled` off), or
+        # the legacy `universe_source`. Falls back to screener ∩ membership — still
+        # membership-constrained, so no population swap, but the screener's
+        # composition leaks back in. Logged loudly below.
+        for item in raw:
+            if config.tuning["universe_require_options"]:
+                if not item.get("isActivelyTrading", True):
+                    filtered_inactive += 1
+                    continue
+            if swing_membership is not None:
+                symbol = (item.get("symbol") or "").upper().replace(".", "-")
+                if symbol not in swing_membership:
+                    filtered_membership += 1
+                    continue
+            tickers.append(_fmp_to_ticker(item))
 
     if filtered_inactive:
         logger.log(
@@ -257,31 +290,64 @@ def _screen_long_universe(
             },
         )
 
-    if swing_membership is not None:
-        _shadow_liquidity_floor(swing_membership, tickers, config, logger, grouped_daily_bars)
+    if floor_result is not None:
+        logger.log(
+            EventType.PHASE_DIAGNOSTIC,
+            Severity.INFO,
+            phase=2,
+            message=(
+                f"Universe (C): {len(tickers)} tickers from {len(swing_membership)} members "
+                f"— floor excluded {filtered_floor}, no screener enrichment "
+                f"{filtered_no_enrichment}, inactive {filtered_inactive}"
+            ),
+            data={
+                "universe_definition": "index_union_plus_liquidity_floor",
+                "membership": len(swing_membership),
+                "floor_passed": len(floor_result.passed),
+                "excluded_floor": filtered_floor,
+                "excluded_no_enrichment": filtered_no_enrichment,
+                "excluded_inactive": filtered_inactive,
+                "floor_provenance": floor_result.provenance(),
+            },
+        )
+    elif swing_membership is not None:
+        logger.log(
+            EventType.CONFIG_WARNING,
+            Severity.ERROR,
+            phase=2,
+            message=(
+                "Universe DEGRADED to screener ∩ membership: the liquidity floor was "
+                "unavailable, so the screener's composition defines the universe again. "
+                "Still membership-constrained (no population swap). Check `breadth_enabled`."
+            ),
+            data={"universe_definition": "screener_intersect_membership_degraded"},
+        )
 
     return tickers
 
 
-def _shadow_liquidity_floor(
+def _liquidity_floor(
     membership: set[str],
-    screened: list[Ticker],
     config: Config,
     logger: EventLogger,
     grouped_daily_bars: list[dict] | None,
-) -> None:
-    """Measure what the (C) universe WOULD be, without changing anything yet.
+):
+    """Compute the (C) liquidity floor over index membership, or None if impossible.
 
-    (C) is `membership ∩ liquidity floor`, where the floor is computed from Phase 1's
-    bars instead of being delegated to the FMP screener (D-U2, approved 2026-10-20).
-    Before the switch, one number has to be measured ON PRODUCTION and cannot be
-    measured anywhere else: how many members clear the floor but have NO screener row,
-    and therefore no sector/market-cap enrichment. The screener excludes on market cap
-    too, and this floor deliberately does not (membership already encodes a cap
-    ranking), so the floor is the weaker test and a gap is expected.
+    (C), approved 2026-10-20: the universe is `membership ∩ floor`, and the floor is a
+    pure function of Phase 1's completed daily bars — a median over 20 sessions — so it
+    is immune to the two defects that defined the universe before it:
 
-    Shadow mode exists because flipping the universe definition and discovering the gap
-    afterwards is the wrong order for a financial pipeline. Reports and returns None.
+    * the FMP screener's own composition, which swung the scored panel between 226 and
+      1479 names week to week when it was intersected with membership, and
+    * the screener's ``volume`` field being TODAY'S PARTIAL intraday volume, which made
+      the universe a function of the hour the phase ran (measured 2026-10-20: the same
+      call returned 1207 rows mid-session and 2125 against the true average).
+
+    Returns None when the floor cannot be computed — no bars, i.e. ``breadth_enabled``
+    off. The caller then degrades to screener ∩ membership with an ERROR, which is the
+    old behaviour: still membership-constrained, so no population swap, but the
+    screener's composition leaks back in.
     """
     if not grouped_daily_bars:
         logger.log(
@@ -289,17 +355,16 @@ def _shadow_liquidity_floor(
             Severity.WARNING,
             phase=2,
             message=(
-                "Liquidity-floor shadow measurement skipped: Phase 1 supplied no "
-                "grouped daily bars (check `breadth_enabled`). The live universe is "
-                "unaffected; only the (C) measurement is missing."
+                "Liquidity floor unavailable: Phase 1 supplied no grouped daily bars "
+                "(check `breadth_enabled`). Falling back to screener ∩ membership."
             ),
         )
-        return
+        return None
 
     from ifds.data.liquidity_floor import DEFAULT_LOOKBACK_SESSIONS, compute_floor
 
     try:
-        floor = compute_floor(
+        return compute_floor(
             membership,
             grouped_daily_bars,
             min_price=float(config.tuning["universe_min_price"]),
@@ -311,33 +376,13 @@ def _shadow_liquidity_floor(
     except (ValueError, KeyError) as exc:
         logger.log(
             EventType.CONFIG_WARNING,
-            Severity.WARNING,
+            Severity.ERROR,
             phase=2,
-            message=f"Liquidity-floor shadow measurement failed: {exc}",
+            message=(
+                f"Liquidity floor failed ({exc}) — falling back to screener ∩ membership."
+            ),
         )
-        return
-
-    enriched = {t.symbol.upper() for t in screened}
-    gap = sorted(floor.passed - enriched)
-    logger.log(
-        EventType.PHASE_DIAGNOSTIC,
-        Severity.INFO,
-        phase=2,
-        message=(
-            f"[(C) SHADOW] floor passes {len(floor.passed)}/{len(membership)} members; "
-            f"live screener-intersected universe is {len(enriched)}; "
-            f"enrichment gap {len(gap)} (would pass the floor but have no screener row)"
-        ),
-        data={
-            "shadow_floor_passed": len(floor.passed),
-            "shadow_membership": len(membership),
-            "live_universe": len(enriched),
-            "shadow_enrichment_gap": len(gap),
-            "shadow_enrichment_gap_sample": gap[:25],
-            "shadow_excluded_by_reason": floor.counts_by_reason(),
-            "shadow_provenance": floor.provenance(),
-        },
-    )
+        return None
 
 
 def _load_swing_membership(fmp: FMPClient, config: Config, logger: EventLogger) -> set[str] | None:
