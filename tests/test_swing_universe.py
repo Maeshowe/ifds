@@ -180,8 +180,109 @@ class TestCacheLifecycle:
                 return_value=[f"NEW{i:04d}" for i in range(1000)],
             ),
         ):
-            symbols = source.get_universe()
-        assert symbols[0].startswith("NEW")  # not OLD
+            result = source.get_universe()
+        assert result.symbols[0].startswith("NEW")  # not OLD
+        assert result.degraded_stale is False
+        assert result.source == "wikipedia"
+
+    def test_expired_cache_is_SERVED_when_the_refetch_fails(self, tmp_path):
+        """The TTL inversion (D-U1/F-1a): stale membership beats a swapped population.
+
+        The old code returned None from an expired cache, which sent the caller down
+        the screener fallback — a DIFFERENT population. Nine consecutive weekly runs
+        (2026-08-16 .. 10-19) degraded that way in silence. Measured afterwards: a
+        77-day-old list differs from today's by Jaccard 0.927 (a few percent), while
+        the substitution swapped 377 of 730 names (52%) for non-members.
+        """
+        old_ts = (datetime.now(timezone.utc) - timedelta(days=10)).isoformat()
+        (tmp_path / "universe.json").write_text(
+            json.dumps(
+                {
+                    "fetched_at": old_ts,
+                    "count": 1000,
+                    "symbols": [f"OLD{i:03d}" for i in range(1000)],
+                }
+            )
+        )
+        source = SwingUniverseSource(cache_dir=tmp_path, cache_ttl_days=7)
+        with (
+            patch(
+                "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+                side_effect=RuntimeError("page moved"),
+            ),
+            patch("ifds.data.swing_universe.fetch_from_fmp_fallback", return_value=None),
+        ):
+            result = source.get_universe()
+        assert result.symbols[0].startswith("OLD"), "the stale list must be served"
+        assert result.degraded_stale is True
+        assert result.source == "cache"
+        assert 9.0 < result.age_days < 11.0
+
+    def test_no_cache_and_failed_fetch_RAISES_rather_than_substituting(self, tmp_path):
+        """F-1c: the absence of any membership must stop the pipeline, not degrade it."""
+        source = SwingUniverseSource(cache_dir=tmp_path, cache_ttl_days=7)
+        with (
+            patch(
+                "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+                side_effect=RuntimeError("page moved"),
+            ),
+            patch("ifds.data.swing_universe.fetch_from_fmp_fallback", return_value=None),
+            pytest.raises(RuntimeError, match="no usable"),
+        ):
+            source.get_universe()
+
+    def test_the_staleness_alarm_escalates(self, tmp_path, caplog):
+        """F-1b: WARNING past the TTL, ERROR past 45 days."""
+        import logging
+
+        from ifds.data import swing_universe as su
+
+        def _serve_stale(age_days: int):
+            ts = (datetime.now(timezone.utc) - timedelta(days=age_days)).isoformat()
+            (tmp_path / "universe.json").write_text(
+                json.dumps(
+                    {
+                        "fetched_at": ts,
+                        "count": 1000,
+                        "symbols": [f"OLD{i:03d}" for i in range(1000)],
+                    }
+                )
+            )
+            src = SwingUniverseSource(cache_dir=tmp_path, cache_ttl_days=7)
+            with (
+                patch(
+                    "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+                    side_effect=RuntimeError("page moved"),
+                ),
+                patch("ifds.data.swing_universe.fetch_from_fmp_fallback", return_value=None),
+                caplog.at_level(logging.INFO, logger=su.logger.name),
+            ):
+                caplog.clear()
+                src.get_universe()
+            return {r.levelno for r in caplog.records}
+
+        assert logging.WARNING in _serve_stale(10), "past the TTL must WARN"
+        assert logging.ERROR not in _serve_stale(10)
+        assert logging.ERROR in _serve_stale(su.STALE_ERROR_DAYS + 5), "past 45d must ERROR"
+
+    def test_provenance_is_recorded_for_the_context(self, tmp_path):
+        """F-2: every downstream artifact must be able to say what it ran on."""
+        source = SwingUniverseSource(cache_dir=tmp_path, cache_ttl_days=7)
+        with (
+            patch(
+                "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+                return_value=[f"X{i:04d}" for i in range(503)],
+            ),
+            patch(
+                "ifds.data.swing_universe.fetch_russell1000_from_wikipedia",
+                return_value=[f"X{i:04d}" for i in range(1021)],
+            ),
+        ):
+            prov = source.get_universe().provenance()
+        assert set(prov) == {"source", "fetched_at", "count", "age_days", "degraded_stale"}
+        assert prov["source"] == "wikipedia"
+        assert prov["count"] == 1021
+        assert prov["degraded_stale"] is False
 
     def test_corrupt_cache_falls_through_to_fetch(self, tmp_path):
         (tmp_path / "universe.json").write_text("{ not valid json")
@@ -357,10 +458,53 @@ class TestPhase2SwingIntegration:
         symbols = {t.symbol for t in result}
         assert symbols == {"AAPL", "MSFT"}
 
-    def test_swing_failure_falls_back_to_raw_screener(self, config, logger, tmp_path):
-        # No cache → SwingUniverseSource fetches → patched Wikipedia raises →
-        # patched FMP fallback returns None → _load_swing_membership returns
-        # None → Phase 2 logs WARNING + uses raw screener.
+    def test_swing_failure_REFUSES_the_raw_screener(self, config, logger, tmp_path):
+        """INVERTED 2026-10-20 (D-U1/F-1d, approved).
+
+        This test used to assert the opposite: that a membership failure falls back
+        to the raw screener. That fallback is what hid nine consecutive weekly runs
+        of degradation (2026-08-16 .. 10-19). The screener is not a staler membership
+        list, it is a DIFFERENT population — measured, it swapped 377 of 730 names
+        (52%) for non-members, and the resulting mixture inflated sigma_cs enough to
+        understate the project's central number by ~4%.
+
+        Since the staleness ladder now serves an EXPIRED cache rather than giving up,
+        reaching this path means there is no usable membership at all, which must stop
+        the phase so no context is written.
+        """
+        fmp = MagicMock()
+        fmp.screener.return_value = [
+            self._make_fmp_dict("AAPL"),
+            self._make_fmp_dict("NOTINIDX"),
+        ]
+        with (
+            patch(
+                "ifds.data.swing_universe.fetch_sp500_from_wikipedia",
+                side_effect=RuntimeError("wiki down"),
+            ),
+            patch("ifds.data.swing_universe.fetch_from_fmp_fallback", return_value=None),
+            pytest.raises(RuntimeError, match="REFUSING|Substituting|unavailable"),
+        ):
+            _screen_long_universe(fmp, config, logger)
+
+    def test_an_expired_cache_still_yields_a_universe(self, config, logger, tmp_path):
+        """The ladder's point: stale membership keeps the pipeline running (F-1a)."""
+        import json
+        from datetime import datetime, timedelta, timezone
+
+        cache_dir = tmp_path / "swing_universe"
+        cache_dir.mkdir()
+        stale = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        (cache_dir / "universe.json").write_text(
+            json.dumps(
+                {
+                    "fetched_at": stale,
+                    "count": 1000,
+                    "symbols": ["AAPL"] + [f"OLD{i:03d}" for i in range(999)],
+                }
+            )
+        )
+        config.tuning["swing_universe_cache_dir"] = str(cache_dir)
         fmp = MagicMock()
         fmp.screener.return_value = [
             self._make_fmp_dict("AAPL"),
@@ -374,8 +518,8 @@ class TestPhase2SwingIntegration:
             patch("ifds.data.swing_universe.fetch_from_fmp_fallback", return_value=None),
         ):
             result = _screen_long_universe(fmp, config, logger)
-        # Fallback to raw screener — both tickers pass
-        assert {t.symbol for t in result} == {"AAPL", "NOTINIDX"}
+        # The stale membership is honoured: AAPL is in it, NOTINIDX is not.
+        assert {t.symbol for t in result} == {"AAPL"}
 
     def test_legacy_fmp_source_skips_swing_filter(self, config, logger):
         config.tuning["universe_source"] = "fmp_screener"

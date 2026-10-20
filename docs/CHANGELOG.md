@@ -4,6 +4,52 @@
 
 ---
 
+## 2026-10-20 (3) — a staleness-létra és a screener-visszaesés megszüntetése (F-1a…F-1d)
+
+> Baseline 2462 → **2467** (+5), 0 fail. D-U1 jóváhagyva (Tamás, 2026-10-20).
+
+### feat(universe) — a TTL szemantikája megfordítva
+A régi kód a lejárt cache-ből `None`-t adott vissza, ami a hívót a **screener**-re
+küldte — egy **másik populációra**. Most:
+
+| | |
+|---|---|
+| cache a TTL-en belül | használatban, `degraded_stale: false` |
+| TTL lejárt, **újratöltés sikeres** | friss lista, cache újraírva |
+| TTL lejárt, **újratöltés BUKIK** | **a stale cache kiszolgálva**, `degraded_stale: true` + eszkalálódó riasztás |
+| nincs használható lista **egyáltalán** | **`RuntimeError`** — a hívó nem cserélhet populációt |
+
+Eszkalálódó riasztás (`_log_staleness`): **WARNING > 7 nap**, **ERROR > 45 nap** (jóval a
+júniusi rekonstitúció előtt, amikor a lista valóban elavulna).
+
+**Az indok mérve:** egy 77 napos lista 1018 nevet adott a mai 1027 ellen (Jaccard 0,927),
+míg a **csere** 730-ból 377-et (52%) nem-tagra váltott. Index-tagságnál a régiség szinte
+ártalmatlan, a csere nem — a régi kód ezt fordítva kezelte.
+
+### feat(phase2) — a screener-visszaesés MEGSZŰNT
+`_screen_long_universe` mostantól **`RuntimeError`-t dob**, ha nincs tagság, ERROR-szintű
+log-bejegyzéssel. Mivel a létra már a lejárt cache-t is kiszolgálja, ide eljutni azt
+jelenti, hogy **egyáltalán nincs** használható lista — ez megállítja a fázist, nem
+írja felül csendben az univerzum definícióját.
+
+### feat — `UniverseResult` provenance (F-2 forrás-szinten)
+Immutábilis dataclass: `symbols`, `source` (`wikipedia` / `fmp_index_and_etf` / `cache`),
+`fetched_at`, `age_days`, `degraded_stale`, plusz `provenance()` a context-rekordhoz.
+
+### test (+5) — és egy MEGFORDÍTOTT teszt
+A `test_swing_failure_falls_back_to_raw_screener` eddig **az ellenkezőjét** állította;
+most `test_swing_failure_REFUSES_the_raw_screener`. Új tesztek: a lejárt cache
+kiszolgálása, a hiányzó lista `RuntimeError`-ja, az eszkalálódó riasztás mindkét szintje,
+a provenance-rekord, és a Phase 2 integráció stale cache-sel.
+**Szabotázs-ellenőrzés:** a régi TTL-szemantikát visszaírva **5 teszt bukik**.
+
+### ⏸ Hátra: F-2 (context), F-3 (Telegram ERROR), F-5 (heartbeat) és a (B) élesítése
+Az F-2 context-szintje négy ponton nyúl bele (Phase 2 result → runner → context
+save/load), és a `source` mező tartalma a §(B)/(C) kérdéstől függ — lásd a következő
+bejegyzést.
+
+---
+
 ## 2026-10-20 (2) — D-U4: a σ_cs keverék volt, a fal ~4%-kal magasabb, a null megerősödik
 
 > `scripts/analysis/universe_counterfactual.py` (új) + errata a fal-riportba.

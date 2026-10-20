@@ -164,12 +164,27 @@ def _screen_long_universe(fmp: FMPClient, config: Config, logger: EventLogger) -
     if universe_source == "swing_sp500_r1000":
         swing_membership = _load_swing_membership(fmp, config, logger)
         if swing_membership is None:
+            # F-1c/F-1d (D-U1, approved 2026-10-20): the legacy screener is NOT a
+            # staler membership list, it is a DIFFERENT population. Substituting it
+            # is what hid nine weeks of degradation (2026-08-16 .. 10-19) and swapped
+            # 377 of 730 names (52%) for non-members. Since the staleness ladder in
+            # `SwingUniverseSource` now serves an expired cache rather than giving up,
+            # reaching here means there is no usable membership AT ALL — which must
+            # stop the phase, not silently redefine the universe.
             logger.log(
                 EventType.CONFIG_WARNING,
-                Severity.WARNING,
+                Severity.ERROR,
                 phase=2,
-                message="Swing universe fetch failed — falling back to "
-                "raw FMP screener (legacy ~1390 ticker universe)",
+                message=(
+                    "Swing universe unavailable (no live source and no usable cache) — "
+                    "REFUSING to substitute the raw FMP screener. The pipeline context "
+                    "will not be written; fix the membership source."
+                ),
+            )
+            raise RuntimeError(
+                "Swing universe unavailable: no live source and no usable cache. "
+                "Substituting the legacy screener would silently change the scored "
+                "population (D-U1/F-1d)."
             )
 
     tickers = []

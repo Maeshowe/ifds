@@ -33,6 +33,7 @@ import json
 import logging
 import re
 from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -71,6 +72,55 @@ UNION_MIN, UNION_MAX = 950, 1100
 # IFDS uses bare symbols ("BRK") or hyphen variants ("BRK-B") depending on
 # data provider; we normalize to the form FMP/Polygon use (hyphen, uppercase).
 _TICKER_RE = re.compile(r"^[A-Z]{1,5}(?:[.\-][A-Z]{1,2})?$")
+
+
+#: Staleness ladder for a cached membership list (D-U1/F-1b, approved 2026-10-20).
+#:
+#: For an index-membership list the critical property is NOT freshness but IDENTITY.
+#: Measured 2026-10-20: a 77-day-old cache held 1018 names against today's 1027 —
+#: Jaccard 0.927, a few percent of drift — because the Russell 1000 reconstitutes
+#: annually in June with quarterly IPO adds. Substituting a different population, by
+#: contrast, swapped 377 of 730 names (52%) for non-members. So serving a stale list
+#: is nearly harmless and substituting one is not, and the old code had it backwards:
+#: a 7-day TTL that, on expiry, SUBSTITUTED instead of EXTENDING.
+#:
+#: WARN at the TTL (a refetch is overdue), ERROR well before the June reconstitution
+#: window would make the list genuinely wrong.
+STALE_WARN_DAYS = 7
+STALE_ERROR_DAYS = 45
+
+#: Where a universe came from. Recorded in the pipeline context so every downstream
+#: artifact (Phase 4 snapshot, scan matrix, FRL attempt) is self-describing.
+SOURCE_WIKIPEDIA = "wikipedia"
+SOURCE_FMP = "fmp_index_and_etf"
+SOURCE_CACHE = "cache"
+
+
+@dataclass(frozen=True)
+class UniverseResult:
+    """A membership list together with where it came from and how old it is."""
+
+    symbols: tuple[str, ...]
+    source: str
+    fetched_at: datetime
+    age_days: float
+    degraded_stale: bool
+
+    def __len__(self) -> int:  # so callers can treat it like the old list
+        return len(self.symbols)
+
+    def __iter__(self):
+        return iter(self.symbols)
+
+    def provenance(self) -> dict:
+        """The record that goes into the pipeline context (D-U1/F-2)."""
+        return {
+            "source": self.source,
+            "fetched_at": self.fetched_at.isoformat(),
+            "count": len(self.symbols),
+            "age_days": round(self.age_days, 2),
+            "degraded_stale": self.degraded_stale,
+        }
 
 
 def _http_get(url: str, timeout: float = 15.0) -> str:
@@ -335,49 +385,105 @@ class SwingUniverseSource:
 
     # -- public ---------------------------------------------------------
 
-    def get_universe(self, fmp_client: Any | None = None) -> list[str]:
-        """Return the deduped union, fetching + caching as needed."""
+    def get_universe(self, fmp_client: Any | None = None) -> UniverseResult:
+        """Return the membership list with its provenance.
+
+        Staleness ladder (D-U1/F-1a..F-1c, approved 2026-10-20): a cache inside the
+        TTL is used as-is; past the TTL a refetch is attempted, and if it FAILS the
+        stale cache is served anyway, labelled, with an escalating alarm. Only the
+        total absence of a usable list raises — and then the caller must refuse to
+        write the pipeline context rather than substitute a different population.
+
+        The old code returned None from the cache on expiry, which sent the caller
+        down the screener fallback: nine consecutive weekly runs (2026-08-16 ..
+        10-19) silently swapped the population instead of serving a slightly old
+        and nearly identical one.
+        """
         cached = self._load_cache()
-        if cached is not None:
+        if cached is not None and cached.age_days <= self.cache_ttl.days:
             return cached
 
-        union = self._fetch_fresh(fmp_client)
+        try:
+            union, source = self._fetch_fresh(fmp_client)
+        except (URLError, RuntimeError) as exc:
+            if cached is None:
+                raise RuntimeError(
+                    f"Swing universe unavailable: fetch failed ({exc}) and no usable "
+                    "cache exists. The caller must NOT substitute another population."
+                ) from exc
+            self._log_staleness(cached)
+            return cached
 
         if not (UNION_MIN <= len(union) <= UNION_MAX):
-            raise RuntimeError(
+            message = (
                 f"Swing universe union returned {len(union)} symbols, "
                 f"outside expected {UNION_MIN}-{UNION_MAX} window."
             )
+            if cached is None:
+                raise RuntimeError(message)
+            logger.error("%s — serving the cached list instead.", message)
+            self._log_staleness(cached)
+            return cached
 
-        self._write_cache(union)
-        return union
+        self._write_cache(list(union))
+        now = datetime.now(timezone.utc)
+        return UniverseResult(
+            symbols=tuple(union),
+            source=source,
+            fetched_at=now,
+            age_days=0.0,
+            degraded_stale=False,
+        )
+
+    def _log_staleness(self, cached: UniverseResult) -> None:
+        """Escalating alarm on the served cache's age (F-1b)."""
+        age = cached.age_days
+        detail = (
+            f"serving the CACHED membership: {len(cached)} symbols, "
+            f"fetched {cached.fetched_at:%Y-%m-%d}, age {age:.1f}d"
+        )
+        if age > STALE_ERROR_DAYS:
+            logger.error(
+                "%s — past %dd, the list may predate an index reconstitution. "
+                "Fix the source.",
+                detail,
+                STALE_ERROR_DAYS,
+            )
+        elif age > STALE_WARN_DAYS:
+            logger.warning("%s — a refetch is overdue (TTL %dd).", detail, STALE_WARN_DAYS)
+        else:
+            logger.info("%s.", detail)
 
     # -- internals ------------------------------------------------------
 
-    def _fetch_fresh(self, fmp_client: Any | None) -> list[str]:
-        """Wikipedia primary; FMP fallback; raise if both fail."""
+    def _fetch_fresh(self, fmp_client: Any | None) -> tuple[list[str], str]:
+        """Wikipedia primary; FMP fallback; raise if both fail.
+
+        Returns ``(symbols, source_label)`` so the provenance records which of the
+        two independent providers actually answered.
+        """
         try:
             sp500 = fetch_sp500_from_wikipedia()
             r1000 = fetch_russell1000_from_wikipedia()
-            return sorted(set(sp500) | set(r1000))
+            return sorted(set(sp500) | set(r1000)), SOURCE_WIKIPEDIA
         except (URLError, RuntimeError) as wiki_exc:
             logger.warning("Wikipedia swing universe fetch failed: %s", wiki_exc)
 
         fallback = fetch_from_fmp_fallback(fmp_client)
         if fallback is not None:
             logger.info("Swing universe sourced from FMP fallback (%d symbols)", len(fallback))
-            return fallback
+            return fallback, SOURCE_FMP
 
         raise RuntimeError(
-            "Swing universe fetch failed: Wikipedia parse failed AND "
-            "FMP fallback unavailable. Caller should fall back to legacy "
-            "FMP screener."
+            "Swing universe fetch failed: Wikipedia parse failed AND the FMP "
+            "fallback is unavailable. The caller must NOT substitute the legacy "
+            "screener — it is a different population, not a staler list."
         )
 
     def _cache_path(self) -> Path:
         return self.cache_dir / self.CACHE_FILE
 
-    def _load_cache(self) -> list[str] | None:
+    def _load_cache(self) -> UniverseResult | None:
         path = self._cache_path()
         if not path.exists():
             return None
@@ -397,18 +503,27 @@ class SwingUniverseSource:
         if fetched_at.tzinfo is None:
             fetched_at = fetched_at.replace(tzinfo=timezone.utc)
 
-        age = datetime.now(timezone.utc) - fetched_at
-        if age > self.cache_ttl:
-            return None
+        # Age is REPORTED, never used to discard: an expired cache is still a valid
+        # membership list, and the caller decides whether to refetch (F-1a).
+        age_days = (datetime.now(timezone.utc) - fetched_at).total_seconds() / 86400.0
 
         symbols = payload.get("symbols") or []
         if not (UNION_MIN <= len(symbols) <= UNION_MAX):
             logger.warning(
-                "Cached swing universe has %d symbols, outside window — refetching",
+                "Cached swing universe has %d symbols, outside the %d-%d window — "
+                "treating the cache as unusable",
                 len(symbols),
+                UNION_MIN,
+                UNION_MAX,
             )
             return None
-        return list(symbols)
+        return UniverseResult(
+            symbols=tuple(symbols),
+            source=SOURCE_CACHE,
+            fetched_at=fetched_at,
+            age_days=age_days,
+            degraded_stale=age_days > self.cache_ttl.days,
+        )
 
     def _write_cache(self, symbols: list[str]) -> None:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
