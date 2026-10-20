@@ -1,6 +1,6 @@
 Status: OPEN
 Updated: 2026-10-20
-Note: DÖNTÉS-task, nem bugfix. A `fail-open` a `50dfb3c` szándékos terve volt; a lecserélése viselkedés-változás egy pénzügyi kutatórendszerben, ezért Tamás döntése. A forrás-javítás (`1871ef7`) ettől függetlenül már bement.
+Note: **D-U2 ELDÖNTVE: (B) — csak index-unió** (Tamás, 2026-10-20). A másik háromra CC javaslata a §7-ben. DÖNTÉS-task, nem bugfix. A `fail-open` a `50dfb3c` szándékos terve volt; a lecserélése viselkedés-változás egy pénzügyi kutatórendszerben, ezért Tamás döntése. A forrás-javítás (`1871ef7`) ettől függetlenül már bement.
 
 # A néma degradálás: mi legyen a bukási mód, ha nincs elsődleges univerzum-forrás?
 
@@ -43,11 +43,38 @@ Ez a lelet a vizsgálat legfontosabb korlátja, és megfordítja az intuíciót:
 
 | | szabály |
 |---|---|
-| **F-1** | A `phase13_ctx` **kiírása tilos**, ha az univerzum nem az elsődleges forrásból jött (`universe_source != primary`). A stale context **jobb**, mint egy csendben kicserélt populáció — a stale-t a 23:00-as heartbeat már most elkapja, a kicserélt populációt semmi. |
+| **F-1** *(átírva 2026-10-20, a (B) elfogadása után)* | **Ne bináris fail-closed legyen, hanem a TTL szemantikájának megfordítása.** Lásd §3.1 — ez jobb, mint a saját eredeti javaslatom. |
 | **F-2** | A kontextusba kerüljön **`universe_provenance`** mező: `{source, fetched_at, count, degraded: bool}`. Minden downstream artefakt (Phase 4 snapshot, scan matrix, FRL attempt) ebből tudja, milyen populáción készült. |
 | **F-3** | **Telegram ERROR** (ne WARNING) fallback esetén, a forrás nevével és azzal, hogy mi NEM íródott ki. |
 | **F-4** | A méret-riasztás **`total_screened`-en** számoljon, a kizárásokat (earnings, SEC, inactive) **külön** jelentse — így az earnings-völgy nem kelt zajt. |
 | **F-5** | A 23:00-as `check_phase13_freshness.py` a **korán kívül a provenance-t is** nézze: friss, de degradált context ugyanúgy riasztás. |
+
+### 3.1 🔄 F-1 átírva: az index-tagságnál a **frissesség** nem a kritikus tulajdonság
+
+Az eredeti F-1 javaslatom (ne írjuk ki a contextet fallback esetén) **túl tompa**, és a
+(B) elfogadása után már jobb megoldás van. Az ok egy aszimmetria, amit a mai mérés
+tett világossá:
+
+> **Egy index-tagsági lista esetén a régiség szinte ártalmatlan, a CSERE viszont káros.**
+> A Russell 1000 évente egyszer (júniusban) rekonstituálódik + negyedéves IPO-addok;
+> egy háromhetes lista gyakorlatilag helyes. A mai mérés is ezt mondja: a 2026-08-04-i,
+> **77 napos** cache 1018 nevet tartalmazott, a mai friss 1027-et — **4,5% eltérés
+> 2,5 hónap alatt**. Ezzel szemben a csere 730 névből **377-et (52%)** olyanra váltott,
+> ami nem is index-tag.
+
+A mai kód ezt **fordítva** teszi: 7 napos TTL, és lejáratkor **cserél** ahelyett, hogy
+**kinyújtaná**. Javaslat:
+
+| | szabály |
+|---|---|
+| **F-1a** | Letöltési hiba esetén a rendszer a **cache-elt tagságot szolgálja ki TTL után is**, `degraded_stale: true` címkével és a `fetched_at` dátummal. |
+| **F-1b** | Eszkalálódó riasztás a cache korára: **WARNING > 7 nap**, **ERROR > 45 nap** (a júniusi rekonstitúciós ablak előtt, amikor a lista valóban elavulna). |
+| **F-1c** | A context kiírása **csak akkor tiltott**, ha egyáltalán **nincs** használható tagsági lista (se friss, se cache). Ekkor a stale context marad, amit a 23:00-as heartbeat már elkap. |
+| **F-1d** | A screenerre való visszaesés **megszűnik** mint út: a (B) alatt a screener nem univerzum-forrás, csak enrichment. |
+
+Mit adott volna ez a 9 hétre? **„9 hét korrektül címkézett, 4,5%-kal elavult tagság"** —
+ami rendben van —, nem „9 hét csendben kicserélt populáció". És a 45 napos ERROR a
+**9. hét előtt**, szeptember végén tüzelt volna.
 
 ## 4. Amit a döntés ELLEN fel kell hozni
 
@@ -104,14 +131,73 @@ tehát a váltás dátuma egy **új éra-határ**, és így kell rögzíteni.
    `universe.json`-t felülírja, előbb `state/state_backups/`-ba mentsen
    (2026-10-20-tól CC gyakorlat, lásd memória).
 
-## 7. Mit kérek Tamástól
+## 7. Döntések — CC javaslatával
 
-| Döntés | |
-|---|---|
-| **D-U1** | F-1…F-5 (fail-closed + provenance + ERROR + `total_screened`-alapú méret-riasztás + heartbeat-kiterjesztés) — **elfogadva / nem** |
-| **D-U2** | A §5 kérdés: **(A) metszet marad / (B) csak index-unió / (C) index + likviditási floor** |
-| **D-U3** | Ha (B) vagy (C): a váltás dátuma **új éra-határ**-ként rögzítendő (G5) — **igen / nem** |
-| **D-U4** | Mérjük-e meg a (B) hatását a Phase 4 percentilis-rangokra **a váltás előtt** (ellenpróba a lezárt éra snapshotjain) — **igen / nem** |
+| Döntés | | **CC javaslata** |
+|---|---|---|
+| **D-U1** | A detektálás és a bukási mód | **alpontonként, lent** |
+| **D-U2** | metszet / index-unió / index+floor | ✅ **(B) — ELDÖNTVE** (Tamás, 2026-10-20) |
+| **D-U3** | Új éra-határ G5 szerint? | **NEM — regime-marker helyette** (lásd §7.2) |
+| **D-U4** | Ellenpróba a váltás előtt? | **IGEN, és ez legyen az első** (lásd §7.3) |
+
+### 7.1 D-U1 — alpontonként, mert nem egy csomag
+
+| | javaslat | miért |
+|---|---|---|
+| **F-2** provenance-mező | ✅ **IGEN, feltétel nélkül** | Tiszta hozzáadás, nulla viselkedés-változás, és ez teszi minden downstream artefaktot önleíróvá. Ez menjen be akkor is, ha minden más elbukik. |
+| **F-3** ERROR a WARNING helyett | ✅ **IGEN** | Detektálás, nem viselkedés. Ez fogta volna el a 9 hetet. |
+| **F-5** heartbeat provenance-check | ✅ **IGEN** | Ugyanaz; a heartbeat ma csak a *kort* nézi, a *forrást* nem — pedig a forrás volt a baj. |
+| **F-1** (átírva: F-1a…F-1d) | ✅ **IGEN, de a §3.1 alakjában** | Az eredeti bináris fail-closed túl tompa; a TTL-megfordítás egyszerre őrzi a folytonosságot és tiltja a néma cserét. |
+| **F-4** `total_screened`-alapú méret-riasztás | ⚠️ **IGEN, de utolsó prioritás** | A mérés szerint egy méret-riasztás ezt a hibát **elvileg sem** fogta volna el (a váltás NÖVELTE a számot). Más hibára jó (screener-összeomlás), nem erre. Ne ez legyen az első. |
+
+### 7.2 D-U3 — miért NEM új éra, hanem regime-marker
+
+Megmértem, mit kóstál egy kemény vágás a 2026-08-16-i határon (`T_eff = napok/h`,
+floor 6,0):
+
+| h | teljes éra | index-rész | screener-rész | vágás után |
+|---:|---:|---:|---:|---|
+| 5 | 17,2 | 10,6 | 6,6 | mindkettő tesztelhető |
+| **7** | 12,3 | 7,6 | **4,7** | ⛔ **csak EGYÜTT tesztelhető** |
+| **10** | 8,6 | 5,3 | **3,3** | ⛔ **csak EGYÜTT tesztelhető** |
+
+Egy kemény éra-vágás tehát **megszüntetné a h=7 és h=10 tesztelhetőségét** — és épp a
+**h=10** az, ahol a fal a legalacsonyabb (0,0233 a mért „D" végrehajtási forgatókönyvben),
+vagyis ahol egy jövőbeli jelnek a legnagyobb esélye van átmenni. Egy éra-vágás a
+legígéretesebb horizontot zárná el.
+
+Ráadásul a két meglévő éra **stratégia** szerint különül el (legacy bracket vs swing);
+ez itt **univerzum** szerinti különbség, változatlan stratégiával.
+
+**Javaslat:** ne éra, hanem **`universe_regime` marker** a `frl_config`-ban (határ:
+2026-08-16), a provenance-mezőben rögzítve, és **kötelező szabály**, hogy minden jövőbeli
+attempt vagy (i) egyetlen regime adatán fut, vagy (ii) **kiírja a keverési arányt**.
+
+> ⚠️ **Amit ez nem ad meg:** ez **gyengébb** garancia, mint egy igazi éra-szeparáció.
+> A G5 azért létezik, hogy a keverés ne történhessen meg csendben; a marker ezt a
+> *csendet* szünteti meg, a keverést magát nem tiltja. Ezt kimondom, nem szépítem —
+> és a már lezárt 23 attempt keveredése amúgy sem visszafordítható (4. kísérő:
+> nincs újrafuttatás verdikt-generálásért).
+
+### 7.3 D-U4 — IGEN, és ez legyen az ELSŐ lépés
+
+Nem csak azért, mert óvatos: **egy élő ellentmondást zár le.**
+
+A panel szerint a tervezett univerzum visszaállítása **csökkenti** a σ_cs-t és így
+**emeli** a falat. A saját közvetlen mérésem az **ellenkezőjét** adta: az index-rész
+σ_cs(5) = **0,0609**, a screener-rész **0,0564** — vagyis a visszaállítás **emelné** a
+σ_cs-t és **csökkentené** a falat. Ez a két állítás nem lehet egyszerre igaz, és
+a fal a projekt központi száma.
+
+A mérés **olcsó**: a lezárt éra Phase 4 snapshotjai megvannak
+(`state/phase4_snapshots/*.json.gz`). Újraszámolható a percentilis-rang **csak az
+index-tagokra** szűkítve, és összevethető a tényleges, lefutott rangokkal. Ez
+egyszerre adja meg: (a) mennyit mozdulnak a score-ok, (b) a σ_cs igazi irányát,
+(c) hogy a lezárt null-eredmények máshogy alakultak volna-e.
+
+**Javaslat:** a D-U4 fusson le **a (B) élesítése előtt**, és az eredménye kerüljön a
+falat közlő riportba (`docs/review/2026-10-19-execution-wall-by-horizon.md`) erratába,
+ha a σ_cs irány az enyémmel szemben a panelt igazolja.
 
 ## 8. Referencia
 
