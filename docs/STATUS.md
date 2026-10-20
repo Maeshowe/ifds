@@ -25,7 +25,7 @@ Nyitott stratégiai döntés: új jelcsalád vagy a projekt lezárása.**
 | **A könyv** | **ÜRES 2026-09-30 óta** — 0 pozíció, 0 élő order (bróker-verifikált) |
 | **Pipeline** | ✅ **FUT** — Phase 1-6 minden nap, csak az IBKR-hez kapcsolódó jobok állnak |
 | **Kapu (2026-09-22-i pre-reg dátum)** | ✅ **LEFUTOTT 2026-10-03-án**, 8 kereskedési nap dokumentált késéssel |
-| **Tesztek** | **2487 passing**, 0 fail (5 időzónában) |
+| **Tesztek** | **2489 passing**, 0 fail (5 időzónában) |
 | **Kumulatív P&L (befagyva)** | **−$6 460,95** / 88 kereskedési nap |
 
 ---
@@ -133,7 +133,7 @@ rotáció, UW dormant kód ~10 modul).
 
 ## Tesztek
 
-**2487 passing**, 0 fail (2026-10-20) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
+**2489 passing**, 0 fail (2026-10-20) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
 
 ---
 

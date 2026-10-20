@@ -141,7 +141,17 @@ def _screen_long_universe(
     params = {
         "marketCapMoreThan": config.tuning["universe_min_market_cap"],
         "priceMoreThan": config.tuning["universe_min_price"],
-        "volumeMoreThan": config.tuning["universe_min_avg_volume"],
+        # avgVolumeMoreThan, NOT volumeMoreThan. FMP's `volume` field is TODAY'S
+        # PARTIAL intraday volume; the average lives in `avgVolume`. Passing an
+        # "average volume" threshold to the partial-volume filter made the universe
+        # a function of WHEN the phase ran: measured 2026-10-20 at 11:51 ET, AFL
+        # showed volume 199,786 against avgVolume 2,001,023 and was excluded from a
+        # 500k floor despite a $60bn cap. Membership coverage went 51.5% -> 89.7%
+        # on this one word. Verified honoured (a dropped FMP param does not move the
+        # count): avgVolumeMoreThan gives 2125/402/9 at 500k/5M/50M, while
+        # averageVolumeMoreThan returns the unfiltered 4733 exactly like a fabricated
+        # control param. Report: docs/review/2026-10-20-screener-intraday-volume-bug.md
+        "avgVolumeMoreThan": config.tuning["universe_min_avg_volume"],
         "isEtf": "false",
         "limit": 10000,
     }
@@ -371,7 +381,9 @@ def _screen_short_universe(fmp: FMPClient, config: Config, logger: EventLogger) 
     """Screen for SHORT/Zombie universe using FMP screener."""
     params = {
         "marketCapMoreThan": config.tuning["zombie_min_market_cap"],
-        "volumeMoreThan": config.tuning["zombie_min_avg_volume"],
+        # Same fix as the LONG path: the threshold means AVERAGE volume, so it goes
+        # to avgVolumeMoreThan and not to FMP's partial-day `volume` filter.
+        "avgVolumeMoreThan": config.tuning["zombie_min_avg_volume"],
         "isEtf": "false",
         "limit": 5000,
     }

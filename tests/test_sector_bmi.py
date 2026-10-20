@@ -124,6 +124,31 @@ def _make_daily_data_with_spikes(days_count, sector_mapping, spike_tickers, spik
 
 
 class TestFMPSectorMapping:
+    def test_sector_mapping_uses_the_average_volume_and_is_not_truncated(self):
+        """Two measured fixes, 2026-10-20 (same root cause as the universe screener).
+
+        `volumeMoreThan` filters FMP's `volume`, which is TODAY'S PARTIAL intraday
+        volume — so which tickers got a sector depended on the time of day. And the
+        old call returned exactly 3000 rows against `limit=3000`, i.e. it was ALWAYS
+        truncated, so membership also depended on the screener's ordering. Sector
+        feeds Phase 3 breadth and the sector caps. Measured after both fixes: 5006
+        rows, no truncation.
+        """
+        from unittest.mock import MagicMock
+
+        from ifds.data.fmp import FMPClient
+
+        client = FMPClient.__new__(FMPClient)
+        client._cache = None
+        client.screener = MagicMock(return_value=[{"symbol": "AAPL", "sector": "Technology"}])
+        client.get_sector_mapping()
+        params = client.screener.call_args[0][0]
+        assert params["avgVolumeMoreThan"] == 100_000
+        assert "volumeMoreThan" not in params, "partial-day volume must not gate sectors"
+        assert params["limit"] >= 10_000, (
+            "limit=3000 returned exactly 3000 rows, i.e. it was always truncated"
+        )
+
     def test_get_sector_mapping_returns_dict(self):
         """get_sector_mapping() should return {ticker: sector}."""
         from ifds.data.fmp import FMPClient

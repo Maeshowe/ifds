@@ -125,11 +125,24 @@ class FMPClient(BaseAPIClient):
             return result[0]
         return None
 
-    def get_sector_mapping(self, limit: int = 3000) -> dict[str, str]:
+    def get_sector_mapping(self, limit: int = 10000) -> dict[str, str]:
         """Get ticker→sector mapping from FMP screener.
 
         Single API call. Returns {ticker: fmp_sector_name}.
         Cached via FileCache if available.
+
+        .. versionchanged:: 2026-10-20
+           Two measured fixes, same root cause as the universe screener
+           (docs/review/2026-10-20-screener-intraday-volume-bug.md):
+
+           * ``avgVolumeMoreThan`` replaces ``volumeMoreThan``. FMP's ``volume`` is
+             TODAY'S PARTIAL intraday volume, so the mapping's membership used to
+             depend on the time of day the phase ran.
+           * ``limit`` 3000 -> 10000. The old call returned exactly 3000 rows, i.e.
+             it was ALWAYS truncated at the limit, so which names got a sector
+             depended on the screener's ordering. Measured after both fixes: 5006
+             rows, no truncation. Sector feeds Phase 3 breadth and the sector caps,
+             so a silently truncated mapping is not a cosmetic problem.
         """
         yesterday = (date.today() - timedelta(days=1)).isoformat()
         if self._cache:
@@ -139,7 +152,7 @@ class FMPClient(BaseAPIClient):
 
         params = {
             "marketCapMoreThan": 500_000_000,
-            "volumeMoreThan": 100_000,
+            "avgVolumeMoreThan": 100_000,
             "limit": limit,
         }
         result = self.screener(params)

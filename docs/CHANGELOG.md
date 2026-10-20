@@ -4,6 +4,45 @@
 
 ---
 
+## 2026-10-20 (7) — D-V1: `volumeMoreThan` → `avgVolumeMoreThan` mindhárom hívóhelyen
+
+> Baseline 2487 → **2489** (+2), 0 fail. **Bugfix**, nem design-változás (D-V1 jóváhagyva).
+
+### Három hívóhely, ugyanaz a hiba
+A kód „átlagos napi volumen" szándékú küszöböket adott az FMP **részleges napi**
+volumen-szűrőjébe:
+
+| | eddig | most |
+|---|---|---|
+| `phase2_universe:144` LONG univerzum | `volumeMoreThan` ← `universe_min_avg_volume` | **`avgVolumeMoreThan`** |
+| `phase2_universe:374` zombie/SHORT | `volumeMoreThan` ← `zombie_min_avg_volume` | **`avgVolumeMoreThan`** |
+| `fmp.py:142` szektor-mapping | `volumeMoreThan: 100_000` | **`avgVolumeMoreThan: 100_000`** |
+
+### 🔴 És a szektor-mapping ráadásul MINDIG csonkolva volt
+Mérve: a régi hívás **pontosan 3000 sort** adott `limit=3000` ellen — vagyis a limiten
+állt, tehát **melyik 3000 név kapott szektort, az a screener rendezésétől és a
+napszaktól függött**. A szektor a Phase 3 breadth-et és a szektor-capokat is táplálja,
+tehát ez nem kozmetika. A `limit` default **3000 → 10000**; a két javítás után **5006
+sor, csonkolás nélkül**.
+
+### Hatás
+A tagsági lefedettség **51,5% → 89,7%** (529 → 921 név), az enrichment-rés **498 → 106**.
+Az univerzum ezzel **időfüggetlen** lesz: a `volume` mező napszak-függő volt, az
+`avgVolume` nem.
+
+### Miért bugfix
+A kulcsok neve `universe_min_avg_volume` / `zombie_min_avg_volume`, a kommentjük
+„500K shares/day" — a **szándék** mindig az átlag volt. A kód viszont nem-átlag
+API-paraméterbe adta. Konfig-kulcs vs. API-paraméter szemantikai eltérés.
+
+### test (+2, és egy frissített)
+`test_passes_correct_params` most azt is állítja, hogy a `volumeMoreThan` **nincs** a
+paraméterek között (a visszaírása újra napszak-függővé tenné az univerzumot). Új: a
+zombie/SHORT ág ugyanezt használja, és a szektor-mapping `avgVolumeMoreThan`-t kér
+`limit >= 10000`-rel.
+
+---
+
 ## 2026-10-20 (6) — 🔴 a screener a MAI RÉSZLEGES volumenre szűr; az univerzum a futás idejétől függ
 
 > Mérési riport, **nulla kódváltozás**. `docs/review/2026-10-20-screener-intraday-volume-bug.md`

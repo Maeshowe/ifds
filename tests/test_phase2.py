@@ -132,8 +132,27 @@ class TestLongUniverseScreening:
         call_params = fmp.screener.call_args[0][0]
         assert call_params["marketCapMoreThan"] == 2_000_000_000
         assert call_params["priceMoreThan"] == 5.0
-        assert call_params["volumeMoreThan"] == 500_000
         assert call_params["isEtf"] == "false"
+        # avgVolumeMoreThan, NOT volumeMoreThan (2026-10-20). FMP's `volume` is
+        # today's PARTIAL intraday volume, so the old parameter made the universe
+        # depend on the time of day: at 11:51 ET, AFL showed volume 199,786 against
+        # avgVolume 2,001,023 and fell out of a 500k floor at a $60bn cap.
+        assert call_params["avgVolumeMoreThan"] == 500_000
+        assert "volumeMoreThan" not in call_params, (
+            "volumeMoreThan filters TODAY'S PARTIAL volume — reinstating it makes the "
+            "universe a function of when the phase runs"
+        )
+
+    def test_the_zombie_screener_also_uses_the_average(self, config, logger):
+        """Same bug, same fix, on the SHORT path."""
+        from ifds.phases.phase2_universe import _screen_short_universe
+
+        fmp = MagicMock()
+        fmp.screener.return_value = []
+        _screen_short_universe(fmp, config, logger)
+        call_params = fmp.screener.call_args[0][0]
+        assert call_params["avgVolumeMoreThan"] == 500_000
+        assert "volumeMoreThan" not in call_params
 
 
 class TestShortUniverseScreening:
