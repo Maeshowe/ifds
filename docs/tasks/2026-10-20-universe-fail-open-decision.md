@@ -1,6 +1,6 @@
 Status: WIP
 Updated: 2026-10-20
-Note: **D-U1, D-U2=(B), D-U3 ELDÖNTVE** (Tamás, 2026-10-20). **D-U4 LEFUTOTT** — eredmény: `docs/review/2026-10-19-execution-wall-by-horizon.md` ERRATA, a fal ~4%-kal magasabb, a null megerősödik. Hátra: az F-1a…F-1d + F-2/F-3/F-5 implementáció és a (B) élesítése. A másik háromra CC javaslata a §7-ben. DÖNTÉS-task, nem bugfix. A `fail-open` a `50dfb3c` szándékos terve volt; a lecserélése viselkedés-változás egy pénzügyi kutatórendszerben, ezért Tamás döntése. A forrás-javítás (`1871ef7`) ettől függetlenül már bement.
+Note: **D-U1, D-U2=(B), D-U3 ELDÖNTVE** (Tamás, 2026-10-20). **D-U2 ÚJRANYITVA és (C)-re döntve** (2026-10-20, mérés alapján) — spec: §9. **D-U4 LEFUTOTT** — eredmény: `docs/review/2026-10-19-execution-wall-by-horizon.md` ERRATA, a fal ~4%-kal magasabb, a null megerősödik. Hátra: az F-1a…F-1d + F-2/F-3/F-5 implementáció és a (B) élesítése. A másik háromra CC javaslata a §7-ben. DÖNTÉS-task, nem bugfix. A `fail-open` a `50dfb3c` szándékos terve volt; a lecserélése viselkedés-változás egy pénzügyi kutatórendszerben, ezért Tamás döntése. A forrás-javítás (`1871ef7`) ettől függetlenül már bement.
 
 # A néma degradálás: mi legyen a bukási mód, ha nincs elsődleges univerzum-forrás?
 
@@ -205,3 +205,79 @@ ha a σ_cs irány az enyémmel szemben a panelt igazolja.
 - Panel: 37 ágens, 4 lencse, 23 igazolt lelet / 7 blocker (2026-10-19)
 - Mérések: `docs/CHANGELOG.md` 2026-10-19 (8) és (9)
 - A §3.9 eredeti döntés: commit `50dfb3c`, Day 63 outcome §3.9 (Döntés 9)
+
+---
+
+# §9 — A (C) IMPLEMENTÁCIÓS SPEC (D-U2 újranyitva és eldöntve: **(C)**, Tamás 2026-10-20)
+
+## 9.1 Miért nem (B) — mérve
+
+| | |
+|---:|---|
+| screener visszaad (production paraméterek) | **1965** nev |
+| index-tagság | **1027** |
+| ebből a screener lefedi | **879 (85,6%)** |
+| **hiányzik** | **148 (14,4%)** |
+
+A hiányzó 148 **azért** hiányzik, mert elbukik a konfigurált likviditási küszöbökön
+(`universe_min_market_cap` $2B, `universe_min_price` $5, `universe_min_avg_volume` 500k).
+A (B) literálisan **ezt a 148 illikvid nevet vinné be** — pont azt, amit a swing
+architektúra kerülni akar. Ráadásul **nincs per-ticker enrichment implementálva**
+(a docstring említi, a kód nem), tehát (B) új kódot + ~148 heti API-hívást igényelne,
+ami a 2026-05-14-i rate-limit szabály szerint **élő smoke-ot** kíván.
+
+## 9.2 A (C) definíció
+
+```
+univerzum = index-tagság ∩ { ár ≥ universe_min_price  ÉS  ADV ≥ universe_min_avg_volume }
+```
+
+A floor **ugyanazokkal a TUNING küszöbökkel** dolgozik, de **helyben** számol, nem az
+FMP screener rotáló kimenetéből — így deterministikus. A **cap-küszöb elhagyva**, mert a
+Russell 1000 tagság definíció szerint cap-rangsor; ezt a riportban ki kell mondani.
+
+**Mért méretezés** (lokális 20 napos bar-ablakon, 1018 nevű tagsággal):
+`tagság 1018 → floor átmegy 911, elbukik 94, nincs bar 13`.
+
+## 9.3 🔴 ÚJ KÉNYSZER: a Mini-n NINCS bar-cache
+
+A `research/cache/api/polygon/grouped_daily` **lokális kutatási artefakt** —
+a production gépen **0 nap** van belőle (`research/` gitignore-olt, nincs syncelve).
+**A floor adata tehát NEM onnan jöhet.**
+
+A helyes forrás: a **Phase 1 már letölti** a grouped daily bar-okat a BMI-hez
+(SMA25 → ~25 session). Ezt kell átadni a Phase 2-nek — **nulla új API-hívás**, tiszta
+wiring. ⚠️ Ez **fázisok közötti adatfolyam-változás a production pipeline-ban**, tehát
+saját design-passzt érdemel, nem egy hosszú session végét.
+
+## 9.4 Share-class normalizálás — mérve, két külön ok
+
+A 13 „nincs bar" név **két** csoport:
+
+| csoport | n | ok | kezelés |
+|---|---:|---|---|
+| `BF-A, BF-B, BRK-B, HEI-A, LEN-B, UHAL-B` | 6 | a Polygon **dot**-alakot használ (`BRK.B`), a repo kötőjelre normalizál | **mindkét alakot próbálni** |
+| `AVB, EA, EQR, LBRDA, LBRDK, MASI, WBS` | 7 | valóban nincs a bar-fájlban (0,7%) | **kizárni + számolni + logolni** |
+
+## 9.5 Implementációs lépések (sorrendben)
+
+1. **Phase 1 → Phase 2 bar-átadás.** A BMI-hez letöltött grouped bar-ok elérhetővé
+   tétele a Phase 2-nek. Ez a kritikus és leginvazívabb lépés.
+2. **`src/ifds/data/liquidity_floor.py`** (új, pure): `(bars, thresholds, lookback) → (passes, excluded_with_reasons)`.
+   Dot/kötőjel variánsok kezelése. Tolerancia-alapú összehasonlítás, nem `== 0`.
+3. **GICS szektor a meglévő parse-ból.** A Wikipedia tábla fejléce
+   `['Company','Symbol','GICS Sector','GICS Sub-Industry']` — a szektor **ugyanabból a
+   letöltésből** jön, amit már parse-olunk. A parser ma csak a Symbol kolonnát veszi.
+4. **Enrichment-rés kezelése.** Ami átmegy a floor-on, de nincs screener-sora
+   (cap-alapon kizárva): **kizárni, számolni, logolni** — nem lekérdezni. A rés méretét
+   a production gépen meg kell mérni (lokálisan nem lehet, mert nincs ott screener-hívás).
+5. **F-2/F-3/F-5 observability.** A `provenance` mezőbe a `universe_definition` is
+   bekerül (`index_union_plus_floor`), így minden downstream artefakt tudja, melyik
+   definíció szerint készült.
+
+## 9.6 Amit a (C) NEM old meg
+
+A már lezárt swing éra **nem** (C) szerint futott, tehát a 2026-08-16-i regime-határ
+és a D-U3 `universe_regime` marker **változatlanul kell**. A (C) élesítése egy
+**harmadik** univerzum-definíciót hoz be (index-metszet → screener → index+floor),
+amit a markernek rögzítenie kell.
