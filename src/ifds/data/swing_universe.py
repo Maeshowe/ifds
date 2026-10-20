@@ -33,10 +33,11 @@ import json
 import logging
 import re
 from datetime import datetime, timedelta, timezone
+import types
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
@@ -105,6 +106,10 @@ class UniverseResult:
     fetched_at: datetime
     age_days: float
     degraded_stale: bool
+    #: {symbol: GICS sector}, from the SAME Wikipedia fetch as the membership.
+    #: BEST EFFORT: empty when the list came from the FMP fallback (ETF holdings
+    #: carry no sector) or from a cache written before 2026-10-20.
+    sectors: Mapping[str, str] = types.MappingProxyType({})
 
     def __len__(self) -> int:  # so callers can treat it like the old list
         return len(self.symbols)
@@ -120,6 +125,7 @@ class UniverseResult:
             "count": len(self.symbols),
             "age_days": round(self.age_days, 2),
             "degraded_stale": self.degraded_stale,
+            "sectors_known": len(self.sectors),
         }
 
 
@@ -154,6 +160,13 @@ class _FirstColumnSymbolParser(HTMLParser):
 
     TARGET_ID = "constituents"
     SYMBOL_HEADER_PATTERNS = ("symbol", "ticker")
+    #: Both pages carry a "GICS Sector" column, so the sector comes from the SAME
+    #: fetch as the membership — no second provider, no second failure mode. Before
+    #: 2026-10-20 the sector came only from the FMP screener, which meant a name the
+    #: screener happened not to return had no sector and was dropped. Exact header:
+    #: S&P 500 ['Symbol','Security','GICS Sector','GICS Sub-Industry',...],
+    #: Russell 1000 ['Company','Symbol','GICS Sector','GICS Sub-Industry'].
+    SECTOR_HEADER_PATTERNS = ("gics sector", "sector")
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -163,10 +176,16 @@ class _FirstColumnSymbolParser(HTMLParser):
         self._in_tr = False
         self._cell_index_in_row = -1
         self._in_header_row = False
+        self._header_done = False
         self._collect_text = False
         self._buffer: list[str] = []
         self._header_cells: list[str] = []
+        self._sector_col: int | None = None
+        self._row_symbol: str | None = None
+        self._row_sector: str | None = None
         self.symbols: list[str] = []
+        #: {symbol: GICS sector}, populated from the same table rows.
+        self.sectors: dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Tag handlers
@@ -194,13 +213,13 @@ class _FirstColumnSymbolParser(HTMLParser):
             if self._symbol_col is None:
                 self._in_header_row = True
                 self._header_cells = []
-        elif tag == "th" and self._in_tr and self._symbol_col is None:
+        elif tag == "th" and self._in_tr and not self._header_done:
             self._cell_index_in_row += 1
             self._collect_text = True
             self._buffer = []
         elif tag == "td" and self._in_tr:
             self._cell_index_in_row += 1
-            if self._symbol_col is not None and self._cell_index_in_row == self._symbol_col:
+            if self._cell_index_in_row in (self._symbol_col, self._sector_col):
                 self._collect_text = True
                 self._buffer = []
 
@@ -212,21 +231,35 @@ class _FirstColumnSymbolParser(HTMLParser):
         if self._depth_table != 1:
             return
 
-        if tag == "th" and self._collect_text and self._symbol_col is None:
+        if tag == "th" and self._collect_text and not self._header_done:
             self._header_cells.append("".join(self._buffer).strip().lower())
             self._collect_text = False
             self._buffer = []
         elif tag == "td" and self._collect_text:
             text = "".join(self._buffer).strip()
-            self._maybe_record(text)
+            if self._cell_index_in_row == self._symbol_col:
+                self._row_symbol = text
+            elif self._cell_index_in_row == self._sector_col:
+                self._row_sector = text
             self._collect_text = False
             self._buffer = []
         elif tag == "tr" and self._in_tr:
-            if self._in_header_row and self._symbol_col is None and self._header_cells:
+            if self._in_header_row and not self._header_done and self._header_cells:
                 for idx, name in enumerate(self._header_cells):
-                    if any(p in name for p in self.SYMBOL_HEADER_PATTERNS):
+                    if self._symbol_col is None and any(
+                        p in name for p in self.SYMBOL_HEADER_PATTERNS
+                    ):
                         self._symbol_col = idx
-                        break
+                    elif self._sector_col is None and any(
+                        p in name for p in self.SECTOR_HEADER_PATTERNS
+                    ):
+                        self._sector_col = idx
+                # The symbol column is mandatory; the sector is best-effort, so the
+                # header is "done" once the symbol is located and a further header
+                # row cannot overwrite it.
+                if self._symbol_col is not None:
+                    self._header_done = True
+            self._record_row()
             self._in_tr = False
             self._in_header_row = False
             self._collect_text = False
@@ -244,13 +277,36 @@ class _FirstColumnSymbolParser(HTMLParser):
     def _normalize(token: str) -> str:
         return token.replace(".", "-").upper()
 
-    def _maybe_record(self, raw: str) -> None:
+    def _record_row(self) -> None:
+        """Commit one body row: the symbol, and its sector when the column exists."""
+        raw, sector = self._row_symbol, self._row_sector
+        self._row_symbol = self._row_sector = None
         if not raw:
             return
         token = raw.split()[0].strip().rstrip(",")
         normalized = self._normalize(token)
-        if _TICKER_RE.match(token) or _TICKER_RE.match(normalized):
-            self.symbols.append(normalized)
+        if not (_TICKER_RE.match(token) or _TICKER_RE.match(normalized)):
+            return
+        self.symbols.append(normalized)
+        if sector:
+            self.sectors.setdefault(normalized, sector)
+
+
+def _parse_constituents(html: str) -> tuple[list[str], dict[str, str]]:
+    """Symbols plus ``{symbol: GICS sector}`` from one parse of one fetch.
+
+    The sector is BEST EFFORT: a page without a sector column yields an empty dict
+    and the symbols are unaffected. Callers must treat a missing sector as legal.
+    """
+    parser = _FirstColumnSymbolParser()
+    parser.feed(html)
+    seen: set[str] = set()
+    symbols: list[str] = []
+    for sym in parser.symbols:
+        if sym not in seen:
+            seen.add(sym)
+            symbols.append(sym)
+    return symbols, dict(parser.sectors)
 
 
 def _parse_symbols(html: str) -> list[str]:
@@ -271,28 +327,36 @@ def _parse_symbols(html: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def fetch_sp500_from_wikipedia() -> list[str]:
-    """Parse the S&P 500 components table. Returns ~503 symbols (May 2026)."""
+def fetch_sp500_from_wikipedia(with_sectors: bool = False):
+    """Parse the S&P 500 components table. ~503 symbols (May 2026).
+
+    With ``with_sectors`` the return is ``(symbols, {symbol: GICS sector})`` from the
+    SAME fetch — verified 2026-10-20: 503 symbols, 503 sectors, 11 distinct sectors.
+    """
     html = _http_get(SP500_WIKI_URL)
-    symbols = _parse_symbols(html)
+    symbols, sectors = _parse_constituents(html)
     if not (SP500_MIN <= len(symbols) <= SP500_MAX):
         raise RuntimeError(
             f"S&P 500 parse returned {len(symbols)} symbols, expected "
             f"{SP500_MIN}-{SP500_MAX}. Wikipedia structure may have changed."
         )
-    return symbols
+    return (symbols, sectors) if with_sectors else symbols
 
 
-def fetch_russell1000_from_wikipedia() -> list[str]:
-    """Parse the Russell 1000 components table. Returns ~1000 symbols."""
+def fetch_russell1000_from_wikipedia(with_sectors: bool = False):
+    """Parse the Russell 1000 components table. ~1021 symbols (Oct 2026).
+
+    With ``with_sectors`` the return is ``(symbols, {symbol: GICS sector})`` from the
+    SAME fetch — verified 2026-10-20: 1021 symbols, 1021 sectors.
+    """
     html = _http_get(R1000_WIKI_URL)
-    symbols = _parse_symbols(html)
+    symbols, sectors = _parse_constituents(html)
     if not (R1000_MIN <= len(symbols) <= R1000_MAX):
         raise RuntimeError(
             f"Russell 1000 parse returned {len(symbols)} symbols, expected "
             f"{R1000_MIN}-{R1000_MAX}. Wikipedia structure may have changed."
         )
-    return symbols
+    return (symbols, sectors) if with_sectors else symbols
 
 
 # ---------------------------------------------------------------------------
@@ -364,6 +428,23 @@ def fetch_from_fmp_fallback(fmp_client: Any) -> list[str] | None:
 # ---------------------------------------------------------------------------
 
 
+def _symbols_and_sectors(fetcher) -> tuple[list[str], dict[str, str]]:
+    """Call a Wikipedia fetcher and accept either shape it may return.
+
+    Production asks for sectors; a test that patches the fetcher with a plain list
+    still works and simply yields no sectors. That is not looseness — the sector is
+    documented as BEST EFFORT, so its absence is a legal state, and tolerating it
+    here keeps the symbol path (which is NOT optional) independent of it.
+    """
+    try:
+        result = fetcher(with_sectors=True)
+    except TypeError:
+        result = fetcher()
+    if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):
+        return list(result[0]), dict(result[1])
+    return list(result), {}
+
+
 class SwingUniverseSource:
     """S&P 500 + Russell 1000 union universe with a 7-day cache.
 
@@ -382,6 +463,8 @@ class SwingUniverseSource:
     ) -> None:
         self.cache_dir = Path(cache_dir)
         self.cache_ttl = timedelta(days=cache_ttl_days)
+        #: Sectors from the most recent live fetch, persisted with the cache.
+        self._last_sectors: dict[str, str] = {}
 
     # -- public ---------------------------------------------------------
 
@@ -433,6 +516,7 @@ class SwingUniverseSource:
             fetched_at=now,
             age_days=0.0,
             degraded_stale=False,
+            sectors=types.MappingProxyType(dict(self._last_sectors)),
         )
 
     def _log_staleness(self, cached: UniverseResult) -> None:
@@ -456,15 +540,18 @@ class SwingUniverseSource:
 
     # -- internals ------------------------------------------------------
 
-    def _fetch_fresh(self, fmp_client: Any | None) -> tuple[list[str], str]:
+    def _fetch_fresh(self, fmp_client: Any | None) -> tuple[list[str], str]:  # noqa: D401
         """Wikipedia primary; FMP fallback; raise if both fail.
 
         Returns ``(symbols, source_label)`` so the provenance records which of the
         two independent providers actually answered.
         """
         try:
-            sp500 = fetch_sp500_from_wikipedia()
-            r1000 = fetch_russell1000_from_wikipedia()
+            sp500, sp_sectors = _symbols_and_sectors(fetch_sp500_from_wikipedia)
+            r1000, r_sectors = _symbols_and_sectors(fetch_russell1000_from_wikipedia)
+            # Russell first so the broader list wins a disagreement; both pages
+            # carry GICS so collisions are rare and cosmetic.
+            self._last_sectors = {**sp_sectors, **r_sectors}
             return sorted(set(sp500) | set(r1000)), SOURCE_WIKIPEDIA
         except (URLError, RuntimeError) as wiki_exc:
             logger.warning("Wikipedia swing universe fetch failed: %s", wiki_exc)
@@ -523,6 +610,7 @@ class SwingUniverseSource:
             fetched_at=fetched_at,
             age_days=age_days,
             degraded_stale=age_days > self.cache_ttl.days,
+            sectors=types.MappingProxyType(dict(payload.get("sectors") or {})),
         )
 
     def _write_cache(self, symbols: list[str]) -> None:
@@ -531,5 +619,8 @@ class SwingUniverseSource:
             "fetched_at": datetime.now(timezone.utc).isoformat(),
             "count": len(symbols),
             "symbols": symbols,
+            # Persisted so a cache hit still carries sectors. Absent in files written
+            # before 2026-10-20, which read back as an empty mapping.
+            "sectors": dict(self._last_sectors),
         }
         self._cache_path().write_text(json.dumps(payload, indent=2))

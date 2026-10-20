@@ -4,6 +4,57 @@
 
 ---
 
+## 2026-10-20 (9) — (C) befejezve: GICS-szektor a saját fetchből + provenance végig
+
+> Baseline 2490 → **2499** (+9), 0 fail. Ezzel a (C) öt lépése **kész**, és a
+> D-U1 observability (F-2/F-3/F-5) is.
+
+### (1) GICS-szektor ugyanabból a letöltésből
+A Wikipedia-parser mostantól a **szektor-kolonnát** is kiolvassa, header-vezérelten.
+Élőben verifikálva:
+
+| lap | symbol_col | sector_col | szimbólum | szektorral |
+|---|---:|---:|---:|---|
+| S&P 500 | 0 | 2 | 503 | **503 (100%)** |
+| Russell 1000 | 1 | 2 | 1021 | **1021 (100%)** |
+
+11 distinct GICS szektor mindkettőn, és a **szimbólum-számok változatlanok**.
+
+**Ezzel a 11 enrichment nélküli név megmenthető.** Eddig azért estek ki, mert nem volt
+szektoruk; most a szektor a tagsági letöltésből jön, az ár és a medián volumen pedig a
+floor **már kiszámolt** metrikáiból (`FloorResult.metrics`) — **nulla új API-hívás**.
+A `market_cap` 0 marad: azt csak az univerzum-audit snapshot írja, más nem olvassa.
+
+> A szektor **kötelező** marad: a Phase 3 breadth és a szektor-capok ebből élnek, ezért
+> egy szektor nélküli nevet **kizárunk**, nem tippelünk. Ezt teszt védi.
+
+A `sectors` a cache-ben is perzisztál (`universe.json`), tehát egy cache-találat is
+hordozza; a 2026-10-20 előtti fájlok üres mappingként olvasódnak be.
+
+### Mellékes, ugyanaz a hibaosztály
+`_fmp_to_ticker` az `avg_volume` mezőt az FMP **`volume`**-jából töltötte (mai részleges)
+— most `avgVolume`. A mező ma csak íródik, nem olvasódik, de a neve „avg".
+
+### (2) F-2/F-3/F-5 — a provenance végigvezetve
+- **F-2**: `Phase2Result.universe_provenance` → `ctx.universe_provenance` → a
+  `phase13_ctx` **JSON-jába**. Tartalma: a definíció, a `built` darabszám, a tagság
+  provenance-a (forrás, darabszám, kor, `degraded_stale`) és a floor bontása. Minden
+  downstream artefakt ebből tudja, **milyen univerzumon** készült.
+- **F-3**: degradált úton **azonnali Telegram** a futásban — 2026-08-16 és 10-19 között
+  a degradálás kilencszer WARNING-ként logolódott, és **semmi nem pittyegett**.
+- **F-5**: a 23:00-as heartbeat mostantól **nem csak a kort** nézi. Új
+  `classify_provenance()`: `ok` / `degraded` / `unknown`. A 9 hétig futó eset pontosan
+  az volt, hogy a context **FRISS** volt és rossz populáción épült — a heartbeat
+  akkor „zöldet" adott. Az `unknown` (nincs rekord) is **riaszt**: a csend nem egészség.
+
+### test (+9) — és szabotázzsal verifikálva
+Új `tests/test_universe_provenance.py` (8): a context round-trip, a provenance nélküli
+régi context betöltése, és a heartbeat mindhárom osztálya. Plusz a „megmentett név"
+teszt: szektor Wikipediából, ár/volumen a floorból, és `screener.call_count == 1`.
+A degradált-detektálás kikapcsolásával **bukik**.
+
+---
+
 ## 2026-10-20 (8) — (C) ÉLES: az univerzum = index-tagság ∩ likviditási floor
 
 > Baseline 2489 → **2490** (+1, és egy megfordított), 0 fail. **D-U2 = (C) élesítve.**

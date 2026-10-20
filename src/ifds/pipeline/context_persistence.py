@@ -44,6 +44,10 @@ def save_phase13_context(ctx: object, path: str = DEFAULT_PATH) -> Path:
         "vetoed_sectors": list(ctx.vetoed_sectors or []),
         "agg_benchmark": _sector_score_to_dict(ctx.agg_benchmark) if ctx.agg_benchmark else None,
         "uw_available": ctx.uw_available,
+        # D-U1/F-2 (2026-10-20): which universe definition and which membership
+        # vintage produced this context. Nine weeks of silent degradation went
+        # unnoticed because nothing recorded it.
+        "universe_provenance": getattr(ctx, "universe_provenance", None) or {},
     }
 
     out = Path(path)
@@ -68,7 +72,7 @@ def load_phase13_context(ctx: object, path: str = DEFAULT_PATH) -> bool:
 
     Populates: macro, strategy_mode, bmi_regime, bmi_value,
     sector_bmi_values, universe, sector_scores, vetoed_sectors,
-    agg_benchmark, uw_available.
+    agg_benchmark, uw_available, universe_provenance.
 
     Returns True if loaded successfully, False otherwise.
     """
@@ -96,6 +100,10 @@ def load_phase13_context(ctx: object, path: str = DEFAULT_PATH) -> bool:
         _dict_to_sector_score(data["agg_benchmark"]) if data.get("agg_benchmark") else None
     )
     ctx.uw_available = data.get("uw_available", False)
+    # Absent in contexts written before 2026-10-20 — an empty record reads as
+    # "unknown provenance", which the freshness heartbeat reports rather than
+    # treating as fine.
+    ctx.universe_provenance = data.get("universe_provenance") or {}
 
     return True
 

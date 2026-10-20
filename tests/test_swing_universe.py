@@ -279,7 +279,14 @@ class TestCacheLifecycle:
             ),
         ):
             prov = source.get_universe().provenance()
-        assert set(prov) == {"source", "fetched_at", "count", "age_days", "degraded_stale"}
+        assert set(prov) == {
+            "source",
+            "fetched_at",
+            "count",
+            "age_days",
+            "degraded_stale",
+            "sectors_known",
+        }
         assert prov["source"] == "wikipedia"
         assert prov["count"] == 1021
         assert prov["degraded_stale"] is False
@@ -627,7 +634,57 @@ class TestPhase2SwingIntegration:
             for i in range(20)
         ]
         result = _screen_long_universe(fmp, config, logger, grouped_daily_bars=bars)
-        assert {t.symbol for t in result} == {"AAPL"}, "no enrichment -> excluded"
+        # No sector is known for NOROW (the cache fixture carries no sectors), so it
+        # is excluded: sector drives Phase 3 breadth and the sector caps.
+        assert {t.symbol for t in result} == {"AAPL"}, "no sector -> excluded"
+
+    def test_a_member_with_a_wikipedia_sector_is_RESCUED_without_an_api_call(
+        self, config, logger, tmp_path
+    ):
+        """The GICS sector comes from the SAME fetch as the membership (2026-10-20).
+
+        A member the screener never returned used to be dropped for lack of a sector.
+        Now the sector comes from the Wikipedia table and the price / median volume
+        from the floor's own computation, so the record is built with no extra API
+        call. market_cap stays 0 — it is written to the audit snapshot and read by
+        nothing else.
+        """
+        import json
+        from datetime import datetime, timezone
+
+        cache_dir = tmp_path / "swing_universe"
+        cache_dir.mkdir()
+        members = ["AAPL", "NOROW"] + [f"PAD{i:03d}" for i in range(998)]
+        (cache_dir / "universe.json").write_text(
+            json.dumps(
+                {
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "count": len(members),
+                    "symbols": members,
+                    "sectors": {"NOROW": "Industrials", "AAPL": "Technology"},
+                }
+            )
+        )
+        config.tuning["swing_universe_cache_dir"] = str(cache_dir)
+        fmp = MagicMock()
+        fmp.screener.return_value = [self._make_fmp_dict("AAPL")]
+        bars = [
+            {
+                "date": f"2026-09-{i + 1:02d}",
+                "bars": [
+                    {"T": "AAPL", "c": 200.0, "v": 50_000_000},
+                    {"T": "NOROW", "c": 80.0, "v": 9_000_000},
+                ],
+            }
+            for i in range(20)
+        ]
+        result = _screen_long_universe(fmp, config, logger, grouped_daily_bars=bars)
+        assert {t.symbol for t in result} == {"AAPL", "NOROW"}
+        rescued = next(t for t in result if t.symbol == "NOROW")
+        assert rescued.sector == "Industrials"
+        assert rescued.price == 80.0
+        assert rescued.avg_volume == 9_000_000, "the floor's median volume, not a guess"
+        assert fmp.screener.call_count == 1, "no extra API call for the rescue"
 
     def test_legacy_fmp_source_skips_swing_filter(self, config, logger):
         config.tuning["universe_source"] = "fmp_screener"

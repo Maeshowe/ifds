@@ -248,6 +248,34 @@ def run_pipeline(
                     grouped_daily_bars=ctx.grouped_daily_bars,
                 )
                 ctx.phase2 = phase2
+                ctx.universe_provenance = phase2.universe_provenance
+
+                # D-U1/F-3 (2026-10-20): a degraded universe must reach a human the
+                # SAME run, not just the 23:00 heartbeat. Between 2026-08-16 and
+                # 10-19 the degradation was logged nine times as a WARNING and never
+                # acted on, because nothing paged.
+                if phase2.universe_provenance.get("degraded"):
+                    try:
+                        from ifds.output.telegram import _pipeline_timestamp, _send_message
+
+                        _token = config.runtime.get("telegram_bot_token")
+                        _chat = config.runtime.get("telegram_chat_id")
+                        if _token and _chat:
+                            _prov = phase2.universe_provenance
+                            _send_message(
+                                _token,
+                                _chat,
+                                f"{_pipeline_timestamp()}\n"
+                                f"🔴 <b>UNIVERZUM DEGRADÁLT</b>\n"
+                                f"definíció: {_prov.get('universe_definition')}\n"
+                                f"épített: {_prov.get('built')} ticker\n"
+                                f"A tervezett univerzum-forrás nem volt elérhető. "
+                                f"Ellenőrizd a membership-forrást és a "
+                                f"<code>breadth_enabled</code> kulcsot.",
+                                timeout=10,
+                            )
+                    except Exception:
+                        pass
                 ctx.universe = phase2.tickers
                 print_phase2(phase2)
             finally:

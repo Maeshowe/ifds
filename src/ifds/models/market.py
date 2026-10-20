@@ -263,6 +263,12 @@ class Phase2Result:
     bulk_excluded_count: int = 0
     ticker_specific_excluded_count: int = 0
     sec_filing_excluded: list[str] = field(default_factory=list)
+    #: Where the universe came from and how it was narrowed (D-U1/F-2, 2026-10-20).
+    #: Travels into the Phase 1-3 context so every downstream artifact — Phase 4
+    #: snapshot, scan matrix, FRL attempt — can say which universe definition and
+    #: which membership vintage it was built on. Nine weeks of silent degradation
+    #: went unnoticed because nothing recorded this.
+    universe_provenance: dict = field(default_factory=dict)
 
 
 # ============================================================================

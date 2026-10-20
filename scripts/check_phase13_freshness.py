@@ -96,6 +96,44 @@ def send_telegram(message: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+def classify_provenance(path: Path) -> tuple[str, str]:
+    """Classify the context's UNIVERSE provenance (D-U1/F-5, 2026-10-20).
+
+    Age is not the only way a context can be wrong. Between 2026-08-16 and 10-19 the
+    context was FRESH every week and built on a silently substituted population: the
+    membership source had died and Phase 2 fell open to the FMP screener, swapping
+    377 of 730 names (52%) for non-members. This heartbeat watched the mtime and saw
+    nothing wrong, because the mtime was fine.
+
+    Returns ``("ok" | "degraded" | "unknown", detail)``.
+    """
+    import gzip
+    import json
+
+    try:
+        with gzip.open(path, "rt") as handle:
+            prov = (json.load(handle) or {}).get("universe_provenance") or {}
+    except (OSError, json.JSONDecodeError, EOFError) as exc:
+        return "unknown", f"context unreadable: {exc}"
+
+    if not prov:
+        return "unknown", "no universe_provenance recorded (context predates 2026-10-20)"
+
+    definition = prov.get("universe_definition", "?")
+    membership = prov.get("membership") or {}
+    bits = [
+        f"definition={definition}",
+        f"built={prov.get('built', '?')}",
+        f"membership={membership.get('count', '?')} via {membership.get('source', '?')}",
+    ]
+    if prov.get("degraded") or "degraded" in str(definition):
+        return "degraded", ", ".join(bits)
+    if membership.get("degraded_stale"):
+        bits.append(f"membership STALE {membership.get('age_days')}d")
+        return "degraded", ", ".join(bits)
+    return "ok", ", ".join(bits)
+
+
 def main() -> int:
     logger.info(f"Phase 1-3 freshness check — {datetime.now():%Y-%m-%d %H:%M:%S CEST}")
     status, detail = classify_freshness(CONTEXT_PATH, datetime.now())
@@ -117,9 +155,30 @@ def main() -> int:
         )
         return 1
 
-    # Fresh — optional heartbeat
+    # Fresh by age — now also check WHAT it was built on (F-5).
+    prov_status, prov_detail = classify_provenance(CONTEXT_PATH)
+    logger.info(f"Provenance: {prov_status} ({prov_detail})")
+
+    if prov_status == "degraded":
+        send_telegram(
+            f"🔴 Phase 1-3 context DEGRADED UNIVERSE — {prov_detail}\n\n"
+            f"A context FRISS, de nem a tervezett univerzumon épült. "
+            f"2026-08-16 és 10-19 között ez 9 hétig észrevétlen maradt, mert a "
+            f"heartbeat csak a KORT nézte.\n"
+            f"Ellenőrizd a membership-forrást és a `breadth_enabled` kulcsot."
+        )
+        return 1
+
+    if prov_status == "unknown":
+        send_telegram(
+            f"⚠️ Phase 1-3 context PROVENANCE UNKNOWN — {prov_detail}\n\n"
+            f"A kor rendben ({detail}), de nem tudjuk, milyen univerzumon épült."
+        )
+        return 1
+
+    # Fresh and built on the intended universe — optional heartbeat
     if os.getenv("IFDS_HEARTBEAT_VERBOSE", "").lower() in ("1", "true", "yes"):
-        send_telegram(f"✓ Phase 1-3 context fresh ({detail})")
+        send_telegram(f"✓ Phase 1-3 context fresh ({detail}; {prov_detail})")
     return 0
 
 

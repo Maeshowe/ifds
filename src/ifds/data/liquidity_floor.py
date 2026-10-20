@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import statistics
+import types
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Sequence
 
@@ -50,6 +51,10 @@ class FloorResult:
     excluded: tuple[tuple[str, str], ...]
     sessions_used: int
     lookback_requested: int
+    #: {ticker: (latest close, median volume)} for the names that passed. Already
+    #: computed here, so a caller that must build a record for a name the screener
+    #: never returned does not have to re-derive it from the bars.
+    metrics: Mapping[str, tuple[float, float]] = types.MappingProxyType({})
 
     def counts_by_reason(self) -> dict[str, int]:
         out: dict[str, int] = {}
@@ -149,6 +154,7 @@ def compute_floor(
     volumes, closes, sessions_used = _collect(members, grouped_daily_bars, lookback)
 
     passed: set[str] = set()
+    metrics: dict[str, tuple[float, float]] = {}
     excluded: list[tuple[str, str]] = []
     for ticker in sorted(members):
         series = volumes.get(ticker)
@@ -171,16 +177,19 @@ def compute_floor(
         # The threshold VALUE is `universe_min_avg_volume` — the same production
         # number — but the statistic is the median, which is why the provenance
         # names it explicitly instead of leaving "avg" to be assumed.
-        if statistics.median(series) < min_avg_volume:
+        median_volume = statistics.median(series)
+        if median_volume < min_avg_volume:
             excluded.append((ticker, REASON_BELOW_VOLUME))
             continue
         passed.add(ticker)
+        metrics[ticker] = (price, median_volume)
 
     result = FloorResult(
         passed=frozenset(passed),
         excluded=tuple(excluded),
         sessions_used=sessions_used,
         lookback_requested=lookback,
+        metrics=types.MappingProxyType(metrics),
     )
     logger.info(
         "Liquidity floor: %d of %d members pass (price >= %.2f, MEDIAN volume >= %.0f "

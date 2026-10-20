@@ -87,6 +87,7 @@ def run_phase2(
             bulk_excluded_count=bulk_n,
             ticker_specific_excluded_count=ticker_n,
             sec_filing_excluded=sec_excluded,
+            universe_provenance=dict(_LAST_UNIVERSE_PROVENANCE),
         )
 
         # Survivorship bias protection: snapshot + diff
@@ -121,6 +122,13 @@ def run_phase2(
     except Exception as e:
         logger.phase_error(2, "Universe Building", str(e))
         raise
+
+
+#: Filled by ``_screen_long_universe`` and read by ``run_phase2`` — the provenance
+#: of the universe it just built. Module-level because the screening helper returns a
+#: plain ticker list and threading a second return value through every caller and test
+#: would be a larger change than this record is worth.
+_LAST_UNIVERSE_PROVENANCE: dict = {}
 
 
 def _screen_long_universe(
@@ -186,8 +194,13 @@ def _screen_long_universe(
 
     universe_source = config.tuning.get("universe_source", "swing_sp500_r1000")
     swing_membership: set[str] | None = None
+    membership_sectors: dict[str, str] = {}
+    universe = None
     if universe_source == "swing_sp500_r1000":
-        swing_membership = _load_swing_membership(fmp, config, logger)
+        universe = _load_swing_membership(fmp, config, logger)
+        if universe is not None:
+            swing_membership = {s.upper() for s in universe.symbols}
+            membership_sectors = dict(universe.sectors)
         if swing_membership is None:
             # F-1c/F-1d (D-U1, approved 2026-10-20): the legacy screener is NOT a
             # staler membership list, it is a DIFFERENT population. Substituting it
@@ -227,6 +240,7 @@ def _screen_long_universe(
     filtered_membership = 0
     filtered_floor = 0
     filtered_no_enrichment = 0
+    rescued_from_membership = 0
 
     if floor_result is not None:
         by_symbol = {
@@ -236,11 +250,33 @@ def _screen_long_universe(
         for symbol in sorted(floor_result.passed):
             item = by_symbol.get(symbol)
             if item is None:
-                # Passed the floor but the screener has no row for it, so there is no
-                # sector/market cap. Excluded and COUNTED rather than fetched: the
-                # count is 11, and a per-ticker fan-out for 11 names would be a
-                # rate-limit-sensitive change for no benefit.
-                filtered_no_enrichment += 1
+                # The screener never returned this member, so there is no row to
+                # enrich from. Since 2026-10-20 the GICS sector comes from the same
+                # Wikipedia fetch as the membership, and the floor already computed
+                # this name's price and median volume — so the record can be built
+                # without a single extra API call. market_cap stays 0: it is written
+                # to the universe audit snapshot and read by nothing else.
+                #
+                # A sector is still MANDATORY: it drives Phase 3 breadth and the
+                # sector caps, so a sectorless name is excluded rather than guessed.
+                sector = membership_sectors.get(symbol)
+                price, median_volume = floor_result.metrics.get(symbol, (0.0, 0.0))
+                if not sector or price <= 0:
+                    filtered_no_enrichment += 1
+                    continue
+                tickers.append(
+                    Ticker(
+                        symbol=symbol,
+                        company_name="",
+                        sector=sector,
+                        market_cap=0,
+                        price=price,
+                        avg_volume=median_volume,
+                        has_options=True,
+                        is_etf=False,
+                    )
+                )
+                rescued_from_membership += 1
                 continue
             if config.tuning["universe_require_options"] and not item.get(
                 "isActivelyTrading", True
@@ -291,21 +327,35 @@ def _screen_long_universe(
         )
 
     if floor_result is not None:
+        _LAST_UNIVERSE_PROVENANCE.clear()
+        _LAST_UNIVERSE_PROVENANCE.update(
+            {
+                "universe_definition": "index_union_plus_liquidity_floor",
+                "membership": universe.provenance() if universe is not None else {},
+                "floor": floor_result.provenance(),
+                "rescued_from_membership": rescued_from_membership,
+                "excluded_no_sector": filtered_no_enrichment,
+                "excluded_inactive": filtered_inactive,
+                "built": len(tickers),
+            }
+        )
         logger.log(
             EventType.PHASE_DIAGNOSTIC,
             Severity.INFO,
             phase=2,
             message=(
                 f"Universe (C): {len(tickers)} tickers from {len(swing_membership)} members "
-                f"— floor excluded {filtered_floor}, no screener enrichment "
-                f"{filtered_no_enrichment}, inactive {filtered_inactive}"
+                f"— floor excluded {filtered_floor}, rescued from membership "
+                f"{rescued_from_membership}, no sector {filtered_no_enrichment}, "
+                f"inactive {filtered_inactive}"
             ),
             data={
                 "universe_definition": "index_union_plus_liquidity_floor",
                 "membership": len(swing_membership),
                 "floor_passed": len(floor_result.passed),
                 "excluded_floor": filtered_floor,
-                "excluded_no_enrichment": filtered_no_enrichment,
+                "rescued_from_membership": rescued_from_membership,
+                "excluded_no_sector": filtered_no_enrichment,
                 "excluded_inactive": filtered_inactive,
                 "floor_provenance": floor_result.provenance(),
             },
@@ -321,6 +371,15 @@ def _screen_long_universe(
                 "Still membership-constrained (no population swap). Check `breadth_enabled`."
             ),
             data={"universe_definition": "screener_intersect_membership_degraded"},
+        )
+        _LAST_UNIVERSE_PROVENANCE.clear()
+        _LAST_UNIVERSE_PROVENANCE.update(
+            {
+                "universe_definition": "screener_intersect_membership_degraded",
+                "membership": universe.provenance() if universe is not None else {},
+                "degraded": True,
+                "built": len(tickers),
+            }
         )
 
     return tickers
@@ -385,11 +444,12 @@ def _liquidity_floor(
         return None
 
 
-def _load_swing_membership(fmp: FMPClient, config: Config, logger: EventLogger) -> set[str] | None:
-    """Load the S&P 500 + Russell 1000 union as a normalized symbol set.
+def _load_swing_membership(fmp: FMPClient, config: Config, logger: EventLogger):
+    """Load the membership as a ``UniverseResult``, or None on failure.
 
-    Returns None on any failure so the caller can fall back to the raw
-    screener result (legacy behavior).
+    Returns the whole result rather than a bare symbol set so the GICS sectors that
+    came from the same Wikipedia fetch survive to the caller — without them a member
+    the FMP screener never returned would have no sector and could not be built.
     """
     from ifds.data.swing_universe import SwingUniverseSource
 
@@ -417,9 +477,12 @@ def _load_swing_membership(fmp: FMPClient, config: Config, logger: EventLogger) 
         Severity.INFO,
         phase=2,
         message=f"Swing universe loaded: {len(symbols)} symbols " f"(S&P 500 + Russell 1000 union)",
-        data={"swing_universe_size": len(symbols)},
+        data={
+            "swing_universe_size": len(symbols),
+            "universe_provenance": symbols.provenance(),
+        },
     )
-    return {s.upper() for s in symbols}
+    return symbols
 
 
 def _screen_short_universe(fmp: FMPClient, config: Config, logger: EventLogger) -> list[Ticker]:
@@ -703,7 +766,9 @@ def _fmp_to_ticker(item: dict) -> Ticker:
         sector=item.get("sector", ""),
         market_cap=item.get("marketCap", 0) or 0,
         price=item.get("price", 0) or 0,
-        avg_volume=item.get("volume", 0) or 0,
+        # `avgVolume`, not `volume`: the field is named avg_volume and FMP's
+        # `volume` is today's PARTIAL intraday figure (2026-10-20 finding).
+        avg_volume=item.get("avgVolume", item.get("volume", 0)) or 0,
         has_options=True,  # FMP screener includes actively traded stocks
         is_etf=item.get("isEtf", False) or False,
     )
