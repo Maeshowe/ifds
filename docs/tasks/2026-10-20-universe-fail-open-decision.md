@@ -1,6 +1,6 @@
 Status: WIP
 Updated: 2026-10-20
-Note: **D-U1, D-U2=(B), D-U3 ELDÖNTVE** (Tamás, 2026-10-20). **D-U2 ÚJRANYITVA és (C)-re döntve** (2026-10-20, mérés alapján) — spec: §9. **D-U4 LEFUTOTT** — eredmény: `docs/review/2026-10-19-execution-wall-by-horizon.md` ERRATA, a fal ~4%-kal magasabb, a null megerősödik. Hátra: az F-1a…F-1d + F-2/F-3/F-5 implementáció és a (B) élesítése. A másik háromra CC javaslata a §7-ben. DÖNTÉS-task, nem bugfix. A `fail-open` a `50dfb3c` szándékos terve volt; a lecserélése viselkedés-változás egy pénzügyi kutatórendszerben, ezért Tamás döntése. A forrás-javítás (`1871ef7`) ettől függetlenül már bement.
+Note: **D-U1, D-U2=(B), D-U3 ELDÖNTVE** (Tamás, 2026-10-20). **D-U2 ÚJRANYITVA és (C)-re döntve** (2026-10-20, mérés alapján) — spec: §9. **D-U4 LEFUTOTT** — eredmény: `docs/review/2026-10-19-execution-wall-by-horizon.md` ERRATA, a fal ~4%-kal magasabb, a null megerősödik. **ÉLES 2026-10-20**: F-1a…F-1d + a (C) univerzum-definíció. Hátra: GICS-szektor a Wikipedia-parse-ból (§9.5/3) és az F-2/F-3/F-5 observability. A másik háromra CC javaslata a §7-ben. DÖNTÉS-task, nem bugfix. A `fail-open` a `50dfb3c` szándékos terve volt; a lecserélése viselkedés-változás egy pénzügyi kutatórendszerben, ezért Tamás döntése. A forrás-javítás (`1871ef7`) ettől függetlenül már bement.
 
 # A néma degradálás: mi legyen a bukási mód, ha nincs elsődleges univerzum-forrás?
 
@@ -281,3 +281,51 @@ A már lezárt swing éra **nem** (C) szerint futott, tehát a 2026-08-16-i regi
 és a D-U3 `universe_regime` marker **változatlanul kell**. A (C) élesítése egy
 **harmadik** univerzum-definíciót hoz be (index-metszet → screener → index+floor),
 amit a markernek rögzítenie kell.
+
+---
+
+# §10 — A (C) ÉLES VERIFIKÁCIÓ (2026-10-20 18:21, production)
+
+```
+FMP screener response: 2123 raw tickers          <- csak ENRICHMENT
+Swing universe loaded: 1027 symbols (S&P 500 + Russell 1000 union)
+Universe (C): 898 tickers from 1027 members
+  — floor excluded 118, no screener enrichment 11, inactive 0
+Universe: 440 tickers (screened=898, earnings_excluded=381, sec_filing_excluded=77)
+```
+
+`1027 − 118 − 11 = 898` ✅ — a szám pontosan az, amit az árnyék-mérés megjósolt.
+
+| | érték |
+|---|---:|
+| index-tagság | 1027 |
+| floor kiesés | −118 |
+| enrichment nélkül | −11 |
+| **(C) univerzum** | **898** |
+| earnings-kizárás (okt Q3 szezon) | −381 |
+| SEC 10-Q/10-K | −77 |
+| **context univerzum** | **440** |
+
+A 440 és a korábbi degradált futásaim (424 / 520 / 730) közti különbség **már
+értelmezhető**: a 381 earnings-kizárás a valódi októberi Q3 szezon, nem a napszak.
+
+## §10.1 Ami ezzel lezárult
+
+| | |
+|---|---|
+| a screener **összetételének** hatása | megszűnt — csak enrichment |
+| a screener **napszak-függése** | megszűnt (D-V1) |
+| néma populáció-csere | strukturálisan lehetetlen (F-1c/F-1d) |
+| lejárt cache → screener | megszűnt (F-1a staleness-létra) |
+
+## §10.2 Ami nyitva van
+
+1. **GICS-szektor a meglévő Wikipedia-parse-ból** (§9.5/3). Ma a szektor a screener
+   `sector` mezőjéből jön, tehát a 11 enrichment nélküli név kizárásának **egyik** oka
+   a szektor. A Wikipedia-tábla fejléce `['Company','Symbol','GICS Sector',
+   'GICS Sub-Industry']` — a szektor ugyanabból a letöltésből kinyerhető, és akkor a
+   rés tovább szűkül.
+2. **F-2/F-3/F-5 observability**: a `universe_provenance` a kontextusba, Telegram-ERROR
+   a degradált úton, és a 23:00-as heartbeat provenance-ellenőrzése.
+3. **D-U3 `universe_regime` marker**: a (C) élesítése egy **harmadik** univerzum-definíciót
+   hoz be (index-metszet → screener → index+floor), amit a markernek rögzítenie kell.
