@@ -1,6 +1,6 @@
-Status: OPEN
+Status: WIP
 Updated: 2026-10-20
-Note: **D-U2 ELDÖNTVE: (B) — csak index-unió** (Tamás, 2026-10-20). A másik háromra CC javaslata a §7-ben. DÖNTÉS-task, nem bugfix. A `fail-open` a `50dfb3c` szándékos terve volt; a lecserélése viselkedés-változás egy pénzügyi kutatórendszerben, ezért Tamás döntése. A forrás-javítás (`1871ef7`) ettől függetlenül már bement.
+Note: **D-U1, D-U2=(B), D-U3 ELDÖNTVE** (Tamás, 2026-10-20). **D-U4 LEFUTOTT** — eredmény: `docs/review/2026-10-19-execution-wall-by-horizon.md` ERRATA, a fal ~4%-kal magasabb, a null megerősödik. Hátra: az F-1a…F-1d + F-2/F-3/F-5 implementáció és a (B) élesítése. A másik háromra CC javaslata a §7-ben. DÖNTÉS-task, nem bugfix. A `fail-open` a `50dfb3c` szándékos terve volt; a lecserélése viselkedés-változás egy pénzügyi kutatórendszerben, ezért Tamás döntése. A forrás-javítás (`1871ef7`) ettől függetlenül már bement.
 
 # A néma degradálás: mi legyen a bukási mód, ha nincs elsődleges univerzum-forrás?
 

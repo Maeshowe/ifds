@@ -104,3 +104,73 @@ rögzíteni, hogy a küszöb a futás előtt álljon.
 a publikált sáv **felső szélén** van, és az alapráta egy egyszemélyes operátornak
 publikus vendor-adatból továbbra is alacsony. Csak annyit mond, hogy a B-fal mellett
 a keresés **nem eleve lehetetlen**, a mai A-fal mellett pedig az.
+
+---
+
+# ERRATA — 2026-10-20, D-U4: a σ_cs keverék-becslés volt, és a fal ~4%-kal magasabb
+
+> A D-U4 ellenpróba (`scripts/analysis/universe_counterfactual.py`) lefutott.
+> **Egy élő ellentmondást zárt le, és nem az én javamra.**
+
+## E-1 A σ_cs irányában tévedtem, a 2026-10-19-i panelnek volt igaza
+
+A swing éra **két univerzumon** futott: index-tagság 2026-08-14-ig, utána a legacy
+screener (a forrás 08-12-én tört el, lásd `docs/CHANGELOG.md` §8-9). A §0 lefedettség-
+fejléc „napi 226–1824 név" tartománya **maga a regime-törés**, nem egyetlen populáció.
+
+Én ezt **split-half** méréssel ellenőriztem (index-fél σ_cs(5) = 0,0609 vs screener-fél
+0,0564), és arra jutottam, hogy a tervezett univerzum visszaállítása **csökkentené** a
+falat. **Ez rossz kísérlet volt:** a két félidő **különböző dátumokon** van, tehát a
+mérés az univerzum-hatást összekeveri az **idő-hatással** (eltérő piaci rezsim).
+
+A helyes kísérlet az **azonos napokon, eltérő univerzummal** számol: a törés utáni 33
+napot a 2026-08-04-i tagságra (1018 név) szűkítve — arra a listára, amit a rendszer a
+7 napos cache-éből **ténylegesen** vitt volna 08-16-ra. Ekkor:
+
+| h | σ_cs futott | σ_cs ellenpróba | Δ | **fal futott** | **fal ellenpróba** |
+|---:|---:|---:|---:|---:|---:|
+| 5 | 0,0593 | **0,0569** | −0,0024 | 0,1428 | **0,1488** |
+| 7 | 0,0697 | 0,0674 | −0,0023 | 0,1216 | 0,1257 |
+| 10 | 0,0831 | 0,0809 | −0,0022 | 0,1019 | 0,1047 |
+
+A tervezett univerzum visszaállítása tehát **csökkenti** a σ_cs-t és **emeli** a falat —
+pontosan ahogy a panel mondta. A törés utáni sorok **46%-a** nem volt index-tag, és a
+small-cap beáramlás felfelé húzta a keresztmetszeti szórást.
+
+## E-2 A közölt fal ~4%-kal optimista volt
+
+| h | publikált (pont / kötő) | **javított (pont / kötő)** | eltérés |
+|---:|---|---|---:|
+| 5 | 0,1059 / 0,1428 | **0,1116 / 0,1489** | +4,2% |
+| 7 | 0,0911 / 0,1216 | 0,0942 / 0,1257 | +3,4% |
+| 10 | 0,0764 / 0,1019 | 0,0785 / 0,1047 | +2,7% |
+
+**A következtetések nem változnak.** A mai végrehajtással a tesztelhető horizontokon a
+fal 0,105–0,34 — a dokumentált legjobb faktorok továbbra is 2–16-szorosan alatta
+vannak; a MOO-belépő és az aukciós kilépés relatív nyeresége (2,3× illetve 10,8×)
+érintetlen, mert az a számlálót mozgatja, nem a σ_cs-t. Csak a szintek tolódnak ~4%-kal.
+
+## E-3 A szennyeződés a jelnek KEDVEZETT, nem ártott
+
+A score-család mean IC-je tiszta univerzumon **minden horizonton negatívabb**:
+
+| h | mean IC futott | mean IC ellenpróba |
+|---:|---:|---:|
+| 5 | **+0,0093** | **−0,0039** |
+| 7 | +0,0048 | −0,0092 |
+| 10 | −0,0009 | −0,0148 |
+
+A család elvárt előjele pozitív volt. Tiszta univerzumon tehát **rosszabbul** nézett
+volna ki, nem jobban: a lezárt null-verdikteket ez **megerősíti**, nem fenyegeti.
+
+## E-4 A percentilis-torzítás kicsi volt
+
+A törés utáni napokon a megmaradó nevek átlagos |percentilis-elmozdulása| **0,020**
+(medián 0,020, max 0,041) — kb. 2 percentilis-pont. A 46%-os sor-eltávolítás ellenére a
+rangsor nagyrészt megmaradt, mert a likviditási alsó réteg eltávolítása mindenkit
+hasonlóan told el.
+
+> **Nem verdikt-generálás.** Ez érzékenységi elemzés lezárt attemptekre; a
+> `research/attempt_ledger.jsonl` **változatlan** (4. kísérő: nincs újrafuttatás
+> verdiktért). Tagság-közelítés: a per-heti történeti tagság nincs archiválva, ezért a
+> 2026-08-04-i pillanatkép (1018 név) a referencia; drift 10-20-ig +43/−34, Jaccard 0,927.

@@ -4,6 +4,48 @@
 
 ---
 
+## 2026-10-20 (2) — D-U4: a σ_cs keverék volt, a fal ~4%-kal magasabb, a null megerősödik
+
+> `scripts/analysis/universe_counterfactual.py` (új) + errata a fal-riportba.
+> **Érzékenységi elemzés, nem verdikt-generálás** — a ledger változatlan.
+
+### D-U1 és D-U3 jóváhagyva (Tamás, 2026-10-20); D-U2 = (B)
+A D-U4 ellenpróba lefutott, és **egy élő ellentmondást zárt le — nem CC javára.**
+
+### 🔴 A σ_cs irányában CC tévedett
+CC **split-half** méréssel ellenőrizte (index-fél σ_cs(5) = 0,0609 vs screener-fél
+0,0564), és arra jutott, hogy a tervezett univerzum visszaállítása **csökkentené** a
+falat. **Rossz kísérlet volt:** a két félidő **különböző dátumokon** van, tehát az
+univerzum-hatást összekeveri az **idő-hatással**.
+
+A helyes kísérlet azonos napokon, eltérő univerzummal számol — a törés utáni 33 napot a
+2026-08-04-i tagságra (1018 név) szűkítve:
+
+| h | σ_cs futott | σ_cs ellenpróba | **fal futott** | **fal ellenpróba** |
+|---:|---:|---:|---:|---:|
+| 5 | 0,0593 | **0,0569** | 0,1428 | **0,1488** |
+| 7 | 0,0697 | 0,0674 | 0,1216 | 0,1257 |
+| 10 | 0,0831 | 0,0809 | 0,1019 | 0,1047 |
+
+A törés utáni sorok **46%-a** nem volt index-tag; a small-cap beáramlás felfelé húzta a
+keresztmetszeti szórást. **A 2026-10-19-i panelnek volt igaza.**
+
+### A közölt fal ~4%-kal optimista volt — javítva
+h=5: 0,1059 / 0,1428 → **0,1116 / 0,1489** (+4,2%); h=7 +3,4%; h=10 +2,7%.
+**A következtetések nem változnak**: a MOO-belépő (2,3×) és az aukciós kilépés (10,8×)
+relatív nyeresége érintetlen, mert a számlálót mozgatja, nem a σ_cs-t.
+
+### A szennyeződés a jelnek KEDVEZETT
+A score-család mean IC-je tiszta univerzumon **minden horizonton negatívabb**
+(h=5: +0,0093 → **−0,0039**; h=10: −0,0009 → **−0,0148**), miközben az elvárt előjel
+pozitív volt. A lezárt null-verdikteket ez **megerősíti**, nem fenyegeti.
+
+### És a percentilis-torzítás kicsi
+A megmaradó nevek átlagos |percentilis-elmozdulása| **0,020** (max 0,041) — a 46%-os
+sor-eltávolítás ellenére a rangsor nagyrészt megmaradt.
+
+---
+
 ## 2026-10-20 — a javítás élesben: az index-tagság visszaállt, a szennyeződés mérve
 
 > Deploy + verifikáció. A `1871ef7` kint van a Mini-n, tesztek **2462, 0 fail**.
