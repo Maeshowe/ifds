@@ -4,6 +4,62 @@
 
 ---
 
+## 2026-10-20 (6) — 🔴 a screener a MAI RÉSZLEGES volumenre szűr; az univerzum a futás idejétől függ
+
+> Mérési riport, **nulla kódváltozás**. `docs/review/2026-10-20-screener-intraday-volume-bug.md`
+> Hogyan került elő: a (C) árnyék-mérés `enrichment gap = 390` száma és a minta
+> (`ADP, AFL, ALL, AON, APD`) — $50–115 mrd kapitalizációjú nevek, amiket a screener
+> nem zárhat ki.
+
+### A mechanizmus
+A `phase2_universe` a `universe_min_avg_volume` kulcsot (*„500K shares/day"*) az FMP
+**`volumeMoreThan`** paraméterébe adja — de ott a `volume` a **mai, részleges intraday**
+volumen, nem az átlag (az az `avgVolume`). Mérve 11:51 ET-kor: AFL `volume` **199 786**
+vs `avgVolume` **2 001 023**. Nem illikvid — csak délelőtt még nem forgott 500 ezer darab.
+
+A screener **determinisztikus** (3 hívás: 1197/1197/1200, Jaccard 1,0000) — csak
+**napszak-függő**.
+
+### 🔴 Ez megfordít két korábbi állításomat
+Azt írtam, a kézi futás utáni **424 név „tervszerű"** (earnings-völgy + vétózott szektorok).
+**Hamis volt** — nagyrészt a futás időpontja:
+
+| futásom | ET idő | univerzum |
+|---|---|---:|
+| 10-19 21:05 | 15:05 (szesszió) | 730 |
+| 10-20 08:29 | **02:29 (pre-market)** | **424** |
+| 10-20 17:48 | 11:48 (szesszió) | 520 |
+
+Az **ütemezett** vasárnapi cron 22:00 CEST = **16:00 ET**, azaz a záráskor fut → a `volume`
+~teljes napi. Ezért adott a történeti futás **1008–1020** nevet. ⚠️ Egyben latens
+törékenység: a slot a határon van.
+
+### A javítás egy paraméter — és melyiket érvényesíti az FMP
+| paraméter | 500k | 5M | 50M | érvényesül? |
+|---|---:|---:|---:|---|
+| *(nincs szűrő)* | 4733 | | | — |
+| `volumeMoreThan` | 1205 | 246 | 18 | ✅ mai részleges |
+| **`avgVolumeMoreThan`** | **2125** | **402** | **9** | ✅ **valódi átlag** |
+| `averageVolumeMoreThan` | 4733 | 4732 | 4732 | ❌ csendben eldobva |
+| `fakeVolumeMoreThan` *(kontroll)* | 4732 | 4732 | 4732 | ❌ |
+
+Az `averageVolumeMoreThan` pontosan annyit ad, mint a **kitalált kontroll** → figyelmen
+kívül hagyja. (Elsőre tévesen „érvényesül"-nek jelöltem; ±1 soros hívás-zaj volt. Javítva.)
+
+**Hatás a tagsági lefedettségre:** `volumeMoreThan` **529 (51,5%)** → `avgVolumeMoreThan`
+**921 (89,7%)**; az enrichment-rés **498 → 106**.
+
+### Miért bugfix, nem design-változás
+A kulcs neve `universe_min_avg_volume`, a kommentje „500K shares/day" — a **szándék**
+mindig az átlag volt, a kód viszont nem-átlag paraméterbe adta. Konfig-kulcs vs.
+API-paraméter szemantikai eltérés, azaz „bug → szándékolt viselkedés".
+
+### Amit NEM érint
+A swing éra scan matrixai a **vasárnapi ≈zárás** futásokból származnak, tehát a lezárt
+éra univerzuma nem idő-degradált — a ma commitolt költség/fal-számokat ez nem érinti.
+
+---
+
 ## 2026-10-20 (5) — (C) 3. lépés: a floor bekötve ÁRNYÉK-MÓDBAN
 
 > Baseline 2485 → **2487** (+2), 0 fail. **A live univerzum VÁLTOZATLAN.**
