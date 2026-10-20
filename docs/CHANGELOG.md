@@ -4,6 +4,65 @@
 
 ---
 
+## 2026-10-20 (4) — (C) 1-2. lépés: a bar-ok átadása és a determinisztikus likviditási floor
+
+> Baseline 2467 → **2485** (+18), 0 fail. D-U2 = **(C)** jóváhagyva (Tamás, 2026-10-20).
+> ⏸ A floor **még nem cseréli le** a screener-metszetet — ez a következő lépés.
+
+### Az (1) lépés nagyrészt kész volt
+A Phase 1 **már most visszaadja** a grouped daily bar-okat (`grouped_daily_bars`, BC14),
+~38 sessiont a BMI SMA25-höz, és a `breadth_enabled: True` production default —
+a `[BREADTH] 515 unique tickers` log-sor igazolja. Vagyis a floor adata **nulla új
+API-hívásért** elérhető; csak a Phase 2-be kell átvezetni.
+
+### feat(data) — `liquidity_floor.py` (új, pure)
+```
+univerzum = index-tagság ∩ { ár ≥ universe_min_price ÉS medián volumen ≥ universe_min_avg_volume }
+```
+
+**Valódi adaton validálva** (tagság 1018, 20 sessionös ablak):
+
+| | |
+|---:|---|
+| **átmegy** | **900** |
+| kiesik | 118 — `below_volume 103`, `below_price 8`, `no_bars 7` |
+
+### 🔄 MEDIÁN, nem átlag — és ezt egy teszt kényszerítette ki
+Az első változat átlagot használt. A teszt, amit hozzá írtam, **megbukott a saját
+premisszáján**: 19 session 1 000 részvénnyel + **egy** 100M-os nap **átlaga 5,0M**,
+vagyis egyetlen esemény átvisz egy illikvid nevet egy 500k-s küszöbön. Egy likviditási
+floor a **tipikus** kereskedhetőséget hivatott leírni, nem egy epizódot.
+
+Mérve, mit kóstál a medián (1011 bar-ral rendelkező név):
+
+| statisztika | átmegy | |
+|---|---:|---|
+| átlag | 913 | 13 nevet **egy esemény** is átvihet |
+| **medián** | **900** | strukturálisan nem vihető át |
+
+A 13 eltérés mind **marginális** (medián 444k–483k az 500k küszöb ellen) — a választás
+**1,4%-ot** kóstál, és strukturális garanciát ad. A küszöb **értéke** változatlan
+(`universe_min_avg_volume`), a **statisztika** viszont medián, ezért a provenance
+`volume_statistic: "median"`-t ír — nem hagyja feltételezésre.
+
+### Share-class normalizálás — a 7-re szűkült `no_bars`
+A Polygon **dot**-alakot használ (`BRK.B`), a repo kötőjelre normalizál. A `ticker_variants()`
+mindkettőt próbálja, és ezzel a „nincs bar" halmaz 13-ról **7-re** szűkült — a megmaradó
+7 (`AVB, EA, EQR, LBRDA, LBRDK, MASI, WBS`) valóban nincs a Polygon grouped fájlban (0,7%),
+és **kizárva + megszámolva + logolva** van, nem csendben eldobva.
+
+### A cap-küszöb elhagyva, kimondva
+`universe_min_market_cap` **nincs** alkalmazva: a Russell 1000 tagság definíció szerint
+cap-rangsor, és a cap nem vezethető le OHLCV bar-okból. Ezzel a floor **gyengébb** a
+screener-énél — ez a riportban áll, nem elhallgatva.
+
+### test (+18) — és fail-loud
+`compute_floor` **`ValueError`-t dob**, ha nincs bar (`breadth_enabled: False` valós
+konfig-út): a floor kihagyása **szélesítené** az univerzumot, ami pont az a bukási mód,
+amit ez a terv megszüntet. Plusz determinisztikusság- és immutabilitás-teszt.
+
+---
+
 ## 2026-10-20 (3) — a staleness-létra és a screener-visszaesés megszüntetése (F-1a…F-1d)
 
 > Baseline 2462 → **2467** (+5), 0 fail. D-U1 jóváhagyva (Tamás, 2026-10-20).
