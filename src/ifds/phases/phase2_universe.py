@@ -35,7 +35,11 @@ from ifds.models.market import Phase2Result, StrategyMode, Ticker
 
 
 def run_phase2(
-    config: Config, logger: EventLogger, fmp: FMPClient, strategy_mode: StrategyMode
+    config: Config,
+    logger: EventLogger,
+    fmp: FMPClient,
+    strategy_mode: StrategyMode,
+    grouped_daily_bars: list[dict] | None = None,
 ) -> Phase2Result:
     """Execute Phase 2: Universe Building.
 
@@ -44,6 +48,10 @@ def run_phase2(
         logger: Event logger for audit trail.
         fmp: FMP client for screener and earnings data.
         strategy_mode: LONG or SHORT from Phase 1.
+        grouped_daily_bars: Phase 1's Polygon grouped dailies (~38 sessions, already
+            fetched for the BMI SMA25). Used by the liquidity floor, which is in
+            SHADOW MODE: it measures and reports, it does not yet narrow the
+            universe. See docs/tasks/2026-10-20-universe-fail-open-decision.md §9.
 
     Returns:
         Phase2Result with filtered ticker universe.
@@ -54,7 +62,9 @@ def run_phase2(
     try:
         # Step 1: Screener based on strategy mode
         if strategy_mode == StrategyMode.LONG:
-            raw_tickers = _screen_long_universe(fmp, config, logger)
+            raw_tickers = _screen_long_universe(
+                fmp, config, logger, grouped_daily_bars=grouped_daily_bars
+            )
         else:
             raw_tickers = _screen_short_universe(fmp, config, logger)
 
@@ -113,7 +123,12 @@ def run_phase2(
         raise
 
 
-def _screen_long_universe(fmp: FMPClient, config: Config, logger: EventLogger) -> list[Ticker]:
+def _screen_long_universe(
+    fmp: FMPClient,
+    config: Config,
+    logger: EventLogger,
+    grouped_daily_bars: list[dict] | None = None,
+) -> list[Ticker]:
     """Screen for LONG universe.
 
     2026-05-18 (Day 63 §3.9): the default `universe_source` is now
@@ -232,7 +247,87 @@ def _screen_long_universe(fmp: FMPClient, config: Config, logger: EventLogger) -
             },
         )
 
+    if swing_membership is not None:
+        _shadow_liquidity_floor(swing_membership, tickers, config, logger, grouped_daily_bars)
+
     return tickers
+
+
+def _shadow_liquidity_floor(
+    membership: set[str],
+    screened: list[Ticker],
+    config: Config,
+    logger: EventLogger,
+    grouped_daily_bars: list[dict] | None,
+) -> None:
+    """Measure what the (C) universe WOULD be, without changing anything yet.
+
+    (C) is `membership ∩ liquidity floor`, where the floor is computed from Phase 1's
+    bars instead of being delegated to the FMP screener (D-U2, approved 2026-10-20).
+    Before the switch, one number has to be measured ON PRODUCTION and cannot be
+    measured anywhere else: how many members clear the floor but have NO screener row,
+    and therefore no sector/market-cap enrichment. The screener excludes on market cap
+    too, and this floor deliberately does not (membership already encodes a cap
+    ranking), so the floor is the weaker test and a gap is expected.
+
+    Shadow mode exists because flipping the universe definition and discovering the gap
+    afterwards is the wrong order for a financial pipeline. Reports and returns None.
+    """
+    if not grouped_daily_bars:
+        logger.log(
+            EventType.CONFIG_WARNING,
+            Severity.WARNING,
+            phase=2,
+            message=(
+                "Liquidity-floor shadow measurement skipped: Phase 1 supplied no "
+                "grouped daily bars (check `breadth_enabled`). The live universe is "
+                "unaffected; only the (C) measurement is missing."
+            ),
+        )
+        return
+
+    from ifds.data.liquidity_floor import DEFAULT_LOOKBACK_SESSIONS, compute_floor
+
+    try:
+        floor = compute_floor(
+            membership,
+            grouped_daily_bars,
+            min_price=float(config.tuning["universe_min_price"]),
+            min_avg_volume=float(config.tuning["universe_min_avg_volume"]),
+            lookback=int(
+                config.tuning.get("universe_floor_lookback_sessions", DEFAULT_LOOKBACK_SESSIONS)
+            ),
+        )
+    except (ValueError, KeyError) as exc:
+        logger.log(
+            EventType.CONFIG_WARNING,
+            Severity.WARNING,
+            phase=2,
+            message=f"Liquidity-floor shadow measurement failed: {exc}",
+        )
+        return
+
+    enriched = {t.symbol.upper() for t in screened}
+    gap = sorted(floor.passed - enriched)
+    logger.log(
+        EventType.PHASE_DIAGNOSTIC,
+        Severity.INFO,
+        phase=2,
+        message=(
+            f"[(C) SHADOW] floor passes {len(floor.passed)}/{len(membership)} members; "
+            f"live screener-intersected universe is {len(enriched)}; "
+            f"enrichment gap {len(gap)} (would pass the floor but have no screener row)"
+        ),
+        data={
+            "shadow_floor_passed": len(floor.passed),
+            "shadow_membership": len(membership),
+            "live_universe": len(enriched),
+            "shadow_enrichment_gap": len(gap),
+            "shadow_enrichment_gap_sample": gap[:25],
+            "shadow_excluded_by_reason": floor.counts_by_reason(),
+            "shadow_provenance": floor.provenance(),
+        },
+    )
 
 
 def _load_swing_membership(fmp: FMPClient, config: Config, logger: EventLogger) -> set[str] | None:

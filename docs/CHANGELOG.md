@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-10-20 (5) — (C) 3. lépés: a floor bekötve ÁRNYÉK-MÓDBAN
+
+> Baseline 2485 → **2487** (+2), 0 fail. **A live univerzum VÁLTOZATLAN.**
+
+### Miért árnyék-mód
+A (C)-re váltás előtt egy szám hiányzik, és az **csak a production gépen** mérhető:
+hány tagsági név megy át a floor-on, de **nincs screener-sora** (tehát nincs szektor/
+cap enrichmentje)? A screener cap-alapon is kizár, a floor szándékosan **nem** (a tagság
+már cap-rangsor), ezért a floor a **gyengébb** teszt, és rés **várható**.
+
+Az univerzum-definíciót átállítani, majd a rést **utólag** felfedezni rossz sorrend egy
+pénzügyi pipeline-ban. Ezért a floor most a live út **mellett** fut és csak jelent.
+
+### Amit bekötöttem
+- `run_phase2(..., grouped_daily_bars=None)` és `_screen_long_universe(..., grouped_daily_bars=None)`
+- a runner átadja a `ctx.grouped_daily_bars`-t (Phase 1 BC14, **nulla új API-hívás**)
+- `_shadow_liquidity_floor()` — kiszámolja a (C) univerzumot és **log-eseményt** ír:
+  `shadow_floor_passed`, `live_universe`, **`shadow_enrichment_gap`**, a kizárás-okok
+  bontása és a teljes provenance
+- új TUNING-olvasás: `universe_floor_lookback_sessions` (default 20)
+
+### Fail-safe
+Ha a Phase 1 nem ad bar-t (`breadth_enabled: False`), a shadow-mérés **kimarad egy
+WARNING-gal**, és a **live univerzum érintetlen** — a mérés hiánya nem veszélyezteti a
+futást. Ezt teszt is védi.
+
+### test (+2)
+A shadow-mód **nem szűkít** (a live univerzum a floor által elutasított nevet is
+tartalmazza), és bar nélkül a live univerzum életben marad.
+
+### Következő
+A Mini-n lefuttatva a `shadow_enrichment_gap` megmérhető. **Az élesítés csak azután**,
+hogy ez a szám megvan — és akkor derül ki, kell-e egyáltalán enrichment-kezelés.
+
+---
+
 ## 2026-10-20 (4) — (C) 1-2. lépés: a bar-ok átadása és a determinisztikus likviditási floor
 
 > Baseline 2467 → **2485** (+18), 0 fail. D-U2 = **(C)** jóváhagyva (Tamás, 2026-10-20).

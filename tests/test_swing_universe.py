@@ -521,6 +521,71 @@ class TestPhase2SwingIntegration:
         # The stale membership is honoured: AAPL is in it, NOTINIDX is not.
         assert {t.symbol for t in result} == {"AAPL"}
 
+    def test_the_shadow_floor_measures_without_changing_the_universe(self, config, logger, tmp_path):
+        """Shadow mode (C step 2): report the would-be universe, change nothing.
+
+        Flipping the universe definition and discovering the enrichment gap
+        afterwards is the wrong order for a financial pipeline, so the floor first
+        runs alongside the live path and only reports.
+        """
+        import json
+        from datetime import datetime, timezone
+
+        cache_dir = tmp_path / "swing_universe"
+        cache_dir.mkdir()
+        members = ["AAPL", "THIN"] + [f"PAD{i:03d}" for i in range(998)]
+        (cache_dir / "universe.json").write_text(
+            json.dumps(
+                {
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "count": len(members),
+                    "symbols": members,
+                }
+            )
+        )
+        config.tuning["swing_universe_cache_dir"] = str(cache_dir)
+        fmp = MagicMock()
+        # The screener returns both members; the floor would drop THIN on volume.
+        fmp.screener.return_value = [self._make_fmp_dict("AAPL"), self._make_fmp_dict("THIN")]
+        bars = [
+            {
+                "date": f"2026-09-{i + 1:02d}",
+                "bars": [
+                    {"T": "AAPL", "c": 200.0, "v": 50_000_000},
+                    {"T": "THIN", "c": 50.0, "v": 1_000},
+                ],
+            }
+            for i in range(20)
+        ]
+        result = _screen_long_universe(fmp, config, logger, grouped_daily_bars=bars)
+        # SHADOW: the live universe still contains THIN.
+        assert {t.symbol for t in result} == {"AAPL", "THIN"}, "shadow mode must not narrow"
+
+    def test_the_shadow_floor_is_skipped_without_bars_and_the_universe_survives(
+        self, config, logger, tmp_path
+    ):
+        """`breadth_enabled: False` must not take the live universe down with it."""
+        import json
+        from datetime import datetime, timezone
+
+        cache_dir = tmp_path / "swing_universe"
+        cache_dir.mkdir()
+        members = ["AAPL"] + [f"PAD{i:03d}" for i in range(999)]
+        (cache_dir / "universe.json").write_text(
+            json.dumps(
+                {
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "count": len(members),
+                    "symbols": members,
+                }
+            )
+        )
+        config.tuning["swing_universe_cache_dir"] = str(cache_dir)
+        fmp = MagicMock()
+        fmp.screener.return_value = [self._make_fmp_dict("AAPL")]
+        result = _screen_long_universe(fmp, config, logger, grouped_daily_bars=None)
+        assert {t.symbol for t in result} == {"AAPL"}
+
     def test_legacy_fmp_source_skips_swing_filter(self, config, logger):
         config.tuning["universe_source"] = "fmp_screener"
         fmp = MagicMock()

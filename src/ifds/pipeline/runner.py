@@ -238,7 +238,15 @@ def run_pipeline(
                 circuit_breaker=cb_fmp,
             )
             try:
-                phase2 = run_phase2(config, logger, fmp, strategy)
+                # Phase 1's grouped dailies feed the (C) liquidity floor —
+                # currently in shadow mode (measures, does not narrow).
+                phase2 = run_phase2(
+                    config,
+                    logger,
+                    fmp,
+                    strategy,
+                    grouped_daily_bars=ctx.grouped_daily_bars,
+                )
                 ctx.phase2 = phase2
                 ctx.universe = phase2.tickers
                 print_phase2(phase2)
