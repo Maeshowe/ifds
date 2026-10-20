@@ -4,6 +4,47 @@
 
 ---
 
+## 2026-10-20 — a javítás élesben: az index-tagság visszaállt, a szennyeződés mérve
+
+> Deploy + verifikáció. A `1871ef7` kint van a Mini-n, tesztek **2462, 0 fail**.
+
+### A Phase 1-3 újraépítés eredménye
+A futás **100 másodperc** volt (a 10-19-i 25 perc helyett — most nem retry-zik a halott
+endpointon), `Exit: 0`.
+
+| | |
+|---|---:|
+| **index-tagság** (új cache, 2026-10-20T06:29) | **1027** ✅ |
+| mai context univerzum | **424** — ebből **100%** index-tag |
+| tegnapi (degradált) context | 730 — ebből **48%** index-tag |
+| **a tegnapiból kiesett, mert NEM index-tag** | **377 név** |
+| a maiban új (index-tag, amit a screener nem adott) | 74 név |
+
+> **A tegnapi 730-ból 377 név — 52% — nem volt index-tag.** A mai 424 kisebb, de
+> **tervszerű**: earnings-völgy + 3 vétózott szektor (XLK, XLI, XLC), és minden neve
+> a definiált univerzumból. Nem „szűkült az univerzum", hanem **megszűnt a szennyeződés**.
+
+Mentés a felülírás előtt megtörtént (`state/state_backups/`, 2026-10-20 08:28) — ez a
+2026-10-19-i lecke alkalmazása.
+
+### 🔴 És ezzel a §3.9 szerkezeti kérdése élőben igazolódott
+Az elsődleges forrás visszaállítása a **pontozott** univerzumot **csökkentette** (730 → 424),
+mert a `phase2` a screenert **metszi** az index-unióval, és a metszet mindkét forrás
+kontrakcióját örökli. Ez pontosan a mért probléma: az index-korszakban a heti panel
+226–1479 között ugrált, minden nap jelen lévő mag **0**; a screener-korszakban 1338–1824,
+mag **1053**.
+
+A döntés-task: `docs/tasks/2026-10-20-universe-fail-open-decision.md` — **D-U1** (fail-closed
++ provenance + ERROR + `total_screened`-alapú méret-riasztás), **D-U2** (metszet marad /
+csak index-unió / index + likviditási floor), **D-U3** (új éra-határ G5 szerint), **D-U4**
+(a váltás hatásának ellenpróbája a lezárt éra snapshotjain).
+
+A task kimondja a **fail-open melletti** érveket is: fail-closed esetén a 9 hétből **nulla**
+scan matrix születne, nem 9 hét degradált — és a ma lezárt költség/fal-mérések ezekre az
+adatokra is támaszkodnak.
+
+---
+
 ## 2026-10-19 (9) — az univerzum-forrás: 9 hét csendes degradálás, gyökérok és javítás
 
 > Baseline 2460 → **2462** (+2), 0 fail. A javítás **élőben verifikálva**, a fixture a
