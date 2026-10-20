@@ -1,4 +1,4 @@
-Status: WIP
+Status: DONE
 Updated: 2026-10-20
 Note: **D-U1, D-U2=(B), D-U3 ELDÖNTVE** (Tamás, 2026-10-20). **D-U2 ÚJRANYITVA és (C)-re döntve** (2026-10-20, mérés alapján) — spec: §9. **D-U4 LEFUTOTT** — eredmény: `docs/review/2026-10-19-execution-wall-by-horizon.md` ERRATA, a fal ~4%-kal magasabb, a null megerősödik. **ÉLES 2026-10-20**: F-1a…F-1d + a (C) univerzum-definíció. Hátra: GICS-szektor a Wikipedia-parse-ból (§9.5/3) és az F-2/F-3/F-5 observability. A másik háromra CC javaslata a §7-ben. DÖNTÉS-task, nem bugfix. A `fail-open` a `50dfb3c` szándékos terve volt; a lecserélése viselkedés-változás egy pénzügyi kutatórendszerben, ezért Tamás döntése. A forrás-javítás (`1871ef7`) ettől függetlenül már bement.
 
@@ -329,3 +329,18 @@ A 440 és a korábbi degradált futásaim (424 / 520 / 730) közti különbség 
    a degradált úton, és a 23:00-as heartbeat provenance-ellenőrzése.
 3. **D-U3 `universe_regime` marker**: a (C) élesítése egy **harmadik** univerzum-definíciót
    hoz be (index-metszet → screener → index+floor), amit a markernek rögzítenie kell.
+
+---
+
+# §11 — LEZÁRVA (2026-10-20)
+
+Mind a négy döntés megszületett és implementálva: **D-U1** (staleness-létra +
+provenance + ERROR + heartbeat), **D-U2 = (C)** (index-unió ∩ likviditási floor),
+**D-U3** (három rezsim rögzítve, új attempt **csak a 3.-on**), **D-U4** (ellenpróba
+lefutott, errata a fal-riportba).
+
+A D-U3 mérése: a 23 lezárt attemptből **15 kevert rezsimen** futott, 8 egy rezsimen,
+0 a 3.-on. A szabály ára mérve: h=5 **2026-12-08**, h=10 **2027-01-29**.
+
+Nyitva **nincs** semmi ebből a taskból. A következő munka a §3 stratégiai döntés
+(új jelcsalád) — az a 3. rezsim adatára épül, tehát a fenti dátumok a naptára.

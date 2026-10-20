@@ -42,6 +42,85 @@ SWING_START: Final[date] = date(2026, 5, 18)
 ERA_LEGACY: Final[str] = "legacy"
 ERA_SWING: Final[str] = "swing"
 
+# --- Universe regimes (D-U3, approved 2026-10-20) ---------------------------
+# The swing era ran on THREE different universe definitions. G5 forbids pooling
+# across eras; this is the same hazard INSIDE one era, and nothing recorded it, so
+# it went unnoticed for nine weeks.
+#
+# Measured panel sizes per regime (the scored panel, not the raw membership):
+#   1. screener ∩ index-union : 226-1479 week to week, and ZERO names present on
+#      every day of the regime — the intersection inherited both sources' churn.
+#   2. screener only          : 1338-1824. A silent degradation: the membership
+#      source died on 2026-08-12 and Phase 2 fell open, swapping 377 of 730 names
+#      (52%) for non-members.
+#   3. index-union ∩ floor    : 909, and DETERMINISTIC — a pure function of
+#      completed daily bars, immune both to the screener's composition and to the
+#      hour of day (the old `volumeMoreThan` filtered today's PARTIAL volume).
+#
+# Tamás's decision (2026-10-20), the strict option of two: a new attempt may use
+# ONLY regime-3 data. The alternative was to permit mixtures with a declared
+# blend ratio, which is weaker — regime 3 is the only one whose universe is
+# reproducible, so an attempt spanning regimes is not comparable to one that does
+# not, whatever ratio is reported.
+#
+# THE PRICE, measured, so it cannot surprise anyone later. T_eff = n_days/h must
+# reach MIN_ADEQUATE_T_EFF (6.0), and the forward return consumes h more sessions:
+#   h=1  -> 2026-10-28      h=5  -> 2026-12-08      h=10 -> 2027-01-29
+#   h=3  -> 2026-11-17      h=7  -> 2026-12-29      h=20 -> 2027-05-11
+# Until those dates a new attempt at that horizon PARKs on power, it does not KILL.
+UNIVERSE_REGIME_INTERSECT: Final[str] = "screener_intersect_index"
+UNIVERSE_REGIME_SCREENER: Final[str] = "screener_only_degraded"
+UNIVERSE_REGIME_FLOOR: Final[str] = "index_union_plus_liquidity_floor"
+
+#: (first day, regime label). Open-ended at the end; sorted by start date.
+UNIVERSE_REGIMES: Final[tuple[tuple[date, str], ...]] = (
+    (date(2026, 5, 18), UNIVERSE_REGIME_INTERSECT),
+    (date(2026, 8, 16), UNIVERSE_REGIME_SCREENER),
+    (date(2026, 10, 20), UNIVERSE_REGIME_FLOOR),
+)
+
+#: The only regime a new attempt may draw from (D-U3). Named, not computed, for the
+#: same reason DAY63_GATE_PASSED is a flag: a derived "current" value would silently
+#: follow a future regime change that nobody approved.
+CURRENT_UNIVERSE_REGIME: Final[str] = UNIVERSE_REGIME_FLOOR
+
+
+def universe_regime_of(day: date) -> str | None:
+    """The universe definition in force on ``day``, or None before the swing era.
+
+    Mirrors :func:`era_of`. Returns None rather than guessing for days before the
+    first regime, so a caller cannot silently treat pre-era data as current.
+    """
+    label: str | None = None
+    for start, name in UNIVERSE_REGIMES:
+        if day >= start:
+            label = name
+        else:
+            break
+    return label
+
+
+def regime_start(label: str) -> date | None:
+    """The first day of a named universe regime, or None if the name is unknown."""
+    for start, name in UNIVERSE_REGIMES:
+        if name == label:
+            return start
+    return None
+
+
+def regime_span(days: "list[date] | tuple[date, ...]") -> dict[str, int]:
+    """``{regime: n_days}`` over ``days`` — the blend a panel actually contains.
+
+    Reported even when a panel is single-regime, because "I checked and it was
+    clean" and "nobody checked" must not look the same in the record.
+    """
+    out: dict[str, int] = {}
+    for day in days:
+        label = universe_regime_of(day) or "pre_era"
+        out[label] = out.get(label, 0) + 1
+    return dict(sorted(out.items()))
+
+
 # --- Statistics -------------------------------------------------------------
 HOLDOUT_WEEKS: Final[int] = 4  # D_B
 HOLDOUT_PURGE_DAYS: Final[int] = 5  # h=5 forward-return overlap at the boundary

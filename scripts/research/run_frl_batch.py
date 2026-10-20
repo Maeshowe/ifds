@@ -66,12 +66,31 @@ def _polygon_client():
 
 
 def _era_panels(windows: frl_holdout.Windows) -> dict[str, loader.PanelResult]:
-    """Dev-window panels per era (the holdout window is never loaded here)."""
+    """Dev-window panels per era (the holdout window is never loaded here).
+
+    The swing panel starts at the CURRENT universe regime, not at the era's first
+    day (D-U3, approved 2026-10-20). The swing era ran on three different universe
+    definitions, and only the third — `index_union_plus_liquidity_floor`, from
+    2026-10-20 — is deterministic; the first inherited the FMP screener's churn and
+    the second was a silent substitution of the population. An attempt spanning
+    regimes is not comparable to one that does not, whatever blend ratio is
+    reported, so the panel is narrowed rather than mixed.
+
+    The consequence is deliberate and measured: until the regime accumulates data,
+    T_eff stays below MIN_ADEQUATE_T_EFF and a failing attempt PARKs on power rather
+    than KILLing. h=5 reaches adequacy on 2026-12-08, h=10 on 2027-01-29.
+
+    The legacy era is untouched: it is a different STRATEGY era with its own
+    universe, already separated by G5, and the engine never pools the two.
+    """
     panels: dict[str, loader.PanelResult] = {}
     legacy = loader.load_panel(cfg.LEGACY_START, cfg.LEGACY_END)
     if legacy.days:
         panels[cfg.ERA_LEGACY] = legacy
-    swing = loader.load_panel(cfg.SWING_START, windows.dev_end)
+
+    regime_first = cfg.regime_start(cfg.CURRENT_UNIVERSE_REGIME)
+    swing_start = max(cfg.SWING_START, regime_first) if regime_first else cfg.SWING_START
+    swing = loader.load_panel(swing_start, windows.dev_end)
     if swing.days:
         panels[cfg.ERA_SWING] = swing
     return panels
@@ -199,6 +218,17 @@ def run_batch(
     # never by mere existence. A stale returns.parquet once reversed a HYP-005
     # verdict from KILL to a would-be PROMOTE; this makes the panel's real reach
     # visible in every report header.
+    regime_lines: tuple[str, ...] = ()
+    swing_panel = panels.get(cfg.ERA_SWING)
+    if swing_panel is not None and swing_panel.days:
+        span = cfg.regime_span(swing_panel.days)
+        regime_lines = (
+            f"- Univerzum-rezsim: **{cfg.CURRENT_UNIVERSE_REGIME}** "
+            f"({swing_panel.days[0]} … {swing_panel.days[-1]}, {len(swing_panel.days)} nap)",
+            f"- Rezsim-összetétel: {span}"
+            + ("" if len(span) == 1 else "  ⚠️ **KEVERT — a D-U3 szerint ez nem fordulhat elő**"),
+        )
+
     coverage_lines = (
         tuple(frl_returns.describe_coverage(
             frl_returns.panel_coverage(returns_frame, run_horizons)))
@@ -391,7 +421,7 @@ def run_batch(
         results=results,
         deflation_rows=deflation_rows,
         holdout_congestion=frl_holdout.holdout_congestion(history, windows.holdout_start),
-        coverage_lines=coverage_lines,
+        coverage_lines=regime_lines + coverage_lines,
         parked_retests=sorted(set(parked_retests)),
         unconfirmed=ledger.unconfirmed_decisions(ledger_path) if not dry_run else (),
         anomalies=anomalies,

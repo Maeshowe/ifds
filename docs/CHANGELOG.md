@@ -4,6 +4,69 @@
 
 ---
 
+## 2026-10-20 (10) — D-U3: az univerzum-rezsimek rögzítve, és új attempt CSAK a 3.-on
+
+> Baseline 2499 → **2515** (+16), 0 fail. Ezzel a 2026-10-19/20-i munka **lezárult**.
+
+### A döntés (Tamás, 2026-10-20) — a két lehetőség szigorúbbika
+A swing éra **három** univerzum-definíción futott, és ezt semmi nem tartotta nyilván:
+
+| rezsim | első nap | definíció | pontozott panel |
+|---:|---|---|---:|
+| 1 | 2026-05-18 | screener ∩ index-unió | 226–1479 (hetente ugrált, **0** név minden nap) |
+| 2 | 2026-08-16 | **csak screener** (néma csere) | 1338–1824 |
+| 3 | **2026-10-20** | index-unió ∩ likviditási floor | **909, determinisztikus** |
+
+A választás nem a „keverési aránnyal jelentett mixtúra" volt, hanem: **új attempt
+kizárólag a 3. rezsim adatán**. Indok: a 3. az egyetlen, aminek az univerzuma
+**reprodukálható**, tehát egy rezsimeken átnyúló attempt nem összehasonlítható eggyel,
+ami nem nyúlik át — bármilyen arányt is jelentünk mellé.
+
+### 🔴 És a mérés igazolja a döntést: a lezárt ledger 65%-a kevert
+A `dev_window.swing` kezdete és vége szerint:
+
+| | |
+|---:|---|
+| **15 / 23 attempt** | **KEVERT** — az 1. rezsimben indult, a 2.-ban végződött |
+| 8 / 23 | egyetlen rezsim (az 1.) |
+| **0 / 23** | a 3. rezsimben |
+
+(Olvasás, **nem** ledger-írás: a 4. kísérő szerint a lezárt sorok a régi verdikten
+maradnak. A D-U4 ellenpróba szerint a szennyeződés a **jelnek kedvezett**, tehát a 15
+kevert attempt KILL-verdiktje **konzervatív**.)
+
+### feat(research) — a rezsimek regisztrálva, a batch szűkítve
+`frl_config`: `UNIVERSE_REGIMES` (nevesített, dátumozott hármas),
+`CURRENT_UNIVERSE_REGIME` **explicit konstansként** (nem levezetve — ugyanaz az érv,
+mint a `DAY63_GATE_PASSED`-nél: egy számolt „legújabb" csendben követné egy jövőbeli,
+jóvá nem hagyott rezsimváltást), plusz `universe_regime_of()` és `regime_span()`.
+
+`run_frl_batch._era_panels`: a **swing panel a rezsim első napjától** indul, nem az éra
+első napjától. **Szűkítés, nem megtagadás** — a szűkítés szó szerint implementálja a
+döntést és a motor továbbra is termel becsületes, erő-kapuzott eredményt, míg a
+megtagadás semmit. A legacy éra érintetlen: az külön **stratégia**-éra, saját
+univerzummal, amit a G5 már szeparál.
+
+A riport fejlécébe bekerül a rezsim és az **összetétel** — mert *„ellenőriztem és tiszta
+volt"* és *„senki nem ellenőrizte"* nem nézhet ki egyformán.
+
+### ⏳ A szabály ára, mérve — és a kódban rögzítve
+`T_eff = n_days/h ≥ 6,0`, és a forward return még `h` sessiont fogyaszt:
+
+| h | 1 | 3 | **5** | 7 | **10** | 20 |
+|---|---|---|---|---|---|---|
+| adekvát | 10-28 | 11-17 | **12-08** | 12-29 | **2027-01-29** | 2027-05-11 |
+
+Addig egy bukó attempt **PARK**-ol erőre, nem KILL-el. A dátumok a `frl_config`
+kommentjében és **tesztben** is benne vannak, hogy ne lehessen elveszíteni.
+
+### test (+16)
+`tests/test_universe_regimes.py`: a három határ, az éra előtti `None` (nem tipp), a
+`CURRENT` konstans-jellege, a `regime_span` (köztük az „egy rezsim is jelentve"), és a
+batch-szűkítés. **Szabotázs-ellenőrzés:** a szűkítést visszavéve bukik.
+
+---
+
 ## 2026-10-20 (9) — (C) befejezve: GICS-szektor a saját fetchből + provenance végig
 
 > Baseline 2490 → **2499** (+9), 0 fail. Ezzel a (C) öt lépése **kész**, és a
