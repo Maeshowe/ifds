@@ -29,8 +29,26 @@ Lezárt task fájlok (`Status: DONE` vagy `Status: REJECTED`).
 > archiválni"-val. Egy lekérdezés, ami nem lát egy fájlt, nem bizonyíték arra, hogy
 > a fájl a helyén van.
 
-A gyökérben **négy** régi, valóban status-header nélküli task maradt
-(`2026-05-23`, `2026-05-25`, `2026-05-28`, `2026-05-29`) plusz a `future-*`
-placeholder (`Status: PLANNED` — szándékosan nem az enumból, mert nem indítható).
-Ezek nem szennyezik a nyitott-task lekérdezést. Ha egy ilyen lezárul, kapjon
-**nem-félkövér** `Status: DONE` fejlécet és kerüljön ide.
+> 🔴 **MÁSODIK ELŐFORDULÁS (2026-10-21).** A fenti tanulság ellenére a gyökérben maradt
+> öt nem-kompatibilis fejléc, és a README **előző bekezdése fedezte őket** azzal, hogy
+> „nem szennyezik a nyitott-task lekérdezést". Ez a kettőre nézve **hamis** volt:
+> `2026-05-28` (a review-pipeline) **valóban `WIP`** volt, `2026-05-23` (state
+> reconciliation) pedig **semmilyen status-sort nem tartalmazott** — a lekérdezés
+> mindkettőt **öt hónapig** kihagyta, miközben a tartalmuk közben el is készült
+> (`reconcile_state.py` + 22:15 cron, illetve a `/daily-review` command). Mellettük:
+> `2026-05-29` félkövér `DONE`, `future-2026-04-17` félkövér `PLANNED` (ami nem is
+> érvényes állapot), és három `DONE` fájl, ami egyszerűen nem lett archiválva.
+>
+> **A javítás ezúttal nem újabb normalizálás, hanem a RÉS zárása:**
+> `tests/test_task_header_hygiene.py` — line-1 `Status:`, line-2 `Updated:`,
+> nem-jövőbeli dátum, és a gyökérben nem maradhat `DONE`/`REJECTED`; plusz egy teszt,
+> ami a CLAUDE.md-ben publikált grepet és a guard regexét **egymáshoz méri**. Nevesített
+> allowlist az egyetlen kivételnek (`2026-05-25-operator-emergency-procedure.md` — élő
+> operátori runbook, 10 helyről hivatkozva, köztük a `scripts/crontab.md` és egy teszt).
+> A guard **visszavezetéssel verifikálva** (félkövér header → piros; gyökérben hagyott
+> `DONE` → piros). Hibaalak: ugyanaz, mint a sink-auditnál — nem az egyes előfordulást,
+> a **rést** zárjuk.
+
+A gyökérben ezért ma **csak aktív munka** van: `OPEN` / `WIP` / `BLOCKED` fejléccel, plusz
+az allowlistolt runbook. Lezáráskor a fájl **nem-félkövér** `Status: DONE` (vagy
+`REJECTED`) fejlécet kap, `Updated:` sort a mai dátummal, és `git mv`-vel ide kerül.

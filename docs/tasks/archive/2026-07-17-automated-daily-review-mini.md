@@ -1,6 +1,7 @@
-Status: OPEN
-Updated: 2026-07-17
-Note: TERV + build/teszt a freeze alatt engedélyezett; ÉLES DEPLOY (cron a Mini-n) KIZÁRÓLAG Day 63 után. Fázis A (CC interaktív review) párhuzamosan fut, ez váltja ki Day 63-ig.
+Status: REJECTED
+Updated: 2026-10-21
+Note: [2026-10-21] Tárgytalan, három okból. (1) A PREMISSZÁJA megszűnt: a task azért akart felügyelet nélküli review-t, mert az a Day 63 kaput táplálta — a kapu 2026-10-03-án lezárult, a kereskedés 2026-10-04 óta áll, a könyv 09-30 óta üres, az utolsó napi review 2026-09-25-i. Nincs napi input, amit automatizálni kellene. (2) A FUNKCIONÁLIS IGÉNY más úton teljesült: a determinisztikus mag él (`generate_review_data.py`, 22:20 cron → `state/review_data/{date}.json`; `generate_review.py` = `build_cross_check_flags` + `render_review_markdown`), és a `/daily-review` CC-command a teljes eljárást viszi. A két fájl, amit EZ a task adott volna (`lib/review_template.py`, `lib/review_llm.py`), sosem készült el, és a felügyelet nélküli LLM-út + a clientId=19-es Gateway-verify sem — vagyis a build-fázisból 0 történt meg. (3) Ha a kereskedés újraindul, a v6 review-spec és az adat-bundle is újraszármaztatandó lesz, tehát egy friss terv olcsóbb, mint egy elavult OPEN. A tervezési TARTALOM (template-előbb + validációs kapu + a Gateway-séma mint első commit előtti kötelezettség) itt marad referenciaként.
+
 
 # Automatizált napi v6 review a Mac Mini-n (`generate_review.py`)
 

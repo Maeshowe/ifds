@@ -133,7 +133,7 @@ rotáció, UW dormant kód ~10 modul).
 
 ## Tesztek
 
-**2515 passing**, 0 fail (2026-10-20) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
+**2534 passing**, 0 fail (2026-10-21) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
 
 ---
 
@@ -143,11 +143,29 @@ rotáció, UW dormant kód ~10 modul).
 grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md
 ```
 
+> A lekérdezést 2026-10-21 óta **guard-teszt** tartja érvényben
+> (`tests/test_task_header_hygiene.py`): a félkövér `**Status**:` és a hiányzó header
+> is **elrejti** a fájlt a grep elől — ez 2026-10-04-én 12, 2026-10-21-én további 5
+> fájlon fordult elő. A teszt a formátumot ott kényszeríti ki, ahol a lekérdezés
+> támaszkodik rá.
+
 | Task | Státusz |
 |---|---|
-| `2026-07-17-automated-daily-review-mini.md` | OPEN — a review-stack áll, nem sürgős |
-| `2026-08-24-ohlcv-store-backfill.md` | OPEN — az 1. lépés adat-előfeltétele teljesült (folytonos bar-tár 02-11 → 10-02) |
-| `2026-10-04-operational-backlog.md` | OPEN — lásd fent |
+| `2026-08-24-ohlcv-store-backfill.md` | OPEN — **0/8 lépés kész**; a §3 stratégiai döntés BEMENETE (az egyetlen ismert út a decemberi power-korlát kikerülésére), de új jelcsaládot épít → a döntés előtt nem indítható |
+| `2026-10-04-operational-backlog.md` | OPEN — lásd fent; a §2 mindhárom tétele a kereskedési út hibája, **nem** lett tárgytalan a null-lal |
+
+**Nem a lekérdezésben, de a gyökérben:**
+
+| Fájl | Státusz |
+|---|---|
+| `2026-10-19-preclose-tp-auction-exit.md` | BLOCKED — a panel 12 blokkolója |
+| `future-2026-04-17-bc-ifds-phase3-from-mid.md` | BLOCKED — külső függőség (MID Phase B) |
+| `2026-05-25-operator-emergency-procedure.md` | élő operátori runbook, nem task (a guard allowlistjében) |
+
+**2026-10-21-én lezárva:** `2026-07-17-automated-daily-review-mini.md` → **REJECTED**
+(a premisszája a Day 63 kapu volt, ami 2026-10-03-án lezárult; a funkciót a
+`/daily-review` command + `generate_review{,_data}.py` fedi; a build-fázisból 0 történt
+meg). Archiválva: +7 fájl a `docs/tasks/archive/`-ba.
 
 ---
 

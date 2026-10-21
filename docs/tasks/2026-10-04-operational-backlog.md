@@ -1,6 +1,6 @@
 Status: OPEN
-Updated: 2026-10-04
-Note: A freeze alatt gyűlt operatív backlog. A 2026-10-04-i session a 3 ZÉRÓ-KOCKÁZATÚ tételt elvégezte (lásd §1); a maradék 3 TUDATOSAN ELHALASZTVA, mert production kereskedési kódutat érint és a session hosszú volt ([[long-session-degradation]]). Egyik sem sürgős: a kereskedés adatgyűjtési módban áll.
+Updated: 2026-10-21
+Note: [2026-10-21 felülvizsgálat] NYITVA MARAD, de minden maradék tétele a §3 stratégiai döntésen áll. A §4 „C forgatókönyve” időközben BEÁLLT: az IFDS score-család mind a 4 horizonton megerősített keresztmetszeti null (23 attempt). Ettől azonban a §2.1–2.3 NEM lett tárgytalan — mindhárom a KERESKEDÉSI ÚT hibája (daily_metrics `exit_type` „MOC”-ra degradál az ablakon kívül; csendes `sector_cap_proximity` flag; `pt_monitor --mode=eod_eval` kihagyja a `check_trading_day()`-t), tehát bármelyik jövőbeli jelcsaláddal újraindulva is hibás. Tárgytalanná csak a teljes lezárással válnak. A §3 (UW kulcs-rotáció + UW dormant kód 10 modulban) Tamás-művelet, illetve nagy refaktor — változatlanul kivárandó. — az eredeti Note: A freeze alatt gyűlt operatív backlog. A 2026-10-04-i session a 3 ZÉRÓ-KOCKÁZATÚ tételt elvégezte (lásd §1); a maradék 3 TUDATOSAN ELHALASZTVA, mert production kereskedési kódutat érint és a session hosszú volt ([[long-session-degradation]]). Egyik sem sürgős: a kereskedés adatgyűjtési módban áll.
 
 # Operatív backlog — a freeze utáni takarítás
 

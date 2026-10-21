@@ -1,6 +1,9 @@
+Status: BLOCKED
+Updated: 2026-10-21
+Note: Külső függőség blokkolja: nem indítható, amíg a MID BC-ETF-Xray-Institutional-13F-Layer legalább Phase B nincs kész. A `**Status:** PLANNED` félkövér alak 2026-10-21-én normalizálva — a PLANNED nem szerepel a CLAUDE.md állapot-készletében, és a félkövér header a nyitott-task lekérdezés elől is elrejtette a fájlt. A `future-` prefix megmarad.
+
 # BC (future) — IFDS Phase 3 ← MID ETF X-Ray consumption
 
-**Status:** PLANNED — nem indítható, amíg a MID BC-ETF-Xray-Institutional-13F-Layer legalább Phase B nincs kész
 **Created:** 2026-04-17
 **Priority:** P3 — hosszabb távú integráció, nem a legközelebbi ciklus része
 **Estimated effort:** ~2 nap (IFDS oldali)

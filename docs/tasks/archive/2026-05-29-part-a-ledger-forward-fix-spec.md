@@ -1,6 +1,9 @@
+Status: DONE
+Updated: 2026-06-01
+Note: Design locked 2026-05-29; implementálva + tesztelve 2026-06-01; pusholva és a Mac Mini-n deployolva 2026-06-01 Tamás jóváhagyásával — a forward-fix él, a Day 9 AMH visszatöltve (cumulative -651.10 → -708.58). A félkövér header 2026-10-21-én normalizálva; a részletes szöveg lentebb maradt.
+
 # Part A — Ledger forward-fix (P0 §0.11) — LOCKED SPEC for clean-session implementation
 
-**Status**: DONE (design locked 2026-05-29; implemented + tested 2026-06-01; pushed + Mac Mini deployed 2026-06-01 with Tamás approval — forward-fix live, Day 9 AMH backfilled. cumulative -651.10 → **-708.58**)
 **Updated**: 2026-06-01
 **Priority**: P0 — realized P&L tracking gap forward-fix
 **Why a separate spec**: the 2026-05-29 session degraded (API 400 "thinking blocks" + corrupted file reads — "20:48" leaking into line numbers, garbled content). Implementation of live trading scripts (`close_positions.py`, `eod_report.py`) was halted to avoid a corrupted edit breaking the live MOC SELL. All decisions below are FINAL — a fresh session executes directly.

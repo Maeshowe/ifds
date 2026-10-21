@@ -1,6 +1,9 @@
+Status: DONE
+Updated: 2026-10-21
+Note: [2026-10-21 lezárás] A fejléc `**Status**: WIP` félkövér alakban állt, ezért a nyitott-task lekérdezés nem látta (lásd archive/README.md 2026-10-04). Az egyetlen hátralévő tétel — „első éles autonóm /daily-review futás” — teljesült: a `/daily-review` command végig a napi review-stacket vitte, 85 review készült, az utolsó 2026-09-25-i. A kereskedés 2026-10-04 óta áll, új review-nap nincs.
+
 # Task — Automatizált napi review pipeline (CC-oldali)
 
-**Status**: WIP
 **Updated**: 2026-06-08
 **Haladás**: §0 előfeltétel ✅ (Part A + Day 14). **1a data-aggregátor ✅** (`generate_review_data.py`, éles 6/3 validálva). **1b/1c connector-FÜGGETLEN mag ✅ KÉSZ** (`generate_review.py`): `build_cross_check_flags(review_data, ibkr)` pure cross-check (pnl_tracking_gap, state_ibkr_divergence, cumulative_drift), `render_review_markdown` determinisztikus draft. **1c connector-wrapper ✅ KÉSZ (2026-06-08)**: `main()` `--ibkr-json` flag — CC az MCP connectorból (`get_account_summary/positions/trades`) snapshotot ír, a script `build_cross_check_flags`-szel rendereli a draftot. **`/daily-review` CC-command** (`.claude/commands/daily-review.md`) formalizálja a teljes eljárást: 1a → IBKR snapshot → cross-check → 1c draft → LLM-narratíva → `docs/review/{date}.md` → eszkaláció. `baseline_offset` (208.37) beépítve a driftbe (`docs/analysis/cumulative-drift-investigation-2026-06-08.md`). +4 teszt, **1906 passing**. **Hátra**: első éles autonóm `/daily-review {date}` futás egy valódi napon — az LLM-narratíva minőség-validációja.
 **Prioritás**: P1 (a 0. fázis P0 előfeltétellel)

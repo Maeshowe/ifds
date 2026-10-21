@@ -93,10 +93,17 @@ Minden task fájl tartalmazza: probléma, megközelítés, implementációs terv
 ### Task fájl kötelező fejléc (minden task fájlban az első 3 sor)
 
 ```
-Status: OPEN | WIP | DONE | BLOCKED
+Status: OPEN | WIP | BLOCKED | DONE | REJECTED
 Updated: YYYY-MM-DD
 Note: <opcionális rövid megjegyzés>
 ```
+
+> ⚠️ **A formátum nem kozmetika — a nyitott-task lekérdezés ezen áll.** Egy félkövér
+> `**Status**: WIP` vagy egy hiányzó header **láthatatlan** a grep számára, és a
+> láthatatlan „lezártnak" olvasódik. Ez kétszer megtörtént (2026-10-04: 12 fájl,
+> 2026-10-21: további 5, köztük egy valóban WIP és egy header nélküli task, amit a
+> lekérdezés öt hónapig kihagyott). 2026-10-21 óta **guard-teszt** kényszeríti ki:
+> `tests/test_task_header_hygiene.py` (nevesített allowlist a nem-task fájlokhoz).
 
 CC minden task fájl megnyitásakor frissíti a `Status` sort:
 - Megnyitáskor: `OPEN` → `WIP`
@@ -280,7 +287,7 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 → **Backlog:** `docs/planning/backlog.md`
 
 Stabil referencia (ritkán változik):
-- Teszt baseline: **2515 passing** (2026-10-20) — csak nőhet
+- Teszt baseline: **2534 passing** (2026-10-21) — csak nőhet
 - PT account: IBKR DUH118657, $100K initial. A 63 napos periódus lezárult; **a kereskedés áll**
 - PT clientId-k: submit=10, close=11, eod=12, nuke=13, monitor=14, trail=15, avwap=16, gateway=17
 - MMS: `mms_enabled=True`, `factor_volatility_enabled=True`, `mms_min_periods=10`

@@ -4,6 +4,50 @@
 
 ---
 
+## 2026-10-21 — Task-audit: 1 lezárás, 2 nyitva marad, és a lekérdezés rése bezárva
+
+> Baseline 2515 → **2534** (+19), 0 fail. Csak docs + egy guard-teszt; production kódút nem változott.
+
+### Mit mutatott a három nyitott task átvizsgálása
+
+| Task | Verdikt | Miért |
+|---|---|---|
+| `2026-07-17-automated-daily-review-mini.md` | **REJECTED** | A premisszája a Day 63 kapu volt (lezárult 2026-10-03), a kereskedés 2026-10-04 óta áll, az utolsó review 2026-09-25-i. A funkciót a `/daily-review` command + `generate_review{,_data}.py` fedi; a task saját két fájlja (`lib/review_template.py`, `lib/review_llm.py`) és a felügyelet nélküli LLM-út **sosem készült el** — a build-fázisból 0 történt meg. |
+| `2026-08-24-ohlcv-store-backfill.md` | **OPEN marad** | 0/8 lépés kész. A D-U3 a HYP-006-ot h=5 → 2026-12-08 … h=40 ≈ 2027-10-ig eltolja, **de** a mai FRL-panel a `full_scan_matrix`-ból épül, tehát rezsim-függő; egy bar-alapú panel (§5.4) rezsim-független lehet. ⚠️ A tagság visszamenőleg **nem** rekonstruálható (a forrás a mai lista) → az univerzum-definíció önálló döntés, a pre-reg elé. Ez a task a §3 döntés **bemenete**, nem a következménye. |
+| `2026-10-04-operational-backlog.md` | **OPEN marad** | A §4 „C forgatókönyve" beállt (megerősített null), de a §2.1–2.3 ettől **nem** lett tárgytalan: mindhárom a kereskedési út hibája, bármelyik jövőbeli jelcsaláddal újraindulva is hibás. |
+
+### A valódi lelet: a nyitott-task lekérdezés öt hónapig két taskot nem látott
+
+A „3 nyitott task" **nem** volt a teljes lista. A gyökérben öt további fájl ült
+nem-kompatibilis fejléccel, és közülük kettő **élő munka** volt:
+
+| Fájl | Mi volt a fejléc | Következmény |
+|---|---|---|
+| `2026-05-28-automated-daily-review-pipeline.md` | `**Status**: WIP` (félkövér) | **5 hónapig láthatatlan**; a tartalma közben elkészült → `DONE` |
+| `2026-05-23-state-reconciliation-from-ibkr.md` | **semmilyen status-sor** | **5 hónapig láthatatlan**; `reconcile_state.py` + 22:15 cron él → `DONE` |
+| `2026-05-29-part-a-ledger-forward-fix-spec.md` | `**Status**: DONE` | archiválatlan |
+| `future-2026-04-17-bc-ifds-phase3-from-mid.md` | `**Status:** PLANNED` | érvénytelen állapot → `BLOCKED` |
+| `2026-10-18` ×2, `2026-10-20` | `Status: DONE` ✔ | archiválatlan |
+
+Ez a hibaosztály **másodszor** fordult elő: a `docs/tasks/archive/README.md` 2026-10-04-én
+már helyesbített 12 ilyen fájlt — és a README **záró bekezdése fedezte** a maradékot azzal,
+hogy „nem szennyezik a lekérdezést". A 2026-05-28/05-23-ra nézve ez hamis volt.
+
+### A javítás a rés, nem az előfordulás
+
+`tests/test_task_header_hygiene.py` (+19 teszt): line-1 `Status:`, line-2 `Updated:`,
+nem-jövőbeli dátum, a gyökérben nem maradhat `DONE`/`REJECTED`, nevesített allowlist a
+nem-task fájlhoz (`2026-05-25-operator-emergency-procedure.md` — élő runbook, 10 helyről
+hivatkozva), és egy teszt, ami a **CLAUDE.md-ben publikált grepet** és a guard regexét
+egymáshoz méri. **Visszavezetéssel verifikálva**: félkövér header → piros, gyökérben
+hagyott `DONE` → piros.
+
+Mellé: `CLAUDE.md` állapot-készlete `REJECTED`-del kiegészítve, `docs/STATUS.md` nyitott-task
+táblája átírva (a BLOCKED-ok és a runbook is látszanak), archive README helyesbítve,
+7 fájl archiválva.
+
+---
+
 ## 2026-10-20 (10) — D-U3: az univerzum-rezsimek rögzítve, és új attempt CSAK a 3.-on
 
 > Baseline 2499 → **2515** (+16), 0 fail. Ezzel a 2026-10-19/20-i munka **lezárult**.

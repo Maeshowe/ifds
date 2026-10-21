@@ -1,3 +1,7 @@
+Status: DONE
+Updated: 2026-10-21
+Note: [2026-10-21 utólagos lezárás] A fájl SOHA nem kapott status-headert, ezért a nyitott-task lekérdezés öt hónapig nem látta — ugyanaz a hibaosztály, amit a docs/tasks/archive/README.md 2026-10-04-én helyesbített. A tartalma ELKÉSZÜLT: `scripts/paper_trading/reconcile_state.py` (napi divergencia-detektor, 22:15 cron) és `scripts/admin/retroactive_reconcile_w21.py` (a W21 retroaktív rendezése) él. A 2026-05-25-i α-döntés (hibrid status quo, mental-stop mód) változatlan.
+
 # Task — State Reconciliation from IBKR + TP/SL Hit Counter Fix
 
 **Created**: 2026-05-23 szombat (Log Review chat)
