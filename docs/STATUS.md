@@ -99,13 +99,35 @@ A mechanikai magyarázatok elfogytak, és a jelcsalád 100%-a null. Három út:
 
 | | |
 |---|---|
-| **A** — új jelcsalád | Az FRL-sáv kész és bejáratott (23 attempt, pre-reg fegyelem, BH-FDR, (e) gazdasági kapu). Új hipotézis = új pre-reg. **Az UW kivezetve**, tehát a forrás Polygon + FMP + FRED. |
+| **A** — új jelcsalád | Az FRL-sáv kész és bejáratott (23 attempt, pre-reg fegyelem, BH-FDR, (e) gazdasági kapu). Új hipotézis = új pre-reg. **Az UW kivezetve**, tehát a forrás Polygon + FMP + FRED. ⚠️ **Power-korlát:** a D-U3 szabály miatt új attempt csak a 3. univerzum-rezsimen (2026-10-20-tól) futhat → T_eff≥6 mellett **h=5 csak 2026-12-08-tól**, h=10 2027-01-29-től értékelhető. Lásd lent. |
 | **B** — végrehajtás-vezérelt újraindítás | A SIM-EXEC +$2 442-je valós, de **költség-csökkentő, nem alfa-forrás**. Jel nélkül csak lassítja a vérzést. **Önmagában nem stratégia.** |
 | **C** — a jelcsalád lezárása | Az infrastruktúra (pipeline, FRL, sim-harness, bar-tár, pre-reg fegyelem) **vagyon**, és egy másik jelcsaládot is kiszolgál. **A score leállítása nem a projekt leállítása.** |
 
 **A mért bizonyíték jelenleg C felé mutat.** Élesítés egyik úton sem következik
 automatikusan — bármely élő periódus **új élő pre-regisztrációt** kíván
 (a 2026-07-25-i protokoll **nem** újrahasznosítható).
+
+### Az (A) út egyetlen ismert megkerülése a power-korláton — döntési bemenet
+
+> **Tamás-döntés (2026-10-21):** a `docs/tasks/2026-08-24-ohlcv-store-backfill.md`
+> **OPEN marad**, és ennek a döntésnek a **BEMENETE**, nem a következménye —
+> de **nem indul el a döntés előtt**, mert új jelcsaládot (GC) épít.
+
+A D-U3 korlát azért köt, mert a mai FRL-panel a `full_scan_matrix` CSV-kből épül
+(`scripts/research/frl_loader.py`), azaz **a pipeline által pontozott univerzumból** —
+ezért rezsim-függő. Egy bar-alapú, fogyasztói oldalon szűrt panel (a task §5.4-e) a
+likviditási szűrőt **minden napra újraszámolhatja** a lezárt napi bar-okból, tehát
+pont-az-időben tiszta és **rezsim-független** lehet, és a meglévő folytonos bar-tárral
+(2026-02-11 → 2026-10-02, 162 session; backfillel 348) azonnal van mintája.
+
+⚠️ **A korlát, ami megmarad:** a **tagság visszamenőleg nem rekonstruálható** — a
+Russell-1000 forrás a **mai** lista. Egy ilyen panel univerzuma ezért **nem lehet**
+„index-tagság ∩ floor", hanem csak egy tisztán bar-ból számolt szűrő (pl. napi top-N
+medián dollárvolumen). Ez **önálló döntés, nem következtetés**, és a **pre-reg elé**
+tartozik — az adat megnézése előtt rögzítendő, különben garden-of-forking-paths.
+
+Állapot: **0/8 lépés kész.** A task lezárt mérései (§5.1 mult=√2, §5.2 hlc3, §5.3
+korrekciós évjárat 0,65% ticker/hó) és a §6 önhordó referencia-fixture érvényesek.
 
 ---
 
