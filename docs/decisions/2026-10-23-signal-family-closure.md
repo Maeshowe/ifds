@@ -1,12 +1,15 @@
-Status: OPEN
+Status: DONE
 Updated: 2026-10-23
-Note: CC-javaslat a §3 stratégiai döntésre, Tamás jóváhagyására vár. A javaslat: a score-család LEZÁRÁSA (C), de NEM az (A) örökre bezárásával — négy lépéssel, amiből a legdrágább ~8 perc gépidő. A rekord rögzíti azt is, hol dőlt meg a javaslattevő saját vezető érve.
+Note: Tamás jóváhagyta 2026-10-23-án — a §4 MIND A NÉGY lépése. Az 1-2. VÉGREHAJTVA ugyanaznap (lezárás + az 5 HYP-007 verdikt kihúzása a tallóból, a verdiktek érintetlenül); a 3-4. (pre-reg + bar-alapú panel + EGY faktorcsalád) friss sessionben, szándékosan — egy pre-reg, amit ugyanaz a session ír, aki az érvelést csinálta, epistemikusan rosszabb.
 
 # Döntési rekord — az IFDS score-család lezárása (§3)
 
 ## 0. Mi ez és mi nem
 
-Ez **javaslat**, nem meghozott döntés. A `docs/STATUS.md` „A nyitott stratégiai döntés"
+> ✅ **JÓVÁHAGYVA — Tamás, 2026-10-23.** Mind a négy lépés. Az **1–2. végrehajtva**
+> ugyanaznap (lásd §9); a **3–4. friss sessionben** indul.
+
+Ez eredetileg **javaslat** volt, nem meghozott döntés. A `docs/STATUS.md` „A nyitott stratégiai döntés"
 szekciója három utat kínál — (A) új jelcsalád, (B) végrehajtás-vezérelt újraindítás,
 (C) a jelcsalád lezárása. Tamás 2026-10-23-án (A) és (C) között kért javaslatot.
 
@@ -196,3 +199,36 @@ ablakot (543 nap ≈ 2,15 év, a Developer 10 évet ad).
   eldöntené: ≥30 láb a 09:29:30-as midponthoz mérve, jutalékkal. Egy újraindítási nap,
   nulla API-költség. A panel két független lencséje ezt nevezte meg mint az egyetlen dolgot,
   ami megfordítaná őket.
+
+---
+
+## 9. Végrehajtás — 2026-10-23
+
+### 9.1 (1. lépés) A score-család lezárva
+
+A ledger 23 sora **érintetlen**: egyetlen `decision` sem változott, nincs újrafuttatás.
+A lezárás a §3 stratégiai döntés rögzítése, nem a mérések visszamenőleges átírása.
+
+### 9.2 (2. lépés) Az 5 HYP-007 verdikt kihúzva a TALLÓBÓL — a verdiktek maradnak
+
+Mechanizmus: `frl_ledger.strike_from_evidence()` — **kizárólag additív** annotáció
+(`evidence_status`, `evidence_strike_reason`, `evidence_struck_by`, `evidence_struck_at`).
+A `decision`, az `auto_decision`, a `metrics` és a megerősítési nyom **változatlan**.
+
+| attempt | hyp | h | decision | evidence_status |
+|---|---|---:|---|---|
+| A-0019 … A-0023 | HYP-007 | 1, 3, 5, 7, 10 | **KILL (változatlan)** | `struck` |
+
+A `deflate()` többszörösség-korrekciója **kihagyja** a kihúzott sorokat, tehát a BH `m`-je
+nem számol olyan bizonyítékkal, amit a projekt megtagadott. A tallóban maradó családok:
+HYP-004, HYP-005, HYP-006, HYP-008 (legacy + swing) — **18 sor a 23-ból**.
+
+**Idempotens**, és ez nem elméleti: a `confirm_decision`-t egy cross-session dupla hívás
+korrumpálta egyszer, felülírva az `auto_decision`-t és eltüntetve, hogy egy ember
+KILL→PARK váltást csinált. Egy második strike itt **no-op** — élesben is ellenőrizve,
+egyetlen sor sem változott.
+
+Tesztek: `tests/test_ledger_evidence_strike.py` (+12), köztük a production-ledger
+állapotát őrző három assert (pontosan az 5 funda-sor van kihúzva; mindegyik KILL maradt;
+a másik 18-on nincs strike-mező).
+

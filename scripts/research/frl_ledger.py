@@ -231,6 +231,53 @@ def confirm_decision(
     raise ValueError(f"attempt not found in ledger: {attempt_id}")
 
 
+def strike_from_evidence(
+    attempt_id: str,
+    reason: str,
+    by: str,
+    path: Path | None = None,
+) -> dict:
+    """Mark an attempt as inadmissible EVIDENCE without changing its verdict.
+
+    For the case where a verdict was measured over structurally empty inputs: the
+    measurement happened, the decision was taken, and both stay on the record — but the
+    result is not evidence about the factor the design describes, so the multiplicity
+    tally must stop counting it.
+
+    Deliberately NOT a re-run and NOT an override. Re-running an attempt after seeing its
+    result is garden-of-forking-paths, and ``confirm_decision`` already owns the
+    human-override path. This only ADDS fields; ``decision``, ``auto_decision``,
+    ``metrics`` and the confirmation trail are left exactly as they were.
+
+    Idempotent, for the reason ``confirm_decision`` had to be made idempotent: a
+    cross-session double call once overwrote ``auto_decision`` with the already-overridden
+    value and erased the fact that a human had changed a KILL to a PARK. A second strike
+    here is a no-op, so the FIRST reason and attributor remain the record.
+
+    Raises:
+        ValueError: if the attempt is unknown or no reason is given.
+    """
+    if not reason or not reason.strip():
+        raise ValueError("a strike needs a reason — an unexplained exclusion is not auditable")
+
+    target = Path(path) if path is not None else cfg.LEDGER_PATH
+    entries = read_ledger(target)
+
+    for entry in entries:
+        if entry.get("attempt_id") != attempt_id:
+            continue
+        if entry.get("evidence_status") == "struck":
+            return entry  # already struck; the first record stands
+        entry["evidence_status"] = "struck"
+        entry["evidence_strike_reason"] = reason.strip()
+        entry["evidence_struck_by"] = by
+        entry["evidence_struck_at"] = _now_iso()
+        _write_ledger(entries, target)
+        return entry
+
+    raise ValueError(f"attempt not found in ledger: {attempt_id}")
+
+
 def unconfirmed_decisions(path: Path | None = None) -> list[dict]:
     """Closed attempts still carrying only a machine verdict.
 
@@ -295,6 +342,11 @@ def deflate(entries: Iterable[dict], q: float = cfg.FDR_Q) -> list[dict]:
     by_family: dict[tuple[str, str, str], list[float]] = {}
     for entry in entries:
         if entry.get("decision") == PENDING:
+            continue
+        # Evidence struck under `strike_from_evidence` is still in the ledger and still
+        # carries its verdict, but it is not evidence about the factor the design
+        # describes — so BH's m must not count it. See the 2026-10-23 decision record §4.
+        if entry.get("evidence_status") == "struck":
             continue
         hyp = entry.get("hyp_id", "")
         lane = entry.get("data_lane", "")
