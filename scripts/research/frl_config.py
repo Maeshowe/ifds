@@ -104,20 +104,29 @@ CURRENT_UNIVERSE_REGIME: Final[str] = UNIVERSE_REGIME_FLOOR
 #   * institutional ownership was read from a market-wide filing feed that ignores
 #     ?symbol=, so inst_ownership_score was 0 in all 16,425 ticker-days.
 #
+# THE BOUNDARY IS A DEPLOY DATE, NOT A COMMIT DATE. The fixes were committed on
+# 2026-10-23, but that day's Phase 4-6 had ALREADY run at 14:30 Budapest on the
+# production machine with the old code (verified on the Mini: HEAD acce6a8 and
+# output/full_scan_matrix_2026-10-23.csv already written). The first scan matrix the
+# fixed code can produce is therefore Monday 2026-10-26, and the boundary says so.
+# ⚠️ This holds only if the Mini pulls BEFORE Mon 14:30 Budapest. If the deploy slips,
+# this constant slips with it — it describes what the production machine ran, not what
+# the repo contains.
+#
 # THE PRICE, recomputed against the NYSE calendar exactly as the D-U3 dates were
 # (the method reproduces those dates from the 10-20 start, so it is the same ruler):
-#   h=1  -> 2026-11-02      h=5  -> 2026-12-11      h=10 -> 2027-02-03
-#   h=3  -> 2026-11-20      h=7  -> 2027-01-04      h=20 -> 2027-05-14
-# i.e. THREE trading days (10-20, 10-21, 10-22) and three days on every adequacy
-# date. Taking the break now rather than later is the cheap option by construction:
-# regime 3 was three days old when the fixes landed.
+#   h=1  -> 2026-11-03      h=5  -> 2026-12-14      h=10 -> 2027-02-04
+#   h=3  -> 2026-11-23      h=7  -> 2027-01-05      h=20 -> 2027-05-17
+# i.e. FOUR trading days (10-20 … 10-23) and four days on every adequacy date. Taking
+# the break now rather than later is the cheap option by construction: regime 3 was
+# four days old when the fixes landed.
 SCORING_ERA_LEGACY_SCHEMA: Final[str] = "legacy_schema_partial_funda"
 SCORING_ERA_SCHEMA_FIXED: Final[str] = "schema_fixed_full_funda"
 
 #: (first day, era label). Open-ended at the end; sorted by start date.
 SCORING_ERAS: Final[tuple[tuple[date, str], ...]] = (
     (SWING_START, SCORING_ERA_LEGACY_SCHEMA),
-    (date(2026, 10, 23), SCORING_ERA_SCHEMA_FIXED),
+    (date(2026, 10, 26), SCORING_ERA_SCHEMA_FIXED),
 )
 
 #: Named, not computed — identical reasoning to CURRENT_UNIVERSE_REGIME.

@@ -20,8 +20,12 @@ and the HYP-005 factor consumes:
 None of that is reversible by re-reading the stored panel: the scan matrix records the
 score, not its inputs. So the boundary has to be declared, not reconstructed.
 
+The boundary is the first day the FIXED code could produce a scan matrix on the
+production machine — 2026-10-26 — not the commit date. 2026-10-23's Phase 4-6 had
+already run at 14:30 Budapest on the old code, so that day belongs to the old era.
+
 The timing is the cheapest it will ever be. Regime 3 opened on 2026-10-20, so the panel
-being invalidated is THREE trading days long. The same break in December would cost
+being invalidated is FOUR trading days long. The same break in December would cost
 seven weeks and push h=5 past its adequacy date.
 """
 
@@ -43,14 +47,15 @@ class TestTheRegistry:
         """Same reason as CURRENT_UNIVERSE_REGIME: a computed "latest" would follow a
         future scoring change nobody approved."""
         assert cfg.CURRENT_SCORING_ERA == cfg.SCORING_ERA_SCHEMA_FIXED
-        assert cfg.scoring_era_start(cfg.CURRENT_SCORING_ERA) == date(2026, 10, 23)
+        assert cfg.scoring_era_start(cfg.CURRENT_SCORING_ERA) == date(2026, 10, 26)
 
     @pytest.mark.parametrize(
         "day,expected",
         [
             (date(2026, 5, 18), cfg.SCORING_ERA_LEGACY_SCHEMA),
-            (date(2026, 10, 22), cfg.SCORING_ERA_LEGACY_SCHEMA),  # last broken day
-            (date(2026, 10, 23), cfg.SCORING_ERA_SCHEMA_FIXED),   # the fixes land
+            (date(2026, 10, 23), cfg.SCORING_ERA_LEGACY_SCHEMA),  # committed, but the
+            # 14:30 run had already gone out on the old code — a DEPLOY date, not a commit date
+            (date(2026, 10, 26), cfg.SCORING_ERA_SCHEMA_FIXED),   # first fixed scan matrix
             (date(2027, 6, 1), cfg.SCORING_ERA_SCHEMA_FIXED),
         ],
     )
@@ -79,7 +84,7 @@ class TestTheBatchHonoursBothAxes:
         seen: list[tuple] = []
 
         class _Panel:
-            days = [date(2026, 10, 23)]
+            days = [date(2026, 10, 26)]
             missing_days: list = []
             unexpected_missing: list = []
             anomalies: dict = {}
@@ -93,8 +98,8 @@ class TestTheBatchHonoursBothAxes:
 
         legacy_call, swing_call = seen
         assert legacy_call[0] == cfg.LEGACY_START, "the legacy era stays untouched"
-        assert swing_call[0] == date(2026, 10, 23), (
-            "the swing panel must start at the scoring-era boundary (2026-10-23), which "
+        assert swing_call[0] == date(2026, 10, 26), (
+            "the swing panel must start at the scoring-era boundary (2026-10-26), which "
             "is later than the universe-regime boundary (2026-10-20) — otherwise the "
             "attempt pools three days scored on a broken fundamental schema with days "
             "scored on a fixed one"
@@ -107,5 +112,5 @@ class TestTheBatchHonoursBothAxes:
         source = (
             Path(__file__).resolve().parent.parent / "scripts" / "research" / "frl_config.py"
         ).read_text()
-        assert "2026-12-11" in source, "the recomputed h=5 adequacy date must be recorded"
-        assert "2027-02-03" in source, "the recomputed h=10 adequacy date must be recorded"
+        assert "2026-12-14" in source, "the recomputed h=5 adequacy date must be recorded"
+        assert "2027-02-04" in source, "the recomputed h=10 adequacy date must be recorded"

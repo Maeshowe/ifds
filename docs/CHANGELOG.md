@@ -61,10 +61,15 @@ zárta; ez a MÉRÉSI tengelyt zárja, ugyanazzal a mechanizmussal:
 későbbikénél** kezd.
 
 **Az ára, az NYSE-naptárhoz mérve** (a módszer a 10-20-as kezdetről reprodukálja a meglévő
-D-U3 dátumokat, tehát ugyanaz a vonalzó): **3 kereskedési nap** (10-20, 10-21, 10-22), és
-minden adekvációs dátum 3 nappal csúszik — h=5: 12-08 → **2026-12-11**, h=10: 01-29 →
-**2027-02-03**. A törés most a lehető legolcsóbb: a 3. rezsim **három napos** volt, amikor
+D-U3 dátumokat, tehát ugyanaz a vonalzó): **4 kereskedési nap** (10-20 … 10-23), és
+minden adekvációs dátum 4 nappal csúszik — h=5: 12-08 → **2026-12-14**, h=10: 01-29 →
+**2027-02-04**. A törés most a lehető legolcsóbb: a 3. rezsim **négy napos** volt, amikor
 a javítás landolt; decemberben ugyanez hét hét lenne.
+
+> ⚠️ **A határ DEPLOY-dátum, nem commit-dátum.** A javítás 10-23-án készült, de aznap a
+> Phase 4-6 **már lefutott 14:30-kor a régi kóddal** a Minin (ellenőrizve: HEAD `acce6a8`,
+> a `full_scan_matrix_2026-10-23.csv` már megvolt). Az első javított scan matrix ezért
+> **2026-10-26 (hétfő)** — és ez csak akkor igaz, ha a Mini **hétfő 14:30 előtt pullol**.
 
 ### ⚠️ Két dolog, ami EMBERI DÖNTÉST kíván (nem javítottam magamtól)
 

@@ -112,10 +112,14 @@ automatikusan — bármely élő periódus **új élő pre-regisztrációt** kí
 > 🔴 **2026-10-23 — ÚJ SCORING-ÉRA HATÁR.** Négy néma adathiba javítva (lásd CHANGELOG);
 > ebből három **elmozdítja a `Total_Score`-t**, tehát a panel a D-U3 univerzum-határ MELLETT
 > egy mérési határt is kapott: `SCORING_ERAS` / `CURRENT_SCORING_ERA` a `frl_config`-ban, és
-> a batch a két határ későbbikénél kezd. **Ára 3 kereskedési nap** (10-20…10-22), és minden
-> adekvációs dátum 3 nappal csúszik: **h=5 → 2026-12-11**, **h=10 → 2027-02-03** (h=1 11-02,
-> h=3 11-20, h=7 2027-01-04, h=20 2027-05-14). A törés most volt a legolcsóbb: a 3. rezsim
-> három napos volt, amikor a javítás landolt.
+> a batch a két határ későbbikénél kezd. **Ára 4 kereskedési nap** (10-20…10-23), és minden
+> adekvációs dátum 4 nappal csúszik: **h=5 → 2026-12-14**, **h=10 → 2027-02-04** (h=1 11-03,
+> h=3 11-23, h=7 2027-01-05, h=20 2027-05-17). A törés most volt a legolcsóbb: a 3. rezsim
+> négy napos volt, amikor a javítás landolt.
+>
+> ⚠️ **A határ (2026-10-26) DEPLOY-dátum.** A 10-23-i Phase 4-6 már lefutott 14:30-kor a
+> régi kóddal, tehát az a nap a RÉGI érához tartozik. A határ csak akkor igaz, ha a Mini
+> **hétfő 14:30 előtt pullol** — ha a deploy csúszik, a `frl_config` konstansa is csúszik.
 >
 > ⚠️ **A HYP-007 (Funda, KILL ×5) a 6-ból 2 bemeneten mérődött** — a javítás újradefiniálja
 > a faktort, tehát új pre-reg kell, nem újrafuttatás. Nyitott kérdés: `04-risks` §6.7.
