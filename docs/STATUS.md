@@ -61,13 +61,21 @@ exit-architektúra **≈$0** · **reziduális = a belépők maguk ≈ −$5 500 
 
 ### A költségoldal, ami a képet lezárja
 
+> 🔴 **HELYESBÍTVE 2026-10-23.** Ez a tábla a **§11.28 ELŐTTI** képletre épül. A javított
+> `breakeven_ic` **félélet-független** (`frl_ic.py:353`), tehát a Funda breakevenje NEM
+> 0,0017, hanem ugyanaz, mint minden más blokké az adott horizonton. A cella ~**65×-ös
+> kedvező irányú hibát** mutatott, és a lenti „Funda a saját időskáláján" fenntartás
+> részben erre épült — a „Funda strukturálisan olcsó" érv ezzel **halott**; csak a
+> „6-ból 2 bemeneten mérődött" érv marad (04-risks §6.7). A tábla alább a történeti
+> alakjában marad, áthúzva, mert dátumozott döntési bemenet volt.
+
 A `breakeven_ic` lineáris a forgásban, a forgás `252/half_life` — tehát:
 
 | Blokk | t½ (nap) | breakeven IC (h=5) |
 |---|---:|---:|
 | Flow (0,60) | **0,4** | **3,79** ⛔ *matematikailag lehetetlen* |
 | Tech (0,30) | **2,8** | **0,4975** ⛔ |
-| Funda (0,10) | **799,8** | **0,0017** 🟢 |
+| Funda (0,10) | **799,8** | ~~0,0017~~ → **ugyanaz, mint a többié** ⚠️ |
 | aggregát | 9,9 | 0,1403 |
 
 > 🔄 **2026-10-19 — a fal újramérve** (commit `808e8fe`). A régi `2 × medián(|terv→fill|)`
@@ -149,6 +157,28 @@ tartozik — az adat megnézése előtt rögzítendő, különben garden-of-fork
 
 Állapot: **0/8 lépés kész.** A task lezárt mérései (§5.1 mult=√2, §5.2 hlc3, §5.3
 korrekciós évjárat 0,65% ticker/hó) és a §6 önhordó referencia-fixture érvényesek.
+
+---
+
+## 🔑 A §3 döntési javaslat — Tamás jóváhagyására vár
+
+**`docs/decisions/2026-10-23-signal-family-closure.md`** (2026-10-23, CC-javaslat).
+
+**Javaslat: (C), a score-család lezárása** — de NEM az (A) bezárásával. Négy lépés, amiből
+a legdrágább **~8 perc gépidő**: (1) lezárás, újrafuttatás nélkül; (2) az 5 HYP-007 funda
+verdikt kihúzása a tallóból; (3) **írásos pre-reg az adat megnézése ELŐTT** (κ-korrekció,
+bar-alapú panel univerzum-definíciója, jutalék); (4) 348 session backfill + EGY
+pre-regisztrált faktorcsalád.
+
+**A javaslat alapja, saját méréssel** (`scripts/analysis/breadth_defect_ic_impact.py`):
+a breadth-defekt **ΔIC = 0,000e+00 bitre pontosan** a szektor-semleges IC-n (kontrollal:
+ugyanaz az eltolás poololt IC-n +0,0049…+0,0069) → **18/23 verdikt érintetlen**, a Flow
+(0,60) és a Tech (0,30) önállóan null ép adaton; 5 funda-attempt nem biztonságos.
+
+🔴 **A javaslattevő saját vezető érve MEGDŐLT, és ez a rekordban áll:** a végrehajtási fal
+**nem** a kötő korlát — a `frl_ic.py:295-313` három, a döntés előtt dokumentált korrekciója
+(κ=φ(z_c)/q ≈ 2,79× a tényleges q-n) a h=5-ös falat 0,1489 → **0,042–0,067**-re viszi.
+A statisztikai kapu kötött, nem a gazdaságtan.
 
 ---
 
