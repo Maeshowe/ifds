@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backfill daily_metrics VIX from Polygon I:VIX (data-quality fix #1).
+"""Backfill daily_metrics VIX from FMP ^VIX (data-quality fix #1; re-sourced 2026-10-23).
 
 The ``daily_metrics.market.vix_close`` field historically came from the Phase 0
 MACRO_REGIME event, which is FRED-sourced. FRED publishes VIX with a 1-day lag
@@ -10,7 +10,7 @@ already crosses the Strategic-review VIX>18 shutdown threshold).
 
 This tool rewrites ``market.vix_close`` and ``market.vix_delta_pct`` for each
 existing ``state/daily_metrics/{date}.json`` in the requested range using the
-authoritative Polygon ``I:VIX`` close (and the immediately preceding trading-day
+authoritative FMP ``^VIX`` close (and the immediately preceding trading-day
 close for the delta) — the same source the live recorder now uses.
 
 Idempotent (re-run is a no-op once correct). Backs up each file before writing.
@@ -112,7 +112,7 @@ def backfill(start: date, end: date, apply: bool) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Backfill daily_metrics VIX from Polygon I:VIX")
+    parser = argparse.ArgumentParser(description="Backfill daily_metrics VIX from FMP ^VIX")
     parser.add_argument("--start", required=True, help="YYYY-MM-DD inclusive")
     parser.add_argument("--end", required=True, help="YYYY-MM-DD inclusive")
     group = parser.add_mutually_exclusive_group()
@@ -127,7 +127,7 @@ def main() -> None:
 
     apply = args.apply
     mode = "APPLY" if apply else "DRY-RUN"
-    print(f"VIX backfill [{mode}] {start} → {end} (Polygon I:VIX)")
+    print(f"VIX backfill [{mode}] {start} → {end} (FMP ^VIX, clock-guarded)")
     changed = backfill(start, end, apply)
     verb = "updated" if apply else "would update"
     print(f"Done: {changed} file(s) {verb}.")

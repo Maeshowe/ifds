@@ -175,7 +175,7 @@ rotáció, UW dormant kód ~10 modul).
 
 ## Tesztek
 
-**2658 passing**, 0 fail (2026-10-23) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
+**2661 passing**, 0 fail (2026-10-23) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
 
 ---
 
@@ -195,7 +195,7 @@ grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md
 |---|---|
 | `2026-08-24-ohlcv-store-backfill.md` | OPEN — **0/8 lépés kész**; a §3 stratégiai döntés BEMENETE (az egyetlen ismert út a decemberi power-korlát kikerülésére), de új jelcsaládot épít → a döntés előtt nem indítható |
 | `2026-10-04-operational-backlog.md` | OPEN — lásd fent; a §2 mindhárom tétele a kereskedési út hibája, **nem** lett tárgytalan a null-lal |
-| `2026-10-23-eod-chain-shift-30min.md` | **WIP** — a `crontab.md` kész; ⛔ a **Mini telepített crontabja még nem**, az külön jóváhagyás |
+
 
 **Nem a lekérdezésben, de a gyökérben:**
 
@@ -224,10 +224,15 @@ billinget; a kódoldali feltételek állapota:
 | **Stocks Advanced → Starter** | −$170 | 🟡 a két guard kész; a **Mini cron-tolás** még hátra, és az első informatív teszt **2026-11-02** (a 10-26…10-30 hét DST-ráhagyása használhatatlanná teszi) |
 | Currencies Starter | −$49 | ⛔ nem IFDS-kérdés: a `signum` ugyanazon a Massive-kulcson fut |
 
-**Melléklelet, amit érdemes elvégezni:** a `vix_close` 113 production napból **18-on**
-(15,9%) egyezett a hivatalos CBOE zárással — az ok a 16:10 ET-s futási idő, öt perccel az
-elszámolás előtt. A `scripts/maintenance/backfill_polygon_vix.py` most már FMP-ről dolgozik,
-és múltbeli dátumon a guard mindig átenged, tehát **a 95 hibás historikus érték javítható**.
+**✅ ELVÉGEZVE (2026-10-23):** a `vix_close` 113 production napból 18-on (15,9%) egyezett a
+hivatalos CBOE zárással — az ok a 16:10 ET-s futási idő, öt perccel az elszámolás előtt. A
+backfill **97 fájlt javított**, az egyezés most **113/113 = 100,0%**, max. hiba 0,00.
+Backupok: `state/state_backups/vix_backfill_20261023/` (111 fájl).
+
+**✅ ELVÉGEZVE (2026-10-23):** a Mini 22:xx cron-lánca +30 perccel tolva (22:30 / 22:40 /
+22:41 / 22:45 / 22:50 / 23:15); a telepített crontab és a `crontab.md` bájtra egyezik.
+A 22:05 (`signum`) és a 23:30 (`aetherveil`) nem ütközik. ⚠️ Első **informatív** teszt-nap:
+**2026-11-02** — a 10-26…10-30 hét DST-ráhagyása használhatatlanná teszi.
 
 ---
 

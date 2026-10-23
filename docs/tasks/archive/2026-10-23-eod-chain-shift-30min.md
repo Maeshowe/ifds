@@ -1,6 +1,6 @@
-Status: WIP
+Status: DONE
 Updated: 2026-10-23
-Note: A repo-oldali rész (scripts/crontab.md + a pt_monitor docstring) KÉSZ 2026-10-23. ⛔ A MINI TELEPÍTETT CRONTABJA MÉG NEM — az production-változtatás, külön jóváhagyás kell. Ütközés-ellenőrzés kész: a 22:00 és 23:00 bejegyzés vasárnap-only (`* * 0`), tehát hétköznap nincs ütközés.
+Note: Telepítve a Mini crontabjára 2026-10-23. A telepített crontab és a crontab.md bájtra egyezik a hat soron (diffel verifikálva); mentés: state/state_backups/crontab_20261023_165743.bak. Ütközés-ellenőrzés: a 22:05 a signum, a 23:30 az aetherveil. ⚠️ Az első INFORMATÍV teszt-nap 2026-11-02 — a 10-26…10-30 hét DST-ráhagyása használhatatlanná teszi.
 
 # A 22:xx lánc +30 perc — a késleltetett feed előfeltétele
 

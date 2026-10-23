@@ -287,7 +287,7 @@ Minden BC több Phase-ből áll, minden Phase egy vagy több task fájlhoz köth
 → **Backlog:** `docs/planning/backlog.md`
 
 Stabil referencia (ritkán változik):
-- Teszt baseline: **2658 passing** (2026-10-23) — csak nőhet
+- Teszt baseline: **2661 passing** (2026-10-23) — csak nőhet
 - PT account: IBKR DUH118657, $100K initial. A 63 napos periódus lezárult; **a kereskedés áll**
 - PT clientId-k: submit=10, close=11, eod=12, nuke=13, monitor=14, trail=15, avwap=16, gateway=17
 - MMS: `mms_enabled=True`, `factor_volatility_enabled=True`, `mms_min_periods=10`

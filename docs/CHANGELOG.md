@@ -4,6 +4,53 @@
 
 ---
 
+## 2026-10-23 (2) — A négy leminősítés-feltétel implementálva; a historikus VIX 15,9% → 100%
+
+> Baseline 2585 → **2661**, 0 fail. Négy task megírva és implementálva, a Mini cron tolva,
+> a historikus VIX javítva. Production deploy: `600a219`.
+
+### A négy task
+
+| Task | Mi | Verifikáció |
+|---|---|---|
+| **Phase 5 degeneráció-guard** | `s == 0` → abszolút `1e-12` tolerancia + AST-sweep a modul egészére | visszavezetés: az `s == 0` visszaírásakor 4 teszt bukik |
+| **Opciós lefedettség-diff** | `scripts/analysis/options_coverage_diff.py`, pinelt alapvonallal | a `day.volume` kockázata nem tolerancia-kérdés — lefedettség méri |
+| **SPY kétrészes guard** | dátum-egyezés + volumen-padló; a `stop_trigger_monitor` kihagyja a mért SPY nélküli napot | visszavezetés: a vak `bars_sorted[-1]`-re 2 teszt bukik |
+| **VIX → FMP óra-guarddal** | `VIX_FINALITY_CUTOFF_ET = 16:30`; Phase 0, daily_metrics, pt_monitor és a backfill is | élő smoke; scope-guard a `_assess_macro_regime`-re |
+
+### A mérhető eredmény: a historikus VIX
+
+A `vix_close` 113 production napból **18-on (15,9%)** egyezett a hivatalos CBOE zárással,
+mert a job 16:10 ET-kor futott — öt perccel a 16:15-ös elszámolás előtt. A javított
+backfill (FMP ^VIX, múltbeli dátumon a guard mindig átenged) **97 fájlt javított**:
+
+| | előtte | utána |
+|---|---:|---:|
+| egyezés a hivatalos zárással | **18/113 (15,9%)** | **113/113 (100,0%)** |
+| max. abszolút hiba | 1,10 | **0,00** |
+
+A 111 per-fájl backup a `state/state_backups/vix_backfill_20261023/`-ban.
+
+### A Mini cron-lánc +30 perc — telepítve
+
+`pt_monitor` 22:30, `daily_metrics` 22:40, `eod_report` 22:41, `reconcile_state` 22:45,
+`generate_review_data` 22:50, `events_to_sqlite` 23:15. A telepített crontab és a
+`scripts/crontab.md` **bájtra egyezik** a hat soron (diffel verifikálva). Ütközés-
+ellenőrzés: a 22:05 a `signum`, a 23:30 az `aetherveil` — egyik sem ütközik.
+
+⚠️ **A 2026-10-26…10-30 hét nem tesztablak** (DST-ráhagyás); első informatív nap **11-02**.
+
+### Két hiba, amit a saját ellenőrzés fogott meg
+
+1. **`NameError` a Phase 0-ban**: a `_fetch_vix(fmp, ...)` hívás úgy került
+   `_assess_macro_regime`-be, hogy az `fmp` nem volt paraméter — minden production
+   futáson elszállt volna, miközben a suite zöld maradt (minden teszt közvetlenül a
+   `_fetch_vix`-et hívta). Guard-teszt zárja a rést.
+2. **`mv` a `git mv` helyett**: két lezárt task duplán került két commitba. A header-guard
+   nem fogta, mert gyűjtéskor olvassa a fájllistát. Javítva (`3c13ab6`).
+
+---
+
 ## 2026-10-23 — Négy néma adathiba javítva, és egy új scoring-éra-határ
 
 > Baseline 2534 → **2585** (+51), 0 fail, ruff tiszta. A négy hiba az API-költség-audit
