@@ -98,20 +98,21 @@ class TestVixCloseInOutput:
         from scripts.paper_trading.daily_metrics import build_daily_metrics
 
         self._patch_metrics_dirs(tmp_path, monkeypatch)
-        # phase0 (FRED) would return a stale value — Polygon must win.
+        # phase0 would return a stale value — the clock-guarded FMP close must win.
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._load_phase0_vix",
             lambda d, logs_dir=None: 15.78,
         )
         monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics._fetch_vix_from_polygon",
-            lambda d: (21.50, 15.39),
+            "scripts.paper_trading.daily_metrics.resolve_vix_close",
+            # (close, prev, source) since the 2026-10-23 clock guard.
+            lambda d, now_et=None: (21.50, 15.39, "fmp"),
         )
 
         metrics = build_daily_metrics("2026-06-05")
-        # Real 6/5 close is 21.50 (Polygon), NOT the stale 15.78 FRED value.
+        # Real 6/5 close is 21.50 (final, clock-guarded), NOT the stale 15.78 value.
         assert metrics["market"]["vix_close"] == pytest.approx(21.50)
-        # Delta from Polygon prev_close (15.39) → +39.7% major risk-off.
+        # Delta from the source's own prev_close (15.39) → +39.7% major risk-off.
         assert metrics["market"]["vix_delta_pct"] == pytest.approx(39.7, abs=0.2)
 
     def test_vix_day14_from_polygon(self, tmp_path, monkeypatch):
@@ -133,8 +134,8 @@ class TestVixCloseInOutput:
 
         self._patch_metrics_dirs(tmp_path, monkeypatch)
         monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics._fetch_vix_from_polygon",
-            lambda d: (None, None),
+            "scripts.paper_trading.daily_metrics.resolve_vix_close",
+            lambda d, now_et=None: (None, None, "unavailable"),
         )
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._load_phase0_vix",
@@ -157,8 +158,8 @@ class TestVixCloseInOutput:
 
         self._patch_metrics_dirs(tmp_path, monkeypatch)
         monkeypatch.setattr(
-            "scripts.paper_trading.daily_metrics._fetch_vix_from_polygon",
-            lambda d: (18.5, None),
+            "scripts.paper_trading.daily_metrics.resolve_vix_close",
+            lambda d, now_et=None: (18.5, None, "fmp"),
         )
 
         metrics = build_daily_metrics("2026-04-28")
@@ -648,7 +649,7 @@ class TestSwingMetadataSync:
         monkeypatch.setattr(f"{dm}.UW_SHADOW_DIR", tmp_path)
         monkeypatch.setattr(f"{dm}._fetch_spy_return", lambda d: (None, "no_bar_for_target_date"))
         monkeypatch.setattr(f"{dm}._load_phase0_vix", lambda d, logs_dir=None: None)
-        monkeypatch.setattr(f"{dm}._fetch_vix_from_polygon", lambda d: (None, None))
+        monkeypatch.setattr(f"{dm}.resolve_vix_close", lambda d, now_et=None: (None, None, "unavailable"))
         monkeypatch.setattr(f"{dm}._build_swing_state", lambda d, p, s: {"new_entries_today": 1})
 
     def test_exits_commission_opened_from_daily_entry(self, tmp_path, monkeypatch):

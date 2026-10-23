@@ -20,7 +20,8 @@ import json
 import os
 import statistics
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -505,6 +506,139 @@ def _load_phase0_vix(target_date: str, logs_dir: Path | None = None) -> float | 
         except OSError:
             continue
     return latest_vix
+
+
+#: A day's VIX close is accepted only from this hour (ET) onward.
+#:
+#: VIX settles at 16:15 ET; the extra fifteen minutes are feed latency, not superstition.
+#: The field this protects was wrong on 95 of 113 production days (84.1%) for exactly one
+#: reason: the job ran at 16:10 ET, five minutes BEFORE settlement, and every source
+#: answers that instant with a value that is not yet the close. Max observed error 1.10.
+#:
+#: This is a CLOCK guard, not a vendor guard. Measured 2026-10-23 on the same date:
+#: Polygon 20.51, FMP 20.10, then FMP 20.35 minutes later — on settled days all three
+#: agree to the cent. Swapping providers fixes nothing; waiting does.
+VIX_FINALITY_CUTOFF_ET = time(16, 30)
+
+#: FMP's spelling of the index. The Indices subscription that served Polygon's I:VIX is
+#: being cancelled; FMP ^VIX is already covered by the existing plan.
+VIX_SYMBOL = "^VIX"
+
+
+def vix_from_eod_rows(
+    rows: list[dict] | None,
+    target_date: str,
+    now_et: datetime,
+) -> tuple[float | None, float | None, str | None]:
+    """``(close, prev_close, reason)`` for ``target_date`` — pure, so it tests offline.
+
+    Two guards, in order. The CLOCK first: a bar for today exists long before it is the
+    close, so presence is not evidence. Then the DATE: the stale latest row is never
+    served, mirroring the original ``_fetch_vix_from_polygon`` contract.
+
+    No completeness floor here — every ^VIX EOD row carries ``volume: 0``, so the SPY
+    volume floor has nothing to measure on an index.
+    """
+    if not rows:
+        return None, None, "no_bars"
+
+    target = date.fromisoformat(target_date)
+    if target >= now_et.date() and now_et.timetz().replace(tzinfo=None) < VIX_FINALITY_CUTOFF_ET:
+        return None, None, "before_settlement"
+
+    dated: list[tuple[date, float]] = []
+    for row in rows:
+        raw_date, close = row.get("date"), row.get("close")
+        if not raw_date or close is None:
+            continue
+        try:
+            dated.append((date.fromisoformat(str(raw_date)[:10]), float(close)))
+        except (TypeError, ValueError):
+            continue
+    dated.sort(key=lambda item: item[0])
+
+    close_val = next((c for d, c in dated if d == target), None)
+    if close_val is None:
+        return None, None, "no_bar_for_target_date"
+
+    prev_val: float | None = None
+    for d, c in dated:
+        if d < target:
+            prev_val = c  # ascending → the last bar strictly before target
+    return close_val, prev_val, None
+
+
+def _fetch_vix_eod_rows(target_date: str) -> list[dict] | None:
+    """Pull ^VIX daily bars around ``target_date`` from FMP (one API call)."""
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT / "src"))
+        from ifds.data.fmp import FMPClient
+    except ImportError:
+        return None
+
+    api_key = os.environ.get("IFDS_FMP_API_KEY")
+    if not api_key:
+        return None
+
+    start = (date.fromisoformat(target_date) - timedelta(days=10)).isoformat()
+    try:
+        return FMPClient(api_key).get_index_eod(VIX_SYMBOL, start, target_date)
+    except Exception as e:
+        logger.warning(f"FMP ^VIX fetch failed: {e}")
+        return None
+
+
+def _fetch_vix_from_fred(target_date: str) -> float | None:
+    """FRED VIXCLS for ``target_date`` — cent-exact, published a day late.
+
+    Measured 2026-10-23 over six settled sessions: identical to Polygon and FMP to the
+    cent. The only thing it cannot do is answer for TODAY.
+    """
+    try:
+        sys.path.insert(0, str(PROJECT_ROOT / "src"))
+        from ifds.data.fred import FREDClient
+    except ImportError:
+        return None
+
+    api_key = os.environ.get("IFDS_FRED_API_KEY")
+    if not api_key:
+        return None
+    try:
+        series = FREDClient(api_key).get_vix(limit=30)
+    except Exception as e:
+        logger.warning(f"FRED VIXCLS fetch failed: {e}")
+        return None
+
+    for obs in series or []:
+        if str(obs.get("date", ""))[:10] == target_date:
+            try:
+                return float(obs["value"])
+            except (TypeError, ValueError, KeyError):
+                return None
+    return None
+
+
+def resolve_vix_close(
+    target_date: str, now_et: datetime | None = None
+) -> tuple[float | None, float | None, str]:
+    """``(close, prev_close, source)``. Never invents a value.
+
+    Chain: FMP ^VIX (clock-guarded) → FRED VIXCLS → nothing. The hardcoded 20.0 of the
+    Phase 0 regime call deliberately does NOT appear here: 20.0 sits exactly at
+    ``vix_penalty_start`` and below the skip-day threshold, so writing it into the
+    research stream would disarm two guards while looking like a measurement.
+    """
+    now_et = now_et or datetime.now(ZoneInfo("America/New_York"))
+    close, prev, reason = vix_from_eod_rows(_fetch_vix_eod_rows(target_date), target_date, now_et)
+    if close is not None:
+        return close, prev, "fmp"
+    if reason:
+        logger.warning(f"VIX close unavailable from FMP for {target_date}: {reason}")
+
+    fred_close = _fetch_vix_from_fred(target_date)
+    if fred_close is not None:
+        return fred_close, None, "fred"
+    return None, None, "unavailable"
 
 
 def _fetch_vix_from_polygon(target_date: str) -> tuple[float | None, float | None]:
@@ -1214,17 +1348,22 @@ def build_daily_metrics(target_date: str, *, today_fills: list[dict] | None = No
     best = max(trade_details, key=lambda t: t["pnl"]) if trade_details else None
     worst = min(trade_details, key=lambda t: t["pnl"]) if trade_details else None
 
-    # --- VIX close (Polygon I:VIX primary → FRED phase0 log fallback) ---
-    # FRED publishes VIX with a 1-day lag, so the Phase 0 MACRO_REGIME event
-    # reports the Day N-1 close on Day N. Polygon I:VIX carries the true
-    # same-day close. See docs/tasks/2026-06-06-data-quality-fix-package.md #1.
-    vix_close, vix_prev = _fetch_vix_from_polygon(target_date)
+    # --- VIX close (FMP ^VIX, clock-guarded → FRED VIXCLS → Phase 0 log) ---
+    # The 2026-06-06 note that used to sit here said Polygon I:VIX "carries the true
+    # same-day close". Measured 2026-10-23 over 113 production days, that was false in
+    # practice: the recorded value matched the official CBOE close on 18 days (15.9%),
+    # max error 1.10 — because this job runs at 16:10 ET, five minutes BEFORE the 16:15
+    # settlement. On settled days Polygon, FMP and FRED agree to the cent, so the defect
+    # was the clock, not the vendor. resolve_vix_close refuses a pre-settlement value
+    # outright; see VIX_FINALITY_CUTOFF_ET.
+    vix_close, vix_prev, vix_source = resolve_vix_close(target_date)
     if vix_close is None:
         vix_close = _load_phase0_vix(target_date)
+        vix_source = "phase0" if vix_close is not None else "unavailable"
         if vix_close is not None:
             logger.warning(
-                "VIX: Polygon I:VIX unavailable for %s, falling back to FRED "
-                "phase0 value (may lag 1 day): %.2f",
+                "VIX: no final close for %s from FMP or FRED, falling back to the "
+                "Phase 0 log value (may lag 1 day): %.2f",
                 target_date,
                 vix_close,
             )
@@ -1246,6 +1385,7 @@ def build_daily_metrics(target_date: str, *, today_fills: list[dict] | None = No
         "market": {
             "spy_return_pct": round(spy_return, 2) if spy_return is not None else None,
             "vix_close": round(vix_close, 2) if vix_close is not None else None,
+            "vix_close_source": vix_source,
             "vix_delta_pct": round(vix_delta_pct, 2) if vix_delta_pct is not None else None,
             "strategy": "LONG",
         },

@@ -16,6 +16,7 @@ from ifds.phases.phase0_diagnostics import (
     run_phase0,
     _classify_vix,
     _calculate_vix_multiplier,
+    _assess_macro_regime,
     _fetch_vix,
 )
 
@@ -174,21 +175,47 @@ class TestPhase0Integration:
 
 
 class TestVIXFallbackChain:
-    """Test VIX source: Polygon I:VIX → FRED VIXCLS → default 20.0."""
+    """Test VIX source: FMP ^VIX → FRED VIXCLS → default 20.0.
 
-    def test_polygon_vix_success(self, config, logger):
-        """Polygon I:VIX returns valid value → used as primary source."""
-        mock_polygon = MagicMock()
-        mock_polygon.get_vix.return_value = 18.5
+    Was Polygon I:VIX until 2026-10-23. The Indices subscription that served it is
+    cancelled; on settled days FMP agrees with Polygon and FRED to the cent.
+    """
+
+    def test_fmp_vix_success(self, config, logger):
+        """FMP ^VIX previousClose is valid → used as primary source."""
+        mock_fmp = MagicMock()
+        mock_fmp.get_index_quote.return_value = {"price": 20.24, "previousClose": 18.5}
 
         mock_fred = MagicMock()
 
-        vix, source = _fetch_vix(mock_polygon, mock_fred, logger)
+        vix, source = _fetch_vix(mock_fmp, mock_fred, logger)
 
         assert vix == 18.5
-        assert source == "polygon"
-        mock_polygon.get_vix.assert_called_once_with(days_back=10)
+        assert source == "fmp"
+        mock_fmp.get_index_quote.assert_called_once()
         mock_fred.get_series.assert_not_called()
+
+    def test_the_macro_assessment_can_actually_reach_the_fmp_client(self, config, logger):
+        """Guard for a scope bug the mocked unit tests could not see.
+
+        When the VIX source moved to FMP, `_fetch_vix(fmp, ...)` was called from
+        `_assess_macro_regime` while `fmp` was not one of its parameters — a NameError
+        on every production run, and the whole suite stayed green because every test
+        exercised `_fetch_vix` directly. This test calls the ENCLOSING function.
+        """
+        mock_polygon = MagicMock()
+        mock_polygon.get_aggregates.return_value = []
+        mock_fmp = MagicMock()
+        mock_fmp.get_index_quote.return_value = {"previousClose": 17.25}
+        mock_fred = MagicMock()
+        mock_fred.get_tnx.return_value = []
+        mock_fred.get_series.return_value = []
+        mock_fred.get_yield_curve_2s10s.return_value = None
+
+        macro = _assess_macro_regime(config, mock_polygon, mock_fmp, mock_fred, logger)
+
+        assert macro.vix_value == pytest.approx(17.25)
+        mock_fmp.get_index_quote.assert_called_once()
 
     def test_polygon_fail_fred_fallback(self, config, logger):
         """Polygon returns None → falls back to FRED VIXCLS."""

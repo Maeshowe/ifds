@@ -58,6 +58,10 @@ def is_complete_13f_row(row: dict) -> bool:
     return (current / previous) >= MIN_FILER_COVERAGE
 
 
+#: The CBOE volatility index, as FMP spells it. Named so the symbol cannot drift between
+#: the quote route and the EOD route.
+VIX_SYMBOL = "^VIX"
+
 class FMPClient(BaseAPIClient):
     """Client for FMP REST API.
 
@@ -254,6 +258,41 @@ class FMPClient(BaseAPIClient):
         if self._cache:
             self._cache.put("fmp", "inst-positions-summary", f"{year}Q{quarter}", cache_key, [row])
         return [row]
+
+    def get_index_quote(self, symbol: str = VIX_SYMBOL) -> dict | None:
+        """Live index quote. ``price`` is intraday; ``previousClose`` is the official D-1.
+
+        Live schema probed 2026-10-23: price 20.24, previousClose 19.03 — and 19.03 is
+        exactly the official CBOE close for 10-22, so ``previousClose`` is a free,
+        already-final value. ``price`` is NOT: it moves all session.
+        """
+        result = self._get(
+            "/stable/quote",
+            params={"apikey": self._api_key, "symbol": symbol},
+            headers=self._auth_headers(),
+        )
+        if result and isinstance(result, list) and result:
+            return result[0]
+        return None
+
+    def get_index_eod(self, symbol: str, from_date: str, to_date: str) -> list[dict] | None:
+        """Daily index bars.
+
+        ⚠️ This route serves a LIVE, MUTATING bar for the current session — it is not
+        close-only. Probed 2026-10-23 minutes apart: close 20.10, then 20.35, while
+        Polygon said 20.51. Any caller wanting the day's CLOSE must apply a finality
+        guard on the clock; presence of a bar proves nothing.
+        """
+        return self._get(
+            "/stable/historical-price-eod/full",
+            params={
+                "apikey": self._api_key,
+                "symbol": symbol,
+                "from": from_date,
+                "to": to_date,
+            },
+            headers=self._auth_headers(),
+        )
 
     def get_etf_holdings(self, etf_symbol: str) -> list[dict] | None:
         """Get ETF constituent holdings.

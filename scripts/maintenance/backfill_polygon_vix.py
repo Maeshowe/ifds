@@ -40,7 +40,7 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv()
 
-from daily_metrics import _fetch_vix_from_polygon  # noqa: E402
+from daily_metrics import resolve_vix_close  # noqa: E402
 
 
 def _atomic_write_json(path: Path, data: dict) -> None:
@@ -79,9 +79,13 @@ def backfill(start: date, end: date, apply: bool) -> int:
             print(f"  {iso}: no market section, skipping")
             continue
 
-        close, prev = _fetch_vix_from_polygon(iso)
+        # Source swapped off the Polygon Indices product on 2026-10-23. For a PAST date
+        # the finality guard always passes, so this is also the repair tool for the 95 of
+        # 113 production rows whose vix_close was captured before the 16:15 ET settlement
+        # — on settled days FMP, Polygon and FRED agree to the cent.
+        close, prev, source = resolve_vix_close(iso)
         if close is None:
-            print(f"  {iso}: Polygon I:VIX unavailable, leaving unchanged")
+            print(f"  {iso}: no final VIX close available ({source}), leaving unchanged")
             continue
 
         new_close = round(close, 2)

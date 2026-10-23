@@ -87,10 +87,18 @@ def run_phase0(config: Config, logger: EventLogger) -> DiagnosticsResult:
         timeout=config.runtime["api_timeout_fred"],
         max_retries=config.runtime["api_max_retries"],
     )
+    # VIX moved off the Polygon Indices product on 2026-10-23; the macro assessment
+    # needs its own FMP client because the health-check one is built further down.
+    fmp_macro = FMPClient(
+        api_key=config.get_api_key("fmp"),
+        timeout=config.runtime["api_timeout_fmp"],
+        max_retries=config.runtime["api_max_retries"],
+    )
     try:
-        result.macro = _assess_macro_regime(config, polygon_macro, fred, logger)
+        result.macro = _assess_macro_regime(config, polygon_macro, fmp_macro, fred, logger)
     finally:
         polygon_macro.close()
+        fmp_macro.close()
         fred.close()
 
     # --- Step 4 (optional, shadow-mode): MID bundle snapshot ---
@@ -293,11 +301,15 @@ def _check_circuit_breaker(config: Config, logger: EventLogger) -> CircuitBreake
 
 
 def _assess_macro_regime(
-    config: Config, polygon: PolygonClient, fred: FREDClient, logger: EventLogger
+    config: Config,
+    polygon: PolygonClient,
+    fmp: FMPClient,
+    fred: FREDClient,
+    logger: EventLogger,
 ) -> MacroRegime:
     """Assess macro environment using Polygon (primary) and FRED (fallback).
 
-    VIX source chain: Polygon I:VIX → FRED VIXCLS → default 20.0
+    VIX source chain: FMP ^VIX → FRED VIXCLS → default 20.0
 
     VIX classification:
     - <= 15: LOW
@@ -310,8 +322,8 @@ def _assess_macro_regime(
     TNX rate sensitivity:
     - If TNX > SMA20(TNX) * 1.05 → Technology/Real Estate sectors penalized
     """
-    # --- VIX: Polygon I:VIX (primary) → FRED VIXCLS (fallback) → 20.0 ---
-    vix_value, vix_source = _fetch_vix(polygon, fred, logger)
+    # --- VIX: FMP ^VIX (primary) → FRED VIXCLS (fallback) → 20.0 ---
+    vix_value, vix_source = _fetch_vix(fmp, fred, logger)
 
     vix_regime = _classify_vix(vix_value, config)
     vix_multiplier = _calculate_vix_multiplier(vix_value, config)
@@ -453,28 +465,61 @@ def _assess_macro_regime(
     return macro
 
 
-def _fetch_vix(polygon: PolygonClient, fred: FREDClient, logger: EventLogger) -> tuple[float, str]:
-    """Fetch VIX with fallback chain: Polygon I:VIX → FRED VIXCLS → default.
+def _vix_from_fmp_quote(quote: dict | None) -> float | None:
+    """The last OFFICIAL close out of an FMP index quote.
+
+    ``previousClose``, deliberately, not ``price``. Phase 0 runs pre-market (08:30 ET)
+    and on Sunday evening; at both instants the meaningful number is the last settled
+    close, which is exactly what the Polygon daily bar used to return — so this is a
+    source swap, not a semantics change. ``price`` is the live level and moves all
+    session; taking it would reintroduce the pre-settlement defect that cost the
+    daily_metrics VIX field 84% of its accuracy.
+
+    Probed 2026-10-23: price 20.24, previousClose 19.03 — and 19.03 is the official
+    CBOE close for 10-22, to the cent.
+    """
+    if not quote:
+        return None
+    value = quote.get("previousClose")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fetch_vix(
+    fmp: FMPClient, fred: FREDClient, logger: EventLogger
+) -> tuple[float, str]:
+    """Fetch VIX with fallback chain: FMP ^VIX → FRED VIXCLS → default.
+
+    Was Polygon I:VIX, which this module asked for on 237 of 287 production runs. The
+    Indices subscription that served it is being cancelled; FMP ^VIX is covered by the
+    existing plan and, on settled days, agrees with Polygon and FRED to the cent
+    (measured 2026-10-23 over six sessions).
 
     Returns:
-        (vix_value, source) where source is "polygon", "fred", or "default".
+        (vix_value, source) where source is "fmp", "fred", or "default".
     """
-    # 1. Primary: Polygon I:VIX (real-time)
+    # 1. Primary: FMP ^VIX, last official close
     try:
-        vix = polygon.get_vix(days_back=10)
+        from ifds.data.fmp import VIX_SYMBOL
+
+        vix = _vix_from_fmp_quote(fmp.get_index_quote(VIX_SYMBOL))
         if vix is not None:
-            vix, valid = _validate_vix(vix, "polygon", logger)
+            vix, valid = _validate_vix(vix, "fmp", logger)
             if valid:
                 logger.log(
                     EventType.MACRO_REGIME,
                     Severity.INFO,
                     phase=0,
-                    message=f"VIX={vix:.2f} (Polygon I:VIX)",
+                    message=f"VIX={vix:.2f} (FMP ^VIX previousClose)",
                 )
-                return vix, "polygon"
+                return vix, "fmp"
     except Exception as e:
         logger.log(
-            EventType.API_ERROR, Severity.WARNING, phase=0, message=f"Polygon VIX fetch failed: {e}"
+            EventType.API_ERROR, Severity.WARNING, phase=0, message=f"FMP VIX fetch failed: {e}"
         )
 
     # 2. Fallback: FRED VIXCLS (1-day delayed)
@@ -482,7 +527,7 @@ def _fetch_vix(polygon: PolygonClient, fred: FREDClient, logger: EventLogger) ->
         EventType.MACRO_REGIME,
         Severity.INFO,
         phase=0,
-        message="Polygon VIX unavailable, falling back to FRED VIXCLS",
+        message="FMP VIX unavailable, falling back to FRED VIXCLS",
     )
     fred_vix = _get_latest_fred_value(fred, fred.VIX_SERIES)
     if fred_vix is not None:
