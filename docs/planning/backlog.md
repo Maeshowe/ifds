@@ -4,6 +4,18 @@
 
 > **⛔ KORSZAKVÁLTÁS (2026-05-14)**: a Day 63 milestone outcome alapján a rendszer **swing pivot**-ot indít. A BC24 és BC25 **PARKOLT** (új scoring felülmúrja őket). Új primáris BC: **BC26 — Swing Pivot Reset** (W21-W30, 8-10 hét). Részletes döntési dok: [`docs/decisions/2026-05-14-day63-decision-outcome.md`](../decisions/2026-05-14-day63-decision-outcome.md).
 
+## Nyitott, a §3 stratégiai döntés után (átvezetve 2026-10-23)
+
+A `docs/tasks/2026-10-04-operational-backlog.md` §2 mindhárom tétele elkészült és a task
+lezárult. Két tétel nem oda tartozott, mert egyik sem CC-implementáció:
+
+| Tétel | Kié | Miért vár |
+|---|---|---|
+| **UW `.env` kulcs rotáció** | **Tamás** | Az `IFDS_UW_API_KEY` még a `.env`-ben van, miközben az UW kivezetve (`docs/decisions/2026-08-18-uw-decommission.md`). Credential-rotációt CC nem végez. Ez **nem** függ a §3 döntéstől — bármikor elvégezhető. |
+| **UW dormant kód eltávolítása** | CC, a döntés után | ~10 production modult érint (`runner.py`, `phase4_stocks.py`, `phase5_gex.py`, `phase0_diagnostics.py`, `async_clients.py`, `unusual_whales.py`, `async_adapters.py`, `config/{loader,defaults}.py`, `models/market.py`). Nagy refaktor; ha a §3 döntés (C), **tárgytalanná válhat**. |
+
+---
+
 ## Kész BC-k (BC1–23)
 
 | BC | Tartalom | Lezárva |

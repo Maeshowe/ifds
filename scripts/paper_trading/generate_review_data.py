@@ -46,7 +46,21 @@ MAX_HOLD_DAYS = 5
 ATR_FLOOR = 0.005
 ATR_CEILING = 0.05
 SINGLE_POS_CAP = 0.12
-SECTOR_CAP_PROXIMITY = 0.25
+
+#: The sector cap Phase 6 actually enforces (``swing_sector_cap_pct``, defaults.py).
+#: Kept equal to it on purpose: a review flag calibrated to a different number than the
+#: constraint it watches reports on a rule nobody enforces.
+SECTOR_CAP_PCT = 0.30
+
+#: A sector is BINDING when its remaining headroom is smaller than one typical position,
+#: because Phase 6 rejects a candidate on ``new_sector_total > sector_cap_usd`` — a
+#: FORWARD-looking test. The old flag compared CURRENT exposure to a flat 25% and so
+#: stayed silent on 2026-09-03 at 21.86%, while the cap was really excluding candidates
+#: (04-risks §11.18): 8.14 points of headroom could not fit the next position.
+#:
+#: Expressed as a fraction of equity so it needs no live candidate list; 0.10 is the
+#: swing book's typical position size (max 5 concurrent).
+TYPICAL_POSITION_PCT = 0.10
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +152,40 @@ def _enrich_position(p: dict, target_date: str) -> dict:
     }
 
 
+def sector_cap_flag(
+    sector: str,
+    sector_notional: float,
+    equity: float,
+    typical_position_notional: float,
+) -> dict | None:
+    """Flag a sector whose remaining headroom cannot fit another position, or None.
+
+    Mirrors the question Phase 6 asks (``new_sector_total > sector_cap_usd``,
+    phase6_sizing.py:1581) rather than the one the old flag asked (current exposure
+    against a flat 25%). A threshold on current exposure cannot express a forward-looking
+    constraint: on 2026-09-03 the sector sat at 21.86%, under any proximity threshold
+    anyone would reasonably pick, and the cap still excluded candidates.
+    """
+    if equity <= 0:
+        return None
+    cap_usd = equity * SECTOR_CAP_PCT
+    headroom = cap_usd - sector_notional
+    if headroom >= typical_position_notional:
+        return None
+    pct = sector_notional / equity * 100
+    headroom_pct = headroom / equity * 100
+    return {
+        "flag": "sector_cap_proximity",
+        "priority": "P2",
+        "sector": sector,
+        "detail": (
+            f"{sector} {pct:.1f}% of equity, cap {SECTOR_CAP_PCT * 100:.0f}% → "
+            f"headroom {headroom_pct:.1f}pp < one typical position "
+            f"({TYPICAL_POSITION_PCT * 100:.0f}pp) — the cap is BINDING"
+        ),
+    }
+
+
 def _local_flags(
     positions: list[dict], sector_dist: dict, reconcile_lines: list[str]
 ) -> list[dict]:
@@ -194,17 +242,11 @@ def _local_flags(
                 }
             )
 
-    # sector cap proximity
+    # sector cap — forward-looking, mirroring phase6_sizing.py:1581
     for sector, notional in (sector_dist or {}).items():
-        if equity > 0 and notional / equity > SECTOR_CAP_PROXIMITY:
-            flags.append(
-                {
-                    "flag": "sector_cap_proximity",
-                    "priority": "P2",
-                    "sector": sector,
-                    "detail": f"{sector} {notional / equity * 100:.1f}% > {SECTOR_CAP_PROXIMITY * 100:.0f}% (cap 30%)",
-                }
-            )
+        flag = sector_cap_flag(sector, notional, equity, equity * TYPICAL_POSITION_PCT)
+        if flag is not None:
+            flags.append(flag)
 
     # reconcile silent OK (positive signal)
     if any("silent exit" in ln.lower() or "silent ok" in ln.lower() for ln in reconcile_lines):

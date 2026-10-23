@@ -4,6 +4,48 @@
 
 ---
 
+## 2026-10-23 (3) — Az operatív backlog §2 elvégezve; nulla nyitott task
+
+> Baseline 2661 → **2672**, 0 fail. A `docs/tasks/` gyökerében **nem maradt nyitott task**.
+
+### A három elhalasztott production-út defekt (backlog §2)
+
+Mindhármat 2026-10-04-én diagnosztizáltuk és halasztottuk el. A kereskedés azóta áll, így
+egyik sem termelt új hibát — de egyik sem vált tárgytalanná sem: mindhárom annak az
+útnak a defektje, amin **bármelyik jövőbeli jelcsalád** futna.
+
+| § | Mi volt | Mi lett |
+|---|---|---|
+| **2.1** | az `exit_type` az IDŐABLAKBÓL következtetett, így a 2026-08-21-i outage 2h21m-mel késő fillje valódi TIME_STOP-ból „MOC" lett | `state/pending_exits/{date}.json` a kanonikus forrás — az a címke, amit a rendszer a BEADÁSKOR választott, tehát immunis a fill késésére. Az óra marad fallbacknek a ledger-sor nélküli fillekre (kézi TWS-exit, ledger előtti történet) |
+| **2.2** | a `sector_cap_proximity` a JELENLEGI kitettséget mérte 25%-hoz, miközben a Phase 6 korlátja ELŐRETEKINTŐ (`new_sector_total > sector_cap_usd`) — 09-03-án a flag hallgatott 21,86%-on, míg a cap tényleg zárt ki jelölteket | a flag a MARADÉK FEJTERET veti össze egy tipikus pozícióval, és ugyanazt a 30%-os capet használja, amit a Phase 6 — egy review-flag, ami más számra van kalibrálva, mint a korlát, amit figyel, olyan szabályról jelent, amit senki nem érvényesít |
+| **2.3** | a `--mode=eod_eval` a `check_trading_day()` ELŐTT dispatchelt és korán visszatért, tehát NYSE-ünnepnapon is futott | a guard a dispatch elé került, **AST-teszttel a sorrendre** — nem a hívás meglétét, a POZÍCIÓJÁT őrzi |
+
+A §3 két tétele nem ide tartozott (egyik sem CC-implementáció): az UW kulcs-rotáció
+Tamás-akció, az UW dormant kód ~10 modulos refaktor a §3 döntés után. Átvezetve:
+`docs/planning/backlog.md`.
+
+### Egy hermetikusság-rés, amit a saját javításom nyitott és a teszt fogott meg
+
+A ledger-first `resolve_exit_type` alapértelmezésben a **production** `state/pending_exits/`-et
+olvasta, így egy meglévő teszt eredménye a prod-state meglététől függött — pontosan a
+„hermetikus teszt" szabály tiltott alakja, csak fordítva (pirosra vitte, nem zöldre).
+A `_build_trades_details` kapott injektálható `ledger_dir`-t, és mind a négy hívóhely a
+tesztben `tmp_path`-ot ad.
+
+Mellékesen: a `TIME_STOP_MOC` (az óra-fallback saját címkéje) **soha nem volt tagja** az
+`EXIT_TYPE_TO_COUNTER` térképnek — csak a `.get()` default vitte a `moc_exits`-ra.
+Explicitté téve, hogy a szótár zárt legyen.
+
+### A bar-tár task tervdokumentummá alakítva
+
+A `2026-08-24-ohlcv-store-backfill` 0/8 lépésen állt, és a végrehajtása új jelcsaládot
+indítana — amit a §3 döntés kapuz. Egy végrehajtásra váró task, amit senki nem hajthat
+végre, hamisan mutatja a nyitott munkát, miközben a TARTALMA értékes (§5.1 √2, §5.2 hlc3,
+§5.3 évjárat, §6 referencia-fixture). Áthelyezve:
+`docs/planning/2026-08-24-ohlcv-store-design.md`.
+
+---
+
 ## 2026-10-23 (2) — A négy leminősítés-feltétel implementálva; a historikus VIX 15,9% → 100%
 
 > Baseline 2585 → **2661**, 0 fail. Négy task megírva és implementálva, a Mini cron tolva,

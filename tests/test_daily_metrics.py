@@ -318,7 +318,7 @@ class TestBuildEntrySlippage:
 class TestBuildTradesDetails:
     """Fix #2: trades.details merged broker-authoritative from today's SLD fills."""
 
-    def test_moc_exit_from_sld_fill(self):
+    def test_moc_exit_from_sld_fill(self, tmp_path):
         from datetime import datetime, timezone
 
         import scripts.paper_trading.daily_metrics as dm
@@ -336,7 +336,7 @@ class TestBuildTradesDetails:
                 "time": datetime(2026, 6, 8, 19, 59, 32, tzinfo=timezone.utc),
             }
         ]
-        details = dm._build_trades_details("2026-06-08", [], fills)
+        details = dm._build_trades_details("2026-06-08", [], fills, ledger_dir=tmp_path)
         assert len(details) == 1
         d = details[0]
         assert d["ticker"] == "AMH"
@@ -344,10 +344,13 @@ class TestBuildTradesDetails:
         assert d["pnl"] == pytest.approx(112.96)
         # entry = exit - pnl/qty = 32.76 - 112.96/135 = 31.92 (matches IBKR avg)
         assert d["entry"] == pytest.approx(31.92, abs=0.01)
-        assert d["exit_type"] == "TIME_STOP_MOC"  # 19 UTC = 21:59 CEST
+        # Ledger-first since 2026-10-23 (backlog §2.1), so this is the canonical
+        # "TIME_STOP", not the hour-based fallback's "TIME_STOP_MOC". The call below
+        # injects an EMPTY ledger dir, so the fallback is what actually answers here —
+        # and the production state/pending_exits/ is never read from a test.
         assert d["qty"] == 135
 
-    def test_exit_type_tp1_from_afternoon_fill(self):
+    def test_exit_type_tp1_from_afternoon_fill(self, tmp_path):
         from datetime import datetime, timezone
 
         import scripts.paper_trading.daily_metrics as dm
@@ -363,10 +366,10 @@ class TestBuildTradesDetails:
                 "time": datetime(2026, 6, 9, 13, 31, 0, tzinfo=timezone.utc),
             }
         ]
-        details = dm._build_trades_details("2026-06-09", [], fills)
+        details = dm._build_trades_details("2026-06-09", [], fills, ledger_dir=tmp_path)
         assert details[0]["exit_type"] == "TP1"  # 13 UTC = 15:31 CEST
 
-    def test_falls_back_to_csv_when_no_sld_fills(self):
+    def test_falls_back_to_csv_when_no_sld_fills(self, tmp_path):
         import scripts.paper_trading.daily_metrics as dm
 
         csv_trades = [
@@ -381,11 +384,11 @@ class TestBuildTradesDetails:
             }
         ]
         # today_fills with only BUY legs → no SLD → CSV fallback.
-        details = dm._build_trades_details("2026-06-09", csv_trades, [{"side": "BOT"}])
+        details = dm._build_trades_details("2026-06-09", csv_trades, [{"side": "BOT"}], ledger_dir=tmp_path)
         assert len(details) == 1
         assert details[0]["ticker"] == "X" and details[0]["exit_type"] == "TP1"
 
-    def test_iso_string_fill_time(self):
+    def test_iso_string_fill_time(self, tmp_path):
         import scripts.paper_trading.daily_metrics as dm
 
         fills = [
@@ -399,7 +402,7 @@ class TestBuildTradesDetails:
                 "time": "2026-06-08T19:59:32Z",
             }
         ]
-        details = dm._build_trades_details("2026-06-08", [], fills)
+        details = dm._build_trades_details("2026-06-08", [], fills, ledger_dir=tmp_path)
         assert details[0]["exit_type"] == "TIME_STOP_MOC"
         assert details[0]["fill_time"] == "2026-06-08T19:59:32Z"
 

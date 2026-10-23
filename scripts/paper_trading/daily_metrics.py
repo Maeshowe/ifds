@@ -73,6 +73,10 @@ EXIT_TYPE_TO_COUNTER = {
     "LOSS_EXIT": "loss_exit_hits",
     "MOC": "moc_exits",
     "TIME_STOP": "moc_exits",
+    # The hour-based fallback's own label (see _exit_type_from_fill_time_hour). It was
+    # never a member of this map and only ever landed on moc_exits through the .get()
+    # default — explicit now, so the vocabulary is closed.
+    "TIME_STOP_MOC": "moc_exits",
 }
 
 SWING_PIVOT_START_DATE_DEFAULT = "2026-05-18"
@@ -1089,14 +1093,18 @@ def _fill_utc_hour(t) -> int | None:
         return None
 
 
-def _exit_type_from_fill_time(t) -> str:
-    """Classify a swing exit by its fill time (task 2026-06-09 #2).
+def _exit_type_from_fill_time_hour(hour: int | None) -> str:
+    """Classify a swing exit by the HOUR its fill landed in — the FALLBACK only.
 
-    The CSV mislabels every swing exit as "MOC"; the fill timestamp is the
-    reliable discriminator: ~15:30-16:00 CEST (13-14 UTC) = a TP1 partial,
-    ~21:40-22:00 CEST (19-20 UTC) = the 5-day TIME_STOP market-on-close.
+    This was the primary classifier until 2026-10-23, and it is an assumption about
+    punctuality rather than a classification: ~13-14 UTC was read as a TP1 partial,
+    ~19-20 UTC as the 5-day TIME_STOP market-on-close, and anything else fell through to
+    "MOC". On 2026-08-21 an outage pushed a fill 2h21m late and a real TIME_STOP was
+    recorded as "MOC" (04-risks §11.17).
+
+    It survives for fills with no ledger row — manual TWS exits, and history from before
+    the pending-exits ledger existed — where a best-effort label beats none.
     """
-    hour = _fill_utc_hour(t)
     if hour is None:
         return "UNKNOWN"
     if 13 <= hour <= 14:
@@ -1104,6 +1112,37 @@ def _exit_type_from_fill_time(t) -> str:
     if 19 <= hour <= 20:
         return "TIME_STOP_MOC"
     return "MOC"
+
+
+def _exit_type_from_fill_time(t) -> str:
+    """Back-compatible wrapper over the hour-based fallback."""
+    return _exit_type_from_fill_time_hour(_fill_utc_hour(t))
+
+
+def resolve_exit_type(
+    ticker: str,
+    target_date: str,
+    fill_time_hour_utc: int | None,
+    ledger_dir: Path | str | None = None,
+) -> str:
+    """The exit label for ``ticker`` on ``target_date``, ledger first, clock second.
+
+    ``state/pending_exits/{date}.json`` records the exit_type the system itself chose
+    when it SUBMITTED the order, so it is immune to how late the fill came back. That is
+    the same canonical source ``signal_attribution`` treats as its second invariant.
+    """
+    directory = Path(ledger_dir) if ledger_dir is not None else PENDING_EXITS_DIR
+    path = Path(directory) / f"{target_date}.json"
+    try:
+        with open(path) as handle:
+            rows = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        rows = []
+    if isinstance(rows, list):
+        for row in rows:
+            if isinstance(row, dict) and row.get("ticker") == ticker and row.get("exit_type"):
+                return str(row["exit_type"])
+    return _exit_type_from_fill_time_hour(fill_time_hour_utc)
 
 
 def _fill_iso(t) -> str | None:
@@ -1118,7 +1157,10 @@ def _fill_iso(t) -> str | None:
 
 
 def _build_trades_details(
-    target_date: str, csv_trades: list[dict], today_fills: list[dict] | None = None
+    target_date: str,
+    csv_trades: list[dict],
+    today_fills: list[dict] | None = None,
+    ledger_dir: Path | str | None = None,
 ) -> list[dict]:
     """Per-exit trade details — broker-authoritative from today's SLD fills.
 
@@ -1187,7 +1229,9 @@ def _build_trades_details(
                 "pnl_pct": pnl_pct,
                 "qty": int(qty),
                 "commission": round(a["commission"], 2),
-                "exit_type": _exit_type_from_fill_time(a["time"]),
+                "exit_type": resolve_exit_type(
+                    a["ticker"], target_date, _fill_utc_hour(a["time"]), ledger_dir=ledger_dir
+                ),
                 "fill_time": _fill_iso(a["time"]),
             }
         )

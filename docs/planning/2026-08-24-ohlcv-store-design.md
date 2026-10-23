@@ -1,6 +1,25 @@
-Status: OPEN
-Updated: 2026-10-21
-Note: [2026-10-21 revízió] (a) AZ IMPLEMENTÁCIÓBÓL 0/8 LÉPÉS VAN KÉSZ — nincs `backfill_grouped_daily.py`, `build_ohlcv_store.py`, `src/ifds/research/gc_indicator.py`, teszt, `research/data/`, és a 0. lépés `.gitignore`-sora sem (a mai sor csak `research/cache/*`-ot fed). (b) A D-U3 SZABÁLY (2026-10-20) a 3. lépést érinti: új FRL-attempt csak a 3. univerzum-rezsimen (2026-10-20-tól) futhat, így T_eff≥6 mellett a HYP-006 horizontjai h=5 → 2026-12-08, h=10 → 2027-01-29, h=20 ≈ 2027-04, h=40 ≈ 2027-10 előtt nem értékelhetők. (c) ÉS PONT EZÉRT ÉRTÉKES A STORE: a mai FRL-panel a `full_scan_matrix` CSV-kből, azaz a pipeline által pontozott univerzumból épül (`scripts/research/frl_loader.py`) — ezért rezsim-függő. A §5.4 fogyasztói oldali szűrése ezt kinyitja: a likviditási szűrő minden napra újraszámolható a bar-okból, tehát pont-az-időben tiszta és rezsim-független. ⚠️ A TAGSÁG viszont NEM: a Russell-1000 forrás a MAI lista, visszamenőleg nem rekonstruálható — egy bar-alapú panel univerzum-definíciója ezért nem lehet „index-tagság ∩ floor”, hanem egy tisztán bar-ból számolt szűrő (pl. napi top-N medián dollárvolumen). Ez ÖNÁLLÓ DÖNTÉS, nem következtetés, és a pre-reg elé tartozik. (d) KÖVETKEZTETÉS: ez a task a §3 stratégiai döntés BEMENETE (az egyetlen ismert út a decemberi power-korlát kikerülésére), nem a következménye — de új jelcsaládot épít (GC), ezért a §3 döntés ELŐTT nem indítható. (e) A §5.1 (mult=√2), §5.2 (hlc3) és §5.3 (korrekciós évjárat, 0,65% ticker/hó) lezárt mérései érvényesek, és a §6 referencia-fixture önhordó — a task tartalma újraépítése drágább, mint a megtartása.
+> **Ez NEM task, hanem TERVDOKUMENTUM és a §3 stratégiai döntés BEMENETE.**
+> Áthelyezve `docs/tasks/`-ból 2026-10-23-án.
+>
+> **Miért nem task.** Az implementációból 0/8 lépés van kész, és a végrehajtása új
+> jelcsaládot (GC) indítana — amit a §3 döntés kapuz, és amit Tamás 2026-10-21-én
+> kifejezetten a döntés UTÁNRA rendelt. Egy végrehajtásra váró task, amit senki nem
+> hajthat végre, hamisan mutatja a nyitott munkát; a tartalma viszont értékes, mert
+> ez az **egyetlen ismert út a decemberi power-korlát megkerülésére**.
+>
+> **Amit hordoz, és ami nem avul:** a §5.1 (sáv-szorzó = √2), a §5.2 (forrás = `hlc3`)
+> és a §5.3 (korrekciós évjárat, mérve 0,65% ticker/hó) lezárt mérései, valamint a §6
+> önhordó külső referencia-fixture. Ezek újraelőállítása drágább, mint a megtartásuk.
+>
+> **A döntési kérdés, egy mondatban:** a mai FRL-panel a `full_scan_matrix`-ból épül,
+> tehát rezsim-függő; egy bar-alapú, fogyasztói oldalon szűrt panel rezsim-független
+> lehet — ⚠️ de a **tagság visszamenőleg nem rekonstruálható** (a forrás a mai lista),
+> ezért az univerzum-definíció önálló döntés, és a pre-reg ELÉ tartozik.
+>
+> Státusz-összefoglaló: `docs/STATUS.md` → „A nyitott stratégiai döntés".
+
+---
+
 Note: [2026-10-04 frissítés] A KAPU LEZÁRULT (2026-10-03), tehát a lenti "a 2026-09-22-i
 kapuig CSAK az 1-2. lépés" korlát TÁRGYTALAN — a 3. lépés (FRL-mérés) szabad. Az 1. lépés
 adat-előfeltétele teljesült: a grouped_daily bar-tár folytonos 2026-02-11 → 2026-10-02

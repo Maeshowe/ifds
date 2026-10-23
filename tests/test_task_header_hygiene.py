@@ -119,9 +119,17 @@ class TestTheGuardCannotQuietlyStopGuarding:
             assert len(reason) > 80, f"{name}: the exemption needs a real reason"
 
     def test_there_is_something_to_check(self) -> None:
-        assert len(_candidates()) >= 3, (
-            "No task files found — the glob broke, and a guard over an empty set "
-            "passes while guarding nothing."
+        """A guard over an empty set passes while guarding nothing.
+
+        The bound is 1, not a round number: as of 2026-10-23 the root legitimately holds
+        only BLOCKED work, and a higher floor would turn "we finished our tasks" into a
+        red suite. What must never happen is the GLOB breaking — then every per-file
+        check below silently evaporates.
+        """
+        assert TASKS_DIR.is_dir(), "docs/tasks/ is gone — the whole guard is vacuous"
+        assert _task_files(), "the *.md glob found nothing; every per-file test is dead"
+        assert _candidates(), (
+            "every task file is exempt — the exemption list has swallowed the guard"
         )
 
     def test_the_documented_query_and_this_test_agree(self) -> None:

@@ -129,9 +129,10 @@ automatikusan — bármely élő periódus **új élő pre-regisztrációt** kí
 > VIX 19,77) → `vix_penalty_start` −1. Ma nincs hatása (a kereskedés áll), de ez
 > **viselkedés-változás a trade-plan úton** → restart-checklist.
 
-> **Tamás-döntés (2026-10-21):** a `docs/tasks/2026-08-24-ohlcv-store-backfill.md`
-> **OPEN marad**, és ennek a döntésnek a **BEMENETE**, nem a következménye —
-> de **nem indul el a döntés előtt**, mert új jelcsaládot (GC) épít.
+> **Tamás-döntés (2026-10-21):** a bar-tár terve ennek a döntésnek a **BEMENETE**, nem a
+> következménye — de **nem indul el a döntés előtt**, mert új jelcsaládot (GC) épít.
+> 2026-10-23-án taskból **tervdokumentummá** alakítva, mert senki nem hajthatja végre,
+> amíg a döntés nyitva: `docs/planning/2026-08-24-ohlcv-store-design.md`.
 
 A D-U3 korlát azért köt, mert a mai FRL-panel a `full_scan_matrix` CSV-kből épül
 (`scripts/research/frl_loader.py`), azaz **a pipeline által pontozott univerzumból** —
@@ -175,7 +176,7 @@ rotáció, UW dormant kód ~10 modul).
 
 ## Tesztek
 
-**2661 passing**, 0 fail (2026-10-23) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
+**2672 passing**, 0 fail (2026-10-23) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
 
 ---
 
@@ -193,8 +194,7 @@ grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md
 
 | Task | Státusz |
 |---|---|
-| `2026-08-24-ohlcv-store-backfill.md` | OPEN — **0/8 lépés kész**; a §3 stratégiai döntés BEMENETE (az egyetlen ismert út a decemberi power-korlát kikerülésére), de új jelcsaládot épít → a döntés előtt nem indítható |
-| `2026-10-04-operational-backlog.md` | OPEN — lásd fent; a §2 mindhárom tétele a kereskedési út hibája, **nem** lett tárgytalan a null-lal |
+| — | **Nincs nyitott task** (2026-10-23). |
 
 
 **Nem a lekérdezésben, de a gyökérben:**
