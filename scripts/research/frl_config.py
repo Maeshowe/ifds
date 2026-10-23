@@ -85,6 +85,62 @@ UNIVERSE_REGIMES: Final[tuple[tuple[date, str], ...]] = (
 CURRENT_UNIVERSE_REGIME: Final[str] = UNIVERSE_REGIME_FLOOR
 
 
+# --- Scoring eras (schema fixes, 2026-10-23) --------------------------------
+# D-U3 above closes the UNIVERSE axis. This closes the MEASUREMENT axis, for the
+# same reason and by the same mechanism: a score computed from different inputs is
+# not comparable to one computed from the old ones, whatever the population.
+#
+# On 2026-10-23 three defects that had been silently flattening `Total_Score` were
+# fixed (commit: see CHANGELOG 2026-10-23):
+#   * breadth_score_adj was saved into the Phase 1-3 context and NOT restored on the
+#     weekday reload, so BC14's `score_adjustment - breadth_score_adj` subtracted 0
+#     and every ticker was charged its sector's breadth term. Measured on the live
+#     context: 9 of 11 sectors carry a non-zero breadth adj (-5..-15) and 828 of 1535
+#     scored rows (53.9%) sit in an affected sector.
+#   * the fundamental scorer read legacy v3 field names (roeTTM, debtToEquityTTM,
+#     interestCoverageTTM) off /stable/key-metrics, which has never carried them:
+#     roe / debt_equity / net_margin were non-null in 0 of 16,425 ticker-days, so 4
+#     of the 6 funda branches could never fire.
+#   * institutional ownership was read from a market-wide filing feed that ignores
+#     ?symbol=, so inst_ownership_score was 0 in all 16,425 ticker-days.
+#
+# THE PRICE, recomputed against the NYSE calendar exactly as the D-U3 dates were
+# (the method reproduces those dates from the 10-20 start, so it is the same ruler):
+#   h=1  -> 2026-11-02      h=5  -> 2026-12-11      h=10 -> 2027-02-03
+#   h=3  -> 2026-11-20      h=7  -> 2027-01-04      h=20 -> 2027-05-14
+# i.e. THREE trading days (10-20, 10-21, 10-22) and three days on every adequacy
+# date. Taking the break now rather than later is the cheap option by construction:
+# regime 3 was three days old when the fixes landed.
+SCORING_ERA_LEGACY_SCHEMA: Final[str] = "legacy_schema_partial_funda"
+SCORING_ERA_SCHEMA_FIXED: Final[str] = "schema_fixed_full_funda"
+
+#: (first day, era label). Open-ended at the end; sorted by start date.
+SCORING_ERAS: Final[tuple[tuple[date, str], ...]] = (
+    (SWING_START, SCORING_ERA_LEGACY_SCHEMA),
+    (date(2026, 10, 23), SCORING_ERA_SCHEMA_FIXED),
+)
+
+#: Named, not computed — identical reasoning to CURRENT_UNIVERSE_REGIME.
+CURRENT_SCORING_ERA: Final[str] = SCORING_ERA_SCHEMA_FIXED
+
+
+def scoring_era_of(day: date) -> str | None:
+    """The score DEFINITION in force on ``day``, or None before the swing era."""
+    label: str | None = None
+    for start, name in SCORING_ERAS:
+        if day >= start:
+            label = name
+    return label
+
+
+def scoring_era_start(era: str) -> date | None:
+    """First day of ``era``, or None for an unknown label."""
+    for start, name in SCORING_ERAS:
+        if name == era:
+            return start
+    return None
+
+
 def universe_regime_of(day: date) -> str | None:
     """The universe definition in force on ``day``, or None before the swing era.
 

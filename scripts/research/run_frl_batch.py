@@ -88,8 +88,18 @@ def _era_panels(windows: frl_holdout.Windows) -> dict[str, loader.PanelResult]:
     if legacy.days:
         panels[cfg.ERA_LEGACY] = legacy
 
+    # Two independent boundaries, both binding: the universe regime (D-U3, what the
+    # population was) and the scoring era (what the score MEANS). The panel has to
+    # satisfy both, so the start is the latest of the three dates — never whichever
+    # constraint happened to be declared last.
+    bounds = [cfg.SWING_START]
     regime_first = cfg.regime_start(cfg.CURRENT_UNIVERSE_REGIME)
-    swing_start = max(cfg.SWING_START, regime_first) if regime_first else cfg.SWING_START
+    if regime_first:
+        bounds.append(regime_first)
+    scoring_first = cfg.scoring_era_start(cfg.CURRENT_SCORING_ERA)
+    if scoring_first:
+        bounds.append(scoring_first)
+    swing_start = max(bounds)
     swing = loader.load_panel(swing_start, windows.dev_end)
     if swing.days:
         panels[cfg.ERA_SWING] = swing

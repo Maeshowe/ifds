@@ -4,6 +4,88 @@
 
 ---
 
+## 2026-10-23 — Négy néma adathiba javítva, és egy új scoring-éra-határ
+
+> Baseline 2534 → **2585** (+51), 0 fail, ruff tiszta. A négy hiba az API-költség-audit
+> melléktermékeként került elő; mindegyik TDD-vel (RED → GREEN), és a cross-asset guard
+> **visszavezetéssel is** verifikálva.
+
+### Mi volt elromolva — és meddig
+
+| # | Hiba | Mióta | Mérve |
+|---|---|---|---|
+| 1 | `phase0_diagnostics:593` a `polygon.get_daily_bars()`-t hívta, ami **soha nem létezett**; a csupasz `except` elnyelte az `AttributeError`-t | **2026-04-06** (6,5 hónap) | 286 futás-logból 196 tartalmazza, a Cross-Asset Regime végig `NORMAL` |
+| 2 | a funda-scorer a legacy v3 mezőneveket (`roeTTM`, `debtToEquityTTM`, `interestCoverageTTM`) olvasta a `/stable/key-metrics`-ről, ami ezeket soha nem hordozta | a swing éra egésze | `roe`/`debt_equity`/`net_margin` **0/16 425** ticker-napon nem-null; 6 ágból 2 tüzelhetett |
+| 3 | a 13F a `institutional-ownership/latest`-et hívta, ami **csendben figyelmen kívül hagyja a `?symbol=`-t** és a piac-szintű filing-feedet adja | a swing éra egésze | `inst_ownership_score` **0/16 425** |
+| 4 | a `breadth_score_adj` mentve, de **nem visszatöltve** → a BC14 kivonása (`score_adjustment - breadth_score_adj`) nullát vont ki | a split pipeline óta | 11 szektorból 9-nél nem-nulla breadth (−5..−15); 1535 pontozott sorból **828 (53,9%)** érintett |
+
+**Közös hibaalak:** mindegyik HTTP 200-at kapott / nem dobott kivételt, és `None`-t vagy
+nullát olvasott. Egyik sem bukott el sehol. A 2. és 3. unit-tesztjei **zöldek voltak egy
+olyan payload-alakon, amit a production API soha nem ad vissza** — ez a „test mocked
+itself out" antipattern, és ezért élt túl 8 hónapot.
+
+### Élő séma-verifikáció a commit ELŐTT (ifds-rules, 2026-04-27)
+
+A javítás nem a dokumentációból, hanem **élő próbából** származik (2026-10-23):
+
+- `/stable/key-metrics` → `returnOnEquity` (nem `roeTTM`), és **nincs** benne debt/coverage.
+  A négy kellő mező a `/stable/ratios-ttm`-en van: `netProfitMarginTTM`,
+  `debtToEquityRatioTTM`, `interestCoverageRatioTTM`, és ROE =
+  `netIncomePerShareTTM / shareholdersEquityPerShareTTM`. **1 hívás 1 hívás helyett** —
+  a Phase 4 kérésráta nem nő (ez számít: 2026-08-24-én 276 HTTP 429 volt ~2 609 hívás/percen).
+- ROE-keresztellenőrzés a vendor saját számához: MSFT .3023/.3322, JPM .1772/.1791,
+  XOM .1263/.1268, TSLA .0362/.0378 — átlagolási konvenció, egyik sem lép át küszöböt.
+- `institutional-ownership/latest?symbol=AAPL` **„RUBICON ADVISORS, GP"-t és „AMANAH
+  HOLDINGS TRUST"-ot** adott vissza, `totalInvested` mező nélkül. A per-symbol útvonal a
+  `symbol-positions-summary`, ami **egyetlen sorban** hozza az aktuális és az előző
+  negyedévet.
+
+### Két csapda, amit a próba talált — és amit a javítás kezel
+
+1. **Hiányos 13F-negyedév.** A 2026-Q3 (szept. 30.) összesítő ma −96,78% (AAPL), −96,06%
+   (MSFT), −97,20% (NVDA) QoQ-t mutat — nem valós, csak a 45 napos filing-határidő még nem
+   járt le. „A legfrissebb negyedév" használata az **egész univerzumra** `decreasing`-et
+   bélyegzett volna. `FILING_LAG_DAYS = 75` + `MIN_FILER_COVERAGE = 0.80` (a filer-szám
+   maga árulja el a félkész tallót). Ugyanaz a próba Q2-re: AAPL +18,85%, MSFT +4,69%.
+2. **Strukturális nulla a kamatfedezetben.** `interestCoverageRatioTTM = 0.0` az AAPL-nél
+   azt jelenti, hogy **nincs kamatkiadás** — ez a lehető legjobb fedezet, nem a legrosszabb.
+   Szó szerint olvasva `funda_debt_penalty`-t kapott volna pont az adósságmentes cégekre.
+   Tolerancia-alapú guard (`_INTEREST_COVERAGE_EPS`), soha `== 0`.
+
+### A kutatási következmény: új scoring-éra-határ (2026-10-23)
+
+A 2., 3. és 4. javítás **elmozdítja a `Total_Score`-t** — azt az oszlopot, amit a
+`frl_loader` `score`-ra képez és a HYP-005 faktor fogyaszt. A D-U3 az UNIVERZUM tengelyt
+zárta; ez a MÉRÉSI tengelyt zárja, ugyanazzal a mechanizmussal:
+`SCORING_ERAS` + `CURRENT_SCORING_ERA` a `frl_config`-ban, és a `_era_panels` a **két határ
+későbbikénél** kezd.
+
+**Az ára, az NYSE-naptárhoz mérve** (a módszer a 10-20-as kezdetről reprodukálja a meglévő
+D-U3 dátumokat, tehát ugyanaz a vonalzó): **3 kereskedési nap** (10-20, 10-21, 10-22), és
+minden adekvációs dátum 3 nappal csúszik — h=5: 12-08 → **2026-12-11**, h=10: 01-29 →
+**2027-02-03**. A törés most a lehető legolcsóbb: a 3. rezsim **három napos** volt, amikor
+a javítás landolt; decemberben ugyanez hét hét lenne.
+
+### ⚠️ Két dolog, ami EMBERI DÖNTÉST kíván (nem javítottam magamtól)
+
+- **A HYP-007 (Funda, KILL ×5) a 6-ból 2 bemeneten mérődött.** A javítás **újradefiniálja
+  a faktort**, tehát új pre-reg kell, nem újrafuttatás; a ledger meglévő sorai az eredeti
+  verdikten maradnak (ifds-rules: „nincs újrafuttatás verdikt-generálásért").
+- **A Cross-Asset Regime réteg ÉLETRE KELT.** Élő smoke (5 Polygon-hívás): mindhárom arány
+  22 sessionnel feltöltve, és a mai rezsim **CAUTIOUS** (1 szavazat, VIX 19,77) — vagyis
+  `vix_penalty_start` −1. Ma nincs hatása (a kereskedés áll), de ez **viselkedés-változás a
+  trade-plan úton**, és a restart-checklistre tartozik.
+
+### Mellékes lelet a funda-javításból
+
+A `debtToEquityRatioTTM`/`interestCoverageRatioTTM` bankokra és pénzügyi cégekre
+szemantikailag mást jelent (JPM: D/E 3,32, kamatfedezet 0,86 — a kamatkiadás náluk
+alaptevékenység). Ez **valós szám, nem hiba**, de szektor-szisztematikus torzítást visz a
+funda-blokkba. Nem találtam ki rá szektor-szabályt — nyitott kérdésként rögzítve
+(04-risks §6.7), mert az design-döntés, nem bugfix.
+
+---
+
 ## 2026-10-21 — Task-audit: 1 lezárás, 2 nyitva marad, és a lekérdezés rése bezárva
 
 > Baseline 2515 → **2534** (+19), 0 fail. Csak docs + egy guard-teszt; production kódút nem változott.

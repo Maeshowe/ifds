@@ -120,12 +120,13 @@ class TestAnalyzeFundamentalFromData:
 
     def test_good_fundamentals(self, config):
         growth = {"revenueGrowth": 0.20, "epsgrowth": 0.25}
+        # /stable/ratios-ttm schema, verified live 2026-10-23.
         metrics = {
-            "roeTTM": 0.20,
-            "debtToEquityTTM": 0.3,
-            "interestCoverageTTM": 10.0,
             "netIncomePerShareTTM": 5.0,
-            "revenuePerShareTTM": 20.0,
+            "shareholdersEquityPerShareTTM": 25.0,
+            "netProfitMarginTTM": 0.20,
+            "debtToEquityRatioTTM": 0.3,
+            "interestCoverageRatioTTM": 10.0,
         }
         insider = []
 
@@ -141,8 +142,8 @@ class TestAnalyzeFundamentalFromData:
 
     def test_bad_debt(self, config):
         metrics = {
-            "debtToEquityTTM": 5.0,
-            "interestCoverageTTM": 0.5,
+            "debtToEquityRatioTTM": 5.0,
+            "interestCoverageRatioTTM": 0.5,
         }
         result = _analyze_fundamental_from_data("TEST", None, metrics, None, config)
         assert result.funda_score < 0
@@ -187,8 +188,8 @@ class TestPhase4Async:
             )
             mock_fmp.get_key_metrics = AsyncMock(
                 return_value={
-                    "roeTTM": 0.20,
-                    "debtToEquityTTM": 0.3,
+                    "netProfitMarginTTM": 0.20,
+                    "debtToEquityRatioTTM": 0.3,
                 }
             )
             mock_fmp.get_insider_trading = AsyncMock(return_value=[])

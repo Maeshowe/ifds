@@ -524,6 +524,41 @@ A MID — Macro Intelligence Dashboard napi shadow snapshot-okat produkál. A sw
 
 ---
 
+### 6.7 ⚠️ NYITOTT (2026-10-23) — a HYP-007 Funda-KILL a 6-ból 2 bemeneten mérődött, és a D/E szektor-torzítása
+
+**Eredet**: a 2026-10-23-i séma-javítás (CHANGELOG). Két külön kérdés, egy gyökérből.
+
+**(a) A HYP-007 verdikt bemenete.** A `funda_score` 2026-10-22-ig a hat ágából csak
+kettőn (revenue growth, EPS growth) tudott mozdulni: `roe`, `debt_equity`, `net_margin`
+**0/16 425** ticker-napon volt nem-null, `interest_coverage` a sémában sem szerepelt.
+A HYP-007 (`Šidák p=0,9993`, KILL ×5) tehát egy **2-bemenetes** faktorra vonatkozik.
+
+A javítás után a faktor **újradefiniálódik**. Az ifds-rules szerint ez **új hipotézis,
+új pre-reggel** — NEM a HYP-007 újrafuttatása; a ledger meglévő sorai az eredeti
+auto-verdikten maradnak. Az is védhető álláspont, hogy nem mérjük újra: ha a §3 döntés
+(C), tárgytalan. **Döntés Tamásé.**
+
+Ez egyben a `„X feature nem prediktív" verdikt elé adat-egészség check` szabály
+(2026-05-10) **negyedik előfordulása**: egy null verdikt strukturálisan üres bemeneten
+adat-hiba mérésnek álcázva.
+
+**(b) Szektor-torzítás a javított metrikákban.** A `debtToEquityRatioTTM` és az
+`interestCoverageRatioTTM` **bankokra és pénzügyi cégekre mást jelent** — a kamatkiadás
+náluk alaptevékenység, nem teher. Mérve 2026-10-23: JPM D/E **3,32** (a `funda_debt_equity_bad`
+2,0 fölött → −10) és kamatfedezet **0,86** (a `funda_interest_coverage_bad` 1,5 alatt → −10).
+Ezek **valós számok, nem hibák**, de a funda-blokkba szektor-szisztematikus torzítást
+visznek, amit a rendszer korábban soha nem látott (a mezők None-ok voltak).
+
+Nem találtam ki rá szektor-szabályt: az **design-döntés, nem bugfix**, és egy csendben
+bevezetett pénzügyi-szektor kivétel pont az a fajta utólagos szabad paraméter, amit a
+pre-reg fegyelem tilt. Opciók: (1) marad így, dokumentáltan; (2) a két metrika a
+Financials szektorra `None`; (3) szektor-relatív percentilis a nyers küszöb helyett.
+
+**Hatás**: a funda súlya 0,10, a két büntetés −10 → legfeljebb ~2 pont a −125..+107-es
+skálán. Kicsi, de nem nulla, és a 2026-10-23-i scoring-éra határ **ezt is** magába foglalja.
+
+---
+
 ### 6.6 ⚠️ `scoring_validation.py` legacy+swing pooling + félrevezető „Evidence of alpha" (Day 63 edge-input, FIX szükséges)
 
 **Eredet**: Tamás 2026-06-27, a 2026-06-26-i `scoring_validation.py` futás kritikai

@@ -11,6 +11,7 @@ from datetime import date, timedelta
 from typing import Any, TYPE_CHECKING
 
 from ifds.data.async_base import AsyncBaseAPIClient
+from ifds.data.fmp import is_complete_13f_row, latest_complete_13f_quarter
 from ifds.models.market import APIHealthResult, APIStatus
 
 if TYPE_CHECKING:
@@ -148,17 +149,18 @@ class AsyncFMPClient(AsyncBaseAPIClient):
         return None
 
     async def get_key_metrics(self, ticker: str) -> dict | None:
+        """Mirrors FMPClient.get_key_metrics — see there for why it is ratios-ttm."""
         yesterday = (date.today() - timedelta(days=1)).isoformat()
         if self._cache:
-            cached = self._cache.get("fmp", "key-metrics", yesterday, ticker)
+            cached = self._cache.get("fmp", "ratios-ttm", yesterday, ticker)
             if cached is not None:
                 return cached
 
         params = {"apikey": self._api_key, "symbol": ticker}
-        result = await self._get("/stable/key-metrics", params=params)
+        result = await self._get("/stable/ratios-ttm", params=params)
         if result and isinstance(result, list) and len(result) > 0:
             if self._cache:
-                self._cache.put("fmp", "key-metrics", yesterday, ticker, result[0])
+                self._cache.put("fmp", "ratios-ttm", yesterday, ticker, result[0])
             return result[0]
         return None
 
@@ -233,18 +235,35 @@ class AsyncFMPClient(AsyncBaseAPIClient):
         return result
 
     async def get_institutional_ownership(self, ticker: str) -> list[dict] | None:
-        """Get institutional ownership data (most recent 2 quarters)."""
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        """Mirrors FMPClient.get_institutional_ownership — the per-symbol 13F route.
+
+        This is the PRODUCTION path (IFDS_ASYNC_ENABLED=true), so a fix applied only to
+        the sync twin would change nothing in production.
+        """
+        year, quarter = latest_complete_13f_quarter()
+        cache_key = f"{ticker}_{year}Q{quarter}"
         if self._cache:
-            cached = self._cache.get("fmp", "institutional-ownership", yesterday, ticker)
+            cached = self._cache.get("fmp", "inst-positions-summary", f"{year}Q{quarter}", cache_key)
             if cached is not None:
                 return cached
 
-        params = {"apikey": self._api_key, "symbol": ticker, "limit": 2}
-        result = await self._get("/stable/institutional-ownership/latest", params=params)
-        if result and self._cache:
-            self._cache.put("fmp", "institutional-ownership", yesterday, ticker, result)
-        return result
+        params = {
+            "apikey": self._api_key,
+            "symbol": ticker,
+            "year": year,
+            "quarter": quarter,
+        }
+        result = await self._get(
+            "/stable/institutional-ownership/symbol-positions-summary", params=params
+        )
+        if not result or not isinstance(result, list):
+            return None
+        row = result[0]
+        if not is_complete_13f_row(row):
+            return None
+        if self._cache:
+            self._cache.put("fmp", "inst-positions-summary", f"{year}Q{quarter}", cache_key, [row])
+        return [row]
 
     async def get_etf_holdings(self, etf_symbol: str) -> list[dict] | None:
         """Get ETF constituent holdings."""

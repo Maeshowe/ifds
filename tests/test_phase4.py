@@ -378,14 +378,14 @@ class TestFundamentalScoring:
 
     def test_high_debt_equity_penalty(self, config):
         fmp = self._mock_fmp(
-            metrics={"debtToEquityTTM": 5.0},
+            metrics={"debtToEquityRatioTTM": 5.0},
         )
         f = _analyze_fundamental("TEST", fmp, config)
         assert f.funda_score < 0  # debt_penalty = -10
 
     def test_low_interest_coverage_penalty(self, config):
         fmp = self._mock_fmp(
-            metrics={"interestCoverageTTM": 1.0},
+            metrics={"interestCoverageRatioTTM": 1.0},
         )
         f = _analyze_fundamental("TEST", fmp, config)
         assert f.funda_score < 0
@@ -399,10 +399,10 @@ class TestFundamentalScoring:
         fmp = self._mock_fmp(
             growth={"revenueGrowth": 0.20, "epsgrowth": 0.25},
             metrics={
-                "roeTTM": 0.25,
-                "debtToEquityTTM": 0.3,
                 "netIncomePerShareTTM": 5.0,
-                "revenuePerShareTTM": 20.0,
+                "shareholdersEquityPerShareTTM": 20.0,
+                "netProfitMarginTTM": 0.25,
+                "debtToEquityRatioTTM": 0.3,
             },
         )
         f = _analyze_fundamental("TEST", fmp, config)
@@ -616,11 +616,11 @@ class TestPhase4Integration:
             "epsgrowth": 0.50,
         }
         fmp.get_key_metrics.return_value = {
-            "roeTTM": 0.30,
-            "debtToEquityTTM": 0.2,
-            "interestCoverageTTM": 10.0,
             "netIncomePerShareTTM": 10.0,
-            "revenuePerShareTTM": 30.0,
+            "shareholdersEquityPerShareTTM": 33.3,
+            "netProfitMarginTTM": 0.30,
+            "debtToEquityRatioTTM": 0.2,
+            "interestCoverageRatioTTM": 10.0,
         }
         fmp.get_insider_trading.return_value = [
             {

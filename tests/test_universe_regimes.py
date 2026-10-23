@@ -115,11 +115,19 @@ class TestTheBatchNarrowsToTheCurrentRegime:
 
         legacy_call, swing_call = seen
         assert legacy_call[0] == cfg.LEGACY_START, "the legacy era is untouched"
-        assert swing_call[0] == date(2026, 10, 20), (
-            "the swing panel must start at the current regime, not at SWING_START — "
-            "otherwise the attempt mixes three universe definitions"
+        assert swing_call[0] >= date(2026, 10, 20), (
+            "the swing panel must start at or after the current regime, never at "
+            "SWING_START — otherwise the attempt mixes three universe definitions"
         )
         assert swing_call[0] > cfg.SWING_START
+        # Since 2026-10-23 a SECOND boundary binds later: the scoring era (the schema
+        # fixes changed what Total_Score means). D-U3 is still enforced here — it is
+        # simply no longer the binding constraint. tests/test_scoring_era.py owns the
+        # exact date, so the two tests cannot drift apart.
+        assert swing_call[0] == max(
+            cfg.regime_start(cfg.CURRENT_UNIVERSE_REGIME),
+            cfg.scoring_era_start(cfg.CURRENT_SCORING_ERA),
+        )
 
     def test_the_price_of_the_rule_is_recorded_where_the_rule_is(self):
         """The adequacy dates are in the config comment so they cannot be lost.

@@ -370,10 +370,10 @@ class TestInstitutionalOwnership:
 
     def test_increasing_ownership_bonus(self, config):
         """QoQ increase >2% → +10 funda bonus."""
-        inst_data = [
-            {"totalInvested": 1_050_000},  # recent
-            {"totalInvested": 1_000_000},  # previous (5% increase)
-        ]
+        # symbol-positions-summary carries both quarters in ONE row. The old two-row
+        # shape came from institutional-ownership/latest, which ignores ?symbol= and
+        # returns the market-wide filing feed with no totalInvested at all.
+        inst_data = [{"totalInvested": 1_050_000, "lastTotalInvested": 1_000_000}]
         result = _analyze_fundamental_from_data(
             "TEST", None, None, None, config, inst_data=inst_data
         )
@@ -383,10 +383,7 @@ class TestInstitutionalOwnership:
 
     def test_decreasing_ownership_penalty(self, config):
         """QoQ decrease >2% → -5 funda penalty."""
-        inst_data = [
-            {"totalInvested": 900_000},  # recent
-            {"totalInvested": 1_000_000},  # previous (10% decrease)
-        ]
+        inst_data = [{"totalInvested": 900_000, "lastTotalInvested": 1_000_000}]
         result = _analyze_fundamental_from_data(
             "TEST", None, None, None, config, inst_data=inst_data
         )
@@ -395,10 +392,7 @@ class TestInstitutionalOwnership:
 
     def test_stable_ownership_neutral(self, config):
         """QoQ change <2% → stable, 0 score."""
-        inst_data = [
-            {"totalInvested": 1_010_000},  # 1% increase
-            {"totalInvested": 1_000_000},
-        ]
+        inst_data = [{"totalInvested": 1_010_000, "lastTotalInvested": 1_000_000}]
         result = _analyze_fundamental_from_data(
             "TEST", None, None, None, config, inst_data=inst_data
         )
@@ -406,7 +400,7 @@ class TestInstitutionalOwnership:
         assert result.inst_ownership_score == 0
 
     def test_insufficient_data_unknown(self, config):
-        """Only 1 quarter → 'unknown', 0 score."""
+        """No previous quarter in the row → 'unknown', 0 score."""
         inst_data = [{"totalInvested": 1_000_000}]
         result = _analyze_fundamental_from_data(
             "TEST", None, None, None, config, inst_data=inst_data

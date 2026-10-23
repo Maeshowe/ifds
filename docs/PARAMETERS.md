@@ -314,6 +314,20 @@ A 60-napi audit (W17-W19, Pearson r=−0.265\*\*) megmutatta a dp_pct **inverz**
 
 | Kulcs | Érték | Phase | Hatás | V13 | Eltérés? |
 |-------|-------|-------|-------|-----|----------|
+> ⚠️ **2026-10-23 — a funda metrikák forrása megváltozott.** A `net_margin`, `roe`,
+> `debt_equity` és `interest_coverage` küszöbei 2026-10-22-ig **soha nem tüzeltek**: a kód
+> a `/stable/key-metrics` végpontról a legacy v3 mezőneveket olvasta (0/16 425 nem-null).
+> Forrás azóta `/stable/ratios-ttm`. A küszöb-ÉRTÉKEK változatlanok; csak most kapnak
+> tényleges bemenetet. Részletek: `docs/PIPELINE_LOGIC.md` §4.3.
+>
+> Három új modul-konstans (nem TUNING-kulcs, mert nem hangolandó):
+>
+> | Konstans | Érték | Hol | Miért |
+> |---|---|---|---|
+> | `_INTEREST_COVERAGE_EPS` | `1e-9` | `phase4_stocks.py` | a 0-s kamatfedezet „nincs kamatkiadás", nem „csődközeli" — tolerancia-alapú guard, soha `== 0` |
+> | `FILING_LAG_DAYS` | `75` | `data/fmp.py` | 13F-határidő (negyedévvége + 45 nap) + ráhagyás; enélkül a félkész negyedév az egész univerzumra `decreasing`-et ad |
+> | `MIN_FILER_COVERAGE` | `0.80` | `data/fmp.py` | a filer-szám alapú teljességi guard, ha a naptári szabály mégis átenged egy félkész negyedévet |
+
 | `funda_revenue_growth_good` | 10% | P4 | Jó revenue growth | `fundamental.growth.revenue_min: 20%` | ⚠️ **V13=20%, V2=10%** |
 | `funda_revenue_growth_bad` | -10% | P4 | Rossz revenue growth | Implicit | ✅ |
 | `funda_eps_growth_good` | 15% | P4 | Jó EPS growth | `fundamental.growth.eps_min: 20%` | ⚠️ **V13=20%, V2=15%** |

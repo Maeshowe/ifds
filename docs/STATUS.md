@@ -109,6 +109,22 @@ automatikusan — bármely élő periódus **új élő pre-regisztrációt** kí
 
 ### Az (A) út egyetlen ismert megkerülése a power-korláton — döntési bemenet
 
+> 🔴 **2026-10-23 — ÚJ SCORING-ÉRA HATÁR.** Négy néma adathiba javítva (lásd CHANGELOG);
+> ebből három **elmozdítja a `Total_Score`-t**, tehát a panel a D-U3 univerzum-határ MELLETT
+> egy mérési határt is kapott: `SCORING_ERAS` / `CURRENT_SCORING_ERA` a `frl_config`-ban, és
+> a batch a két határ későbbikénél kezd. **Ára 3 kereskedési nap** (10-20…10-22), és minden
+> adekvációs dátum 3 nappal csúszik: **h=5 → 2026-12-11**, **h=10 → 2027-02-03** (h=1 11-02,
+> h=3 11-20, h=7 2027-01-04, h=20 2027-05-14). A törés most volt a legolcsóbb: a 3. rezsim
+> három napos volt, amikor a javítás landolt.
+>
+> ⚠️ **A HYP-007 (Funda, KILL ×5) a 6-ból 2 bemeneten mérődött** — a javítás újradefiniálja
+> a faktort, tehát új pre-reg kell, nem újrafuttatás. Nyitott kérdés: `04-risks` §6.7.
+>
+> ⚠️ **A Cross-Asset Regime réteg életre kelt** (6,5 hónapig minden futáson eldobódott).
+> Élő smoke 2026-10-23: mindhárom arány 22 sessionnel, mai rezsim **CAUTIOUS** (1 szavazat,
+> VIX 19,77) → `vix_penalty_start` −1. Ma nincs hatása (a kereskedés áll), de ez
+> **viselkedés-változás a trade-plan úton** → restart-checklist.
+
 > **Tamás-döntés (2026-10-21):** a `docs/tasks/2026-08-24-ohlcv-store-backfill.md`
 > **OPEN marad**, és ennek a döntésnek a **BEMENETE**, nem a következménye —
 > de **nem indul el a döntés előtt**, mert új jelcsaládot (GC) épít.
@@ -155,7 +171,7 @@ rotáció, UW dormant kód ~10 modul).
 
 ## Tesztek
 
-**2534 passing**, 0 fail (2026-10-21) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
+**2585 passing**, 0 fail (2026-10-23) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
 
 ---
 

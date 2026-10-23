@@ -17,6 +17,47 @@ if TYPE_CHECKING:
     from ifds.data.cache import FileCache
 
 
+#: Days after quarter end before a 13F quarter is treated as reportable. The statutory
+#: deadline is 45 days; filings keep arriving afterwards, so the extra margin is what
+#: separates "the quarter closed" from "the tally is in". Probed 2026-10-23 on the
+#: 2026-Q3 (Sep-30) summary, 23 days after quarter end: AAPL -96.78%, MSFT -96.06%,
+#: NVDA -97.20% QoQ — a partial tally that would have stamped `decreasing` on the whole
+#: universe. The same probe on 2026-Q2: AAPL +18.85%, MSFT +4.69%, NVDA +20.10%.
+FILING_LAG_DAYS = 75
+
+#: A quarter is also rejected when its filer count is far below the previous quarter's,
+#: whatever the calendar says. Belt and braces against a vendor backfill arriving late.
+MIN_FILER_COVERAGE = 0.80
+
+
+def latest_complete_13f_quarter(today: date | None = None) -> tuple[int, int]:
+    """The newest ``(year, quarter)`` whose 13F filings can be considered complete."""
+    today = today or date.today()
+    year, quarter = today.year, (today.month - 1) // 3 + 1
+    for _ in range(8):  # walk back at most two years; the loop always exits on the first
+        quarter -= 1
+        if quarter == 0:
+            year, quarter = year - 1, 4
+        quarter_end = date(year, quarter * 3, 1) + timedelta(days=31)
+        quarter_end = date(quarter_end.year, quarter_end.month, 1) - timedelta(days=1)
+        if (today - quarter_end).days >= FILING_LAG_DAYS:
+            return year, quarter
+    return year, quarter
+
+
+def is_complete_13f_row(row: dict) -> bool:
+    """Reject a summary row whose filer count betrays a half-filed quarter."""
+    if not row:
+        return False
+    current = row.get("investorsHolding") or 0
+    previous = row.get("lastInvestorsHolding") or 0
+    if not row.get("totalInvested") or not row.get("lastTotalInvested"):
+        return False
+    if previous <= 0:
+        return False
+    return (current / previous) >= MIN_FILER_COVERAGE
+
+
 class FMPClient(BaseAPIClient):
     """Client for FMP REST API.
 
@@ -107,21 +148,29 @@ class FMPClient(BaseAPIClient):
         return result
 
     def get_key_metrics(self, ticker: str) -> dict | None:
-        """Get trailing twelve months key financial metrics.
+        """Trailing-twelve-month ratios for the fundamental block.
 
-        Returns dict with: roe, netIncomeMargin, debtToEquity, interestCoverage, etc.
+        ``/stable/ratios-ttm``, NOT ``/stable/key-metrics``. The scorer reads
+        ``netProfitMarginTTM``, ``debtToEquityRatioTTM``, ``interestCoverageRatioTTM`` and
+        derives ROE from ``netIncomePerShareTTM`` / ``shareholdersEquityPerShareTTM`` —
+        every one of those lives here and NONE of them exists on ``key-metrics``, which
+        carries ``returnOnEquity`` and no debt or coverage fields at all. The old call
+        returned HTTP 200 and the scorer read None: 0 of 16,425 ticker-days had a non-null
+        roe, debt_equity or net_margin. Live schema probed 2026-10-23.
+
+        One call replaces one call, so the Phase 4 request rate is unchanged.
         """
         yesterday = (date.today() - timedelta(days=1)).isoformat()
         if self._cache:
-            cached = self._cache.get("fmp", "key-metrics", yesterday, ticker)
+            cached = self._cache.get("fmp", "ratios-ttm", yesterday, ticker)
             if cached is not None:
                 return cached
 
         params = {"apikey": self._api_key, "symbol": ticker}
-        result = self._get("/stable/key-metrics", params=params, headers=self._auth_headers())
+        result = self._get("/stable/ratios-ttm", params=params, headers=self._auth_headers())
         if result and isinstance(result, list) and len(result) > 0:
             if self._cache:
-                self._cache.put("fmp", "key-metrics", yesterday, ticker, result[0])
+                self._cache.put("fmp", "ratios-ttm", yesterday, ticker, result[0])
             return result[0]
         return None
 
@@ -166,20 +215,45 @@ class FMPClient(BaseAPIClient):
         return mapping
 
     def get_institutional_ownership(self, ticker: str) -> list[dict] | None:
-        """Get institutional ownership data (most recent 2 quarters)."""
-        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        """13F position summary for ``ticker``: this quarter and the previous one.
+
+        ``institutional-ownership/latest`` SILENTLY IGNORES ``?symbol=`` and returns the
+        market-wide filing feed — probed 2026-10-23 with ``symbol=AAPL`` it answered
+        "RUBICON ADVISORS, GP" and "AMANAH HOLDINGS TRUST", with no ``totalInvested``
+        field anywhere. That is why ``inst_ownership_score`` was 0 in all 16,425
+        production ticker-days. ``symbol-positions-summary`` is the per-symbol route and
+        carries ``totalInvested`` AND ``lastTotalInvested`` in a single row, so the QoQ
+        comparison no longer needs two rows.
+
+        Returns a one-element list to keep the caller's availability probe (``is None``)
+        meaningful, or None when the quarter is not yet complete.
+        """
+        year, quarter = latest_complete_13f_quarter()
+        cache_key = f"{ticker}_{year}Q{quarter}"
         if self._cache:
-            cached = self._cache.get("fmp", "institutional-ownership", yesterday, ticker)
+            cached = self._cache.get("fmp", "inst-positions-summary", f"{year}Q{quarter}", cache_key)
             if cached is not None:
                 return cached
 
-        params = {"apikey": self._api_key, "symbol": ticker, "limit": 2}
+        params = {
+            "apikey": self._api_key,
+            "symbol": ticker,
+            "year": year,
+            "quarter": quarter,
+        }
         result = self._get(
-            "/stable/institutional-ownership/latest", params=params, headers=self._auth_headers()
+            "/stable/institutional-ownership/symbol-positions-summary",
+            params=params,
+            headers=self._auth_headers(),
         )
-        if result and self._cache:
-            self._cache.put("fmp", "institutional-ownership", yesterday, ticker, result)
-        return result
+        if not result or not isinstance(result, list):
+            return None
+        row = result[0]
+        if not is_complete_13f_row(row):
+            return None
+        if self._cache:
+            self._cache.put("fmp", "inst-positions-summary", f"{year}Q{quarter}", cache_key, [row])
+        return [row]
 
     def get_etf_holdings(self, etf_symbol: str) -> list[dict] | None:
         """Get ETF constituent holdings.

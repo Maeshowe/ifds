@@ -798,6 +798,29 @@ Tartomány: **0–100** (cap alkalmazva)
 - Debt büntetés erősebb: `funda_debt_penalty=-10`
 - Revenue/EPS küszöbök %-ban vannak a config-ban, de a kód `/100`-zal konvertálja
 
+> ⚠️ **2026-10-23 — a 6-ból 4 metrika 2026-10-22-ig NEM TUDOTT TÜZELNI.** Az adatforrás
+> a `/stable/key-metrics` volt, a kód viszont a legacy v3 `key-metrics-ttm` mezőneveit
+> olvasta (`roeTTM`, `debtToEquityTTM`, `interestCoverageTTM`,
+> `netIncomePerShareTTM`+`revenuePerShareTTM`). Mérve: `roe`, `debt_equity`, `net_margin`
+> **0/16 425** ticker-napon nem-null, `interest_coverage` a sémában sem volt. A
+> `funda_score` értékkészlete emiatt `{-10,-5,0,5,10}` volt.
+>
+> **Forrás 2026-10-23 óta: `/stable/ratios-ttm`** (1 hívás 1 helyett, a kérésráta nem nő):
+>
+> | Metrika | Mező |
+> |---|---|
+> | Net Margin | `netProfitMarginTTM` |
+> | ROE | `netIncomePerShareTTM` / `shareholdersEquityPerShareTTM` (származtatott — a végponton nincs ROE) |
+> | Debt/Equity | `debtToEquityRatioTTM` |
+> | Interest Coverage | `interestCoverageRatioTTM`, **a 0 hiányzó adatnak számít** |
+>
+> A kamatfedezet 0-ja „nincs kamatkiadás"-t jelent (AAPL), azaz a LEGJOBB fedezetet —
+> szó szerint olvasva a `-10`-es debt-büntetést kapnák az adósságmentes cégek. Tolerancia-
+> alapú guard (`_INTEREST_COVERAGE_EPS`), soha `== 0`.
+>
+> ⚠️ Nyitott kérdés (04-risks §6.7): a D/E és a kamatfedezet **bankokra mást jelent**
+> (JPM: D/E 3,32, fedezet 0,86) — valós számok, de szektor-szisztematikus torzítás.
+
 #### Insider Activity
 
 ```
@@ -837,7 +860,19 @@ _detect_shark(insider_data):
 #### Institutional Ownership Trend (BC12)
 
 ```
-FMP /stable/institutional-ownership/latest (symbol={ticker}, limit=2)
+FMP /stable/institutional-ownership/symbol-positions-summary
+    (symbol={ticker}, year=, quarter=)   # 2026-10-23 óta
+
+# A korábbi /institutional-ownership/latest CSENDBEN FIGYELMEN KÍVÜL HAGYJA a ?symbol=-t
+# és a piac-szintű 13F filing-feedet adja vissza (AAPL-re 2026-10-23-án: "RUBICON
+# ADVISORS, GP", "AMANAH HOLDINGS TRUST"), totalInvested mező nélkül. Ezért volt az
+# inst_ownership_score 0 mind a 16 425 ticker-napon.
+#
+# A summary EGY sorban hozza mindkét negyedévet: totalInvested vs lastTotalInvested.
+# Negyedév-választás: a legfrissebb TELJES negyedév (FILING_LAG_DAYS=75; a 13F-határidő
+# negyedévvége + 45 nap, utána is csordogálnak a beadványok), plusz egy filer-szám
+# alapú teljességi guard (MIN_FILER_COVERAGE=0.80). Enélkül a félkész negyedév az EGÉSZ
+# univerzumra "decreasing"-et adna: 2026-Q3 a határidő előtt AAPL -96,8%, MSFT -96,1%.
 
 Graceful degradation:
   AAPL probe a ticker loop előtt

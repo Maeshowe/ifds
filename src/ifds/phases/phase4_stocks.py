@@ -979,6 +979,53 @@ def _analyze_fundamental(
     )
 
 
+def _as_float(value: object) -> float:
+    """External numeric field -> float, with anything unparseable reading as 0.0."""
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return 0.0
+
+
+#: Below this magnitude an interest-coverage ratio is treated as ABSENT rather than as
+#: catastrophic. The vendor reports 0.0 for a company with no interest expense (probed
+#: 2026-10-23: AAPL = 0.0), which is the best possible coverage, not the worst — reading
+#: it literally would hand `funda_debt_penalty` to exactly the debt-free names. Tolerance
+#: based, never `== 0`, per .claude/rules/ifds-rules.md (2026-07-21).
+_INTEREST_COVERAGE_EPS = 1e-9
+
+
+def _interest_coverage(metrics: dict) -> float | None:
+    """``interestCoverageRatioTTM``, with the structural zero read as missing data."""
+    value = metrics.get("interestCoverageRatioTTM")
+    if value is None:
+        return None
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    return None if abs(value) < _INTEREST_COVERAGE_EPS else value
+
+
+def _return_on_equity(metrics: dict) -> float | None:
+    """ROE derived per-share, because /stable/ratios-ttm carries no ROE field.
+
+    Cross-checked on 2026-10-23 against ``returnOnEquityTTM`` from key-metrics-ttm:
+    MSFT .3023/.3322, JPM .1772/.1791, XOM .1263/.1268, TSLA .0362/.0378. The spread is
+    an averaging convention (period-end vs average equity) and crosses no scoring
+    threshold in the sample. Taking the second endpoint instead would add one FMP call
+    per ticker, and production already draws 429s at its current rate.
+    """
+    income = metrics.get("netIncomePerShareTTM")
+    equity = metrics.get("shareholdersEquityPerShareTTM")
+    if income is None or not equity:
+        return None
+    try:
+        return float(income) / float(equity)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
 def _analyze_fundamental_from_data(
     ticker: str,
     growth: dict | None,
@@ -996,15 +1043,14 @@ def _analyze_fundamental_from_data(
     debt_equity = None
     interest_coverage = None
     if metrics:
-        roe = metrics.get("roeTTM")
-        debt_equity = metrics.get("debtToEquityTTM")
-        interest_coverage = metrics.get("interestCoverageTTM")
-        if "netIncomePerShareTTM" in metrics and metrics.get("revenuePerShareTTM"):
-            rev_per = metrics["revenuePerShareTTM"]
-            ni_per = metrics["netIncomePerShareTTM"]
-            net_margin = (ni_per / rev_per) if rev_per > 0 else None
-        else:
-            net_margin = None
+        # Field names from /stable/ratios-ttm, verified against the live schema on
+        # 2026-10-23. The previous names (roeTTM, debtToEquityTTM, interestCoverageTTM,
+        # netIncomePerShareTTM+revenuePerShareTTM read off /stable/key-metrics) belonged
+        # to the legacy v3 route and resolved to None on every one of 16,425 ticker-days.
+        net_margin = metrics.get("netProfitMarginTTM")
+        debt_equity = metrics.get("debtToEquityRatioTTM")
+        interest_coverage = _interest_coverage(metrics)
+        roe = _return_on_equity(metrics)
 
     score = 0
     bonus = config.tuning["funda_score_bonus"]
@@ -1064,9 +1110,17 @@ def _analyze_fundamental_from_data(
     # Institutional ownership trend (QoQ comparison)
     inst_trend = "unknown"
     inst_score = 0
-    if inst_data and len(inst_data) >= 2:
-        recent = inst_data[0].get("totalInvested", 0) or 0
-        previous = inst_data[1].get("totalInvested", 0) or 0
+    if inst_data:
+        # symbol-positions-summary returns the current and previous quarter in ONE row.
+        # The old code compared row[0] against row[1] of a market-wide filing feed whose
+        # rows carry no totalInvested at all, so this branch never fired: 0/16,425.
+        summary = inst_data[0]
+        # Coerced, not trusted: the row crosses a system boundary, and a non-numeric
+        # value must read as "no data" rather than raise inside the scorer.
+        recent = _as_float(summary.get("totalInvested") if isinstance(summary, dict) else None)
+        previous = _as_float(
+            summary.get("lastTotalInvested") if isinstance(summary, dict) else None
+        )
         if previous > 0:
             change_pct = (recent - previous) / previous
             if change_pct > 0.02:

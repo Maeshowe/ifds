@@ -10,7 +10,7 @@ If any critical check fails, the pipeline HALTs.
 
 import json
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from ifds.config.loader import Config
@@ -576,6 +576,28 @@ def _calculate_vix_multiplier(
     return max(floor, 1.0 - (vix - threshold) * rate)
 
 
+def _to_dated_bars(raw: list[dict] | None) -> list[dict]:
+    """Raw Polygon aggregates -> the ``{"date", "c"}`` shape ``_ratio`` aligns on.
+
+    Polygon returns ``t`` as epoch MILLISECONDS anchored to ET midnight. The conversion
+    is UTC-anchored on purpose: a local-zone conversion shifts the whole series by a day
+    on a far-enough host (.claude/rules/ifds-rules.md, 2026-10-19), and
+    tests/test_timestamp_timezone.py forbids the tz-less form outright.
+    """
+    out: list[dict] = []
+    for bar in raw or []:
+        ts, close = bar.get("t"), bar.get("c")
+        if ts is None or close is None:
+            continue
+        out.append(
+            {
+                "date": datetime.fromtimestamp(ts / 1000, tz=timezone.utc).date().isoformat(),
+                "c": float(close),
+            }
+        )
+    return out
+
+
 def _fetch_cross_asset_ratios(
     polygon: PolygonClient,
     etfs: list[str],
@@ -587,11 +609,19 @@ def _fetch_cross_asset_ratios(
     Returns ``{"hyg_ief": [...], "rsp_spy": [...], "iwm_spy": [...]}``
     with daily ratio values (most recent last).
     """
+    # ``get_aggregates`` is the only bar method PolygonClient has, and it takes a DATE
+    # RANGE, not a day count. The earlier ``get_daily_bars(etf, lookback_days)`` call
+    # never existed: the bare except below swallowed the AttributeError, every ratio came
+    # back empty and the regime pinned to NORMAL from 2026-04-06 to 2026-10-23.
+    # tests/test_cross_asset_fetch.py::TestTheClientContractHolds closes that gap.
+    to_date = date.today()
+    from_date = to_date - timedelta(days=lookback_days)
+
     bars_by_etf: dict[str, list[dict]] = {}
     for etf in etfs:
         try:
-            bars = polygon.get_daily_bars(etf, lookback_days)
-            bars_by_etf[etf] = bars if bars else []
+            raw = polygon.get_aggregates(etf, from_date.isoformat(), to_date.isoformat())
+            bars_by_etf[etf] = _to_dated_bars(raw)
         except Exception as e:
             logger.log(
                 EventType.PHASE_DIAGNOSTIC,

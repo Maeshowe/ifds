@@ -204,12 +204,12 @@ class TestAsyncFMPClient:
         client = AsyncFMPClient(api_key="test_key")
         client._get = AsyncMock(
             return_value=[
-                {"roeTTM": 0.25, "debtToEquityTTM": 1.5},
+                {"netProfitMarginTTM": 0.25, "debtToEquityRatioTTM": 1.5},
             ]
         )
 
         result = await client.get_key_metrics("AAPL")
-        assert result["roeTTM"] == 0.25
+        assert result["netProfitMarginTTM"] == 0.25
         await client.close()
 
     @pytest.mark.asyncio

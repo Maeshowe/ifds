@@ -175,4 +175,9 @@ def _dict_to_sector_score(d: dict) -> SectorScore:
         classification=MomentumClassification(d.get("classification", "neutral")),
         sector_bmi=d.get("sector_bmi"),
         sector_bmi_regime=SectorBMIRegime(d.get("sector_bmi_regime", "neutral")),
+        # BC14. Dropping this on load silently defaulted it to 0, which made the
+        # ticker-level `score_adjustment - breadth_score_adj` subtract nothing — so
+        # breadth was charged to every ticker in the sector on every weekday reload.
+        # Guarded by tests/test_context_roundtrip.py (every saved field must survive).
+        breadth_score_adj=d.get("breadth_score_adj", 0),
     )
