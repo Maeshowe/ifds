@@ -178,13 +178,29 @@ def _std(values: list[float], mean_val: float) -> float:
     return math.sqrt(variance)
 
 
+#: A standard deviation at or below this counts as NO dispersion at all.
+#:
+#: Absolute, not relative, and that is the design decision. Only the MEAN-based features
+#: can degenerate — iv_rank and iv_skew, 0.20 of the MMS composite; `gex` is a sum over
+#: contracts and keeps a dispersion of ~5e+06 even on a pinned feed. Those two are
+#: O(1)-scaled, so 1e-12 sits ten orders of magnitude below any real dispersion and five
+#: above float residue (a pinned chain leaves 1.7e-17). A relative form would fail
+#: exactly where it is needed: iv_skew is a difference of implied vols and legitimately
+#: oscillates THROUGH zero, so its mean sits at noise level and `eps * |mean|` collapses.
+#:
+#: The previous `s == 0` was the forbidden exact form (.claude/rules/ifds-rules.md,
+#: 2026-07-21): a constant vendor feed would have scored as "today sits exactly at its
+#: own historical mean" instead of "no data".
+_DEGENERATE_STD = 1e-12
+
+
 def _z_score(value: float, values: list[float], min_n: int) -> float | None:
-    """Compute z-score. Returns None if insufficient data or zero std."""
+    """Compute z-score. Returns None on insufficient data or a degenerate spread."""
     if len(values) < min_n:
         return None
     m = _mean(values)
     s = _std(values, m)
-    if s == 0:
+    if s <= _DEGENERATE_STD:
         return None
     return (value - m) / s
 
@@ -319,7 +335,9 @@ def _compute_regime_confidence(
     sigma_gex = factor_vol.get("gex")
     median_sigma_gex = median_sigmas.get("gex", 0.0)
 
-    if sigma_gex is None or median_sigma_gex == 0:
+    # Tolerance, not equality: same reason as _z_score. The behaviour on a degenerate
+    # denominator is unchanged (fail-open to "stable"); only the detection is fixed.
+    if sigma_gex is None or abs(median_sigma_gex) <= _DEGENERATE_STD:
         return 1.0  # No data → assume stable
 
     ratio = sigma_gex / median_sigma_gex
