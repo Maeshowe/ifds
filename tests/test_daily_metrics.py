@@ -89,7 +89,8 @@ class TestVixCloseInOutput:
         monkeypatch.setattr("scripts.paper_trading.daily_metrics.METRICS_DIR", tmp_path)
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
-            lambda d: None,
+            # (value, reason) since the 2026-10-23 two-part guard.
+            lambda d: (None, "no_bar_for_target_date"),
         )
 
     def test_vix_close_from_polygon_primary(self, tmp_path, monkeypatch):
@@ -475,7 +476,8 @@ class TestBuildDailyMetrics:
         monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
-            lambda d: None,
+            # (value, reason) since the 2026-10-23 two-part guard.
+            lambda d: (None, "no_bar_for_target_date"),
         )
 
         metrics = build_daily_metrics("2026-04-02")
@@ -494,7 +496,15 @@ class TestBuildDailyMetrics:
             "uw_shadow_summary",  # Day 63 §3.2 — UW shadow log integration
             "swing_state",  # Task #5 — swing portfolio snapshot
         }
-        assert required_keys == set(metrics.keys())
+        #: Written only when something degraded, so a healthy row stays byte-identical.
+        #: Additive top-level keys are an established pattern here (_retroreconcile_applied);
+        #: an exact-equality assertion would make every such key a regression.
+        optional_keys = {"data_quality", "_retroreconcile_applied"}
+        present = set(metrics.keys())
+        assert required_keys <= present, f"missing: {sorted(required_keys - present)}"
+        assert present - required_keys <= optional_keys, (
+            f"unexpected top-level key(s): {sorted(present - required_keys - optional_keys)}"
+        )
 
     def test_swing_state_includes_sector_cap_pct(self, tmp_path, monkeypatch):
         """sector_cap_pct must be explicit in swing_state (post-rename clarity).
@@ -521,7 +531,8 @@ class TestBuildDailyMetrics:
         monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
-            lambda d: None,
+            # (value, reason) since the 2026-10-23 two-part guard.
+            lambda d: (None, "no_bar_for_target_date"),
         )
 
         metrics = build_daily_metrics("2026-04-02")
@@ -558,7 +569,8 @@ class TestBuildDailyMetrics:
         monkeypatch.setattr("scripts.paper_trading.daily_metrics.PHASE4_DIR", tmp_path)
         monkeypatch.setattr(
             "scripts.paper_trading.daily_metrics._fetch_spy_return",
-            lambda d: None,
+            # (value, reason) since the 2026-10-23 two-part guard.
+            lambda d: (None, "no_bar_for_target_date"),
         )
 
         metrics = build_daily_metrics("2026-04-02")
@@ -634,7 +646,7 @@ class TestSwingMetadataSync:
         monkeypatch.setattr(f"{dm}.PHASE4_DIR", tmp_path)
         monkeypatch.setattr(f"{dm}.METRICS_DIR", tmp_path)
         monkeypatch.setattr(f"{dm}.UW_SHADOW_DIR", tmp_path)
-        monkeypatch.setattr(f"{dm}._fetch_spy_return", lambda d: None)
+        monkeypatch.setattr(f"{dm}._fetch_spy_return", lambda d: (None, "no_bar_for_target_date"))
         monkeypatch.setattr(f"{dm}._load_phase0_vix", lambda d, logs_dir=None: None)
         monkeypatch.setattr(f"{dm}._fetch_vix_from_polygon", lambda d: (None, None))
         monkeypatch.setattr(f"{dm}._build_swing_state", lambda d, p, s: {"new_entries_today": 1})

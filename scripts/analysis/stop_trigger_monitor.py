@@ -124,12 +124,25 @@ def load_day_records(
         excess_block = payload.get("excess_return") or {}
         if "excess_pct" not in excess_block:
             continue
+        # A day whose SPY return or excess could not be measured is ABSENT, exactly like
+        # a day with no metrics file at all. Two traps this closes, both live since the
+        # 2026-10-23 guard made nulls reachable:
+        #   * `float(None)` raises, taking the whole trigger evaluation down;
+        #   * a MISSING key under `.get(..., 0.0)` reads as "SPY was flat" — a measured
+        #     claim about a day nobody measured, i.e. the structural-zero error class.
+        # :214 computes `mtm_pct - spy_return_pct` for the PRE-REGISTERED halt trigger,
+        # so a fabricated 0.0 moves a stopping decision.
+        excess_pct = excess_block.get("excess_pct")
+        spy_return_pct = (payload.get("market") or {}).get("spy_return_pct")
+        portfolio_return_pct = excess_block.get("portfolio_return_pct")
+        if excess_pct is None or spy_return_pct is None or portfolio_return_pct is None:
+            continue
         records.append(
             DayRecord(
                 date=day,
-                excess_realized_pct=float(excess_block.get("excess_pct", 0.0)),
-                spy_return_pct=float((payload.get("market") or {}).get("spy_return_pct", 0.0)),
-                portfolio_return_pct=float(excess_block.get("portfolio_return_pct", 0.0)),
+                excess_realized_pct=float(excess_pct),
+                spy_return_pct=float(spy_return_pct),
+                portfolio_return_pct=float(portfolio_return_pct),
                 equity=equity_map.get(day),
             )
         )

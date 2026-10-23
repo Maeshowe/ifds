@@ -18,6 +18,7 @@ import glob
 import gzip
 import json
 import os
+import statistics
 import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -586,35 +587,96 @@ def _load_previous_vix_close(target_date: str) -> float | None:
     return None
 
 
-def _fetch_spy_return(target_date: str) -> float | None:
+#: A same-date bar whose volume falls below this fraction of the trailing median is
+#: treated as PARTIAL — present, but not the day's bar yet.
+#:
+#: The date match alone is not enough: measured 2026-10-23 at 09:42 ET, the same-date SPY
+#: bar already existed mid-session and returned -0.484, which is not the day's return. On
+#: a 15-minute-delayed plan the 22:xx read sits close enough to the close for the same
+#: shape to occur.
+#:
+#: Calibrated from the TRAILING VOLUME distribution, not from the guarded field, and
+#: verdict-stable on [0.20, 0.40) across 474 sessions — 0 complete sessions rejected
+#: anywhere in that range. 0.25 sits in the interior.
+SPY_VOLUME_FLOOR_FRACTION = 0.25
+
+#: Sessions of volume history used for the floor's median.
+SPY_VOLUME_LOOKBACK = 20
+
+
+def spy_return_from_bars(bars: list[dict] | None, target_date: str) -> tuple[float | None, str | None]:
+    """``(return_pct, reason)`` for ``target_date`` — pure, so it can be tested offline.
+
+    Mirrors ``_fetch_vix_from_polygon``: an exact date match is required and the stale
+    latest bar is NEVER served. The volume floor is the second half, because a date match
+    on its own passes a partial bar.
+    """
+    if not bars:
+        return None, "no_bars"
+
+    dated: list[tuple[date, float, float | None]] = []
+    for bar in bars:
+        ts, close = bar.get("t"), bar.get("c")
+        if ts is None or close is None:
+            continue
+        bar_date = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).date()
+        volume = bar.get("v")
+        dated.append((bar_date, float(close), float(volume) if volume is not None else None))
+    dated.sort(key=lambda item: item[0])
+    if not dated:
+        return None, "no_bars"
+
+    target = date.fromisoformat(target_date)
+    today = next(((d, c, v) for d, c, v in dated if d == target), None)
+    if today is None:
+        return None, "no_bar_for_target_date"
+
+    prev_close: float | None = None
+    for d, c, _ in dated:
+        if d < target:
+            prev_close = c  # ascending → keep the last bar strictly before target
+    if prev_close is None or prev_close <= 0:
+        return None, "no_previous_bar"
+
+    _, today_close, today_volume = today
+    if today_volume is not None:
+        history = [v for d, _, v in dated if d < target and v is not None]
+        if len(history) >= 2:
+            floor = statistics.median(history[-SPY_VOLUME_LOOKBACK:]) * SPY_VOLUME_FLOOR_FRACTION
+            if today_volume < floor:
+                return None, "partial_bar"
+
+    return (today_close - prev_close) / prev_close * 100, None
+
+
+def _fetch_spy_return(target_date: str) -> tuple[float | None, str | None]:
     """Fetch SPY daily return from Polygon (single API call)."""
     try:
         sys.path.insert(0, str(PROJECT_ROOT / "src"))
         from ifds.data.polygon import PolygonClient
     except ImportError:
-        return None
+        return None, "client_unavailable"
 
     api_key = os.environ.get("IFDS_POLYGON_API_KEY")
     if not api_key:
-        return None
+        return None, "no_api_key"
 
-    prev_date = (date.fromisoformat(target_date) - timedelta(days=5)).isoformat()
+    # Wide enough for the volume floor's trailing median; still ONE API call.
+    prev_date = (date.fromisoformat(target_date) - timedelta(days=40)).isoformat()
     try:
         client = PolygonClient(api_key)
         bars = client.get_aggregates("SPY", prev_date, target_date, timespan="day")
     except Exception as e:
         logger.warning(f"SPY fetch failed: {e}")
-        return None
+        return None, "fetch_failed"
 
-    if not bars or len(bars) < 2:
-        return None
-
-    bars_sorted = sorted(bars, key=lambda b: b.get("t", 0))
-    prev_close = bars_sorted[-2].get("c")
-    today_close = bars_sorted[-1].get("c")
-    if prev_close and today_close and prev_close > 0:
-        return (today_close - prev_close) / prev_close * 100
-    return None
+    value, reason = spy_return_from_bars(bars, target_date)
+    if reason is not None:
+        logger.warning(
+            f"SPY return unavailable for {target_date}: {reason} — the field is recorded "
+            "as null rather than guessed, and stop_trigger_monitor skips the day."
+        )
+    return value, reason
 
 
 # ---------------------------------------------------------------------------
@@ -1140,7 +1202,7 @@ def build_daily_metrics(target_date: str, *, today_fills: list[dict] | None = No
     # Fix #6: portfolio_return is the day-over-day NetLiq % move (mark-to-market,
     # from daily_equity.json), not realized P&L / initial capital. Falls back to
     # the realized estimate when equity history is unavailable for the date.
-    spy_return = _fetch_spy_return(target_date)
+    spy_return, spy_return_reason = _fetch_spy_return(target_date)
     portfolio_return = _compute_portfolio_return_from_equity(target_date)
     if portfolio_return is None:
         portfolio_return = gross_pnl / INITIAL_CAPITAL * 100
@@ -1211,6 +1273,14 @@ def build_daily_metrics(target_date: str, *, today_fills: list[dict] | None = No
             "spy_return_pct": round(spy_return, 2) if spy_return is not None else None,
             "excess_pct": round(excess, 2) if excess is not None else None,
         },
+        # Additive, and only present when something degraded — so a healthy row is
+        # byte-identical to before. The readers that matter (stop_trigger_monitor,
+        # weekly_metrics) key off the null itself; this records WHY, for the review.
+        **(
+            {"data_quality": {"spy_return": spy_return_reason}}
+            if spy_return_reason is not None
+            else {}
+        ),
         "uw_shadow_summary": uw_shadow_summary,
         "swing_state": swing_state,
         "trades": {
