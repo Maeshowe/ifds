@@ -219,3 +219,44 @@ class TestPhase0UsesTheSameSourceSwap:
             "Phase 0 still calls Polygon for I:VIX; the Indices subscription cannot be "
             "cancelled while this path is live (237 of 287 production runs used it)"
         )
+
+
+class TestPtMonitorAlsoLeavesThePolygonIndex:
+    """The last live Polygon I:VIX caller, so the Indices line can go without a stub left.
+
+    `pt_monitor --mode=eod_eval` is trading-guarded and dormant today, which is exactly
+    why it is the right moment to move it: a dormant path that breaks on a cancelled
+    entitlement is a landmine for the restart, not a problem for today.
+
+    It uses the SAME clock-guarded resolver as daily_metrics rather than a second
+    hand-rolled fetch — the whole point of the 2026-10-23 work is that presence of a bar
+    is not evidence that it is the close, and that lesson should not need re-learning per
+    call site.
+    """
+
+    def test_the_module_no_longer_asks_polygon_for_the_index(self) -> None:
+        source = (ROOT / "scripts" / "paper_trading" / "pt_monitor.py").read_text()
+        assert '"I:VIX"' not in source, (
+            "pt_monitor still fetches Polygon I:VIX; cancelling the Indices product "
+            "would silently leave vix_close and vix_delta_pct empty on the restart"
+        )
+
+    def test_it_reuses_the_guarded_resolver(self) -> None:
+        source = (ROOT / "scripts" / "paper_trading" / "pt_monitor.py").read_text()
+        assert "resolve_vix_close" in source, (
+            "a second, unguarded VIX fetch would reintroduce the pre-settlement defect "
+            "that cost the daily_metrics field 84% of its accuracy"
+        )
+
+    def test_the_delta_is_computed_from_the_resolver_s_own_previous_close(self) -> None:
+        """A self-consistent pair, like the daily_metrics path — never today's close
+        against a previous close pulled from a different request."""
+        import importlib
+
+        spec = importlib.util.spec_from_file_location(
+            "_ptm", ROOT / "scripts" / "paper_trading" / "pt_monitor.py"
+        )
+        assert spec is not None
+        source = (ROOT / "scripts" / "paper_trading" / "pt_monitor.py").read_text()
+        assert "vix_prev" in source and "vix_delta_pct" in source
+        assert source.count("resolve_vix_close(") == 1, "one call, one consistent pair"

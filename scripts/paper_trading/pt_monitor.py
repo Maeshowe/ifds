@@ -53,6 +53,18 @@ try:
 except ModuleNotFoundError:
     evt = None
 
+# One VIX source for the whole repo, clock-guarded. Imported lazily-tolerantly for the
+# same reason as the helpers above: this module is run both as a script from its own
+# directory and imported by tests.
+try:
+    from daily_metrics import resolve_vix_close
+except ModuleNotFoundError:  # pragma: no cover - script-vs-package import shape
+    import os.path as _ospath
+    import sys as _sys
+
+    _sys.path.insert(0, _ospath.dirname(_ospath.abspath(__file__)))
+    from daily_metrics import resolve_vix_close
+
 STATE_DIR = "scripts/paper_trading/logs"
 
 
@@ -494,20 +506,16 @@ def run_eod_eval() -> None:
             logger.debug(f"SPY fetch failed (non-fatal): {exc}")
 
         try:
-            vix_bars = poly.get_aggregates("I:VIX", today_iso, today_iso, "day", 1)
-            if vix_bars:
-                market["vix_close"] = float(vix_bars[-1].get("c", 0.0))
-                vix_prev = poly.get_aggregates(
-                    "I:VIX",
-                    (date.today() - timedelta(days=10)).isoformat(),
-                    (date.today() - timedelta(days=1)).isoformat(),
-                    "day",
-                    1,
-                )
-                if vix_prev and market["vix_close"]:
-                    prev_v = float(vix_prev[-1].get("c", 0.0))
-                    if prev_v > 0:
-                        market["vix_delta_pct"] = (market["vix_close"] - prev_v) / prev_v * 100
+            # The clock-guarded resolver, not a second hand-rolled fetch off the Polygon
+            # Indices product (cancelled 2026-10-23). It refuses a pre-settlement value
+            # outright — the defect that left the daily_metrics vix_close matching the
+            # official CBOE close on only 18 of 113 production days — and returns the
+            # close and ITS OWN previous close, so the delta is a self-consistent pair.
+            vix_close, vix_prev, _vix_source = resolve_vix_close(today_iso)
+            if vix_close is not None:
+                market["vix_close"] = vix_close
+                if vix_prev and vix_prev > 0:
+                    market["vix_delta_pct"] = (vix_close - vix_prev) / vix_prev * 100
         except Exception as exc:
             logger.debug(f"VIX fetch failed (non-fatal): {exc}")
 
