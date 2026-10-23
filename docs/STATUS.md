@@ -175,7 +175,7 @@ rotáció, UW dormant kód ~10 modul).
 
 ## Tesztek
 
-**2585 passing**, 0 fail (2026-10-23) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
+**2658 passing**, 0 fail (2026-10-23) — Budapest / UTC / Tokyo / UTC+14 / UTC−11. Baseline csak nőhet.
 
 ---
 
@@ -195,6 +195,7 @@ grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md
 |---|---|
 | `2026-08-24-ohlcv-store-backfill.md` | OPEN — **0/8 lépés kész**; a §3 stratégiai döntés BEMENETE (az egyetlen ismert út a decemberi power-korlát kikerülésére), de új jelcsaládot épít → a döntés előtt nem indítható |
 | `2026-10-04-operational-backlog.md` | OPEN — lásd fent; a §2 mindhárom tétele a kereskedési út hibája, **nem** lett tárgytalan a null-lal |
+| `2026-10-23-eod-chain-shift-30min.md` | **WIP** — a `crontab.md` kész; ⛔ a **Mini telepített crontabja még nem**, az külön jóváhagyás |
 
 **Nem a lekérdezésben, de a gyökérben:**
 
@@ -208,6 +209,25 @@ grep -lE "^Status:[[:space:]]*(OPEN|WIP)" docs/tasks/*.md
 (a premisszája a Day 63 kapu volt, ami 2026-10-03-án lezárult; a funkciót a
 `/daily-review` command + `generate_review{,_data}.py` fedi; a build-fázisból 0 történt
 meg). Archiválva: +7 fájl a `docs/tasks/archive/`-ba.
+
+---
+
+## Az API-költség-leminősítések állapota (2026-10-23)
+
+A $516/hó számlából **$269** szabadult fel vagy vált feltétel-mentessé. Tamás intézi a
+billinget; a kódoldali feltételek állapota:
+
+| Lépés | Megtakarítás | Kódoldali feltétel |
+|---|---:|---|
+| **Options Developer → Starter** | −$50 | ✅ kész — a leminősítés utáni első futáskor `scripts/analysis/options_coverage_diff.py`, **törölt opciós cache** mellett |
+| **Indices Starter → lemondás** | −$49 | ✅ kész — a VIX FMP ^VIX-ről jön, óra-guarddal. ⚠️ `pt_monitor.py:497` még Polygon I:VIX-et hív (trading-guarded, dormant) → restart-checklist |
+| **Stocks Advanced → Starter** | −$170 | 🟡 a két guard kész; a **Mini cron-tolás** még hátra, és az első informatív teszt **2026-11-02** (a 10-26…10-30 hét DST-ráhagyása használhatatlanná teszi) |
+| Currencies Starter | −$49 | ⛔ nem IFDS-kérdés: a `signum` ugyanazon a Massive-kulcson fut |
+
+**Melléklelet, amit érdemes elvégezni:** a `vix_close` 113 production napból **18-on**
+(15,9%) egyezett a hivatalos CBOE zárással — az ok a 16:10 ET-s futási idő, öt perccel az
+elszámolás előtt. A `scripts/maintenance/backfill_polygon_vix.py` most már FMP-ről dolgozik,
+és múltbeli dátumon a guard mindig átenged, tehát **a 95 hibás historikus érték javítható**.
 
 ---
 
