@@ -110,35 +110,39 @@
 # Csak a TIME_STOP flagű pozíciókat zárja MOC SELL-lel (days_held >= 5)
 40 21 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/close_positions.py --mode=time_stop
 
-# Daily EOD eval — 22:00 CEST
-# 22:00 Budapest = 16:00 EDT (NYSE close)
+# Daily EOD eval — 22:30 CEST  (volt 22:00; +30 perc 2026-10-23 óta)
+# 22:30 Budapest = 16:30 ET télen — 30 perccel a 16:00-s NYSE close UTÁN.
+# A +30 a késleltetett (15 perces) market-data csomag előfeltétele: egy T-ben olvasott
+# bar a T-15 szalagot tükrözi, teljes napi barhoz a szalag 16:00 ET-ig kell. +20 perc
+# ennek a jobnak 5 perc ráhagyást adna, +30 tizenötöt. A nulla-ráhagyásos eset nem
+# hibát ad, hanem CSONKA bart — csendben.
 # A 6-condition swing exit eval (HARD_SL / MENTAL_SL / TP2 / TP1 / TRAIL_SL / TIME_STOP),
 # Polygon napi bar-ból; state/swing_positions.json frissítve next_action flag-ekkel
-0 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/pt_monitor.py --mode=eod_eval
+30 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/pt_monitor.py --mode=eod_eval
 
 # Daily metrics — structured JSON + Part A record_pending_exits (cumulative writer)
-# 22:10 Budapest = 16:10 EDT (EOD eval után 10 perccel)
+# 22:40 Budapest = 16:40 ET télen (EOD eval után 10 perccel; volt 22:10)
 # FONTOS: ez a Part A cron rögzíti a broker-realized P&L-t + commission-t a
 # cumulative_pnl.json-ba a 21:40 MOC exitekből. Az eod_report-nak EZUTÁN kell futnia.
-10 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/daily_metrics.py
+40 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/daily_metrics.py
 
 # EOD report — napi P&L, kumulatív összesítés, swing-state Telegram
-# 22:11 Budapest = 16:11 EDT (data-quality fix #2: a 22:10 Part A UTÁN, hogy a
+# 22:41 Budapest = 16:41 ET télen (data-quality fix #2: a 22:40 Part A UTÁN, hogy a
 # Telegram a teljes aznapi cumulative-t + MOC exiteket mutassa, ne a tegnapit)
-11 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/eod_report.py
+41 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/eod_report.py
 
 # State/IBKR reconciliation — divergence detect + Telegram WARNING (Task #D)
-# 22:15 Budapest = 16:15 EDT (5 perccel a metrics után, mielőtt Tamás review jön)
-15 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/reconcile_state.py
+# 22:45 Budapest = 16:45 ET télen (5 perccel a metrics után, mielőtt Tamás review jön)
+45 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/reconcile_state.py
 
 # Daily review-data aggregátum (1a) — Chat napi review inputja
-# 22:20 Budapest = 16:20 EDT (a reconcile UTÁN, hogy a state settled; review_data → sync a MacBookra)
+# 22:50 Budapest = 16:50 ET télen (a reconcile UTÁN, hogy a state settled; review_data → sync a MacBookra)
 # Csak az 1a (determinisztikus aggregátor, lokális fájlokból); az 1c cross-check az IBKR MCP-t igényli → CC-kézi lépés. Hozzáadva 2026-07-10.
-20 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/generate_review_data.py
+50 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/paper_trading/generate_review_data.py
 
 # Events → SQLite import (log elemzéshez)
-# 22:45 Budapest = 16:45 EDT
-45 22 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/tools/events_to_sqlite.py
+# 23:15 Budapest = 17:15 ET télen (volt 22:45 — a tolt lánc után)
+15 23 * * 1-5 cd /Users/safrtam/SSH-Services/ifds && .venv/bin/python scripts/tools/events_to_sqlite.py
 
 # ─── REGGELI ELLENŐRZÉS ─────────────────────────────────────────────────────
 

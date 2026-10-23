@@ -356,7 +356,7 @@ def _format_reconcile_alert(detected_closures: list) -> str:
 
 
 def run_eod_eval() -> None:
-    """Daily 22:00 CEST EOD eval — Task #4 mental stop architecture.
+    """Daily 22:30 CEST EOD eval — Task #4 mental stop architecture.
 
     1. Load ``state/swing_positions.json``.
     2. For each open position, fetch today's daily OHLC from Polygon.

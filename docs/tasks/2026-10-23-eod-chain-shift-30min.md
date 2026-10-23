@@ -1,6 +1,6 @@
-Status: OPEN
+Status: WIP
 Updated: 2026-10-23
-Note: A Stocks Advanced → Starter leminősítés ($170/hó) másik feltétele. A 10-26→10-30 hét NEM használható tesztre: a DST-ráhagyás, ami biztonságossá teszi, pont az, ami használhatatlanná teszi. Első informatív nap: 2026-11-02. A Mini-crontab telepítése KÜLÖN jóváhagyást igényel.
+Note: A repo-oldali rész (scripts/crontab.md + a pt_monitor docstring) KÉSZ 2026-10-23. ⛔ A MINI TELEPÍTETT CRONTABJA MÉG NEM — az production-változtatás, külön jóváhagyás kell. Ütközés-ellenőrzés kész: a 22:00 és 23:00 bejegyzés vasárnap-only (`* * 0`), tehát hétköznap nincs ütközés.
 
 # A 22:xx lánc +30 perc — a késleltetett feed előfeltétele
 
