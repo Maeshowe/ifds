@@ -260,3 +260,47 @@ class TestPtMonitorAlsoLeavesThePolygonIndex:
         source = (ROOT / "scripts" / "paper_trading" / "pt_monitor.py").read_text()
         assert "vix_prev" in source and "vix_delta_pct" in source
         assert source.count("resolve_vix_close(") == 1, "one call, one consistent pair"
+
+
+class TestNoPolygonIndexEntitlementIsNeededAnywhere:
+    """From 2026-10-26 the Polygon/Massive Indices product is cancelled and I:VIX 403s.
+
+    A dead function that still names the endpoint is this repo's recurring trap: the
+    Cross-Asset layer threw for 6.5 months behind a bare `except`, and the FMP schema
+    defects read None for eight. So the guard is not "the live path works" — that was
+    proven on production with the Polygon client sabotaged — it is that NO call site
+    exists at all, including in code nobody runs.
+    """
+
+    def _sources(self):
+        import subprocess
+
+        out = subprocess.run(
+            ["git", "ls-files", "-z", "src", "scripts"],
+            cwd=ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+        return [ROOT / n for n in out.split("\0") if n.endswith(".py")]
+
+    def test_no_file_requests_the_index_ticker(self) -> None:
+        offenders: list[str] = []
+        for path in self._sources():
+            for i, line in enumerate(path.read_text().splitlines(), 1):
+                if '"I:VIX"' in line or "'I:VIX'" in line:
+                    offenders.append(f"{path.relative_to(ROOT)}:{i}: {line.strip()[:70]}")
+        assert not offenders, (
+            "a Polygon Indices call site survives; it will return 403 from 2026-10-26:\n"
+            + "\n".join(offenders)
+        )
+
+    def test_the_sweep_actually_reads_files(self) -> None:
+        """A guard whose file list is empty passes while guarding nothing."""
+        paths = self._sources()
+        assert len(paths) > 50, f"git ls-files returned only {len(paths)} python files"
+
+    def test_the_polygon_client_has_no_index_method_left(self) -> None:
+        from ifds.data.polygon import PolygonClient
+
+        assert not hasattr(PolygonClient, "get_vix"), (
+            "PolygonClient.get_vix reads the Indices product; it has no production "
+            "callers and must not be left as a loaded gun"
+        )

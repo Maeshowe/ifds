@@ -22,6 +22,10 @@ class PolygonClient(BaseAPIClient):
     Endpoints used:
     - /v2/aggs/ticker/{ticker}/range — OHLCV aggregates
     - /v3/snapshot/options/{underlyingAsset} — Options chain snapshot
+
+    NOT an index client. ``get_vix`` was removed on 2026-10-23: it read ``I:VIX`` off the
+    Polygon/Massive INDICES product, which is cancelled from 2026-10-26. The VIX now comes
+    from FMP ^VIX with a settlement-clock guard, falling back to FRED VIXCLS.
     - /v2/aggs/grouped/locale/us/market/stocks/{date} — Grouped daily bars
     """
 
@@ -134,39 +138,6 @@ class PolygonClient(BaseAPIClient):
                 self._cache.put("polygon", "grouped_daily", date_str, "ALL", result)
             return result
         return None
-
-    def get_vix(self, days_back: int = 10) -> float | None:
-        """Get latest VIX value from Polygon I:VIX index.
-
-        Uses the aggregates endpoint with the I:VIX ticker symbol.
-        Returns the most recent close value with sanity check (5-100 range).
-
-        Args:
-            days_back: Number of calendar days to look back for data.
-
-        Returns:
-            VIX float value, or None if unavailable or out of range.
-        """
-        today = date.today()
-        from_date = (today - timedelta(days=days_back)).isoformat()
-        to_date = today.isoformat()
-
-        bars = self.get_aggregates("I:VIX", from_date, to_date)
-        if not bars:
-            return None
-
-        vix_value = bars[-1].get("c")
-        if vix_value is None:
-            return None
-
-        vix_value = float(vix_value)
-
-        # Sanity check: VIX should be in reasonable range
-        # Historical: ~9 (2017 low) to ~82 (2020 COVID spike)
-        if not (5.0 <= vix_value <= 100.0):
-            return None
-
-        return vix_value
 
     def check_options_health(self) -> APIHealthResult:
         """Check Polygon Options API connectivity."""

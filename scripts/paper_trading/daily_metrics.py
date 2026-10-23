@@ -538,7 +538,7 @@ def vix_from_eod_rows(
 
     Two guards, in order. The CLOCK first: a bar for today exists long before it is the
     close, so presence is not evidence. Then the DATE: the stale latest row is never
-    served, mirroring the original ``_fetch_vix_from_polygon`` contract.
+    served — the contract the removed Polygon reader used to carry.
 
     No completeness floor here — every ^VIX EOD row carries ``volume: 0``, so the SPY
     volume floor has nothing to measure on an index.
@@ -645,64 +645,6 @@ def resolve_vix_close(
     return None, None, "unavailable"
 
 
-def _fetch_vix_from_polygon(target_date: str) -> tuple[float | None, float | None]:
-    """Fetch ``(close, prev_close)`` for I:VIX from Polygon for target_date.
-
-    Polygon ``I:VIX`` is the authoritative same-day VIX source: FRED
-    publishes VIX with a 1-day lag (EOD batch), so the Phase 0 MACRO_REGIME
-    event (FRED-sourced) systematically reports the Day N-1 close on Day N.
-
-    Returns the close of the bar dated ``target_date`` and the close of the
-    immediately preceding trading-day bar (for a self-consistent delta).
-    Either element is ``None`` when its bar is unavailable; ``close`` is
-    ``None`` (triggering the caller's fallback) when no bar matches
-    ``target_date`` — never the stale latest bar.
-    """
-    try:
-        sys.path.insert(0, str(PROJECT_ROOT / "src"))
-        from ifds.data.polygon import PolygonClient
-    except ImportError:
-        return None, None
-
-    api_key = os.environ.get("IFDS_POLYGON_API_KEY")
-    if not api_key:
-        return None, None
-
-    from_date = (date.fromisoformat(target_date) - timedelta(days=10)).isoformat()
-    try:
-        client = PolygonClient(api_key)
-        bars = client.get_aggregates("I:VIX", from_date, target_date, timespan="day")
-    except Exception as e:
-        logger.warning(f"VIX fetch failed: {e}")
-        return None, None
-
-    if not bars:
-        return None, None
-
-    dated: list[tuple[date, float]] = []
-    for bar in bars:
-        ts = bar.get("t")
-        close = bar.get("c")
-        if ts is None or close is None:
-            continue
-        bar_date = datetime.fromtimestamp(ts / 1000, tz=timezone.utc).date()
-        dated.append((bar_date, float(close)))
-    dated.sort(key=lambda item: item[0])
-    if not dated:
-        return None, None
-
-    target = date.fromisoformat(target_date)
-    close_val = next((c for d, c in dated if d == target), None)
-    if close_val is None:
-        return None, None
-
-    prev_val: float | None = None
-    for d, c in dated:
-        if d < target:
-            prev_val = c  # dated is ascending → keep last bar strictly before target
-    return close_val, prev_val
-
-
 def _load_previous_vix_close(target_date: str) -> float | None:
     """Read vix_close from the previous trading day's daily_metrics.json (if any)."""
     try:
@@ -745,7 +687,7 @@ SPY_VOLUME_LOOKBACK = 20
 def spy_return_from_bars(bars: list[dict] | None, target_date: str) -> tuple[float | None, str | None]:
     """``(return_pct, reason)`` for ``target_date`` — pure, so it can be tested offline.
 
-    Mirrors ``_fetch_vix_from_polygon``: an exact date match is required and the stale
+    An exact date match is required and the stale
     latest bar is NEVER served. The volume floor is the second half, because a date match
     on its own passes a partial bar.
     """

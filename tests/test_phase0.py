@@ -217,10 +217,15 @@ class TestVIXFallbackChain:
         assert macro.vix_value == pytest.approx(17.25)
         mock_fmp.get_index_quote.assert_called_once()
 
-    def test_polygon_fail_fred_fallback(self, config, logger):
-        """Polygon returns None → falls back to FRED VIXCLS."""
-        mock_polygon = MagicMock()
-        mock_polygon.get_vix.return_value = None
+    def test_fmp_fail_fred_fallback(self, config, logger):
+        """FMP returns no usable quote → falls back to FRED VIXCLS.
+
+        Was written against `mock_polygon.get_vix`. After the 2026-10-23 source swap that
+        method is never called, so the mock configured a path the code no longer takes and
+        the test passed for the wrong reason — it must mock the FMP client it now receives.
+        """
+        mock_fmp = MagicMock()
+        mock_fmp.get_index_quote.return_value = None
 
         mock_fred = MagicMock()
         mock_fred.VIX_SERIES = "VIXCLS"
@@ -228,16 +233,16 @@ class TestVIXFallbackChain:
             {"date": "2026-02-07", "value": "22.30"},
         ]
 
-        vix, source = _fetch_vix(mock_polygon, mock_fred, logger)
+        vix, source = _fetch_vix(mock_fmp, mock_fred, logger)
 
         assert vix == pytest.approx(22.30)
         assert source == "fred"
         mock_fred.get_series.assert_called_once_with("VIXCLS", limit=5)
 
-    def test_polygon_exception_fred_fallback(self, config, logger):
-        """Polygon raises exception → falls back to FRED VIXCLS."""
-        mock_polygon = MagicMock()
-        mock_polygon.get_vix.side_effect = ConnectionError("Polygon down")
+    def test_fmp_exception_fred_fallback(self, config, logger):
+        """FMP raises → falls back to FRED VIXCLS."""
+        mock_fmp = MagicMock()
+        mock_fmp.get_index_quote.side_effect = ConnectionError("FMP down")
 
         mock_fred = MagicMock()
         mock_fred.VIX_SERIES = "VIXCLS"
@@ -245,30 +250,33 @@ class TestVIXFallbackChain:
             {"date": "2026-02-07", "value": "19.50"},
         ]
 
-        vix, source = _fetch_vix(mock_polygon, mock_fred, logger)
+        vix, source = _fetch_vix(mock_fmp, mock_fred, logger)
 
         assert vix == pytest.approx(19.50)
         assert source == "fred"
 
     def test_both_fail_default(self, config, logger):
         """Both Polygon and FRED fail → default 20.0."""
-        mock_polygon = MagicMock()
-        mock_polygon.get_vix.return_value = None
+        mock_fmp = MagicMock()
+        mock_fmp.get_index_quote.return_value = None
 
         mock_fred = MagicMock()
         mock_fred.VIX_SERIES = "VIXCLS"
         mock_fred.get_series.return_value = None
 
-        vix, source = _fetch_vix(mock_polygon, mock_fred, logger)
+        vix, source = _fetch_vix(mock_fmp, mock_fred, logger)
 
         assert vix == 20.0
         assert source == "default"
 
-    def test_polygon_out_of_range_triggers_fallback(self, config, logger):
-        """Polygon VIX outside sanity range → returns None → FRED fallback."""
-        mock_polygon = MagicMock()
-        # get_vix already has sanity check (5-100), returns None if out of range
-        mock_polygon.get_vix.return_value = None
+    def test_out_of_range_quote_triggers_fallback(self, config, logger):
+        """A VIX outside the [5, 100] sanity band is rejected → FRED fallback.
+
+        The band is enforced by `_validate_vix`, so this exercises the guard rather than
+        the client: a vendor that answers 250.0 must not set the regime.
+        """
+        mock_fmp = MagicMock()
+        mock_fmp.get_index_quote.return_value = {"previousClose": 250.0}
 
         mock_fred = MagicMock()
         mock_fred.VIX_SERIES = "VIXCLS"
@@ -276,15 +284,15 @@ class TestVIXFallbackChain:
             {"date": "2026-02-07", "value": "25.00"},
         ]
 
-        vix, source = _fetch_vix(mock_polygon, mock_fred, logger)
+        vix, source = _fetch_vix(mock_fmp, mock_fred, logger)
 
         assert vix == 25.0
         assert source == "fred"
 
     def test_fred_missing_dot_values(self, config, logger):
         """FRED returns all '.' values → falls through to default."""
-        mock_polygon = MagicMock()
-        mock_polygon.get_vix.return_value = None
+        mock_fmp = MagicMock()
+        mock_fmp.get_index_quote.return_value = None
 
         mock_fred = MagicMock()
         mock_fred.VIX_SERIES = "VIXCLS"
@@ -293,7 +301,7 @@ class TestVIXFallbackChain:
             {"date": "2026-02-06", "value": "."},
         ]
 
-        vix, source = _fetch_vix(mock_polygon, mock_fred, logger)
+        vix, source = _fetch_vix(mock_fmp, mock_fred, logger)
 
         assert vix == 20.0
         assert source == "default"
