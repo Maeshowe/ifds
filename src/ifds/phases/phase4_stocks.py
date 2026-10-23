@@ -20,6 +20,7 @@ from ifds.config.loader import Config
 from ifds.data.adapters import DarkPoolProvider
 from ifds.data.fmp import FMPClient
 from ifds.data.polygon import PolygonClient
+from ifds.utils.bars import drop_open_session
 from ifds.events.logger import EventLogger
 from ifds.events.types import EventType, Severity
 from ifds.models.market import (
@@ -237,7 +238,9 @@ def run_phase4(
         spy_3m_return = None
         spy_from = (date.today() - timedelta(days=365)).isoformat()
         spy_to = date.today().isoformat()
-        spy_bars = polygon.get_aggregates("SPY", spy_from, spy_to)
+        spy_bars = drop_open_session(
+            polygon.get_aggregates("SPY", spy_from, spy_to), date.today()
+        )
         if spy_bars and len(spy_bars) >= 63:
             spy_closes = [b["c"] for b in spy_bars]
             spy_3m_return = (spy_closes[-1] - spy_closes[-63]) / spy_closes[-63]
@@ -261,7 +264,12 @@ def run_phase4(
             # 1. Fetch OHLCV data (250 calendar days ≈ 200+ trading days)
             from_date = (date.today() - timedelta(days=365)).isoformat()
             to_date = date.today().isoformat()
-            bars = polygon.get_aggregates(symbol, from_date, to_date)
+            # The run can sit ON the opening bell in the DST gap week (14:30 Budapest
+            # = 09:30 ET for 2026-10-26..10-30), so the still-open session's partial
+            # bar must never reach the scorer. No-op on an ordinary pre-market run.
+            bars = drop_open_session(
+                polygon.get_aggregates(symbol, from_date, to_date), date.today()
+            )
 
             if not bars or len(bars) < 50:
                 continue  # Insufficient data
@@ -1408,7 +1416,9 @@ async def _run_phase4_async(
     spy_3m_return = None
     spy_from = (date.today() - timedelta(days=365)).isoformat()
     spy_to = date.today().isoformat()
-    spy_bars = await polygon.get_aggregates("SPY", spy_from, spy_to)
+    spy_bars = drop_open_session(
+        await polygon.get_aggregates("SPY", spy_from, spy_to), date.today()
+    )
     if spy_bars and len(spy_bars) >= 63:
         spy_closes = [b["c"] for b in spy_bars]
         spy_3m_return = (spy_closes[-1] - spy_closes[-63]) / spy_closes[-63]
@@ -1444,7 +1454,9 @@ async def _run_phase4_async(
         to_date = date.today().isoformat()
 
         async with sem_ticker:
-            bars = await polygon.get_aggregates(symbol, from_date, to_date)
+            bars = drop_open_session(
+                await polygon.get_aggregates(symbol, from_date, to_date), date.today()
+            )
 
             if not bars or len(bars) < 50:
                 return None  # Insufficient data

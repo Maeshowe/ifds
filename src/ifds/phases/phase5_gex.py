@@ -15,6 +15,7 @@ from datetime import date, timedelta
 
 from ifds.config.loader import Config
 from ifds.data.adapters import GEXProvider
+from ifds.utils.bars import drop_open_session
 from ifds.events.logger import EventLogger
 from ifds.events.types import EventType, Severity
 from ifds.models.market import (
@@ -115,7 +116,9 @@ def run_phase5(
                     try:
                         mms_from = (date.today() - timedelta(days=365)).isoformat()
                         mms_to = date.today().isoformat()
-                        bars = polygon.get_aggregates(ticker, mms_from, mms_to)
+                        bars = drop_open_session(
+                            polygon.get_aggregates(ticker, mms_from, mms_to), date.today()
+                        )
                         options = polygon.get_options_snapshot(ticker)
                         obs = run_mms_analysis(
                             config.core,
@@ -202,7 +205,9 @@ def run_phase5(
                 try:
                     mms_from = (date.today() - timedelta(days=365)).isoformat()
                     mms_to = date.today().isoformat()
-                    bars = polygon.get_aggregates(ticker, mms_from, mms_to)
+                    bars = drop_open_session(
+                            polygon.get_aggregates(ticker, mms_from, mms_to), date.today()
+                        )
                     options = polygon.get_options_snapshot(ticker)
                     mms_result = run_mms_analysis(
                         config.core,
@@ -455,7 +460,9 @@ async def _run_phase5_async(
     async def fetch_mms_data(ticker: str):
         """Fetch bars and options snapshot for MMS."""
         async with sem_ticker:
-            bars = await polygon.get_aggregates(ticker, mms_from, mms_to)
+            bars = drop_open_session(
+                await polygon.get_aggregates(ticker, mms_from, mms_to), date.today()
+            )
             options = await polygon.get_options_snapshot(ticker)
             return bars, options
 

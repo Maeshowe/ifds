@@ -5,7 +5,7 @@
 
 ---
 
-## 🔴 1. EGY DÖNTÉS KELL, HÉTFŐ 14:30 CET ELŐTT
+## ✅ 1. A HÉTFŐI DÖNTÉS MEGSZÜLETETT ÉS VÉGREHAJTVA
 
 **A DST-rés hete a Phase 4-6 futást a nyitó csengőre teszi.** Saját mérés:
 
@@ -26,11 +26,14 @@ hét az ÚJ éra első öt napja — pont az a panel, amire a §4/4 épülne.
 
 | | mit | ár | kockázat |
 |---|---|---|---|
-| **(a) — javaslom** | **Dátum-guard a Phase 4 bar-olvasására**, a `_fetch_spy_return` mintájára (`d == target`, különben a bar kimarad) | ~1 óra + tesztek | **Ma no-op** (08:30 ET-kor nincs részleges bar), csak a rés-héten harap → **nem** írja át visszamenőleg a scoring-érát. A rést zárja, nem az előfordulást. |
-| (b) | Cron egy órával korábbra **csak erre a hétre** (`30 14` → `30 13`), 11-02-én vissza | 1 sor | Kézi visszaállítást igényel 11-02-én — ha elmarad, csendben rossz slot marad |
+✅ **ELDÖNTVE ÉS MEGCSINÁLVA (Tamás, 2026-10-23): az (a).** `ifds/utils/bars.py ::
+drop_open_session`, bekötve **mind a 7** `get_aggregates` hívóhelyre a Phase 4-ben (sync +
+async, SPY + per-ticker) és a Phase 5/MMS-ben. Ordinary pre-market futáson **no-op**, tehát
+a 2026-10-26-os scoring-érát nem írja át visszamenőleg. Visszavezetéssel verifikálva
+(`< run_date` → `<= run_date` esetén 3 teszt bukik), és a suite zöld
+`TZ=Pacific/Kiritimati` és `TZ=Pacific/Midway` alatt is. +12 teszt.
 
-Ha egyik sem fér bele: az öt nap Phase 4 snapshotját **gyanúsnak kell jelölni** a
-STATUS.md-ben, és a scoring-éra határt 11-02-re tolni (ára 5 kereskedési nap).
+**Nincs több hétfői teendő a cronon.**
 
 ---
 
@@ -70,9 +73,7 @@ STATUS.md-ben, és a scoring-éra határt 11-02-re tolni (ára 5 kereskedési na
 4. **ÚJ:** az első opciós snapshotból jegyezd fel az `underlying_asset.timeframe`-et.
    `REAL-TIME` → `DELAYED` váltást kell mutatnia, **`price` kitöltve**. Ez a Stocks-szint
    váltásának közvetlen visszaigazolása, és a hiánya az egyetlen út a `net_gex=0`-hoz.
-5. **Ingyen korai figyelmeztetés:** az `aetherveil` hétfő **23:30**-kor fut, ugyanazon a
-   kulcson és ugyanazon az opciós végponton — 15 órával a keddi ellenőrzés előtt.
-6. A Phase 0 `check_options_health` **`is_critical=True`, 4xx-en nincs retry** → hangos
+5. A Phase 0 `check_options_health` **`is_critical=True`, 4xx-en nincs retry** → hangos
    HALT a logban, de **NEM megy Telegramra**. Grep: `HALT: Critical API(s) down: polygon`.
 
 ### 3.2 A 10-02-es hiányzó nap — gyökérok megvan, a javítás nincs
@@ -100,8 +101,10 @@ Elavult: a **:72-74** az ellenkezőjét állítja a kódnak (VIX-fallback irány
 a 2026-02-12-i Options upgrade-et „Kihasználatlan"-ként sorolja. Teljes korrigált tartalom
 az előző session workflow-kimenetében:
 `/private/tmp/claude-501/-Users-safrtam-SSH-Services-ifds/1aa57cf8-adc7-4b64-b9da-085fd2b36d0a/tasks/w9o2zvitr.output`
-(`api-stack-doc` lencse). Kérés: tegyen bele egy **„consumers on this key"** szekciót —
-`ifds` / `aetherveil` / `moneyflows` / `signum` **ugyanazt a Massive-kulcsot használja**.
+(`api-stack-doc` lencse). Kérés: tegyen bele egy **„consumers on this key"** szekciót. ⚠️ Az előző session
+workflow-ja négy fogyasztót sorolt (`ifds` / `aetherveil` / `moneyflows` / `signum`) —
+**az `aetherveil` már nem létező projekt** (Tamás, 2026-10-23), tehát a listából kiveendő,
+és a hozzá tartozó „ingyen korai figyelmeztetés" sem áll.
 
 ### 3.4 §4/3-4 — a pre-reg és a bar-alapú panel (jóváhagyva)
 
